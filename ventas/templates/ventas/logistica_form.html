@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Editar Logística{% endblock %}
+
+{% block content %}
+    <h1 class="mb-4">⚙️ Gestión de Servicios de Logística</h1>
+
+    <div class="card p-4 shadow-sm mb-4">
+        <p class="h4">Venta #{{ venta.id }} - Cliente: {{ venta.cliente.nombre_completo_display }}</p>
+        <p><strong>Fecha de Viaje:</strong> {{ venta.fecha_inicio_viaje|date:"d M Y" }}</p>
+        <p><strong>Costo Venta Final:</strong> ${{ venta.costo_venta_final|floatformat:2|intcomma }}</p>
+    </div>
+
+    <form method="post" class="card p-4 shadow-sm">
+        {% csrf_token %}
+        
+        {% for field in form %}
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="{{ field.id_for_label }}" name="{{ field.name }}" 
+                       {% if field.value %}checked{% endif %}>
+                <label class="form-check-label" for="{{ field.id_for_label }}">
+                    <strong>{{ field.label }}</strong>
+                </label>
+            </div>
+        {% endfor %}
+
+        <div class="mt-4">
+            <button type="submit" class="btn btn-success me-2">
+                Guardar Actualización
+            </button>
+            <a href="{% url 'logistica_pendientes' %}" class="btn btn-secondary">Cancelar y Volver</a>
+        </div>
+    </form>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}
+    {% if cliente %}Editar Cliente: {{ cliente.nombre_completo_display }}{% else %}Registrar Nuevo Cliente{% endif %}
+{% endblock %}
+
+{% block content %}
+    
+    <div class="row justify-content-center">
+        <div class="col-lg-8 col-xl-7">
+            <div class="card shadow-lg mt-4">
+                
+                <div class="card-header bg-primary text-white text-center rounded-top py-3">
+                    <h1 class="mb-0 h4">
+                        {% if cliente %}
+                            <i class="fas fa-user-edit"></i> Editando Cliente ID: {{ cliente.pk }}
+                        {% else %}
+                            <i class="fas fa-user-plus"></i> Registrar Nuevo Cliente
+                        {% endif %}
+                    </h1>
+                </div>
+                
+                <div class="card-body p-4">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        {# Uso de crispy_forms_tags para renderizado automático y elegante #}
+                        {{ form|crispy }}
+                        
+                        <hr>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{% if cliente %}{% url 'detalle_cliente' pk=cliente.pk %}{% else %}{% url 'lista_clientes' %}{% endif %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left"></i> Cancelar
+                            </a>
+                            
+                            <button type="submit" class="btn btn-success btn-lg">
+                                {% if cliente %}
+                                    <i class="fas fa-save"></i> Guardar Cambios
+                                {% else %}
+                                    <i class="fas fa-check-circle"></i> Crear Cliente
+                                {% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                {% if cliente %}
+                    <div class="card-footer text-muted text-center">
+                        <small>Última actualización: {{ cliente.fecha_actualizacion|date:"d M Y, H:i" }}</small>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" 
+          crossorigin="anonymous" referrerpolicy="no-referrer" />
+{% endblock %}

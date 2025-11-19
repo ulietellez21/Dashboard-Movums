@@ -1,0 +1,68 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Comprobante de Abonos - Venta #{{ venta.pk }}</title>
+    <style>
+        body { font-family: sans-serif; font-size: 10pt; }
+        header { text-align: center; border-bottom: 2px solid #004c99; padding-bottom: 10px; margin-bottom: 20px;}
+        h1 { color: #004c99; font-size: 18pt; margin: 0; }
+        h3 { color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 25px;}
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        tfoot td { background-color: #f2f2f2; font-weight: bold; }
+        .total-pendiente { color: red; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Movums The Travel Store</h1>
+        <h2>Comprobante de Abonos</h2>
+    </header>
+
+    <section>
+        <p><strong>Número de Venta:</strong> #{{ venta.pk }}</p>
+        <p><strong>Cliente:</strong> {{ venta.cliente.nombre_completo_display }}</p> 
+        <p><strong>Fecha de Viaje:</strong> {{ venta.fecha_inicio_viaje|date:"d/m/Y" }}</p>
+        <p><strong>Vendedor:</strong> {{ venta.vendedor.username }}</p>
+    </section>
+
+    <section>
+        <h3>Resumen Financiero</h3>
+        <p><strong>Costo Total del Viaje:</strong> ${{ venta.costo_venta_final|floatformat:2|intcomma }}</p>
+        <p><strong>Total Abonado hasta la fecha:</strong> ${{ venta.total_pagado|floatformat:2|intcomma }}</p>
+        <p><strong>Saldo Pendiente:</strong> <span class="total-pendiente">${{ venta.saldo_restante|floatformat:2|intcomma }}</span></p>
+    </section>
+
+    <section>
+        <h3>Detalle de Pagos Realizados</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID Abono</th>
+                    <th>Fecha de Pago</th>
+                    <th>Monto Abonado</th>
+                    <th>Método de Pago</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for abono in venta.abonos.all %}
+                <tr>
+                    <td>{{ abono.pk }}</td>
+                    <td>{{ abono.fecha_pago|date:"d/m/Y H:i" }}</td>
+                    {# 🚨 AJUSTE 2: Se usa 'abono.monto' en lugar de 'abono.monto_abonado' (asumiendo el nombre del campo del modelo AbonoPago) #}
+                    <td>${{ abono.monto|floatformat:2|intcomma }}</td>
+                    <td>{{ abono.metodo_pago }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <footer style="position: fixed; bottom: 0; width: 100%;">
+        <p>Documento generado por el sistema Movums el {{ now|date:"d/m/Y H:i" }}</p>
+    </footer>
+
+</body>
+</html>

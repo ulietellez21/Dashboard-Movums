@@ -1,0 +1,177 @@
+{% load l10n %}
+{% load static %}
+{% load humanize %}
+<!-- 
+    Esta plantilla se utiliza para renderizar el contrato de servicios turísticos
+    en formato PDF mediante WeasyPrint.
+    
+    Variables disponibles:
+    - venta: Objeto VentaViaje
+    - cliente: Objeto Cliente
+    - fecha_generacion: Fecha actual formateada
+    - cliente_direccion_completa: Dirección del cliente
+    - monto_apertura_texto: Monto de apertura en texto
+    - saldo_pendiente: Saldo pendiente (costo total - monto apertura)
+    - saldo_pendiente_texto: Saldo pendiente en texto
+-->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contrato de Servicios Turísticos - Venta #{{ venta.id }}</title>
+    <style>
+        /* Configuración de página para PDF (WeasyPrint) */
+        @page {
+            size: A4;
+            margin: 2.5cm 2.5cm 2.5cm 2.5cm;
+        }
+        body {
+            font-family: 'Arial', sans-serif;
+            font-size: 11pt;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 100%;
+            padding: 0;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #004a8e;
+            padding-bottom: 15px;
+        }
+        .header-logo {
+            width: 150px;
+            height: auto;
+        }
+        .header-right {
+            text-align: right;
+            flex: 1;
+        }
+        .header-title {
+            font-size: 16pt;
+            font-weight: bold;
+            color: #004a8e;
+            margin-bottom: 5px;
+        }
+        .header-date {
+            font-size: 10pt;
+            color: #666;
+        }
+        .recibo-title {
+            font-size: 14pt;
+            font-weight: bold;
+            text-align: center;
+            margin: 30px 0 20px 0;
+            color: #004a8e;
+        }
+        .recibo-content {
+            text-align: justify;
+            line-height: 2;
+            font-size: 11pt;
+        }
+        .recibo-content p {
+            margin: 10px 0;
+        }
+        .monto-destacado {
+            font-weight: bold;
+            font-size: 12pt;
+        }
+        .line-break {
+            margin: 15px 0;
+        }
+        .info-line {
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- Header con Logo y Título -->
+    <div class="header">
+        <div class="header-logo">
+            <img src="{% static 'img/logo_mini.png' %}" alt="Logo" class="header-logo" />
+        </div>
+        <div class="header-right">
+            <div class="header-title">CONTRATO SERVICIOS TURISTICOS</div>
+            <div class="header-date">{{ fecha_generacion }}</div>
+        </div>
+    </div>
+
+    <!-- Cuerpo del Recibo -->
+    <div class="recibo-content">
+        <div class="recibo-title">RECIBO DE DINERO</div>
+        
+        <p>
+            Movums The Travel Store, con domicilio en Plaza Mora, Juárez Sur 321 Local 18 CP. 56100 Texcoco Estado de México, recibo de: <strong>{{ cliente.nombre_completo_display }}</strong> la cantidad de:
+        </p>
+        
+        <div class="line-break"></div>
+        
+        <p class="monto-destacado">
+            ${{ venta.cantidad_apertura|floatformat:2|intcomma }} ({{ monto_apertura_texto }})
+        </p>
+        
+        <p>por concepto de:</p>
+        
+        <div class="line-break"></div>
+        <div class="line-break"></div>
+        <div class="line-break"></div>
+        <div class="line-break"></div>
+        <div class="line-break"></div>
+        
+        <div class="info-line">
+            <strong>FECHA DE IDA:</strong> {{ venta.fecha_inicio_viaje|date:"j \d\e F \d\e Y" }}
+        </div>
+        
+        <div class="line-break"></div>
+        
+        {% if venta.fecha_fin_viaje %}
+        <div class="info-line">
+            <strong>FECHA DE REGRESO:</strong> {{ venta.fecha_fin_viaje|date:"j \d\e F \d\e Y" }}
+        </div>
+        {% else %}
+        <div class="info-line">
+            <strong>FECHA DE REGRESO:</strong> No especificada
+        </div>
+        {% endif %}
+        
+        <div class="line-break"></div>
+        
+        <div class="info-line">
+            <strong>PASAJEROS:</strong>
+            {% if venta.pasajeros %}
+                {{ venta.pasajeros|linebreaksbr }}
+            {% else %}
+                No especificado
+            {% endif %}
+        </div>
+        
+        <div class="line-break"></div>
+        
+        <div class="info-line">
+            <strong>SERVICIOS INCLUIDOS:</strong>
+            {% if venta.servicios_seleccionados %}
+                {{ venta.servicios_seleccionados_display|default:venta.servicios_seleccionados }}
+            {% else %}
+                No especificado
+            {% endif %}
+        </div>
+        
+        <div class="line-break"></div>
+        <div class="line-break"></div>
+        <div class="line-break"></div>
+        
+        <p>
+            Con un costo total de <strong>${{ venta.costo_venta_final|floatformat:2|intcomma }}</strong>. Restando la cantidad de <strong>${{ saldo_pendiente|floatformat:2|intcomma }}</strong> el cual deberá estar cubierto a más tardar el día <strong>{% if venta.fecha_vencimiento_pago %}{{ venta.fecha_vencimiento_pago|date:"j \d\e F \d\e Y" }}{% else %}No especificada{% endif %}</strong>.
+        </p>
+    </div>
+</div>
+</body>
+</html>

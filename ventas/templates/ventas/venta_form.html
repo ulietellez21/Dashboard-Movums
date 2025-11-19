@@ -1,0 +1,412 @@
+{% extends "base.html" %}
+{% load widget_tweaks %} 
+
+{% block title %}
+    {% if object %}Editar Venta #{{ object.pk }}{% else %}Crear Nueva Venta{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 offset-md-1">
+        
+        <h1 class="mb-4 text-primary fw-bold">
+            {% if object %}
+                <i class="fas fa-edit"></i> Editar Venta de Viaje #{{ object.pk }}
+            {% else %}
+                <i class="fas fa-plane-departure"></i> Registrar Nueva Venta de Viaje
+            {% endif %}
+        </h1>
+        
+        {# Mensajes de Django #}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <div class="card p-4 shadow-lg mb-4 border-0 rounded-3">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                {# ------------------- Sección 1: Cliente e Información General ------------------- #}
+                <h4 class="mb-3 text-secondary border-bottom pb-2">1. Datos del Cliente y Contrato</h4>
+
+                <div class="row">
+                    {# Cliente Asociado #}
+                    <div class="col-md-4 mb-3">
+                        <label for="{{ form.cliente.id_for_label }}" class="form-label fw-bold text-secondary">
+                            {{ form.cliente.label }}<span class="text-danger">*</span>
+                        </label>
+                        {{ form.cliente|add_class:"form-select select2" }}
+                        <div class="form-text text-muted">{{ form.cliente.help_text }}</div>
+                        {% for error in form.cliente.errors %}
+                            <div class="invalid-feedback d-block"><i class="fas fa-exclamation-circle me-1"></i> {{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    {# Tipo de Viaje (Plantilla de Contrato) #}
+                    <div class="col-md-4 mb-3">
+                        <label for="{{ form.tipo_viaje.id_for_label }}" class="form-label fw-bold text-secondary">
+                            {{ form.tipo_viaje.label }}<span class="text-danger">*</span>
+                        </label>
+                        {{ form.tipo_viaje|add_class:"form-select" }}
+                        {% for error in form.tipo_viaje.errors %}
+                            <div class="invalid-feedback d-block"><i class="fas fa-exclamation-circle me-1"></i> {{ error }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                {# Pasajeros (Campo nuevo - Textarea) #}
+                <div class="mb-4">
+                    <label for="{{ form.pasajeros.id_for_label }}" class="form-label fw-bold text-secondary">
+                        {{ form.pasajeros.label }}
+                    </label>
+                    {{ form.pasajeros|add_class:"form-control" }}
+                    {% if form.pasajeros.help_text %}
+                        <div class="form-text text-muted">{{ form.pasajeros.help_text }}</div>
+                    {% endif %}
+                    {% for error in form.pasajeros.errors %}
+                        <div class="invalid-feedback d-block"><i class="fas fa-exclamation-circle me-1"></i> {{ error }}</div>
+                    {% endfor %}
+                </div>
+
+                {# ------------------- Sección 2: Servicios Incluidos ------------------- #}
+                <h4 class="mb-3 mt-4 text-secondary border-bottom pb-2">2. Servicios Contratados</h4>
+                
+                {# Selector de Servicios con Checkboxes Colapsable #}
+                <div class="mb-4">
+                    <div class="card border-secondary">
+                        <div class="card-header bg-light p-2" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#serviciosCollapse" aria-expanded="false" aria-controls="serviciosCollapse">
+                            <div class="d-flex align-items-center">
+                                <span class="fw-bold text-secondary">
+                                    <i class="fas fa-chevron-down me-2" id="serviciosIcon"></i>
+                                    {{ form.servicios_seleccionados.label }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="collapse" id="serviciosCollapse">
+                            <div class="card-body">
+                                <div class="row g-3" id="serviciosCheckboxes">
+                                    {% for checkbox in form.servicios_seleccionados %}
+                                        <div class="col-md-6 col-lg-4">
+                                            <div class="form-check">
+                                                {{ checkbox.tag }}
+                                                <label class="form-check-label" for="{{ checkbox.id_for_label }}">
+                                                    {{ checkbox.choice_label }}
+                                                </label>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                <div class="form-text text-muted mt-2">{{ form.servicios_seleccionados.help_text }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    {% for error in form.servicios_seleccionados.errors %}
+                        <div class="invalid-feedback d-block mt-2"><i class="fas fa-exclamation-circle me-1"></i> {{ error }}</div>
+                    {% endfor %}
+                </div>
+
+                {# ------------------- Sección 2.1: Proveedores por Servicio ------------------- #}
+                <div class="mb-4" id="proveedoresSection" style="display: none;">
+                    <h5 class="mb-3 text-secondary"><i class="fas fa-handshake me-2"></i>Proveedores por Servicio</h5>
+                    <div class="card border-info">
+                        <div class="card-body">
+                            <div class="row g-3" id="proveedoresContainer">
+                                {# Campos de proveedor - Renderizados manualmente según tipo #}
+                                {% for field_name, field in form.fields.items %}
+                                    {% if "proveedor_" in field_name %}
+                                        {# Extraer el nombre del servicio del label (ej: "Proveedor de Vuelo" -> "Vuelo") #}
+                                        {% with servicio_nombre=field.label|slice:"12:"|striptags %}
+                                        <div class="col-md-6 proveedor-field" 
+                                             data-servicio="{{ servicio_nombre|striptags }}"
+                                             data-field-name="{{ field_name }}"
+                                             style="display: none;">
+                                            <label for="id_{{ field_name }}" class="form-label fw-bold text-secondary">
+                                                {{ field.label }}
+                                            </label>
+                                            {# Renderizar según el tipo de campo #}
+                                            {% if "proveedor-select" in field.widget.attrs.class %}
+                                                {# Campo de selección (dropdown) para Vuelo, Hospedaje, Tour #}
+                                                <select name="{{ field_name }}" id="id_{{ field_name }}" class="form-select">
+                                                    <option value="">Selecciona un proveedor</option>
+                                                    {% for proveedor in field.queryset %}
+                                                        <option value="{{ proveedor.pk }}">
+                                                            {{ proveedor.nombre }}
+                                                        </option>
+                                                    {% endfor %}
+                                                </select>
+                                            {% else %}
+                                                {# Campo de texto para otros servicios #}
+                                                <input type="text" 
+                                                       name="{{ field_name }}" 
+                                                       id="id_{{ field_name }}" 
+                                                       class="form-control" 
+                                                       placeholder="{{ field.widget.attrs.placeholder|default:'' }}">
+                                            {% endif %}
+                                            {# Mostrar errores si existen #}
+                                            {% if form.errors %}
+                                                {% for error_key, error_list in form.errors.items %}
+                                                    {% if error_key == field_name %}
+                                                        {% for error in error_list %}
+                                                            <div class="invalid-feedback d-block"><i class="fas fa-exclamation-circle me-1"></i> {{ error }}</div>
+                                                        {% endfor %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endif %}
+                                        </div>
+                                        {% endwith %}
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {# ------------------- Sección 3: Fechas y Finanzas ------------------- #}
+                <h4 class="mb-3 mt-4 text-secondary border-bottom pb-2">3. Fechas y Financiero</h4>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        {# Fecha Inicio Viaje #}
+                        <label for="{{ form.fecha_inicio_viaje.id_for_label }}" class="form-label fw-bold text-secondary">{{ form.fecha_inicio_viaje.label }}<span class="text-danger">*</span></label>
+                        {{ form.fecha_inicio_viaje|add_class:"form-control" }}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        {# Fecha Fin Viaje #}
+                        <label for="{{ form.fecha_fin_viaje.id_for_label }}" class="form-label fw-bold text-secondary">{{ form.fecha_fin_viaje.label }}</label>
+                        {{ form.fecha_fin_viaje|add_class:"form-control" }}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        {# Fecha Vencimiento Pago #}
+                        <label for="{{ form.fecha_vencimiento_pago.id_for_label }}" class="form-label fw-bold text-secondary">{{ form.fecha_vencimiento_pago.label }}</label>
+                        {{ form.fecha_vencimiento_pago|add_class:"form-control" }}
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        {# Costo Venta Final (Precio Cliente) #}
+                        <label for="{{ form.costo_venta_final.id_for_label }}" class="form-label fw-bold text-secondary">{{ form.costo_venta_final.label }}<span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            {{ form.costo_venta_final|add_class:"form-control" }}
+                        </div>
+                        <div class="form-text text-muted">{{ form.costo_venta_final.help_text }}</div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        {# Cantidad de Apertura/Anticipo #}
+                        <label for="{{ form.cantidad_apertura.id_for_label }}" class="form-label fw-bold text-secondary">{{ form.cantidad_apertura.label }}</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            {{ form.cantidad_apertura|add_class:"form-control" }}
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        {# Costo Neto (Costo Agencia) #}
+                        <label for="{{ form.costo_neto.id_for_label }}" class="form-label fw-bold text-secondary">{{ form.costo_neto.label }}<span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            {{ form.costo_neto|add_class:"form-control" }}
+                        </div>
+                        <div class="form-text text-muted">{{ form.costo_neto.help_text }}</div>
+                    </div>
+                </div>
+
+                {# ------------------- Sección 4: Documentos (Campo File) ------------------- #}
+                <h4 class="mb-3 mt-4 text-secondary border-bottom pb-2">4. Archivos Adjuntos</h4>
+
+                <div class="mb-3">
+                    <label for="{{ form.documentos_cliente.id_for_label }}" class="form-label fw-bold text-secondary">
+                        {{ form.documentos_cliente.label }}
+                    </label>
+                    {# El widget ya es ClearableFileInput y tiene la clase form-control desde forms.py #}
+                    {{ form.documentos_cliente }} 
+                    <div class="form-text text-muted">{{ form.documentos_cliente.help_text }}</div>
+                    {% for error in form.documentos_cliente.errors %}
+                        <div class="invalid-feedback d-block"><i class="fas fa-exclamation-circle me-1"></i> {{ error }}</div>
+                    {% endfor %}
+                </div>
+                
+
+                <hr class="my-4">
+
+                <div class="d-flex justify-content-between mt-4">
+                    <a href="{% url 'lista_ventas' %}" class="btn btn-outline-secondary px-4">
+                        <i class="fas fa-arrow-left me-2"></i> Cancelar
+                    </a>
+                    <button type="submit" class="btn btn-success px-4 shadow-sm">
+                        <i class="fas fa-save me-2"></i> 
+                        {% if object %}Actualizar Venta{% else %}Guardar Venta{% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" 
+          xintegrity="sha512-SnH5WK+bZxgPHs44uWIX+LLMD/cd2jBDEXk4B7Hw22Z5+gD5b7t9R1B1xR1wM8t7j07JtMv0jXw4W5r3v5sXw==" 
+          crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
+    {# Carga de Select2 para mejorar la interfaz de selección de cliente y servicios #}
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+{% endblock %}
+
+{% block extra_js %}
+    {# Cargar jQuery antes de Select2 #}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Inicializar Select2 para el campo Cliente
+            $('#id_cliente').select2({
+                placeholder: "Selecciona un cliente",
+                allowClear: true
+            });
+
+
+            // Rotar el ícono cuando se expande/contrae el collapse
+            const serviciosCollapse = document.getElementById('serviciosCollapse');
+            const serviciosIcon = document.getElementById('serviciosIcon');
+            
+            if (serviciosCollapse && serviciosIcon) {
+                serviciosCollapse.addEventListener('show.bs.collapse', function() {
+                    serviciosIcon.classList.remove('fa-chevron-down');
+                    serviciosIcon.classList.add('fa-chevron-up');
+                });
+                
+                serviciosCollapse.addEventListener('hide.bs.collapse', function() {
+                    serviciosIcon.classList.remove('fa-chevron-up');
+                    serviciosIcon.classList.add('fa-chevron-down');
+                });
+            }
+
+            // Función para actualizar la visibilidad de los campos de proveedor
+            function actualizarProveedores() {
+                const checkboxes = document.querySelectorAll('input[name="servicios_seleccionados"]:checked');
+                const proveedoresSection = document.getElementById('proveedoresSection');
+                const proveedorFields = document.querySelectorAll('.proveedor-field');
+                
+                // Obtener servicios seleccionados (los valores de los checkboxes)
+                const serviciosSeleccionados = Array.from(checkboxes).map(cb => cb.value);
+                
+                console.log('Servicios seleccionados:', serviciosSeleccionados);
+                console.log('Campos de proveedor encontrados:', proveedorFields.length);
+                
+                // Mapeo de nombres de servicio a nombres de campo
+                const servicioToFieldMap = {
+                    'Vuelo': 'proveedor_vuelo',
+                    'Hospedaje': 'proveedor_hospedaje',
+                    'Tour': 'proveedor_tour',
+                    'Traslado': 'proveedor_traslado',
+                    'Circuito Int': 'proveedor_circuito_int',
+                    'Renta Auto': 'proveedor_renta_auto',
+                    'Paquete Todo Incluido': 'proveedor_paquete_todo_incluido',
+                    'Crucero': 'proveedor_crucero',
+                    'Seguro de Viaje': 'proveedor_seguro_de_viaje',
+                    'Trámite de Visa': 'proveedor_trámite_de_visa',
+                    'Trámite de Pasaporte': 'proveedor_trámite_de_pasaporte'
+                };
+                
+                // Ocultar todos los campos de proveedor primero
+                proveedorFields.forEach(field => {
+                    field.style.display = 'none';
+                });
+                
+                // Mostrar campos de proveedor para servicios seleccionados
+                let hayProveedores = false;
+                serviciosSeleccionados.forEach(servicioNombre => {
+                    // Intentar buscar por atributo data-servicio (con y sin espacios)
+                    let field = document.querySelector(`.proveedor-field[data-servicio="${servicioNombre}"]`);
+                    
+                    // Si no se encuentra, buscar con espacio al inicio
+                    if (!field) {
+                        field = document.querySelector(`.proveedor-field[data-servicio=" ${servicioNombre}"]`);
+                    }
+                    
+                    // Si no se encuentra, buscar todos los campos y comparar con trim
+                    if (!field) {
+                        const allFields = document.querySelectorAll('.proveedor-field');
+                        allFields.forEach(f => {
+                            const dataServicio = f.getAttribute('data-servicio');
+                            if (dataServicio && dataServicio.trim() === servicioNombre) {
+                                field = f;
+                            }
+                        });
+                    }
+                    
+                    // Si no se encuentra, intentar buscar por nombre de campo
+                    if (!field && servicioToFieldMap[servicioNombre]) {
+                        field = document.querySelector(`.proveedor-field[data-field-name="${servicioToFieldMap[servicioNombre]}"]`);
+                    }
+                    
+                    console.log(`Buscando campo para servicio: ${servicioNombre}`, field);
+                    if (field) {
+                        // Limpiar espacios en blanco del data-servicio si existe
+                        const dataServicio = field.getAttribute('data-servicio');
+                        if (dataServicio && dataServicio.trim() !== dataServicio) {
+                            field.setAttribute('data-servicio', dataServicio.trim());
+                        }
+                        
+                        // Forzar la visualización del campo
+                        field.style.display = 'block';
+                        field.style.visibility = 'visible';
+                        field.style.opacity = '1';
+                        field.style.position = 'relative';
+                        field.style.zIndex = '1';
+                        field.removeAttribute('hidden');
+                        hayProveedores = true;
+                        console.log(`Campo mostrado para: ${servicioNombre}`, field);
+                        console.log(`Estilo del campo:`, field.style.cssText);
+                        console.log(`Data-servicio:`, field.getAttribute('data-servicio'));
+                    } else {
+                        console.warn(`No se encontró campo para servicio: ${servicioNombre}`);
+                        // Intentar buscar todos los campos disponibles para debug
+                        const allFields = document.querySelectorAll('.proveedor-field');
+                        console.log('Todos los campos de proveedor:', allFields);
+                        allFields.forEach(f => {
+                            console.log(`Campo: ${f.getAttribute('data-field-name')}, servicio: ${f.getAttribute('data-servicio')}`);
+                        });
+                    }
+                });
+                
+                // Mostrar/ocultar la sección completa de proveedores
+                if (hayProveedores && proveedoresSection) {
+                    proveedoresSection.style.display = 'block';
+                    proveedoresSection.style.visibility = 'visible';
+                    proveedoresSection.style.opacity = '1';
+                    proveedoresSection.style.position = 'relative';
+                    proveedoresSection.removeAttribute('hidden');
+                    console.log('Sección de proveedores mostrada', proveedoresSection);
+                    console.log('Estilo de la sección:', proveedoresSection.style.cssText);
+                    console.log('Altura de la sección:', proveedoresSection.offsetHeight);
+                    console.log('Ancho de la sección:', proveedoresSection.offsetWidth);
+                } else if (proveedoresSection) {
+                    proveedoresSection.style.display = 'none';
+                    console.log('Sección de proveedores oculta');
+                }
+            }
+            
+            // Agregar event listeners a los checkboxes de servicios
+            const servicioCheckboxes = document.querySelectorAll('input[name="servicios_seleccionados"]');
+            console.log('Checkboxes de servicios encontrados:', servicioCheckboxes.length);
+            servicioCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    console.log('Checkbox cambiado:', this.value, this.checked);
+                    actualizarProveedores();
+                });
+            });
+            
+            // Ejecutar al cargar la página para mostrar proveedores si hay servicios pre-seleccionados
+            setTimeout(function() {
+                actualizarProveedores();
+            }, 100);
+        });
+    </script>
+{% endblock %}

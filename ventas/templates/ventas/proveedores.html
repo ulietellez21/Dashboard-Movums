@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}Proveedores | Movums The Travel Store{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center align-items-start gap-3 mb-4">
+    <div>
+        <h1 class="fw-bold mb-1">Proveedores</h1>
+        <p class="text-muted mb-0">Gestiona a tus socios comerciales y organiza a los proveedores por el tipo de servicio que ofrecen.</p>
+    </div>
+    <button class="btn btn-primary btn-lg shadow-sm" data-bs-toggle="modal" data-bs-target="#modalProveedor">
+        <i class="fas fa-plus-circle me-2"></i>Agregar proveedor
+    </button>
+</div>
+
+{% if form.non_field_errors %}
+    <div class="alert alert-danger">
+        {% for error in form.non_field_errors %}
+            <div>{{ error }}</div>
+        {% endfor %}
+    </div>
+{% endif %}
+
+{% if total_proveedores == 0 %}
+    <div class="alert alert-info shadow-sm border-0 rounded-4">
+        <i class="fas fa-info-circle me-2"></i>
+        Aún no hay proveedores registrados. ¡Agrega el primero para comenzar a colaborar!
+    </div>
+{% endif %}
+
+<div class="card shadow-sm border-0 rounded-4">
+    <div class="card-body p-4">
+        {% for grupo in grupos_proveedores %}
+            <div class="mb-5">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="d-flex align-items-center gap-2">
+                        {% if grupo.clave == 'VUELOS' %}
+                            <span class="badge rounded-circle bg-primary-subtle text-primary p-3"><i class="fas fa-plane-departure"></i></span>
+                        {% elif grupo.clave == 'HOTELES' %}
+                            <span class="badge rounded-circle bg-success-subtle text-success p-3"><i class="fas fa-hotel"></i></span>
+                        {% elif grupo.clave == 'TOURS' %}
+                            <span class="badge rounded-circle bg-warning-subtle text-warning p-3"><i class="fas fa-route"></i></span>
+                        {% else %}
+                            <span class="badge rounded-circle bg-info-subtle text-info p-3"><i class="fas fa-layer-group"></i></span>
+                        {% endif %}
+                        <div>
+                            <h4 class="fw-bold mb-0">{{ grupo.label }}</h4>
+                            <small class="text-muted">Listado de proveedores especializados en {{ grupo.label|lower }}.</small>
+                        </div>
+                    </div>
+                    <span class="badge bg-secondary-subtle text-secondary fs-6 px-3 py-2">
+                        {{ grupo.proveedores|length }} proveedor{% if grupo.proveedores|length != 1 %}es{% endif %}
+                    </span>
+                </div>
+                {% if grupo.proveedores %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col">Proveedor</th>
+                                    <th scope="col">Teléfono</th>
+                                    <th scope="col">Ejecutivo</th>
+                                    <th scope="col">Link</th>
+                                    <th scope="col">Factura</th>
+                                    <th scope="col">Actualizado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for proveedor in grupo.proveedores %}
+                                    <tr>
+                                        <td class="fw-semibold">{{ proveedor.nombre }}</td>
+                                        <td>{{ proveedor.telefono|default:"—" }}</td>
+                                        <td>{{ proveedor.ejecutivo|default:"—" }}</td>
+                                        <td>
+                                            {% if proveedor.link %}
+                                                <a href="{{ proveedor.link }}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">
+                                                    <i class="fas fa-external-link-alt"></i> Abrir
+                                                </a>
+                                            {% else %}
+                                                <span class="text-muted">No disponible</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if proveedor.genera_factura %}
+                                                <span class="badge bg-success-subtle text-success"><i class="fas fa-file-invoice-dollar me-1"></i>Automática</span>
+                                            {% else %}
+                                                <span class="badge bg-warning-subtle text-warning"><i class="fas fa-exclamation-circle me-1"></i>Manual</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {{ proveedor.fecha_actualizacion|date:"d/m/Y" }}
+                                            <small class="text-muted d-block">{{ proveedor.fecha_actualizacion|date:"H:i" }}</small>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-light border rounded-3 mb-0">
+                        <i class="fas fa-clipboard-list me-2"></i>
+                        Todavía no hay proveedores registrados para esta categoría.
+                    </div>
+                {% endif %}
+            </div>
+            {% if not forloop.last %}
+                <hr class="my-4">
+            {% endif %}
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Modal: Agregar/Editar proveedor -->
+<div class="modal fade" id="modalProveedor" tabindex="-1" aria-labelledby="modalProveedorLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold" id="modalProveedorLabel"><i class="fas fa-user-plus me-2"></i>Agregar nuevo proveedor</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" novalidate>
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="id_nombre" class="form-label fw-semibold">Nombre del proveedor</label>
+                            <input type="text" name="nombre" id="id_nombre" class="form-control {% if form.nombre.errors %}is-invalid{% endif %}" value="{{ form.nombre.value|default_if_none:'' }}">
+                            {% if form.nombre.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.nombre.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="id_telefono" class="form-label fw-semibold">Teléfono</label>
+                            <input type="text" name="telefono" id="id_telefono" class="form-control {% if form.telefono.errors %}is-invalid{% endif %}" value="{{ form.telefono.value|default_if_none:'' }}">
+                            {% if form.telefono.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.telefono.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="id_ejecutivo" class="form-label fw-semibold">Ejecutivo</label>
+                            <input type="text" name="ejecutivo" id="id_ejecutivo" class="form-control {% if form.ejecutivo.errors %}is-invalid{% endif %}" value="{{ form.ejecutivo.value|default_if_none:'' }}">
+                            {% if form.ejecutivo.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.ejecutivo.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="id_link" class="form-label fw-semibold">Link</label>
+                            <input type="url" name="link" id="id_link" class="form-control {% if form.link.errors %}is-invalid{% endif %}" value="{{ form.link.value|default_if_none:'' }}">
+                            {% if form.link.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.link.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="id_servicio" class="form-label fw-semibold">Servicio que ofrece</label>
+                            {{ form.servicio }}
+                            {% if form.servicio.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.servicio.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input type="checkbox" name="genera_factura" id="id_genera_factura" class="form-check-input" {% if form.genera_factura.value %}checked{% endif %}>
+                                <label class="form-check-label fw-semibold" for="id_genera_factura">
+                                    Genera factura automáticamente
+                                </label>
+                            </div>
+                            {% if form.genera_factura.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.genera_factura.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                            <small class="text-muted d-block mt-1">Si no genera factura automática se notificará al JEFE cuando se utilice.</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-0">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Guardar proveedor
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}{% endblock %}
+

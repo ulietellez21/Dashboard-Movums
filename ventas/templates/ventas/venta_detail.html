@@ -1,0 +1,615 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% load widget_tweaks %} 
+{% load venta_filters %}  
+
+{% block title %}Venta #{{ venta.id }} | {{ venta.cliente.nombre_completo_display }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        
+        <!-- 1. Encabezado y Botones de Edición: Usamos flex-column en móviles (d-sm-flex) -->
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3">
+            <h1 class="mb-2 mb-md-0">
+                <i class="fas fa-receipt"></i> Detalle de Venta #{{ venta.id }}
+            </h1>
+            <!-- Botones de Edición y Cliente: Usamos d-grid/gap-2 en móviles para apilar los botones si es necesario -->
+            <div class="d-grid d-md-block gap-2">
+                {% if user.perfil.rol in 'JEFE,CONTADOR' or user.id == venta.vendedor.id %}
+                    <a href="{% url 'editar_venta' pk=venta.pk %}" 
+                        class="btn btn-warning shadow-sm">
+                        <i class="fas fa-edit"></i> Editar Datos del Viaje
+                    </a>
+                {% endif %}
+                
+                <a href="{% url 'detalle_cliente' pk=venta.cliente.pk %}" class="btn btn-outline-primary shadow-sm">
+                    <i class="fas fa-user-circle"></i> Ver Cliente
+                </a>
+            </div>
+        </div>
+
+        <!-- 2. Botones de Documentos: Usamos flex-wrap en móviles para envolver los botones -->
+        <div class="d-flex flex-wrap justify-content-start gap-2 mb-4">
+            <!-- Botón de Contrato PDF -->
+            <a href="{% url 'generar_contrato_pdf' slug=venta.slug pk=venta.pk %}" 
+                class="btn btn-danger shadow-sm" target="_blank"
+                title="Genera el contrato de venta como PDF">
+                <i class="fas fa-file-contract me-1"></i> Contrato Venta
+            </a>
+            
+            <!-- Botón de Comprobante de Abonos PDF -->
+            <a href="{% url 'comprobante_abonos_pdf' slug=venta.slug pk=venta.pk %}" 
+                class="btn btn-success shadow-sm" target="_blank"
+                title="Genera el comprobante de todos los abonos realizados">
+                <i class="fas fa-receipt me-1"></i> Comprobante Abonos
+            </a>
+
+            <!-- Botón de Eliminar -->
+            {% if user.perfil.rol in 'JEFE' %}
+                <button type="button" class="btn btn-outline-danger shadow-sm" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal">
+                    <i class="fas fa-trash-alt me-1"></i> Eliminar Venta
+                </button>
+            {% endif %}
+        </div>
+        <!-- Fin de la Fila de Botones de Documentos -->
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+        
+        <!-- 3. Contenedor de Métricas: Aseguramos que los bordes verticales se quiten en móviles -->
+        <div class="card bg-light mb-4 shadow-sm border-primary">
+            <div class="card-body">
+                <div class="row text-center">
+                    <!-- En móviles (col-12), el borde vertical (border-end) se quita usando border-md-end -->
+                    <div class="col-12 col-md-4 border-bottom border-md-end pb-3 pb-md-0"> 
+                        <h6 class="text-muted">Costo Venta Final</h6>
+                        <h2 class="text-success">${{ venta.costo_venta_final|floatformat:2|intcomma }}</h2>
+                    </div>
+                    <!-- Aplicamos border-bottom solo en móviles para separar las tarjetas -->
+                    <div class="col-12 col-md-4 border-bottom border-md-end py-3 py-md-0">
+                        <h6 class="text-muted">Total Pagado</h6>
+                        <h2 class="text-info">${{ venta.total_pagado|floatformat:2|intcomma }}</h2>
+                    </div>
+                    <div class="col-12 col-md-4 pt-3 pt-md-0">
+                        <h6 class="text-muted">Saldo Pendiente</h6>
+                        {% if venta.saldo_restante > 0 %}
+                            <h2 class="text-danger">${{ venta.saldo_restante|floatformat:2|intcomma }}</h2>
+                        {% else %}
+                            <h2 class="text-success"><i class="fas fa-check-circle"></i> Pagado</h2>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <ul class="nav nav-tabs mb-3" id="ventaTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="info-tab" data-bs-toggle="tab" data-bs-target="#info" type="button" role="tab" aria-controls="info" aria-selected="true">
+                    <i class="fas fa-info-circle"></i> Información General
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="abonos-tab" data-bs-toggle="tab" data-bs-target="#abonos" type="button" role="tab" aria-controls="abonos" aria-selected="false">
+                    <i class="fas fa-dollar-sign"></i> Abonos y Pagos
+                </button>
+            </li>
+            {% if user.perfil.rol in 'JEFE,CONTADOR' %}
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="logistica-tab" data-bs-toggle="tab" data-bs-target="#logistica" type="button" role="tab" aria-controls="logistica" aria-selected="false">
+                        <i class="fas fa-shipping-fast"></i> Logística
+                    </button>
+                </li>
+            {% endif %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="confirmaciones-tab" data-bs-toggle="tab" data-bs-target="#confirmaciones" type="button" role="tab" aria-controls="confirmaciones" aria-selected="false">
+                    <i class="fas fa-file-upload"></i> Confirmaciones en la Venta
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="ventaTabsContent">
+            
+            <div class="tab-pane fade show active" id="info" role="tabpanel" aria-labelledby="info-tab">
+                <div class="card mb-4 shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        Datos del Cliente y Viaje
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5><i class="fas fa-user"></i> Cliente</h5>
+                                <p><strong>Nombre:</strong> <a href="{% url 'detalle_cliente' pk=venta.cliente.pk %}">{{ venta.cliente.nombre_completo_display }}</a></p>
+                                <p><strong>Vendedor:</strong> {{ venta.vendedor.username }}</p>
+                                <p><strong>Tipo de Viaje:</strong> {{ venta.get_tipo_viaje_display }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <h5><i class="fas fa-suitcase"></i> Detalles del Viaje</h5>
+                                <p><strong>Servicios:</strong> {{ venta.servicios_seleccionados_display|default:"No especificado" }}</p>
+                                <p><strong>Inicio:</strong> {{ venta.fecha_inicio_viaje|date:"d M Y" }}</p>
+                                <p><strong>Fin:</strong> {{ venta.fecha_fin_viaje|date:"d M Y" }}</p>
+                                <p><strong>Proveedor asignado:</strong> {{ venta.proveedor.nombre|default:"Sin proveedor" }}</p>
+                                <p><strong>Costo Neto (Agencia):</strong> ${{ venta.costo_neto|floatformat:2|intcomma }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="abonos" role="tabpanel" aria-labelledby="abonos-tab">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="card mb-4 shadow-sm border-success">
+                            <div class="card-header bg-success text-white">
+                                Registrar Nuevo Abono
+                            </div>
+                            <div class="card-body">
+                                {% if venta.saldo_restante > 0 %}
+                                    <form method="post">
+                                        {% csrf_token %}
+                                        
+                                        <div class="mb-3">
+                                            <label for="{{ abono_form.monto.id_for_label }}" class="form-label">Monto (Máximo: ${{ venta.saldo_restante|floatformat:2|intcomma }})</label>
+                                            {{ abono_form.monto|add_class:"form-control"|attr:"min:0.01"|attr:"max:"|add_max_attr:venta.saldo_restante }}
+                                            {% for error in abono_form.monto.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                                        </div>
+                                        
+                                        <div class="mb-3">
+                                            <label for="{{ abono_form.forma_pago.id_for_label }}" class="form-label">Forma de Pago</label>
+                                            {{ abono_form.forma_pago|add_class:"form-select" }}
+                                            {% for error in abono_form.forma_pago.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                                        </div>
+
+                                        <button type="submit" name="registrar_abono" class="btn btn-success w-100 mt-3">
+                                            <i class="fas fa-plus-circle"></i> Registrar Pago
+                                        </button>
+                                    </form>
+                                {% else %}
+                                    <div class="alert alert-success text-center">
+                                        <i class="fas fa-check-double"></i> ¡Esta venta está completamente pagada!
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-8">
+                        <div class="card mb-4 shadow-sm">
+                            <div class="card-header">
+                                Historial de Pagos ({{ abonos|length }})
+                            </div>
+                            <div class="card-body">
+                                {% if abonos %}
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-striped">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Fecha</th>
+                                                    <th>Monto</th>
+                                                    <th>Forma</th>
+                                                    <th>Registrado por</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for abono in abonos %}
+                                                <tr>
+                                                    <td>{{ abono.fecha_pago|date:"d/M/y H:i" }}</td>
+                                                    <td>${{ abono.monto|floatformat:2|intcomma }}</td>
+                                                    <td>{{ abono.get_forma_pago_display }}</td>
+                                                    <td>{{ abono.registrado_por.username }}</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted text-center">No se han registrado abonos para esta venta.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% if user.perfil.rol in 'JEFE,CONTADOR' %}
+                <div class="tab-pane fade" id="logistica" role="tabpanel" aria-labelledby="logistica-tab">
+                    <div class="card mb-4 shadow-sm border-info">
+                        <div class="card-header bg-info text-white">
+                            Checklist de Logística
+                        </div>
+                        <div class="card-body">
+                            <form method="post">
+                                {% csrf_token %}
+                                
+                                <div class="row">
+                                    {% for field in logistica_form %}
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check">
+                                                {{ field|add_class:"form-check-input" }}
+                                                <label class="form-check-label {% if field.value %}text-success{% else %}text-danger{% endif %}" for="{{ field.id_for_label }}">
+                                                    <i class="fas {% if field.value %}fa-check-square{% else %}fa-square{% endif %}"></i>
+                                                    {{ field.label }}
+                                                </label>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                <hr>
+                                <button type="submit" name="actualizar_logistica" class="btn btn-info w-100">
+                                    <i class="fas fa-sync-alt"></i> Guardar Cambios de Logística
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
+            <div class="tab-pane fade" id="confirmaciones" role="tabpanel" aria-labelledby="confirmaciones-tab">
+                <div class="row">
+                    <div class="col-lg-4">
+                        <div class="card shadow-sm mb-4 border-secondary">
+                            <div class="card-header bg-secondary text-white">
+                                Subir confirmaciones
+                            </div>
+                            <div class="card-body">
+                                {% if puede_subir_confirmaciones %}
+                                    <form method="post" enctype="multipart/form-data">
+                                        {% csrf_token %}
+                                        <div class="mb-3">
+                                            <label for="{{ confirmacion_form.archivos.id_for_label }}" class="form-label fw-semibold">
+                                                {{ confirmacion_form.archivos.label }}
+                                            </label>
+                                            {{ confirmacion_form.archivos }}
+                                            <div class="form-text text-muted">{{ confirmacion_form.archivos.help_text }}</div>
+                                            {% for error in confirmacion_form.archivos.errors %}
+                                                <div class="text-danger small mt-1">{{ error }}</div>
+                                            {% endfor %}
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="{{ confirmacion_form.nota.id_for_label }}" class="form-label fw-semibold">
+                                                {{ confirmacion_form.nota.label }}
+                                            </label>
+                                            {{ confirmacion_form.nota }}
+                                            {% for error in confirmacion_form.nota.errors %}
+                                                <div class="text-danger small mt-1">{{ error }}</div>
+                                            {% endfor %}
+                                        </div>
+                                        <button type="submit" name="registrar_confirmacion" class="btn btn-secondary w-100">
+                                            <i class="fas fa-upload me-1"></i> Guardar confirmaciones
+                                        </button>
+                                    </form>
+                                {% else %}
+                                    <div class="alert alert-warning">
+                                        No tienes permisos para subir confirmaciones en esta venta.
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-8">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-light">
+                                Archivos cargados
+                            </div>
+                            <div class="card-body">
+                                {% if confirmaciones %}
+                                    <div class="row g-3">
+                                        {% for confirmacion in confirmaciones %}
+                                            <div class="col-md-6 col-lg-4">
+                                                <div class="card h-100 border shadow-sm hover-shadow card-confirmacion">
+                                                    <!-- Preview del archivo -->
+                                                    <div class="position-relative" style="height: 200px; overflow: hidden; background: #f8f9fa;">
+                                                        {% if puede_subir_confirmaciones %}
+                                                            <!-- Botón de eliminar (X) -->
+                                                            <button type="button" 
+                                                                    class="btn btn-danger btn-sm position-absolute top-0 start-0 m-2 rounded-circle btn-eliminar-confirmacion"
+                                                                    style="width: 32px; height: 32px; padding: 0; z-index: 10;"
+                                                                    onclick="confirmarEliminarConfirmacion({{ confirmacion.id }}, '{{ confirmacion.nombre_archivo|escapejs }}')"
+                                                                    title="Eliminar archivo">
+                                                                <i class="fas fa-times"></i>
+                                                            </button>
+                                                        {% endif %}
+                                                        {% if confirmacion.es_imagen %}
+                                                            <img src="{{ confirmacion.archivo.url }}" 
+                                                                 alt="{{ confirmacion.nombre_archivo }}" 
+                                                                 class="img-fluid w-100 h-100 object-fit-cover cursor-pointer"
+                                                                 style="object-fit: cover; cursor: pointer;"
+                                                                 onclick="mostrarImagenModal('{{ confirmacion.archivo.url }}', '{{ confirmacion.nombre_archivo|escapejs }}')">
+                                                            <div class="position-absolute top-0 end-0 m-2">
+                                                                <span class="badge bg-success">
+                                                                    <i class="fas fa-image"></i> Imagen
+                                                                </span>
+                                                            </div>
+                                                        {% elif confirmacion.es_pdf %}
+                                                            <div class="d-flex align-items-center justify-content-center h-100 bg-danger text-white">
+                                                                <div class="text-center p-3">
+                                                                    <i class="fas fa-file-pdf fa-4x mb-2"></i>
+                                                                    <p class="small mb-0 fw-bold">PDF</p>
+                                                                </div>
+                                                            </div>
+                                                            <div class="position-absolute top-0 end-0 m-2">
+                                                                <span class="badge bg-danger">
+                                                                    <i class="fas fa-file-pdf"></i> PDF
+                                                                </span>
+                                                            </div>
+                                                            <div class="position-absolute bottom-0 start-0 end-0 p-2 bg-dark bg-opacity-50">
+                                                                <button class="btn btn-sm btn-light w-100" 
+                                                                        onclick="abrirPDF('{{ confirmacion.archivo.url }}', '{{ confirmacion.nombre_archivo|escapejs }}')">
+                                                                    <i class="fas fa-eye me-1"></i> Ver PDF
+                                                                </button>
+                                                            </div>
+                                                        {% else %}
+                                                            <div class="d-flex align-items-center justify-content-center h-100 bg-secondary text-white">
+                                                                <div class="text-center p-3">
+                                                                    <i class="fas fa-file fa-4x mb-2"></i>
+                                                                    <p class="small mb-0 fw-bold">{{ confirmacion.extension|default:"Archivo" }}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div class="position-absolute top-0 end-0 m-2">
+                                                                <span class="badge bg-secondary">
+                                                                    <i class="fas fa-file"></i> {{ confirmacion.extension|default:"Archivo" }}
+                                                                </span>
+                                                            </div>
+                                                        {% endif %}
+                                                    </div>
+                                                    
+                                                    <!-- Información del archivo -->
+                                                    <div class="card-body">
+                                                        <h6 class="fw-bold mb-2 text-truncate" title="{{ confirmacion.nombre_archivo }}">
+                                                            <i class="fas fa-file-alt me-1 text-secondary"></i>
+                                                            {{ confirmacion.nombre_archivo|truncatechars:30 }}
+                                                        </h6>
+                                                        <p class="small text-muted mb-2">
+                                                            <i class="fas fa-calendar me-1"></i>
+                                                            {{ confirmacion.fecha_subida|date:"d/m/Y H:i" }}
+                                                        </p>
+                                                        {% if confirmacion.subido_por %}
+                                                            <p class="small text-muted mb-2">
+                                                                <i class="fas fa-user me-1"></i>
+                                                                {{ confirmacion.subido_por.get_full_name|default:confirmacion.subido_por.username }}
+                                                            </p>
+                                                        {% endif %}
+                                                        {% if confirmacion.nota %}
+                                                            <p class="small mb-2 text-muted">
+                                                                <i class="fas fa-sticky-note me-1"></i>
+                                                                {{ confirmacion.nota|truncatechars:50 }}
+                                                            </p>
+                                                        {% endif %}
+                                                        <div class="d-grid gap-2">
+                                                            <a href="{{ confirmacion.archivo.url }}" 
+                                                               target="_blank" 
+                                                               class="btn btn-sm btn-outline-primary"
+                                                               download>
+                                                                <i class="fas fa-download me-1"></i> Descargar
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <div class="alert alert-light border text-center">
+                                        <i class="fas fa-info-circle me-2"></i> Aún no se han cargado confirmaciones para esta venta.
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div> 
+    </div>
+</div>
+
+<!-- Modal de Confirmación de Eliminación (opcional, pero buena práctica) -->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="confirmDeleteModalLabel">Confirmar Eliminación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                ¿Estás seguro de que deseas eliminar la Venta #{{ venta.id }} de manera permanente? Esta acción no se puede deshacer.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <a href="{% url 'eliminar_venta' pk=venta.pk %}" class="btn btn-danger">Eliminar Venta</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para previsualizar imágenes en tamaño completo -->
+<div class="modal fade" id="previewImagenModal" tabindex="-1" aria-labelledby="previewImagenModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="previewImagenModalLabel">Vista Previa</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0 text-center bg-dark">
+                <img id="imagenPreview" src="" alt="Vista previa" class="img-fluid" style="max-height: 80vh; width: auto;">
+            </div>
+            <div class="modal-footer">
+                <a id="descargarImagenBtn" href="" download class="btn btn-primary">
+                    <i class="fas fa-download me-1"></i> Descargar
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para previsualizar PDFs -->
+<div class="modal fade" id="previewPDFModal" tabindex="-1" aria-labelledby="previewPDFModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="previewPDFModalLabel">Vista Previa PDF</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0" style="height: 80vh;">
+                <iframe id="pdfPreview" src="" frameborder="0" class="w-100 h-100"></iframe>
+            </div>
+            <div class="modal-footer">
+                <a id="descargarPDFBtn" href="" download class="btn btn-primary">
+                    <i class="fas fa-download me-1"></i> Descargar
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmación para eliminar confirmación -->
+<div class="modal fade" id="confirmarEliminarConfirmacionModal" tabindex="-1" aria-labelledby="confirmarEliminarConfirmacionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="confirmarEliminarConfirmacionModalLabel">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Confirmar Eliminación
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>¿Estás seguro de que deseas eliminar el archivo <strong id="nombreArchivoEliminar"></strong>?</p>
+                <p class="text-muted small mb-0">Esta acción no se puede deshacer. El archivo será eliminado permanentemente.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i> Cancelar
+                </button>
+                <form id="formEliminarConfirmacion" method="post" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash me-1"></i> Sí, Eliminar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" 
+          crossorigin="anonymous" referrerpolicy="no-referrer" />
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Tu código JS para la funcionalidad de pestañas y URL
+    document.addEventListener('DOMContentLoaded', function() {
+        // Al hacer clic en un tab, actualizar la URL para que se mantenga
+        const tabButtons = document.querySelectorAll('button[data-bs-toggle="tab"]');
+        tabButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const tabId = this.id.replace('-tab', '');
+                history.replaceState(null, null, `?tab=${tabId}`);
+            });
+        });
+
+        // Revisar URL para activar la pestaña correcta al cargar
+        const urlParams = new URLSearchParams(window.location.search);
+        const activeTabId = urlParams.get('tab');
+        if (activeTabId) {
+            // Aseguramos que el tab exista (ej: si el usuario no es JEFE/CONTADOR, el tab de logística no existe)
+            const activeTab = document.querySelector(`#${activeTabId}-tab`);
+            if (activeTab) {
+                // Usamos el constructor de Bootstrap para mostrar la pestaña
+                // Se asume que el objeto 'bootstrap' está disponible globalmente.
+                if (typeof bootstrap !== 'undefined' && bootstrap.Tab) {
+                    new bootstrap.Tab(activeTab).show();
+                }
+            }
+        }
+    });
+
+    // Función para mostrar imagen en modal
+    function mostrarImagenModal(url, nombre) {
+        const imagenPreview = document.getElementById('imagenPreview');
+        const descargarBtn = document.getElementById('descargarImagenBtn');
+        const modalLabel = document.getElementById('previewImagenModalLabel');
+        
+        if (imagenPreview && descargarBtn) {
+            imagenPreview.src = url;
+            imagenPreview.alt = nombre;
+            descargarBtn.href = url;
+            descargarBtn.download = nombre;
+            modalLabel.textContent = nombre;
+            
+            // Mostrar el modal
+            const modal = new bootstrap.Modal(document.getElementById('previewImagenModal'));
+            modal.show();
+        }
+    }
+
+    // Función para abrir PDF en modal
+    function abrirPDF(url, nombre) {
+        const pdfPreview = document.getElementById('pdfPreview');
+        const descargarBtn = document.getElementById('descargarPDFBtn');
+        const modalLabel = document.getElementById('previewPDFModalLabel');
+        
+        if (pdfPreview && descargarBtn) {
+            pdfPreview.src = url;
+            descargarBtn.href = url;
+            descargarBtn.download = nombre;
+            modalLabel.textContent = nombre;
+            
+            // Mostrar el modal
+            const modal = new bootstrap.Modal(document.getElementById('previewPDFModal'));
+            modal.show();
+        }
+    }
+
+    // Función para confirmar eliminación de confirmación
+    function confirmarEliminarConfirmacion(confirmacionId, nombreArchivo) {
+        const nombreArchivoEl = document.getElementById('nombreArchivoEliminar');
+        const formEliminar = document.getElementById('formEliminarConfirmacion');
+        
+        if (nombreArchivoEl && formEliminar) {
+            nombreArchivoEl.textContent = nombreArchivo;
+            // Construir la URL usando el patrón de la URL
+            formEliminar.action = `/ventas/confirmaciones/${confirmacionId}/eliminar/`;
+            
+            // Mostrar el modal
+            const modal = new bootstrap.Modal(document.getElementById('confirmarEliminarConfirmacionModal'));
+            modal.show();
+        }
+    }
+</script>
+<style>
+    .hover-shadow {
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .hover-shadow:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    }
+    .object-fit-cover {
+        object-fit: cover;
+    }
+    .cursor-pointer {
+        cursor: pointer;
+    }
+    /* Ocultar botón de eliminar por defecto, mostrarlo en hover */
+    .btn-eliminar-confirmacion {
+        opacity: 0;
+        transition: opacity 0.2s ease-in-out;
+    }
+    .card-confirmacion:hover .btn-eliminar-confirmacion {
+        opacity: 1;
+    }
+</style>
+{% endblock %}

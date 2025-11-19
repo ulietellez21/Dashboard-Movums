@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Alerta Logística{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>
+            <i class="fas fa-shipping-fast text-warning"></i> Logística Pendiente
+        </h1>
+        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Volver al Dashboard
+        </a>
+    </div>
+
+    {# CORRECCIÓN 1: La variable user_rol debe evaluarse por separado #}
+    {% if user_rol != 'JEFE' and user_rol != 'CONTADOR' %}
+        <div class="alert alert-danger" role="alert">
+            <i class="fas fa-lock"></i> Acceso denegado. Esta vista es solo para el personal de Logística/Jefatura.
+        </div>
+    
+    {% else %} 
+        
+        {# Usamos object_list, que es el nombre de contexto canónico de la ListView #}
+        {% with lista_ventas=object_list %}
+            
+            {% if lista_ventas %}
+                <p class="lead">Mostrando **{{ lista_ventas|length }}** viajes con servicios pendientes de confirmación. Las filas están ordenadas por la proximidad de la fecha de viaje.</p>
+                
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover align-middle shadow-sm">
+                        <thead class="table-primary">
+                            <tr>
+                                <th>Prioridad</th> {# 🚨 Columna Añadida #}
+                                <th>ID Venta</th>
+                                <th>Cliente</th>
+                                <th>Fecha Viaje</th>
+                                
+                                <th>Vuelo</th>
+                                <th>Hospedaje</th>
+                                <th>Seguro</th>
+                                <th>Documentos</th>
+                                
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for venta in lista_ventas %}
+                            {# 🚨 IMPLEMENTACIÓN DE ALERTA VISUAL: Cambia el color de la fila según la proximidad 🚨 #}
+                            <tr class="
+                                {% if venta.alerta_proximidad == 'CRITICA' %}table-danger
+                                {% elif venta.alerta_proximidad == 'URGENTE' %}table-warning
+                                {% endif %}
+                            ">
+                                
+                                {# 🚨 Columna de Prioridad #}
+                                <td>
+                                    {% if venta.alerta_proximidad == 'CRITICA' %}
+                                        <span class="badge bg-danger fw-bold">CRÍTICA ({{ venta.dias_restantes.days }} Días)</span>
+                                    {% elif venta.alerta_proximidad == 'URGENTE' %}
+                                        <span class="badge bg-warning text-dark fw-bold">URGENTE ({{ venta.dias_restantes.days }} Días)</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary fw-bold">NORMAL</span>
+                                    {% endif %}
+                                </td>
+                                
+                                <td><a href="{% url 'detalle_venta' slug=venta.slug_safe pk=venta.pk %}">#{{ venta.id }}</a></td>
+                                <td><i class="fas fa-user"></i> {{ venta.cliente.nombre_completo_display }}</td>
+                                
+                                {# 🚨 Columna Fecha Viaje con énfasis en el número de días 🚨 #}
+                                <td>
+                                    <span class="fw-bold">{{ venta.fecha_inicio_viaje|date:"d M Y" }}</span>
+                                </td>
+                                
+                                {% with log=venta.logistica %}
+                                    {# Nota: Asumo que el 'logistica_badge.html' existe y solo necesita el valor booleano #}
+                                    {% include 'ventas/includes/logistica_badge.html' with valor=log.vuelo_confirmado %}
+                                    {% include 'ventas/includes/logistica_badge.html' with valor=log.hospedaje_reservado %}
+                                    {% include 'ventas/includes/logistica_badge.html' with valor=log.seguro_emitido %}
+                                    {% include 'ventas/includes/logistica_badge.html' with valor=log.documentos_enviados %}
+                                {% endwith %}
+
+                                <td>
+                                    <a href="{% url 'detalle_venta' slug=venta.slug_safe pk=venta.pk %}?tab=logistica" class="btn btn-sm btn-info text-white">
+                                        <i class="fas fa-cogs"></i> Gestionar
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+            {% else %}
+                <div class="alert alert-success text-center shadow-sm p-4" role="alert">
+                    <h2><i class="fas fa-check-circle"></i> ¡Felicidades!</h2>
+                    <p class="lead">Todos los servicios de logística para los viajes activos han sido confirmados.</p>
+                    <a href="{% url 'lista_ventas' %}" class="btn btn-primary mt-3">Ver Listado General de Ventas</a>
+                </div>
+            {% endif %}
+        {% endwith %}
+
+    {% endif %}
+{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" 
+          crossorigin="anonymous" referrerpolicy="no-referrer" />
+{% endblock %}

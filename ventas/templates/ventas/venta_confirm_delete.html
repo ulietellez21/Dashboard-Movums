@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Confirmar Eliminación de Venta{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card border-danger shadow-lg">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0"><i class="fas fa-exclamation-triangle"></i> ¡Advertencia de Seguridad!</h4>
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title text-danger">Eliminación Permanente de Venta #{{ object.pk }}</h5>
+                    
+                    <p class="lead">
+                        Estás a punto de eliminar la venta del cliente: 
+                        <strong class="text-primary">{{ object.cliente.nombre_completo_display }}</strong>.
+                    </p>
+                    
+                    <p>
+                        Esta acción <strong>no se puede deshacer</strong>. Se eliminarán todos los registros asociados, incluyendo los abonos. ¿Estás absolutamente seguro de continuar?
+                    </p>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        {# Botón de confirmación #}
+                        <button type="submit" class="btn btn-danger btn-lg w-100 mt-3">
+                            <i class="fas fa-trash-alt"></i> SÍ, ELIMINAR ESTA VENTA PERMANENTEMENTE
+                        </button>
+                        
+                        {# Botón de cancelación #}
+                        <a href="{% url 'lista_ventas' %}" class="btn btn-secondary btn-sm w-100 mt-2">
+                            <i class="fas fa-times-circle"></i> Cancelar y Volver al Listado
+                        </a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" 
+          crossorigin="anonymous" referrerpolicy="no-referrer" />
+{% endblock %}

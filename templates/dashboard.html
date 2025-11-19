@@ -1,0 +1,444 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Dashboard | Movums{% endblock %}
+
+{% block extra_head %}
+    <!-- Incluir Chart.js para gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <!-- Incluir jQuery para funcionalidad de notificaciones -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="fw-bold text-dark mb-0">Dashboard de Gestión</h1>
+        <p class="text-secondary">Resumen ejecutivo del rendimiento y operaciones de Movums.</p>
+    </div>
+</div>
+
+<!-- Sección de Indicadores Clave (KPIs) -->
+<div class="row g-4 mb-5">
+    
+    <!-- Tarjeta 1: Ingresos Totales (Solo Jefes y Contadores) -->
+    {% with user.perfil.rol|default:""|upper as user_full_rol_upper %}
+        {% if "JEFE" in user_full_rol_upper or "CONTADOR" in user_full_rol_upper %}
+        <div class="col-lg-3 col-md-6 col-sm-12">
+            <div class="card shadow-sm border-0 rounded-4 h-100">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-dollar-sign fa-2x" style="color: var(--movums-primary);"></i>
+                        <div class="ms-3">
+                            <h6 class="text-uppercase text-secondary mb-0">Ingresos Totales (MTD)</h6>
+                            <h2 class="fw-bold mb-0">${{ total_ingresos_mtd|floatformat:2|default:"0.00" }}</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Tarjeta 2: Ventas Realizadas -->
+    <div class="col-lg-3 col-md-6 col-sm-12">
+        <div class="card shadow-sm border-0 rounded-4 h-100">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-handshake fa-2x text-success"></i>
+                    <div class="ms-3">
+                        <h6 class="text-uppercase text-secondary mb-0">Ventas Realizadas</h6>
+                        <h2 class="fw-bold mb-0">{{ total_ventas|default:"0" }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tarjeta 3: Clientes Registrados -->
+    {% with user.perfil.rol|default:""|upper as user_full_rol_upper %}
+        {% if "JEFE" in user_full_rol_upper or "VENDEDOR" in user_full_rol_upper %}
+        <div class="col-lg-3 col-md-6 col-sm-12">
+            <div class="card shadow-sm border-0 rounded-4 h-100">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-user-plus fa-2x text-info"></i>
+                        <div class="ms-3">
+                            <h6 class="text-uppercase text-secondary mb-0">Nuevos Clientes (MTD)</h6>
+                            <h2 class="fw-bold mb-0">{{ nuevos_clientes_mtd|default:"0" }}</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Tarjeta 4: Logística Pendiente (Solo Jefes y Contadores) -->
+    {% with user.perfil.rol|default:""|upper as user_full_rol_upper %}
+        {% if "JEFE" in user_full_rol_upper or "CONTADOR" in user_full_rol_upper %}
+        <div class="col-lg-3 col-md-6 col-sm-12">
+            <div class="card shadow-sm border-0 rounded-4 h-100">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-shipping-fast fa-2x text-danger"></i>
+                        <div class="ms-3">
+                            <h6 class="text-uppercase text-secondary mb-0">Envíos Pendientes</h6>
+                            <h2 class="fw-bold mb-0">{{ envios_pendientes|default:"0" }}</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    {% endwith %}
+
+</div>
+
+<!-- Sección de Notificaciones (Solo para JEFE) -->
+{% if user_rol == 'JEFE' and notificaciones %}
+<div class="row g-4 mb-5" id="notificaciones-section">
+    <div class="col-12">
+        <div class="card shadow-sm border-0 rounded-4" id="notificaciones-card">
+            <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="fw-bold mb-0">
+                        <i class="fas fa-bell text-warning me-2"></i>
+                        Notificaciones
+                        {% if notificaciones_count > 0 %}
+                            <span class="badge bg-danger ms-2">{{ notificaciones_count }}</span>
+                        {% endif %}
+                    </h5>
+                    <p class="text-secondary mb-0">Eventos importantes del sistema</p>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for notificacion in notificaciones %}
+                    <div class="list-group-item border-0 border-bottom py-3 px-4 notificacion-item" data-notificacion-id="{{ notificacion.pk }}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center mb-2">
+                                    {% if notificacion.tipo == 'ABONO' %}
+                                        <i class="fas fa-money-bill-wave text-success me-2"></i>
+                                        <span class="badge bg-success me-2">{{ notificacion.get_tipo_display }}</span>
+                                    {% elif notificacion.tipo == 'LIQUIDACION' %}
+                                        <i class="fas fa-check-circle text-primary me-2"></i>
+                                        <span class="badge bg-primary me-2">{{ notificacion.get_tipo_display }}</span>
+                                    {% elif notificacion.tipo == 'APERTURA' %}
+                                        <i class="fas fa-hand-holding-usd text-info me-2"></i>
+                                        <span class="badge bg-info me-2">{{ notificacion.get_tipo_display }}</span>
+                                    {% elif notificacion.tipo == 'LOGISTICA' %}
+                                        <i class="fas fa-shipping-fast text-warning me-2"></i>
+                                        <span class="badge bg-warning text-dark me-2">{{ notificacion.get_tipo_display }}</span>
+                                    {% endif %}
+                                    <small class="text-muted">{{ notificacion.fecha_creacion|date:"d/m/Y H:i" }}</small>
+                                </div>
+                                <p class="mb-0">{{ notificacion.mensaje }}</p>
+                                {% if notificacion.venta %}
+                                    <a href="{% url 'detalle_venta' slug=notificacion.venta.slug_safe pk=notificacion.venta.pk %}" class="btn btn-sm btn-outline-primary mt-2">
+                                        <i class="fas fa-eye"></i> Ver Venta
+                                    </a>
+                                {% endif %}
+                            </div>
+                            <div class="ms-3">
+                                <button class="btn btn-sm btn-outline-secondary marcar-vista-btn" data-notificacion-id="{{ notificacion.pk }}" title="Marcar como vista">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger eliminar-notificacion-btn ms-1" data-notificacion-id="{{ notificacion.pk }}" title="Eliminar">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Sección de Gráficos de Rendimiento -->
+<div class="row g-4">
+    
+    <!-- Gráfico 1: Ventas Mensuales (Global) -->
+    <div class="col-lg-8">
+        <div class="card shadow-sm border-0 rounded-4 h-100 p-3">
+            <div class="card-header bg-white border-0 py-3">
+                <h5 class="fw-bold mb-0">Rendimiento de Ventas Mensuales</h5>
+                <p class="text-secondary mb-0">Visualización de ingresos de los últimos 6 meses.</p>
+            </div>
+            <div class="card-body pt-0">
+                <div style="height: 350px;">
+                    <canvas id="ventasChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Gráfico 2: Distribución de Roles del Equipo -->
+    <div class="col-lg-4">
+        <div class="card shadow-sm border-0 rounded-4 h-100 p-3">
+            <div class="card-header bg-white border-0 py-3">
+                <h5 class="fw-bold mb-0">Estructura del Equipo</h5>
+                <p class="text-secondary mb-0">Distribución de usuarios por rol.</p>
+            </div>
+            <div class="card-body pt-0 d-flex align-items-center justify-content-center">
+                <div style="max-height: 350px; max-width: 100%;">
+                    <canvas id="rolesChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Configuración global de Chart.js para estilo Movums
+    Chart.defaults.font.family = "'Inter', sans-serif";
+    Chart.defaults.color = '#6c757d'; // Color gris para etiquetas
+
+    // Datos de ejemplo (se deben reemplazar con la data real de Django)
+    const ventasData = {
+        labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'], // Últimos 6 meses
+        datasets: [{
+            label: 'Ingresos ($)',
+            data: [3500, 4200, 5800, 5100, 6900, 7500],
+            backgroundColor: 'rgba(92, 12, 209, 0.7)', // var(--movums-primary) con opacidad
+            borderColor: '#5c0cd1',
+            borderWidth: 2,
+            tension: 0.3, // Curva suave
+            fill: true
+        }]
+    };
+    
+    const rolesData = {
+        labels: ['Jefe', 'Vendedor', 'Contador', 'Logística'],
+        datasets: [{
+            label: 'Usuarios',
+            data: [2, 8, 3, 4],
+            backgroundColor: [
+                '#5c0cd1', // Morado principal
+                '#0d6efd', // Azul de Bootstrap
+                '#198754', // Verde de Bootstrap
+                '#dc3545'  // Rojo de Bootstrap
+            ],
+            hoverOffset: 10
+        }]
+    };
+
+    // 1. Gráfico de Ventas Mensuales
+    const ctxVentas = document.getElementById('ventasChart');
+    if (ctxVentas) {
+        new Chart(ctxVentas, {
+            type: 'line',
+            data: ventasData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    label += new Intl.NumberFormat('es-CL', { 
+                                        style: 'currency', 
+                                        currency: 'CLP', 
+                                        maximumFractionDigits: 0 
+                                    }).format(context.parsed.y);
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0 }).format(value);
+                            }
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // 2. Gráfico de Distribución de Roles
+    const ctxRoles = document.getElementById('rolesChart');
+    if (ctxRoles) {
+        new Chart(ctxRoles, {
+            type: 'doughnut',
+            data: rolesData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 15
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                label += context.raw + ' usuarios';
+                                return label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Funcionalidad de Notificaciones (Solo para JEFE)
+    {% if user_rol == 'JEFE' %}
+    // Función para obtener el CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    const csrftoken = getCookie('csrftoken');
+    
+    $(document).ready(function() {
+        // Marcar notificación como vista
+        $(document).on('click', '.marcar-vista-btn', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const notificacionId = $(this).data('notificacion-id');
+            const notificacionItem = $(this).closest('.notificacion-item');
+            const btn = $(this);
+            
+            // Deshabilitar botón mientras se procesa
+            btn.prop('disabled', true);
+            
+            $.ajax({
+                url: '/ventas/notificaciones/' + notificacionId + '/marcar-vista/',
+                method: 'POST',
+                beforeSend: function(xhr) {
+                    xhr.setRequestHeader('X-CSRFToken', csrftoken);
+                },
+                success: function(response) {
+                    if (response.success) {
+                        notificacionItem.fadeOut(300, function() {
+                            $(this).remove();
+                            // Actualizar contador si existe
+                            const badge = $('.badge.bg-danger');
+                            if (badge.length > 0) {
+                                const count = parseInt(badge.text()) - 1;
+                                if (count > 0) {
+                                    badge.text(count);
+                                } else {
+                                    badge.remove();
+                                }
+                            }
+                            // Si no quedan notificaciones, ocultar solo la sección de notificaciones
+                            if ($('.notificacion-item').length === 0) {
+                                $('#notificaciones-section').fadeOut(300);
+                            }
+                        });
+                    } else {
+                        alert('Error: ' + (response.message || 'No se pudo marcar como vista'));
+                        btn.prop('disabled', false);
+                    }
+                },
+                error: function(xhr) {
+                    console.error('Error:', xhr);
+                    alert('Error al marcar la notificación como vista. Por favor, recarga la página.');
+                    btn.prop('disabled', false);
+                }
+            });
+        });
+        
+        // Eliminar notificación
+        $(document).on('click', '.eliminar-notificacion-btn', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const notificacionId = $(this).data('notificacion-id');
+            const notificacionItem = $(this).closest('.notificacion-item');
+            const btn = $(this);
+            
+            if (confirm('¿Estás seguro de que deseas eliminar esta notificación?')) {
+                // Deshabilitar botón mientras se procesa
+                btn.prop('disabled', true);
+                
+                $.ajax({
+                    url: '/ventas/notificaciones/' + notificacionId + '/eliminar/',
+                    method: 'POST',
+                    beforeSend: function(xhr) {
+                        xhr.setRequestHeader('X-CSRFToken', csrftoken);
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            notificacionItem.fadeOut(300, function() {
+                                $(this).remove();
+                                // Actualizar contador si existe
+                                const badge = $('.badge.bg-danger');
+                                if (badge.length > 0) {
+                                    const count = parseInt(badge.text()) - 1;
+                                    if (count > 0) {
+                                        badge.text(count);
+                                    } else {
+                                        badge.remove();
+                                    }
+                                }
+                                // Si no quedan notificaciones, ocultar la sección
+                                if ($('.notificacion-item').length === 0) {
+                                    $('.card.shadow-sm').closest('.row').fadeOut();
+                                }
+                            });
+                        } else {
+                            alert('Error: ' + (response.message || 'No se pudo eliminar'));
+                            btn.prop('disabled', false);
+                        }
+                    },
+                    error: function(xhr) {
+                        console.error('Error:', xhr);
+                        alert('Error al eliminar la notificación. Por favor, recarga la página.');
+                        btn.prop('disabled', false);
+                    }
+                });
+            }
+        });
+    });
+    {% endif %}
+
+</script>
+{% endblock %}

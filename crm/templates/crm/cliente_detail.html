@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Detalle Cliente: {{ cliente }}{% endblock %}
+
+{% block content %}
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <!-- Cambio de text-dark a text-black para mayor contraste -->
+        <h1 class="display-5 fw-bold text-black"> 
+            <!-- Se mantiene la corrección del nombre -->
+            <i class="fas fa-user-circle"></i> Cliente: {{ cliente }} 
+        </h1>
+        <div>
+            <!-- Botón de Edición -->
+            <a href="{% url 'editar_cliente' pk=cliente.pk %}" class="btn btn-warning me-2 shadow-sm">
+                <i class="fas fa-pencil-alt"></i> Editar Datos
+            </a>
+            
+            <!-- Botón de Abrir Venta -->
+            <a href="{% url 'crear_venta' %}?cliente_pk={{ cliente.pk }}" class="btn btn-success me-2 shadow-sm">
+                <i class="fas fa-plane"></i> Abrir Nueva Venta
+            </a>
+            
+            <!-- Botón para Abrir Modal de Eliminación (NUEVO) -->
+            <button type="button" class="btn btn-danger shadow-sm" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal">
+                <i class="fas fa-trash-alt"></i> Eliminar Cliente
+            </button>
+        </div>
+    </div>
+
+    <!-- Aseguramos fondo blanco y texto oscuro en el contenedor principal de datos -->
+    <div class="row mb-5 text-black bg-white p-4 rounded-3 shadow-sm"> 
+        
+        <div class="col-md-6">
+            <div class="card shadow-lg">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-id-card"></i> Datos de Contacto y Registro</h5>
+                </div>
+                <ul class="list-group list-group-flush">
+                    <!-- CORRECCIÓN EN HTML: Se agrega text-dark a cada LI para forzar el color negro -->
+                    <li class="list-group-item text-dark">
+                        <i class="fas fa-tag fa-fw me-2 text-muted"></i>
+                        <strong>Tipo:</strong> <span class="badge bg-primary">{{ cliente.get_tipo_cliente_display }}</span>
+                    </li>
+                    
+                    {% if cliente.tipo_cliente == 'PARTICULAR' %}
+                        <li class="list-group-item text-dark">
+                            <i class="fas fa-birthday-cake fa-fw me-2 text-muted"></i>
+                            <strong>Fecha Nacimiento:</strong> {{ cliente.fecha_nacimiento|default:"N/A" }}
+                        </li>
+                        <li class="list-group-item text-dark">
+                            <i class="fas fa-id-badge fa-fw me-2 text-muted"></i>
+                            <strong>ID Documento:</strong> {{ cliente.documento_identificacion|default:"N/A" }}
+                        </li>
+                    {% elif cliente.tipo_cliente == 'EMPRESA' %}
+                        <li class="list-group-item text-dark">
+                            <i class="fas fa-briefcase fa-fw me-2 text-muted"></i>
+                            <strong>Razón Social:</strong> {{ cliente.nombre_empresa|default:"N/A" }}
+                        </li>
+                        <li class="list-group-item text-dark">
+                            <i class="fas fa-barcode fa-fw me-2 text-muted"></i>
+                            <strong>RFC:</strong> {{ cliente.rfc|default:"N/A" }}
+                        </li>
+                        <li class="list-group-item text-dark">
+                            <i class="fas fa-map-marked-alt fa-fw me-2 text-muted"></i>
+                            <strong>Dirección Fiscal:</strong> {{ cliente.direccion_fiscal|default:"N/A" }}
+                        </li>
+                    {% endif %}
+                    
+                    <li class="list-group-item text-dark">
+                        <i class="fas fa-envelope fa-fw me-2 text-muted"></i>
+                        <strong>Email:</strong> {{ cliente.email|default:"N/A" }}
+                    </li>
+                    <!-- CORRECCIÓN EN HTML: Se agrega text-dark al LI -->
+                    <li class="list-group-item text-dark d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-phone fa-fw me-2 text-muted"></i>
+                            <strong>Teléfono:</strong> {{ cliente.telefono|default:"N/A" }}
+                        </div>
+                        {% if cliente.telefono %}
+                            <a href="{{ cliente.whatsapp_url }}" target="_blank" class="badge bg-success text-decoration-none p-2">
+                                <i class="fab fa-whatsapp"></i> WhatsApp
+                            </a>
+                        {% endif %}
+                    </li>
+                    <li class="list-group-item text-dark">
+                        <i class="fas fa-calendar-alt fa-fw me-2 text-muted"></i>
+                        <strong>Registro:</strong> {{ cliente.fecha_registro|date:"d M Y" }}
+                    </li>
+                    <li class="list-group-item text-dark">
+                        <i class="fas fa-history fa-fw me-2 text-muted"></i>
+                        <strong>Actualización:</strong> {{ cliente.fecha_actualizacion|date:"d M Y, H:i" }}
+                    </li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card shadow-lg h-100">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fas fa-clipboard"></i> Preferencias y Origen</h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="fw-bold mb-2 text-primary"><i class="fas fa-suitcase me-1"></i> Preferencias de Viaje</h6>
+                    <p class="card-text text-muted mb-4 border-bottom pb-3">
+                                {{ cliente.preferencias_viaje|default:"No hay preferencias de viaje registradas." }}
+                    </p>
+                    
+                    <h6 class="fw-bold mb-2 text-primary"><i class="fas fa-book-open me-1"></i> Notas Internas</h6>
+                    <p class="card-text text-muted mb-4">
+                        {{ cliente.notas|default:"No hay notas internas." }}
+                    </p>
+                    
+                    <p class="card-text fw-bold border-top pt-3">
+                        <i class="fas fa-map-marker-alt fa-fw me-2 text-muted"></i>
+                        <strong>Fuente de Contacto:</strong> 
+                        <span class="badge bg-info text-dark">{{ cliente.get_fuente_contacto_display }}</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h2 class="mb-3 mt-5 text-black">
+        <i class="fas fa-shopping-bag"></i> Historial de Ventas (<span class="text-primary">{{ ventas_cliente|length }}</span>)
+    </h2>
+
+    {% if ventas_cliente %}
+        <div class="table-responsive">
+            <table class="table table-striped table-hover align-middle shadow-sm bg-white text-black">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="width: 10%;">ID Venta</th>
+                        <th style="width: 15%;">Vendedor</th>
+                        <th style="width: 15%;">Fecha Viaje</th>
+                        <th style="width: 15%;">Costo Final</th>
+                        <th style="width: 15%;">Saldo Pendiente</th>
+                        <th style="width: 15%;">Estado Logística</th>
+                        <th style="width: 15%;">Acciones</th>
+                    </tr>
+                </thead>
+                <!-- CORRECCIÓN: Asegurar texto negro en el cuerpo de la tabla -->
+                <tbody class="text-black"> 
+                    {% for venta in ventas_cliente %}
+                    <tr>
+                        <td><a href="{% url 'detalle_venta' slug=venta.slug_safe pk=venta.pk %}" class="fw-bold text-decoration-none text-black">#{{ venta.id }}</a></td>
+                        <td>{{ venta.vendedor.username }}</td>
+                        <td>{{ venta.fecha_inicio_viaje|date:"d M Y" }}</td>
+                        <td><span class="fw-bold">${{ venta.costo_venta_final|floatformat:2|intcomma }}</span></td>
+                        <td>
+                            {% if venta.saldo_restante > 0 %}
+                                <span class="badge bg-danger p-2">${{ venta.saldo_restante|floatformat:2|intcomma }}</span>
+                            {% else %}
+                                <span class="badge bg-success p-2">Pagado Total</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if venta.is_logistica_completa %} 
+                                <span class="badge bg-success"><i class="fas fa-check-circle"></i> Completa</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark"><i class="fas fa-clock"></i> Pendiente</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'detalle_venta' slug=venta.slug_safe pk=venta.pk %}" class="btn btn-sm btn-info text-white">
+                                <i class="fas fa-eye"></i> Ver Venta
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="alert alert-info text-center p-3 text-black">
+            <i class="fas fa-info-circle"></i> Este cliente aún no tiene ventas registradas.
+        </div>
+    {% endif %}
+
+    <p class="mt-5 text-black"><a href="{% url 'lista_clientes' %}" class="text-black text-decoration-none"><i class="fas fa-arrow-left"></i> Volver al Listado de Clientes</a></p>
+
+    <!-- Modal de Confirmación de Eliminación (NUEVO) -->
+    <div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="confirmDeleteModalLabel"><i class="fas fa-exclamation-triangle"></i> Confirmar Eliminación</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body text-black">
+                    <p><strong>¿Estás absolutamente seguro de que deseas eliminar al cliente "{{ cliente }}"?</strong></p>
+                    <p class="text-danger">
+                        Esta acción es **irreversible**. Se eliminará toda la información de este cliente, incluyendo sus datos de contacto y su historial de ventas asociado.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    
+                    <!-- Formulario de Eliminación (solo se activa con POST) -->
+                    <form method="POST" action="{% url 'eliminar_cliente' pk=cliente.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger"><i class="fas fa-trash-alt"></i> Eliminar Definitivamente</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Fin Modal de Confirmación -->
+
+{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" 
+          crossorigin="anonymous" referrerpolicy="no-referrer" />
+{% endblock %}
