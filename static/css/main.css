@@ -1,0 +1,210 @@
+/* static/css/main.css - MOVUMS THEME (Adaptación Creativa) */
+
+:root {
+    /* -------------------------------------------------------------------------- */
+    /* 🎨 VARIABLES DE PERSONALIZACIÓN: NUEVA PALETA MOVUMS 🎨 */
+    /* -------------------------------------------------------------------------- */
+    
+    /* Color Principal: Morado Profundo (Branding, Sidebar y Navbar) */
+    --movums-primary: #5c0cd1; 
+    
+    /* Fondo de la Página: Azul Muy Claro (Suave, reduce la fatiga visual) */
+    --movums-background: #f5f9ff; 
+    
+    /* Color específico para el área del logo/título en el menú (Fondo claro para contraste) */
+    --sidebar-header-color: #f5f9ff; 
+    
+    /* -------------------------------------------------------------------------- */
+    /* COLORES DE ACCENTO (Secundarios y Estados) */
+    /* -------------------------------------------------------------------------- */
+    
+    /* Color de Acento: Azul Eléctrico (Para acciones, botones primarios y link activo en Sidebar) */
+    --secondary-color: #2980e1; 
+    
+    /* Color de Texto General: Negro Oscuro/Casi Negro para alto contraste */
+    --text-color: #3f3e3e; 
+    
+    /* 1. COLOR PARA BOTONES 'ÉXITO' / 'AGREGAR' (Verde Vibrante) */
+    --success-accent: #86da02; 
+    
+    /* 2. COLOR PARA PELIGRO / ALERTA (Rojo Ladrillo: Adaptado de tu paleta) */
+    --danger-accent: #771409; 
+    
+    /* 3. ENCABEZADO DE TABLAS (Morado Oscuro #010540 para una barra de tabla elegante) */
+    --table-header-color: #5c0cd1; 
+
+    /* 4. NUEVO: COLOR DE ACENTO PARA BOTONES DE ACCIÓN (Ver/Editar/Detalle) */
+    --info-accent: #2c95ce; /* Azul Claro de tu paleta */
+}
+
+body {
+    overflow-x: hidden;
+    background-color: var(--movums-background);
+    color: var(--text-color); 
+    font-family: 'Poppins', sans-serif; 
+}
+
+/* ------------------- LAYOUT Y SIDEBAR ------------------- */
+
+#wrapper {
+    display: flex;
+}
+
+#sidebar-wrapper {
+    /* Color principal (Morado Profundo) */
+    background-color: var(--movums-primary) !important; 
+    color: white;
+    transition: margin 0.25s ease-out;
+}
+
+.sidebar-heading {
+    /* Color de encabezado (Fondo Azul Muy Claro) */
+    background-color: var(--sidebar-header-color);
+    padding: 2px 1.25rem; 
+    font-size: 1.2rem;
+    
+    /* Texto y logo del encabezado en el color principal para contraste */
+    color: var(--movums-primary); 
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1); 
+}
+
+/* CORRECCIÓN PRINCIPAL (LÍNEA 65 ORIGINAL): 
+   Restringimos el selector para que SÓLO afecte a los list-group-item dentro de #sidebar-wrapper. */
+#sidebar-wrapper .list-group-item {
+    color: #ceb3f5 !important; /* Tono de Morado claro */
+}
+
+/* REFUERZO DE LA CORRECCIÓN: 
+   Aseguramos que CUALQUIER list-group-item dentro de una tarjeta (como en el detalle de cliente) 
+   tenga el color de texto oscuro, anulando cualquier conflicto potencial. */
+.card .list-group-item {
+    color: var(--text-color) !important; 
+}
+
+
+/* Estilo de navegación activa o al pasar el mouse */
+.list-group-item-action:hover {
+    /* Morado con una opacidad del 15% para el hover sutil */
+    background-color: rgba(255, 255, 255, 0.1) !important; 
+    color: white !important;
+}
+
+.list-group-item-action.active {
+    /* El elemento activo usa el Morado principal con el borde de Acento Azul Eléctrico */
+    background-color: var(--movums-primary) !important; 
+    color: white !important;
+    border-left: 3px solid var(--secondary-color) !important; 
+}
+
+/* ------------------- NAVBAR ------------------- */
+
+#main-navbar {
+    /* Usa el color principal (Morado Profundo) */
+    background-color: var(--movums-primary) !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08); 
+}
+
+/* Fuerza el texto blanco en el navbar (iconos y enlaces) */
+.navbar-dark .nav-link,
+.navbar-dark .navbar-toggler-icon,
+.navbar-dark .dropdown-toggle,
+#sidebarToggle i {
+    color: #FFFFFF !important; 
+}
+
+/* ------------------- COMPONENTES MODERNOS ------------------- */
+
+/* Estilo de Tarjetas y Componentes: Bordes Redondeados y Sombra Suave */
+.card, .alert, .table {
+    border-radius: 12px; 
+    border: none;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08); /* Sombra más visible */
+    background-color: white; 
+}
+
+/* Botones */
+.btn {
+    border-radius: 8px; 
+    font-weight: 500;
+    padding: .375rem 1.2rem;
+}
+
+/* Botón "Buscar" y Botones Primarios (Usa el color de Acento: Azul Eléctrico) */
+.btn-primary {
+    background-color: var(--secondary-color);
+    border-color: var(--secondary-color);
+    color: white; 
+    transition: all 0.2s;
+}
+.btn-primary:hover {
+    /* Ligeramente más oscuro en hover */
+    background-color: #1a6ac9; 
+    border-color: #1a6ac9;
+}
+
+/* Botón "Agregar Nuevo Cliente" y Botones de Éxito */
+.btn-success {
+    background-color: var(--success-accent); /* Verde Vibrante */
+    border-color: var(--success-accent);
+    /* CAMBIO CLAVE: Aseguramos el texto oscuro para alto contraste */
+    color: var(--text-color) !important; 
+    transition: all 0.2s;
+}
+.btn-success:hover {
+    /* Ligeramente más oscuro en hover */
+    background-color: #72c301; 
+    border-color: #72c301;
+    /* Mantenemos el texto oscuro */
+    color: var(--text-color) !important; 
+}
+
+/* NUEVO: ESTILO PARA BOTONES DE ACCIÓN (INFO/DETALLE) */
+/* Botones de "Ver Detalle" (el ojo) o de "Editar" (el lápiz) */
+.btn-info {
+    background-color: var(--info-accent) !important; 
+    border-color: var(--info-accent) !important;
+    color: white !important;
+    padding: .3rem .5rem; /* Ajuste para iconos */
+}
+
+.btn-info:hover {
+    background-color: #279ee1 !important; /* Ligeramente más oscuro en hover */
+    border-color: #279ee1 !important;
+}
+/* FIN DE NUEVO ESTILO */
+
+
+/* Badges */
+.badge.bg-success {
+    background-color: var(--success-accent) !important;
+    /* CAMBIO CLAVE: Aseguramos texto oscuro en el badge de éxito */
+    color: var(--text-color) !important; 
+    font-weight: 600;
+}
+.badge.bg-danger {
+    background-color: var(--danger-accent) !important;
+}
+
+/* Tablas */
+
+/* SOLUCIÓN FORZADA PARA EL ENCABEZADO DE TABLA OSCURO */
+.table thead, 
+.table thead th,
+.table-dark thead,
+.table-dark thead th {
+    background-color: var(--table-header-color) !important;
+    color: white !important; 
+    border-color: var(--table-header-color) !important; 
+    font-weight: 600;
+}
+
+/* Si la tabla completa tiene fondo oscuro, aplicamos la variable */
+.table-dark {
+    background-color: var(--table-header-color) !important;
+    color: white !important;
+}
+
+.table-striped > tbody > tr:nth-of-type(odd) > * {
+    /* Franja sutil: Usamos el color de fondo de página para mantener la limpieza */
+    background-color: rgba(245, 249, 255, 0.5); 
+}

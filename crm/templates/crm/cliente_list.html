@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}CRM | Listado de Clientes{% endblock %}
+
+{% block content %}
+    
+    <div class="container-fluid p-4"> 
+        {# ✅ CORRECCIÓN 1: Se usa flex-column en móvil y flex-md-row en desktop para evitar que el título choque con el botón. #}
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center align-items-start mb-4">
+            <h1><i class="fas fa-users"></i> Listado de Clientes</h1>
+            {# Se añade mt-3 en móvil para separar el botón del título cuando están apilados #}
+            <a href="{% url 'crear_cliente' %}" class="btn btn-success btn-lg shadow-sm mt-3 mt-md-0">
+                <i class="fas fa-user-plus"></i> Agregar Nuevo Cliente
+            </a>
+        </div>
+
+        <div class="card p-3 shadow-sm mb-4">
+            {# El formulario de búsqueda usa row g-3 para espaciado #}
+            <form method="GET" action="{% url 'lista_clientes' %}" class="row g-3 align-items-center">
+                
+                {# ✅ CORRECCIÓN 2: En móvil, el input usa col-12 (ancho completo). En desktop, usa col-md-8. #}
+                <div class="col-12 col-md-8">
+                    <input type="text" 
+                                name="q" 
+                                class="form-control form-control-lg" 
+                                placeholder="Buscar por nombre, email o teléfono..."
+                                value="{{ request.GET.q }}">
+                </div>
+                
+                {# ✅ CORRECCIÓN 2: Los botones usan col-6 en móvil para compartir la fila, y col-md-2 en desktop. #}
+                <div class="col-6 col-md-2">
+                    <button type="submit" class="btn btn-primary w-100 btn-lg">
+                        <i class="fas fa-search"></i> Buscar
+                    </button>
+                </div>
+                <div class="col-6 col-md-2">
+                    <a href="{% url 'lista_clientes' %}" class="btn btn-outline-secondary w-100 btn-lg">
+                        <i class="fas fa-redo"></i> Limpiar
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        {% if object_list %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle shadow-sm">
+                    <thead class="table-dark">
+                        <tr>
+                            <th style="width: 5%;">ID</th>
+                            <th style="width: 25%;">Nombre Completo</th>
+                            <th style="width: 15%;">Teléfono</th>
+                            <th style="width: 20%;">Email</th>
+                            <th style="width: 15%;">Última Venta</th>
+                            <th style="width: 20%;" class="text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cliente in object_list %}
+                        <tr>
+                            <td>{{ cliente.pk }}</td>
+                            <td>
+                                <a href="{% url 'detalle_cliente' pk=cliente.pk %}" class="fw-bold text-primary">
+                                    <i class="fas fa-user-circle"></i> 
+                                    {{ cliente.nombre_completo_display }}
+                                </a>
+                            </td>
+                            <td><i class="fas fa-phone"></i> {{ cliente.telefono }}</td>
+                            <td><i class="fas fa-envelope"></i> {{ cliente.email }}</td>
+                            <td>
+                                {% if cliente.ultima_venta %}
+                                    <a href="{% url 'detalle_venta' slug=cliente.ultima_venta.slug_safe pk=cliente.ultima_venta.pk %}" class="badge bg-info text-dark">
+                                        Venta #{{ cliente.ultima_venta.pk }}
+                                    </a>
+                                {% else %}
+                                    <span class="badge bg-secondary">Sin Venta</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'detalle_cliente' pk=cliente.pk %}" class="btn btn-sm btn-info text-white" title="Ver Detalle">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'editar_cliente' pk=cliente.pk %}" class="btn btn-sm btn-outline-primary" title="Editar">
+                                        <i class="fas fa-pencil-alt"></i>
+                                    </a>
+                                    <a href="{% url 'crear_venta' %}?cliente_pk={{ cliente.pk }}" class="btn btn-sm btn-warning" title="Crear Venta Rápida">
+                                        <i class="fas fa-plane"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% if is_paginated %}
+                {% include "includes/pagination.html" %}
+            {% endif %}
+
+        {% else %}
+            <div class="alert alert-warning text-center p-4">
+                <h4 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> No se encontraron clientes.</h4>
+                <p>Intenta una búsqueda diferente o <a href="{% url 'crear_cliente' %}" class="alert-link">registra un nuevo cliente</a> para empezar.</p>
+            </div>
+        {% endif %}
+    </div>       
+{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" 
+          crossorigin="anonymous" referrerpolicy="no-referrer" />
+{% endblock %}
