@@ -32,6 +32,7 @@
                         <tr>
                             <th>Nombre</th>
                             <th>Teléfono</th>
+                            <th>Tipo de Vendedor</th>
                             <th>Ubicación Asignada</th>
                             <th>Sueldo Base</th>
                             <th>Usuario</th>
@@ -49,6 +50,15 @@
                                 <small class="text-muted">{{ ejecutivo.direccion|linebreaksbr }}</small>
                             </td>
                             <td>{{ ejecutivo.telefono }}</td>
+                            <td>
+                                {% if ejecutivo.tipo_vendedor == 'OFICINA' %}
+                                    <span class="badge bg-info text-white">Ventas Internas</span>
+                                {% elif ejecutivo.tipo_vendedor == 'CALLE' %}
+                                    <span class="badge bg-warning text-dark">Ventas de Campo</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ ejecutivo.get_tipo_vendedor_display }}</span>
+                                {% endif %}
+                            </td>
                             <td>{{ ejecutivo.ubicacion_asignada }}</td>
                             <td>${{ ejecutivo.sueldo_base|floatformat:2|intcomma }}</td>
                             <td>
@@ -94,6 +104,7 @@
                                     data-telefono="{{ ejecutivo.telefono|escape }}"
                                     data-email="{{ ejecutivo.email|default_if_none:''|escape }}"
                                     data-sueldo="{{ ejecutivo.sueldo_base }}"
+                                    data-tipo-vendedor="{{ ejecutivo.tipo_vendedor }}"
                                     data-ubicacion="{{ ejecutivo.ubicacion_asignada|escape }}"
                                     data-documento-url="{% if ejecutivo.documento_pdf %}{{ ejecutivo.documento_pdf.url }}{% endif %}"
                                 >
@@ -120,6 +131,9 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Variable para controlar si se debe mostrar el modal automáticamente -->
+<div id="modal-config" data-mostrar-modal="{% if mostrar_modal_ejecutivo %}true{% else %}false{% endif %}" style="display: none;"></div>
 
 <!-- Modal para crear/editar ejecutivos -->
 <div class="modal fade" id="ejecutivoModal" tabindex="-1" aria-labelledby="ejecutivoModalLabel" aria-hidden="true">
@@ -161,9 +175,21 @@
                             {{ ejecutivo_form.email.errors }}
                         </div>
                         <div class="col-md-6">
+                            <label class="form-label fw-semibold">Tipo de Usuario</label>
+                            {{ ejecutivo_form.tipo_usuario }}
+                            <div class="form-text">{{ ejecutivo_form.tipo_usuario.help_text }}</div>
+                            {{ ejecutivo_form.tipo_usuario.errors }}
+                        </div>
+                        <div class="col-md-6">
                             <label class="form-label fw-semibold">Ubicación Asignada</label>
                             {{ ejecutivo_form.ubicacion_asignada }}
                             {{ ejecutivo_form.ubicacion_asignada.errors }}
+                        </div>
+                        <div class="col-md-6" id="tipoVendedorContainer">
+                            <label class="form-label fw-semibold" id="tipoVendedorLabel">Tipo de Vendedor</label>
+                            {{ ejecutivo_form.tipo_vendedor }}
+                            <div class="form-text">Determina el sistema de comisiones aplicable</div>
+                            {{ ejecutivo_form.tipo_vendedor.errors }}
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Sueldo Base</label>
@@ -200,8 +226,10 @@
         <div class="alert alert-info shadow-sm" role="alert">
             <h5 class="alert-heading"><i class="fas fa-info-circle"></i> Nota sobre el Cálculo</h5>
             <p class="mb-0">
-                Este reporte estima las comisiones basadas en las **ventas que han sido pagadas al 100%**. 
-                El sueldo base y el porcentaje de comisión son valores fijos definidos en el sistema.
+                Este reporte estima las comisiones basadas en las <strong>ventas que han sido pagadas al 100%</strong>. 
+                <br><strong>Sistema de Comisiones:</strong>
+                <br>• <strong>Ejecutivos de Ventas Internas:</strong> Comisión escalonada (1% hasta 5% según volumen de ventas)
+                <br>• <strong>Ejecutivos de Ventas de Campo:</strong> Comisión fija del 4%
             </p>
         </div>
     </div>
@@ -213,6 +241,7 @@
             <thead class="table-dark">
                 <tr>
                     <th>Vendedor</th>
+                    <th>Tipo</th>
                     <th class="text-end">Sueldo Base</th>
                     <th class="text-end">Total de Ventas Pagadas (Base de Comisión)</th>
                     <th class="text-end">Comisión (%)</th>
@@ -225,6 +254,15 @@
                 <tr {% if data.es_usuario_actual %}class="table-primary fw-bold"{% endif %}>
                     <td>
                         <i class="fas fa-user-tag"></i> {{ data.vendedor.first_name }} {{ data.vendedor.last_name }} ({{ data.vendedor.username }})
+                    </td>
+                    <td>
+                        {% if data.tipo_vendedor == 'OFICINA' %}
+                            <span class="badge bg-info text-white">Internas</span>
+                        {% elif data.tipo_vendedor == 'CALLE' %}
+                            <span class="badge bg-warning text-dark">Campo</span>
+                        {% else %}
+                            <span class="badge bg-secondary">N/A</span>
+                        {% endif %}
                     </td>
                     <td class="text-end">${{ data.sueldo_base|floatformat:2|intcomma }}</td>
                     <td class="text-end text-primary">${{ data.total_ventas_pagadas|floatformat:2|intcomma }}</td>
@@ -254,71 +292,487 @@
         .text-success {
             color: #157347 !important;
         }
+        
+        /* FORZAR que el modal sea visible cuando tiene la clase show */
+        #ejecutivoModal.show,
+        #ejecutivoModal.show.show {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            z-index: 1055 !important;
+            pointer-events: auto !important;
+        }
+        
+        /* Asegurar que el modal-dialog y modal-content sean interactivos */
+        #ejecutivoModal.show .modal-dialog,
+        #ejecutivoModal.show .modal-content {
+            pointer-events: auto !important;
+        }
+        
+        /* Asegurar que el overlay nunca bloquee el modal */
+        body.modal-open #pageTransitionOverlay,
+        #ejecutivoModal.show ~ #pageTransitionOverlay,
+        #ejecutivoModal.show + #pageTransitionOverlay {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            z-index: -1 !important;
+        }
     </style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+(function() {
+    'use strict';
+    
+    // DEBUGGING EXTENSIVO
+    console.log('[MODAL DEBUG] Iniciando script de modal ejecutivo');
+    console.log('[MODAL DEBUG] Bootstrap disponible:', typeof bootstrap !== 'undefined');
+    console.log('[MODAL DEBUG] Bootstrap.Modal disponible:', typeof bootstrap !== 'undefined' && typeof bootstrap.Modal !== 'undefined');
+    
+    // Función global para manejar la visibilidad del campo "Tipo de Vendedor" según "Tipo de Usuario"
+    function toggleTipoVendedorVisibility() {
+        // Buscar elementos dentro del modal (puede estar en el body después de moverlo)
+        var tipoUsuarioInput = document.querySelector('#ejecutivoModal [name="tipo_usuario"]');
+        var tipoVendedorInput = document.querySelector('#ejecutivoModal [name="tipo_vendedor"]');
+        var tipoVendedorContainer = document.querySelector('#ejecutivoModal #tipoVendedorContainer');
+        var tipoVendedorLabel = document.querySelector('#ejecutivoModal #tipoVendedorLabel');
+        
+        console.log('[TIPO VENDEDOR DEBUG] Buscando elementos:', {
+            tipoUsuarioInput: !!tipoUsuarioInput,
+            tipoVendedorInput: !!tipoVendedorInput,
+            tipoVendedorContainer: !!tipoVendedorContainer,
+            tipoVendedorLabel: !!tipoVendedorLabel
+        });
+        
+        if (!tipoUsuarioInput || !tipoVendedorInput || !tipoVendedorContainer) {
+            console.warn('[TIPO VENDEDOR DEBUG] No se encontraron todos los elementos necesarios');
+            return;
+        }
+        
+        var tipoUsuario = tipoUsuarioInput.value;
+        console.log('[TIPO VENDEDOR DEBUG] Tipo de usuario seleccionado:', tipoUsuario);
+        
+        if (tipoUsuario === 'CONTADOR') {
+            // Ocultar y deshabilitar el campo "Tipo de Vendedor" para contadores
+            tipoVendedorContainer.style.opacity = '0.5';
+            tipoVendedorContainer.style.pointerEvents = 'none';
+            tipoVendedorInput.disabled = true;
+            tipoVendedorInput.required = false;
+            // Limpiar el valor si estaba seleccionado
+            tipoVendedorInput.value = '';
+            if (tipoVendedorLabel) {
+                tipoVendedorLabel.style.opacity = '0.5';
+            }
+            console.log('[TIPO VENDEDOR DEBUG] Tipo de Vendedor deshabilitado (usuario es Contador)');
+        } else {
+            // Mostrar y habilitar el campo "Tipo de Vendedor" para vendedores
+            tipoVendedorContainer.style.opacity = '1';
+            tipoVendedorContainer.style.pointerEvents = 'auto';
+            tipoVendedorInput.disabled = false;
+            if (tipoVendedorLabel) {
+                tipoVendedorLabel.style.opacity = '1';
+            }
+            console.log('[TIPO VENDEDOR DEBUG] Tipo de Vendedor habilitado (usuario es Vendedor)');
+        }
+    }
+    
+    function initModalEjecutivo() {
+        console.log('[MODAL DEBUG] initModalEjecutivo ejecutado');
+        
         var modalEl = document.getElementById('ejecutivoModal');
-        if (!modalEl) { return; }
-        var modal = new bootstrap.Modal(modalEl);
+        console.log('[MODAL DEBUG] Modal encontrado:', !!modalEl);
+        if (!modalEl) {
+            console.error('[MODAL DEBUG] ERROR: Modal #ejecutivoModal no encontrado en el DOM');
+            return;
+        }
+        
+        // SOLUCIÓN: Mover el modal fuera del #main-content al body para evitar problemas de stacking context
+        if (modalEl.parentElement && modalEl.parentElement.id === 'main-content') {
+            document.body.appendChild(modalEl);
+            console.log('[MODAL DEBUG] Modal movido al body para evitar stacking context');
+        }
+        
+        // Verificar que Bootstrap esté cargado
+        if (typeof bootstrap === 'undefined') {
+            console.error('[MODAL DEBUG] ERROR: Bootstrap no está cargado');
+            alert('Error: Bootstrap no está disponible. Recarga la página.');
+            return;
+        }
+        
+        // Variables del formulario
         var actionInput = document.getElementById('ejecutivoAction');
         var idInput = document.getElementById('ejecutivoId');
         var titleEl = document.getElementById('ejecutivoModalLabel');
         var submitBtn = document.getElementById('submitEjecutivoBtn');
-        var nombreInput = modalEl.querySelector('[name="nombre_completo"]');
-        var direccionInput = modalEl.querySelector('[name="direccion"]');
-        var telefonoInput = modalEl.querySelector('[name="telefono"]');
-        var emailInput = modalEl.querySelector('[name="email"]');
-        var ubicacionInput = modalEl.querySelector('[name="ubicacion_asignada"]');
-        var sueldoInput = modalEl.querySelector('[name="sueldo_base"]');
         var documentoInfo = document.getElementById('documentoActualContainer');
         var documentoLink = document.getElementById('documentoActualLink');
-
+        
+        // Usar delegación de eventos para manejar cambios en "Tipo de Usuario"
+        // Esto funciona incluso si el modal se mueve o se recrea
+        modalEl.addEventListener('change', function(e) {
+            if (e.target && e.target.name === 'tipo_usuario') {
+                console.log('[TIPO VENDEDOR DEBUG] Cambio detectado en tipo_usuario');
+                toggleTipoVendedorVisibility();
+            }
+        });
+        
+        // Agregar listener cuando el modal se muestra para aplicar el estado inicial
+        modalEl.addEventListener('shown.bs.modal', function() {
+            console.log('[TIPO VENDEDOR DEBUG] Modal mostrado, aplicando estado inicial');
+            setTimeout(toggleTipoVendedorVisibility, 150);
+        });
+        
+        console.log('[MODAL DEBUG] Elementos del formulario encontrados:', {
+            actionInput: !!actionInput,
+            idInput: !!idInput,
+            titleEl: !!titleEl,
+            submitBtn: !!submitBtn
+        });
+        
+        // Asegurar que el overlay esté oculto
+        var overlay = document.getElementById('pageTransitionOverlay');
+        if (overlay) {
+            overlay.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -1 !important;';
+            overlay.classList.remove('active');
+            console.log('[MODAL DEBUG] Overlay ocultado');
+        }
+        
+        // Encontrar todos los botones que abren el modal
+        var modalButtons = document.querySelectorAll('[data-bs-toggle="modal"][data-bs-target="#ejecutivoModal"]');
+        console.log('[MODAL DEBUG] Botones encontrados:', modalButtons.length);
+        
+        // Agregar listener directo a cada botón para debugging
+        modalButtons.forEach(function(button, index) {
+            console.log('[MODAL DEBUG] Configurando botón', index, button);
+            
+            // Listener en mousedown para debugging
+            button.addEventListener('mousedown', function(e) {
+                console.log('[MODAL DEBUG] mousedown en botón', index);
+                var overlay = document.getElementById('pageTransitionOverlay');
+                if (overlay) {
+                    overlay.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -9999 !important;';
+                    overlay.classList.remove('active');
+                }
+            }, true);
+            
+            // NO interceptar el click - dejar que Bootstrap maneje todo normalmente
+        });
+        
+        // NO interceptar clicks - dejar que Bootstrap maneje todo
+        // Solo asegurar que el overlay esté oculto cuando se hace click
+        modalButtons.forEach(function(button, index) {
+            button.addEventListener('mousedown', function(e) {
+                // Ocultar overlay ANTES del click (mousedown se ejecuta antes)
+                var overlay = document.getElementById('pageTransitionOverlay');
+                if (overlay) {
+                    overlay.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -9999 !important;';
+                    overlay.classList.remove('active');
+                }
+                window._modalIsOpening = true;
+            }, true);
+        });
+        
+        // Usar el evento show.bs.modal de Bootstrap para llenar el formulario
         modalEl.addEventListener('show.bs.modal', function(event) {
-            var button = event.relatedTarget;
-            if (!button || button.getAttribute('data-mode') === 'create') {
-                actionInput.value = 'crear';
-                idInput.value = '';
-                titleEl.textContent = 'Agregar Nuevo Ejecutivo';
-                submitBtn.textContent = 'Guardar Ejecutivo';
-                nombreInput.value = '';
-                direccionInput.value = '';
-                telefonoInput.value = '';
-                emailInput.value = '';
-                ubicacionInput.value = '';
-                sueldoInput.value = '';
-                if (documentoInfo) {
+            // SOLUCIÓN RADICAL: Remover el overlay del DOM completamente cuando se abre el modal
+            var overlay = document.getElementById('pageTransitionOverlay');
+            if (overlay) {
+                overlay.remove(); // Remover completamente del DOM
+                console.log('[MODAL DEBUG] Overlay removido del DOM en show.bs.modal');
+            }
+            
+            try {
+                
+                // También verificar después de un delay
+                setTimeout(function() {
+                    try {
+                        console.log('[MODAL DEBUG] Verificando estado del modal después de show.bs.modal');
+                        console.log('[MODAL DEBUG] Modal classes:', modalEl.className);
+                        console.log('[MODAL DEBUG] Modal display:', window.getComputedStyle(modalEl).display);
+                        console.log('[MODAL DEBUG] Modal visibility:', window.getComputedStyle(modalEl).visibility);
+                        console.log('[MODAL DEBUG] Modal z-index:', window.getComputedStyle(modalEl).zIndex);
+                        console.log('[MODAL DEBUG] Body tiene modal-open:', document.body.classList.contains('modal-open'));
+                        
+                        // Verificar backdrop
+                        var backdrop = document.querySelector('.modal-backdrop');
+                        console.log('[MODAL DEBUG] Backdrop encontrado:', !!backdrop);
+                        if (backdrop) {
+                            console.log('[MODAL DEBUG] Backdrop z-index:', window.getComputedStyle(backdrop).zIndex);
+                        }
+                        
+                    // Forzar visibilidad del modal con setAttribute para aplicar !important correctamente
+                    var currentStyle = modalEl.getAttribute('style') || '';
+                    modalEl.setAttribute('style', currentStyle + ' display: block !important; visibility: visible !important; opacity: 1 !important; z-index: 1055 !important; pointer-events: auto !important;');
+                    modalEl.classList.add('show');
+                    modalEl.setAttribute('aria-hidden', 'false');
+                    modalEl.setAttribute('aria-modal', 'true');
+                    
+                    // Asegurar que el overlay esté oculto con z-index muy bajo
+                    if (overlay) {
+                        overlay.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -9999 !important;';
+                        overlay.classList.remove('active');
+                    }
+                    
+                    // CRÍTICO: Asegurar que el modal-dialog esté por encima del backdrop
+                    var modalDialog = modalEl.querySelector('.modal-dialog');
+                    var modalContent = modalEl.querySelector('.modal-content');
+                    if (modalDialog) {
+                        modalDialog.style.cssText += ' z-index: 1056 !important; position: relative !important; pointer-events: auto !important;';
+                    }
+                    if (modalContent) {
+                        modalContent.style.cssText += ' pointer-events: auto !important; position: relative !important;';
+                    }
+                    
+                    // El backdrop debe estar debajo pero permitir clicks para cerrar
+                    var backdrop = document.querySelector('.modal-backdrop');
+                    if (backdrop) {
+                        backdrop.style.cssText += ' z-index: 1050 !important; pointer-events: auto !important;';
+                    }
+                    
+                    console.log('[MODAL DEBUG] Modal verificado y forzado a visible');
+                    console.log('[MODAL DEBUG] Modal display después de forzar:', window.getComputedStyle(modalEl).display);
+                    } catch (err) {
+                        console.error('[MODAL DEBUG] Error en setTimeout:', err);
+                    }
+                }, 50);
+                
+                // Obtener los inputs cuando el modal se muestra
+                var nombreInput = modalEl.querySelector('[name="nombre_completo"]');
+                var direccionInput = modalEl.querySelector('[name="direccion"]');
+                var telefonoInput = modalEl.querySelector('[name="telefono"]');
+                var emailInput = modalEl.querySelector('[name="email"]');
+                var ubicacionInput = modalEl.querySelector('[name="ubicacion_asignada"]');
+                var tipoVendedorInput = modalEl.querySelector('[name="tipo_vendedor"]');
+                var sueldoInput = modalEl.querySelector('[name="sueldo_base"]');
+                var documentoInput = modalEl.querySelector('[name="documento_pdf"]');
+                var tipoUsuarioInput = modalEl.querySelector('[name="tipo_usuario"]');
+                
+                var button = event.relatedTarget;
+                console.log('[MODAL DEBUG] Botón relacionado:', button);
+                
+                if (!button || button.getAttribute('data-mode') === 'create') {
+                    // Modo crear
+                    console.log('[MODAL DEBUG] Modo crear');
+                    if (actionInput) actionInput.value = 'crear';
+                    if (idInput) idInput.value = '';
+                    if (titleEl) titleEl.textContent = 'Agregar Nuevo Ejecutivo';
+                    if (submitBtn) submitBtn.textContent = 'Guardar Ejecutivo';
+                    
+                    if (nombreInput) nombreInput.value = '';
+                    if (direccionInput) direccionInput.value = '';
+                    if (telefonoInput) telefonoInput.value = '';
+                    if (emailInput) emailInput.value = '';
+                    if (ubicacionInput) ubicacionInput.value = '';
+                    if (tipoUsuarioInput) tipoUsuarioInput.value = 'VENDEDOR';
+                    if (tipoVendedorInput) tipoVendedorInput.value = 'OFICINA';
+                    if (sueldoInput) sueldoInput.value = '';
+                    if (documentoInput) documentoInput.value = '';
+                    if (documentoInfo) {
+                        documentoInfo.classList.add('d-none');
+                    }
+                    // Aplicar visibilidad del campo tipo_vendedor según tipo_usuario
+                    // Se aplicará automáticamente en shown.bs.modal
+                    console.log('[MODAL DEBUG] Formulario limpiado para crear');
+                return;
+                }
+
+                // Modo editar
+                console.log('[MODAL DEBUG] Modo editar');
+                if (actionInput) actionInput.value = 'editar';
+                if (idInput) idInput.value = button.getAttribute('data-id') || '';
+                if (titleEl) titleEl.textContent = 'Editar Ejecutivo';
+                if (submitBtn) submitBtn.textContent = 'Actualizar Ejecutivo';
+                
+                if (nombreInput) nombreInput.value = button.getAttribute('data-nombre') || '';
+                if (direccionInput) direccionInput.value = button.getAttribute('data-direccion') || '';
+                if (telefonoInput) telefonoInput.value = button.getAttribute('data-telefono') || '';
+                if (emailInput) emailInput.value = button.getAttribute('data-email') || '';
+                if (ubicacionInput) ubicacionInput.value = button.getAttribute('data-ubicacion') || '';
+                if (tipoVendedorInput) tipoVendedorInput.value = button.getAttribute('data-tipo-vendedor') || 'OFICINA';
+                if (sueldoInput) sueldoInput.value = button.getAttribute('data-sueldo') || '';
+                if (documentoInput) documentoInput.value = '';
+                
+                // El tipo_usuario se carga desde el formulario Django (ya viene con el valor correcto)
+                // Solo necesitamos aplicar la visibilidad después de que se carguen todos los valores
+                
+                var documentoUrl = button.getAttribute('data-documento-url');
+                if (documentoUrl && documentoInfo && documentoLink) {
+                    documentoInfo.classList.remove('d-none');
+                    documentoLink.href = documentoUrl;
+                } else if (documentoInfo) {
                     documentoInfo.classList.add('d-none');
                 }
-                modalEl.querySelector('[name="documento_pdf"]').value = '';
-                return;
+                // Aplicar visibilidad del campo tipo_vendedor según tipo_usuario al editar
+                // Se aplicará automáticamente en shown.bs.modal
+                console.log('[MODAL DEBUG] Formulario llenado para editar');
+            } catch (err) {
+                console.error('[MODAL DEBUG] ========== ERROR CRÍTICO ==========');
+                console.error('[MODAL DEBUG] ERROR:', err);
+                console.error('[MODAL DEBUG] Mensaje:', err.message);
+                console.error('[MODAL DEBUG] Stack:', err.stack);
+                console.error('[MODAL DEBUG] ====================================');
             }
-
-            actionInput.value = 'editar';
-            idInput.value = button.getAttribute('data-id');
-            titleEl.textContent = 'Editar Ejecutivo';
-            submitBtn.textContent = 'Actualizar Ejecutivo';
-            nombreInput.value = button.getAttribute('data-nombre') || '';
-            direccionInput.value = button.getAttribute('data-direccion') || '';
-            telefonoInput.value = button.getAttribute('data-telefono') || '';
-            emailInput.value = button.getAttribute('data-email') || '';
-            ubicacionInput.value = button.getAttribute('data-ubicacion') || '';
-            sueldoInput.value = button.getAttribute('data-sueldo') || '';
-            var documentoUrl = button.getAttribute('data-documento-url');
-            if (documentoUrl) {
-                documentoInfo.classList.remove('d-none');
-                documentoLink.href = documentoUrl;
-            } else {
-                documentoInfo.classList.add('d-none');
-            }
-            modalEl.querySelector('[name="documento_pdf"]').value = '';
+            console.log('[MODAL DEBUG] ========== FIN show.bs.modal ==========');
         });
-
-        {% if mostrar_modal_ejecutivo %}
-            modal.show();
-        {% endif %}
-    });
+        
+        // Escuchar cuando el modal se muestra completamente
+        modalEl.addEventListener('shown.bs.modal', function(event) {
+            console.log('[MODAL DEBUG] shown.bs.modal disparado - modal completamente visible');
+            
+            // Asegurar que el overlay esté completamente oculto y removido del flujo
+            var overlay = document.getElementById('pageTransitionOverlay');
+            if (overlay) {
+                overlay.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -9999 !important; position: fixed !important;';
+                overlay.classList.remove('active');
+                // Remover del DOM temporalmente para asegurar que no bloquee
+                overlay.style.display = 'none';
+            }
+            
+            // Forzar visibilidad del modal
+            var currentStyle = modalEl.getAttribute('style') || '';
+            modalEl.setAttribute('style', currentStyle + ' display: block !important; visibility: visible !important; opacity: 1 !important; z-index: 1055 !important; pointer-events: auto !important;');
+            modalEl.classList.add('show');
+            modalEl.setAttribute('aria-hidden', 'false');
+            modalEl.setAttribute('aria-modal', 'true');
+            
+            // CRÍTICO: Asegurar que el modal-dialog esté por encima del backdrop
+            var modalDialog = modalEl.querySelector('.modal-dialog');
+            var modalContent = modalEl.querySelector('.modal-content');
+            if (modalDialog) {
+                modalDialog.style.cssText += ' z-index: 1056 !important; position: relative !important; pointer-events: auto !important;';
+            }
+            if (modalContent) {
+                modalContent.style.cssText += ' pointer-events: auto !important; position: relative !important;';
+            }
+            
+            // El backdrop debe estar debajo del modal
+            var backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) {
+                backdrop.style.cssText = 'position: fixed; top: 0; left: 0; z-index: 1050 !important; width: 100vw; height: 100vh; background-color: rgba(0, 0, 0, 0.5); pointer-events: auto !important;';
+                console.log('[MODAL DEBUG] Backdrop configurado, z-index:', window.getComputedStyle(backdrop).zIndex);
+            }
+            
+            // CRÍTICO: Asegurar que el modal-dialog esté POR ENCIMA del backdrop
+            if (modalDialog) {
+                modalDialog.style.cssText = 'position: relative !important; z-index: 1056 !important; pointer-events: auto !important; margin: 1.75rem auto !important;';
+                console.log('[MODAL DEBUG] Modal-dialog z-index forzado:', window.getComputedStyle(modalDialog).zIndex);
+            }
+            if (modalContent) {
+                modalContent.style.cssText = 'pointer-events: auto !important; position: relative !important;';
+            }
+            
+            // El overlay ya fue removido en show.bs.modal, verificar que no exista
+            var overlay = document.getElementById('pageTransitionOverlay');
+            if (overlay) {
+                overlay.remove();
+                console.log('[MODAL DEBUG] Overlay encontrado y removido en shown.bs.modal');
+            }
+            
+            // Verificar qué elementos están bloqueando
+            setTimeout(function() {
+                console.log('[MODAL DEBUG] ========== DIAGNÓSTICO DE BLOQUEO ==========');
+                console.log('[MODAL DEBUG] Elementos con position fixed:');
+                var fixedElements = document.querySelectorAll('[style*="position: fixed"], [style*="position:fixed"]');
+                fixedElements.forEach(function(el) {
+                    var zIndex = window.getComputedStyle(el).zIndex;
+                    var pointerEvents = window.getComputedStyle(el).pointerEvents;
+                    var display = window.getComputedStyle(el).display;
+                    console.log('[MODAL DEBUG] -', el.id || el.className, 'z-index:', zIndex, 'pointer-events:', pointerEvents, 'display:', display);
+                });
+                
+                console.log('[MODAL DEBUG] Overlay estado final:');
+                if (overlay) {
+                    console.log('[MODAL DEBUG] - display:', window.getComputedStyle(overlay).display);
+                    console.log('[MODAL DEBUG] - z-index:', window.getComputedStyle(overlay).zIndex);
+                    console.log('[MODAL DEBUG] - pointer-events:', window.getComputedStyle(overlay).pointerEvents);
+                }
+                
+                console.log('[MODAL DEBUG] Backdrop estado final:');
+                if (backdrop) {
+                    console.log('[MODAL DEBUG] - z-index:', window.getComputedStyle(backdrop).zIndex);
+                    console.log('[MODAL DEBUG] - pointer-events:', window.getComputedStyle(backdrop).pointerEvents);
+                }
+                
+                console.log('[MODAL DEBUG] Modal estado final:');
+                console.log('[MODAL DEBUG] - display:', window.getComputedStyle(modalEl).display);
+                console.log('[MODAL DEBUG] - z-index:', window.getComputedStyle(modalEl).zIndex);
+                console.log('[MODAL DEBUG] - pointer-events:', window.getComputedStyle(modalEl).pointerEvents);
+                
+                console.log('[MODAL DEBUG] Modal-dialog estado final:');
+                if (modalDialog) {
+                    console.log('[MODAL DEBUG] - z-index:', window.getComputedStyle(modalDialog).zIndex);
+                    console.log('[MODAL DEBUG] - pointer-events:', window.getComputedStyle(modalDialog).pointerEvents);
+                }
+                
+                console.log('[MODAL DEBUG] ============================================');
+            }, 300);
+            
+            console.log('[MODAL DEBUG] Modal forzado a visible en shown.bs.modal');
+        });
+        
+        // Limpiar formulario al cerrar y restaurar overlay si es necesario
+        modalEl.addEventListener('hidden.bs.modal', function() {
+            console.log('[MODAL DEBUG] Modal cerrado');
+            var form = modalEl.querySelector('form');
+            if (form) {
+                form.reset();
+            }
+            
+            // Restaurar el overlay si fue removido (aunque no debería ser necesario)
+            var overlay = document.getElementById('pageTransitionOverlay');
+            if (!overlay) {
+                // Recrear el overlay si fue removido (solo para mantener la estructura)
+                var newOverlay = document.createElement('div');
+                newOverlay.id = 'pageTransitionOverlay';
+                newOverlay.className = 'page-transition-overlay';
+                newOverlay.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -9999 !important; position: fixed !important;';
+                var spinner = document.createElement('div');
+                spinner.className = 'page-transition-spinner';
+                newOverlay.appendChild(spinner);
+                document.body.appendChild(newOverlay);
+            }
+        });
+        
+        // Si se debe mostrar el modal automáticamente (después de un error de validación)
+        // Leer la variable desde un atributo data para evitar errores del linter con tags de Django
+        var modalConfigEl = document.getElementById('modal-config');
+        var mostrarModalEjecutivo = modalConfigEl && modalConfigEl.getAttribute('data-mostrar-modal') === 'true';
+        if (mostrarModalEjecutivo) {
+            setTimeout(function() {
+                try {
+                    var bootstrapModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                    bootstrapModal.show();
+                } catch (err) {
+                    console.error('[MODAL DEBUG] ERROR:', err);
+                    var bootstrapModal = new bootstrap.Modal(modalEl);
+                    bootstrapModal.show();
+                }
+            }, 100);
+        }
+        
+        console.log('[MODAL DEBUG] Inicialización completa');
+    }
+    
+    // Ejecutar cuando el DOM esté listo
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initModalEjecutivo);
+    } else {
+        initModalEjecutivo();
+    }
+    
+    // También intentar después de un delay adicional
+    setTimeout(function() {
+        console.log('[MODAL DEBUG] Verificación tardía');
+        var modalEl = document.getElementById('ejecutivoModal');
+        if (modalEl) {
+            console.log('[MODAL DEBUG] Modal encontrado en verificación tardía');
+        } else {
+            console.error('[MODAL DEBUG] Modal NO encontrado en verificación tardía');
+        }
+    }, 2000);
+})();
 </script>
 {% endblock %}

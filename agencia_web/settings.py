@@ -15,12 +15,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '[REDACTED_SECRET_KEY]'
+# Usar variable de entorno en producción, fallback para desarrollo
+SECRET_KEY = os.environ.get('SECRET_KEY', '[REDACTED_SECRET_KEY]')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# DEBUG solo True en desarrollo local
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'  # Por defecto True para desarrollo
 
-ALLOWED_HOSTS = []
+# Hosts permitidos - usar variable de entorno en producción
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',') if os.environ.get('ALLOWED_HOSTS') else ['localhost', '127.0.0.1', '0.0.0.0']
 
 
 # Application definition
@@ -34,8 +37,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     
     # --- Aplicaciones de Terceros ---
-    'django.contrib.humanize', 'widget_tweaks', 
-    # 'widget_tweaks', # <-- ELIMINADO: Reemplazado por crispy-forms
+    'django.contrib.humanize',
+    'widget_tweaks',  # Se mantiene porque se usa en algunos templates
     
     # 🚨 CONFIGURACIÓN DE CRISPY FORMS (NUEVO)
     'crispy_forms',
@@ -49,6 +52,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Para servir archivos estáticos en producción
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -126,9 +130,16 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Directorio donde Django recopila los archivos estáticos para producción
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Directorios adicionales donde buscar archivos estáticos
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'), # Busca la carpeta 'static' en la raíz del proyecto
 ]
+
+# Configuración de WhiteNoise para servir archivos estáticos en producción
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Media files
 MEDIA_URL = '/media/'

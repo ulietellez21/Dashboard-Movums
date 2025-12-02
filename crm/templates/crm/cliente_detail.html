@@ -12,22 +12,92 @@
             <i class="fas fa-user-circle"></i> Cliente: {{ cliente }} 
         </h1>
         <div>
-            <!-- Botón de Edición -->
-            <a href="{% url 'editar_cliente' pk=cliente.pk %}" class="btn btn-warning me-2 shadow-sm">
-                <i class="fas fa-pencil-alt"></i> Editar Datos
-            </a>
-            
-            <!-- Botón de Abrir Venta -->
-            <a href="{% url 'crear_venta' %}?cliente_pk={{ cliente.pk }}" class="btn btn-success me-2 shadow-sm">
-                <i class="fas fa-plane"></i> Abrir Nueva Venta
-            </a>
-            
-            <!-- Botón para Abrir Modal de Eliminación (NUEVO) -->
-            <button type="button" class="btn btn-danger shadow-sm" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal">
-                <i class="fas fa-trash-alt"></i> Eliminar Cliente
-            </button>
+            {% with user.perfil.rol|default:""|upper as user_rol %}
+                {% if "CONTADOR" not in user_rol %}
+                    <!-- Botón de Edición -->
+                    <a href="{% url 'editar_cliente' pk=cliente.pk %}" class="btn btn-warning me-2 shadow-sm">
+                        <i class="fas fa-pencil-alt"></i> Editar Datos
+                    </a>
+                    
+                    <!-- Botón de Abrir Venta -->
+                    <a href="{% url 'crear_venta' %}?cliente_pk={{ cliente.pk }}" class="btn btn-success me-2 shadow-sm">
+                        <i class="fas fa-plane"></i> Abrir Nueva Venta
+                    </a>
+                    
+                    <!-- Botón para Abrir Modal de Eliminación (NUEVO) -->
+                    <button type="button" class="btn btn-danger shadow-sm" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal">
+                        <i class="fas fa-trash-alt"></i> Eliminar Cliente
+                    </button>
+                {% endif %}
+            {% endwith %}
         </div>
     </div>
+
+    {% if kilometros %}
+    <div class="row mb-4">
+        <div class="col-lg-6">
+            <div class="card shadow border-0 h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="text-primary mb-0"><i class="fas fa-route me-2"></i>Kilómetros Movums</h5>
+                        {% if kilometros.participa %}
+                            <span class="badge bg-success">Activo</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Inactivo</span>
+                        {% endif %}
+                    </div>
+                    <div class="row text-black">
+                        <div class="col-6">
+                            <p class="text-muted mb-1">Disponibles</p>
+                            <p class="fs-4 fw-bold">{{ kilometros.disponible|floatformat:2|intcomma }} km</p>
+                        </div>
+                        <div class="col-6 text-end">
+                            <p class="text-muted mb-1">Equivalente</p>
+                            <p class="fs-4 fw-bold">${{ kilometros.valor_equivalente|floatformat:2|intcomma }} MXN</p>
+                        </div>
+                    </div>
+                    <div class="small text-muted">
+                        <p class="mb-1"><strong>Total histórico:</strong> {{ kilometros.total_acumulado|floatformat:2|intcomma }} km</p>
+                        {% if kilometros.ultima_fecha %}
+                            <p class="mb-1"><strong>Última acumulación:</strong> {{ kilometros.ultima_fecha|date:"d M Y H:i" }}</p>
+                        {% endif %}
+                        {% if kilometros.proximo_vencimiento %}
+                            <p class="mb-0 text-danger"><i class="fas fa-hourglass-half me-1"></i>
+                                Próximo vencimiento: {{ kilometros.proximo_vencimiento|date:"d M Y" }}
+                            </p>
+                        {% else %}
+                            <p class="mb-0"><i class="fas fa-calendar-check me-1 text-success"></i>Kilómetros vigentes</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card shadow border-0 h-100">
+                <div class="card-body">
+                    <h6 class="text-primary mb-3"><i class="fas fa-history me-2"></i>Últimos movimientos</h6>
+                    {% if kilometros.historial_reciente %}
+                        <ul class="list-unstyled mb-0 text-black">
+                            {% for movimiento in kilometros.historial_reciente %}
+                                <li class="d-flex justify-content-between small border-bottom py-2">
+                                    <span>
+                                        <strong>{{ movimiento.get_tipo_evento_display }}</strong>
+                                        {% if movimiento.descripcion %}<br><span class="text-muted">{{ movimiento.descripcion }}</span>{% endif %}
+                                    </span>
+                                    <span class="{% if movimiento.kilometros < 0 %}text-danger{% else %}text-success{% endif %} fw-bold">
+                                        {{ movimiento.kilometros|floatformat:2|intcomma }} km
+                                    </span>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-muted mb-0">Sin movimientos registrados.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Aseguramos fondo blanco y texto oscuro en el contenedor principal de datos -->
     <div class="row mb-5 text-black bg-white p-4 rounded-3 shadow-sm"> 
@@ -147,7 +217,7 @@
                         <td><a href="{% url 'detalle_venta' slug=venta.slug_safe pk=venta.pk %}" class="fw-bold text-decoration-none text-black">#{{ venta.id }}</a></td>
                         <td>{{ venta.vendedor.username }}</td>
                         <td>{{ venta.fecha_inicio_viaje|date:"d M Y" }}</td>
-                        <td><span class="fw-bold">${{ venta.costo_venta_final|floatformat:2|intcomma }}</span></td>
+                        <td><span class="fw-bold">${{ venta.costo_total_con_modificacion|floatformat:2|intcomma }}</span></td>
                         <td>
                             {% if venta.saldo_restante > 0 %}
                                 <span class="badge bg-danger p-2">${{ venta.saldo_restante|floatformat:2|intcomma }}</span>

@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Vuelo Sencillo - Venta #{{ venta.id }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-plane"></i> Plantilla: Vuelo Sencillo - Venta #{{ venta.id }}
+        </h1>
+        
+        <div class="mb-4">
+            <a href="{% url 'listar_confirmaciones' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver a Confirmaciones
+            </a>
+        </div>
+        
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Información del Vuelo Sencillo</h4>
+            </div>
+            <div class="card-body">
+                <form method="post" id="formVueloUnico">
+                    {% csrf_token %}
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Clave de Reserva</label>
+                            <textarea name="clave_reserva" class="form-control" rows="2" placeholder="Ej: ABC123XYZ">{{ datos.clave_reserva|default:'' }}</textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Número de Vuelo</label>
+                            <textarea name="numero_vuelo" class="form-control" rows="2" placeholder="Ej: Y4 123">{{ datos.numero_vuelo|default:'' }}</textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Aerolínea</label>
+                            <textarea name="aerolinea" class="form-control" rows="2" placeholder="Ej: Volaris, Aeroméxico">{{ datos.aerolinea|default:'' }}</textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Fecha</label>
+                            <textarea name="fecha" class="form-control" rows="2" placeholder="Ej: 15 de marzo 2025">{{ datos.fecha|default:'' }}</textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Hora de Salida</label>
+                            <textarea name="hora_salida" class="form-control" rows="2" placeholder="Ej: 8:30 AM">{{ datos.hora_salida|default:'' }}</textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Hora de Llegada</label>
+                            <textarea name="hora_llegada" class="form-control" rows="2" placeholder="Ej: 11:45 AM">{{ datos.hora_llegada|default:'' }}</textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Origen-Terminal</label>
+                            <textarea name="origen_terminal" class="form-control" rows="3" placeholder="Ej: CDMX - Aeropuerto Internacional de la Ciudad de México (AICM) Terminal 1">{{ datos.origen_terminal|default:'' }}</textarea>
+                            <small class="form-text text-muted">Ciudad - Aeropuerto/Terminal</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Destino-Terminal</label>
+                            <textarea name="destino_terminal" class="form-control" rows="3" placeholder="Ej: Cancún - Aeropuerto Internacional de Cancún Terminal 3">{{ datos.destino_terminal|default:'' }}</textarea>
+                            <small class="form-text text-muted">Ciudad - Aeropuerto/Terminal</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Tipo de Vuelo</label>
+                            <select name="tipo_vuelo" id="tipo_vuelo" class="form-select">
+                                <option value="">Selecciona una opción</option>
+                                <option value="Directo" {% if datos.tipo_vuelo == 'Directo' %}selected{% endif %}>Directo</option>
+                                <option value="Escalas" {% if datos.tipo_vuelo == 'Escalas' %}selected{% endif %}>Con Escalas</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Equipaje</label>
+                            <textarea name="equipaje" class="form-control" rows="2" placeholder="Ej: 1 maleta de 23 kg">{{ datos.equipaje|default:'' }}</textarea>
+                        </div>
+                    </div>
+                    
+                    <!-- Sección de Escalas (se muestra solo si tipo_vuelo == "Escalas") -->
+                    <div id="escalas_section" style="display: none;" class="mb-4">
+                        <div class="card border-info">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0"><i class="fas fa-plane-arrival"></i> Escalas</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="escalas_container">
+                                    <!-- Las escalas se agregarán dinámicamente aquí -->
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="agregar_escala">
+                                    <i class="fas fa-plus"></i> Agregar Escala
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Pasajeros</label>
+                        <textarea name="pasajeros" class="form-control" rows="4" placeholder="Pega aquí los nombres completos de los pasajeros, uno por línea">{{ datos.pasajeros|default:'' }}</textarea>
+                        <small class="form-text text-muted">Un pasajero por línea</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Información Completa del Vuelo (Copia y Pega aquí)</label>
+                        <textarea name="vuelo" class="form-control" rows="10" placeholder="Pega aquí toda la información del vuelo que copiaste de la captura de pantalla...">{{ datos.vuelo|default:'' }}</textarea>
+                        <small class="form-text text-muted">Copia y pega toda la información relevante del vuelo</small>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'listar_confirmaciones' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Guardar Plantilla
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const tipoVueloSelect = document.getElementById('tipo_vuelo');
+    const escalasSection = document.getElementById('escalas_section');
+    const escalasContainer = document.getElementById('escalas_container');
+    const agregarEscalaBtn = document.getElementById('agregar_escala');
+    let escalaCount = 0;
+    
+    // Datos de escalas existentes (si hay)
+    let escalasExistentes = [];
+    {% if escalas_json %}
+        try {
+            escalasExistentes = {{ escalas_json|safe }};
+            if (!Array.isArray(escalasExistentes)) {
+                escalasExistentes = [];
+            }
+        } catch(e) {
+            escalasExistentes = [];
+        }
+    {% endif %}
+    
+    // Función para mostrar/ocultar sección de escalas
+    function toggleEscalas() {
+        if (tipoVueloSelect.value === 'Escalas') {
+            escalasSection.style.display = 'block';
+        } else {
+            escalasSection.style.display = 'none';
+        }
+    }
+    
+    // Inicializar
+    toggleEscalas();
+    
+    // Event listener para cambio de tipo de vuelo
+    tipoVueloSelect.addEventListener('change', toggleEscalas);
+    
+    // Función para crear HTML de una escala
+    function crearEscalaHTML(index, escalaData = {}) {
+        return `
+            <div class="escala-item card mb-3" data-escala-index="${index}">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0">Escala ${index + 1}</h6>
+                        <button type="button" class="btn btn-sm btn-danger eliminar-escala" data-index="${index}">
+                            <i class="fas fa-times"></i> Eliminar
+                        </button>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <label class="form-label">Ciudad de Escala</label>
+                            <textarea name="escalas[${index}][ciudad]" class="form-control" rows="1" placeholder="Ej: Guadalajara">${escalaData.ciudad || ''}</textarea>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label class="form-label">Aeropuerto/Terminal</label>
+                            <textarea name="escalas[${index}][aeropuerto]" class="form-control" rows="1" placeholder="Ej: Aeropuerto Internacional de Guadalajara Terminal 1">${escalaData.aeropuerto || ''}</textarea>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label">Hora de Llegada</label>
+                            <textarea name="escalas[${index}][hora_llegada]" class="form-control" rows="1" placeholder="Ej: 10:15 AM">${escalaData.hora_llegada || ''}</textarea>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label">Hora de Salida</label>
+                            <textarea name="escalas[${index}][hora_salida]" class="form-control" rows="1" placeholder="Ej: 11:30 AM">${escalaData.hora_salida || ''}</textarea>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label">Número de Vuelo</label>
+                            <textarea name="escalas[${index}][numero_vuelo]" class="form-control" rows="1" placeholder="Ej: Y4 456">${escalaData.numero_vuelo || ''}</textarea>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label">Duración de Escala</label>
+                            <textarea name="escalas[${index}][duracion]" class="form-control" rows="1" placeholder="Ej: 1h 15min">${escalaData.duracion || ''}</textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Cargar escalas existentes si hay
+    if (escalasExistentes && escalasExistentes.length > 0) {
+        escalasExistentes.forEach((escala, index) => {
+            escalaCount = index + 1;
+            escalasContainer.insertAdjacentHTML('beforeend', crearEscalaHTML(index, escala));
+        });
+    }
+    
+    // Event listener para agregar escala
+    agregarEscalaBtn.addEventListener('click', function() {
+        escalasContainer.insertAdjacentHTML('beforeend', crearEscalaHTML(escalaCount, {}));
+        escalaCount++;
+    });
+    
+    // Event listener para eliminar escala (usando delegación de eventos)
+    escalasContainer.addEventListener('click', function(e) {
+        if (e.target.closest('.eliminar-escala')) {
+            const btn = e.target.closest('.eliminar-escala');
+            const escalaItem = btn.closest('.escala-item');
+            escalaItem.remove();
+            // Renumerar las escalas restantes
+            actualizarNumeracionEscalas();
+        }
+    });
+    
+    function actualizarNumeracionEscalas() {
+        const items = escalasContainer.querySelectorAll('.escala-item');
+        items.forEach((item, index) => {
+            const header = item.querySelector('h6');
+            if (header) {
+                header.textContent = `Escala ${index + 1}`;
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
+
