@@ -90,6 +90,11 @@ DATABASES = {
     }
 }
 
+# Configuración de Base de Datos para Producción (PostgreSQL)
+import dj_database_url
+db_from_env = dj_database_url.config(conn_max_age=500)
+DATABASES['default'].update(db_from_env)
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
@@ -130,6 +135,12 @@ STATIC_URL = 'static/'
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'), # Busca la carpeta 'static' en la raíz del proyecto
 ]
+
+# Directorio donde collectstatic agrupará los archivos para producción
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Seguridad: Orígenes de confianza para formularios (CSRF)
+CSRF_TRUSTED_ORIGINS = ['http://206.189.223.176']
 
 # Media files
 MEDIA_URL = '/media/'
