@@ -4,14 +4,10 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
+    # Esta migración se elimina del flujo principal para evitar la pérdida de datos.
+    # Se conserva como marcador vacío para no romper historiales donde se aplicó.
     dependencies = [
         ('crm', '0004_cliente_cotizaciones_generadas'),
     ]
 
-    operations = [
-        migrations.RemoveField(
-            model_name='cliente',
-            name='cotizaciones_generadas',
-        ),
-    ]
+    operations = []

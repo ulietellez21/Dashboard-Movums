@@ -1,1 +1,138 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Vuelo Redondo - Venta #{{ venta.id }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-plane-departure"></i> Plantilla: Vuelo Redondo - Venta #{{ venta.id }}
+        </h1>
+        
+        <div class="mb-4">
+            <a href="{% url 'listar_confirmaciones' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver a Confirmaciones
+            </a>
+        </div>
+        
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Información del Vuelo Redondo</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Clave de Reserva</label>
+                            <textarea name="clave_reserva" class="form-control" rows="2" placeholder="Ej: ABC123XYZ">{{ datos.clave_reserva|default:'' }}</textarea>
+                        </div>
+                    </div>
+                    
+                    <h5 class="border-bottom pb-2 mb-3">VUELO DE IDA</h5>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Número de Vuelo Ida</label>
+                            <textarea name="numero_vuelo_ida" class="form-control" rows="2" placeholder="Ej: Y4 123">{{ datos.numero_vuelo_ida|default:'' }}</textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Aerolínea Ida</label>
+                            <textarea name="aerolinea_ida" class="form-control" rows="2" placeholder="Ej: Volaris">{{ datos.aerolinea_ida|default:'' }}</textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Fecha Salida</label>
+                            <textarea name="fecha_salida_ida" class="form-control" rows="2" placeholder="Ej: 15 de marzo 2025">{{ datos.fecha_salida_ida|default:'' }}</textarea>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Hora Salida</label>
+                            <textarea name="hora_salida_ida" class="form-control" rows="2" placeholder="Ej: 8:30 AM">{{ datos.hora_salida_ida|default:'' }}</textarea>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Hora Llegada</label>
+                            <textarea name="hora_llegada_ida" class="form-control" rows="2" placeholder="Ej: 11:45 AM">{{ datos.hora_llegada_ida|default:'' }}</textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Origen</label>
+                            <textarea name="origen_ida" class="form-control" rows="2" placeholder="Ej: CDMX">{{ datos.origen_ida|default:'' }}</textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Destino</label>
+                            <textarea name="destino_ida" class="form-control" rows="2" placeholder="Ej: Cancún">{{ datos.destino_ida|default:'' }}</textarea>
+                        </div>
+                    </div>
+                    
+                    <h5 class="border-bottom pb-2 mb-3 mt-4">VUELO DE REGRESO</h5>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Número de Vuelo Regreso</label>
+                            <textarea name="numero_vuelo_regreso" class="form-control" rows="2" placeholder="Ej: Y4 456">{{ datos.numero_vuelo_regreso|default:'' }}</textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Aerolínea Regreso</label>
+                            <textarea name="aerolinea_regreso" class="form-control" rows="2" placeholder="Ej: Volaris">{{ datos.aerolinea_regreso|default:'' }}</textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Fecha Salida</label>
+                            <textarea name="fecha_salida_regreso" class="form-control" rows="2" placeholder="Ej: 20 de marzo 2025">{{ datos.fecha_salida_regreso|default:'' }}</textarea>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Hora Salida</label>
+                            <textarea name="hora_salida_regreso" class="form-control" rows="2" placeholder="Ej: 6:00 PM">{{ datos.hora_salida_regreso|default:'' }}</textarea>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Hora Llegada</label>
+                            <textarea name="hora_llegada_regreso" class="form-control" rows="2" placeholder="Ej: 9:15 PM">{{ datos.hora_llegada_regreso|default:'' }}</textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Origen</label>
+                            <textarea name="origen_regreso" class="form-control" rows="2" placeholder="Ej: Cancún">{{ datos.origen_regreso|default:'' }}</textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Destino</label>
+                            <textarea name="destino_regreso" class="form-control" rows="2" placeholder="Ej: CDMX">{{ datos.destino_regreso|default:'' }}</textarea>
+                        </div>
+                    </div>
+                    
+                    <h5 class="border-bottom pb-2 mb-3 mt-4">INFORMACIÓN GENERAL</h5>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Pasajeros</label>
+                            <textarea name="pasajeros" class="form-control" rows="4" placeholder="Pega aquí los nombres completos, uno por línea">{{ datos.pasajeros|default:'' }}</textarea>
+                            <small class="form-text text-muted">Un pasajero por línea</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Equipaje</label>
+                            <textarea name="equipaje" class="form-control" rows="4" placeholder="Ej: 1 maleta de 23 kg por pasajero">{{ datos.equipaje|default:'' }}</textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'listar_confirmaciones' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Guardar Plantilla
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
 
