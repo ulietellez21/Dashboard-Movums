@@ -1,205 +1,68 @@
 {% load humanize %}
-{% load static %}
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comprobante de Abonos - Venta #{{ venta.pk }}</title>
-    <style>
-        /* Configuración de página para PDF (WeasyPrint) */
-        @page {
-            size: A4;
-            margin: 1.2cm 0.8cm 2.0cm 0.8cm;
-            background: url("{% static 'img/image1.png' %}") no-repeat top center;
-            background-size: cover;
-        }
-        body {
-            font-family: Arial, sans-serif;
-            font-size: 12pt;
-            line-height: 1.5;
-            color: #333333;
-            margin: 0;
-            padding: 180px 30px 50px 30px;
-            background-image: url("{% static 'img/image1.png' %}");
-            background-repeat: no-repeat;
-            background-position: top center;
-            background-size: cover;
-        }
-        .container {
-            max-width: 100%;
-            padding: 0;
-        }
-        .table-wrapper {
-            page-break-inside: avoid;
-            padding-top: 140px;
-        }
-        /* Título principal centrado (tamaño 18) */
-        .titulo-principal {
-            text-align: center;
-            font-family: Arial, sans-serif;
-            font-size: 18pt;
-            font-weight: bold;
-            color: #004a8e;
-            margin: 20px 0 15px 0;
-            padding: 0;
-        }
-        /* Información de cliente y fecha en la misma línea */
-        .info-venta {
-            text-align: center;
-            font-family: Arial, sans-serif;
-            font-size: 12pt;
-            margin: 0 0 25px 0;
-            padding: 0;
-        }
-        .info-venta strong {
-            font-weight: bold;
-        }
-        section {
-            margin-bottom: 25px;
-        }
-        section p {
-            margin: 8px 0;
-            font-family: Arial, sans-serif;
-            font-size: 12pt;
-        }
-        h3 {
-            font-family: Arial, sans-serif;
-            font-size: 14pt;
-            font-weight: bold;
-            color: #004a8e;
-            border-bottom: 2px solid #004a8e;
-            padding-bottom: 5px;
-            margin-top: 25px;
-            margin-bottom: 15px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-            font-family: Arial, sans-serif;
-            font-size: 12pt;
-            page-break-inside: avoid;
-        }
-        th {
-            background-color: #004a8e;
-            color: white;
-            font-weight: bold;
-            padding: 10px 8px;
-            text-align: left;
-            border: 1px solid #004a8e;
-        }
-        td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-        .total-pendiente {
-            color: #dc3545;
-            font-weight: bold;
-        }
-        .info-line {
-            margin: 10px 0;
-            font-family: Arial, sans-serif;
-            font-size: 12pt;
-        }
-        .info-line strong {
-            font-weight: bold;
-        }
-    </style>
+    <title>Comprobante de Abonos - Venta #{{ venta.pk }}</title>
+    <style>
+        body { font-family: sans-serif; font-size: 10pt; }
+        header { text-align: center; border-bottom: 2px solid #004c99; padding-bottom: 10px; margin-bottom: 20px;}
+        h1 { color: #004c99; font-size: 18pt; margin: 0; }
+        h3 { color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 25px;}
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        tfoot td { background-color: #f2f2f2; font-weight: bold; }
+        .total-pendiente { color: red; }
+    </style>
 </head>
 <body>
-<div class="container">
-    <!-- Título principal centrado -->
-    <h1 class="titulo-principal">COMPROBANTE DE ABONOS</h1>
-    
-    <!-- Información de cliente y fecha en la misma línea -->
-    <div class="info-venta">
-        <strong>Cliente:</strong> {{ venta.cliente.nombre_completo_display }} | <strong>Fecha de Generación:</strong> {{ now|date:"d/m/Y H:i" }}
-    </div>
 
-    <section>
-        <div class="info-line">
-            <strong>Número de Venta:</strong> #{{ venta.pk }}
-        </div>
-        <div class="info-line">
-            <strong>Fecha de Viaje:</strong> {{ venta.fecha_inicio_viaje|date:"d/m/Y" }}
-        </div>
-        <div class="info-line">
-            <strong>Vendedor:</strong> {{ venta.vendedor.username }}
-        </div>
-    </section>
+    <header>
+        <h1>Movums The Travel Store</h1>
+        <h2>Comprobante de Abonos</h2>
+    </header>
 
-    <section>
-        <h3>Resumen Financiero</h3>
-        <div class="info-line">
-            <strong>Costo Total del Viaje:</strong> ${{ venta.costo_total_con_modificacion|floatformat:2|intcomma }}{% if venta.costo_modificacion and venta.costo_modificacion > 0 %} (incluye modificación: ${{ venta.costo_modificacion|floatformat:2|intcomma }}){% endif %}
-        </div>
-        <div class="info-line">
-            <strong>Total Abonado hasta la fecha:</strong> ${{ venta.total_pagado|floatformat:2|intcomma }}
-        </div>
-        <div class="info-line">
-            <strong>Saldo Pendiente:</strong> <span class="total-pendiente">${{ venta.saldo_restante|floatformat:2|intcomma }}</span>
-        </div>
-    </section>
+    <section>
+        <p><strong>Número de Venta:</strong> #{{ venta.pk }}</p>
+        <p><strong>Cliente:</strong> {{ venta.cliente.nombre_completo_display }}</p> 
+        <p><strong>Fecha de Viaje:</strong> {{ venta.fecha_inicio_viaje|date:"d/m/Y" }}</p>
+        <p><strong>Vendedor:</strong> {{ venta.vendedor.username }}</p>
+    </section>
 
-    <section>
-        <h3>Detalle de Pagos Realizados</h3>
-        {% if abonos or venta.cantidad_apertura > 0 %}
-        <div class="table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Tipo</th>
-                        <th>Fecha de Pago</th>
-                        <th>Monto</th>
-                        <th>Método de Pago</th>
-                        <th>Estado</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% if venta.cantidad_apertura > 0 %}
-                    <tr>
-                        <td><strong>Pago de Apertura</strong></td>
-                        <td>{{ venta.fecha_creacion|date:"d/m/Y H:i" }}</td>
-                        <td>${{ venta.cantidad_apertura|floatformat:2|intcomma }}</td>
-                        <td>{{ venta.get_modo_pago_apertura_display }}</td>
-                        <td>
-                            {% if venta.modo_pago_apertura in 'TRN,TAR,DEP' and venta.estado_confirmacion == 'EN_CONFIRMACION' %}
-                                <span style="color: #856404;">Pendiente</span>
-                            {% else %}
-                                <span style="color: #155724;">Confirmado</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endif %}
-                    {% for abono in abonos %}
-                    <tr>
-                        <td>Abono</td>
-                        <td>{{ abono.fecha_pago|date:"d/m/Y H:i" }}</td>
-                        <td>${{ abono.monto|floatformat:2|intcomma }}</td>
-                        <td>{{ abono.get_forma_pago_display }}</td>
-                        <td>
-                            {% if abono.forma_pago in 'TRN,TAR,DEP' and not abono.confirmado %}
-                                <span style="color: #856404;">Pendiente</span>
-                            {% elif abono.confirmado %}
-                                <span style="color: #155724;">Confirmado</span>
-                            {% else %}
-                                <span style="color: #155724;">Confirmado</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <p style="text-align: center; color: #666; font-style: italic;">No se han registrado abonos para esta venta.</p>
-        {% endif %}
-    </section>
-</div>
+    <section>
+        <h3>Resumen Financiero</h3>
+        <p><strong>Costo Total del Viaje:</strong> ${{ venta.costo_venta_final|floatformat:2|intcomma }}</p>
+        <p><strong>Total Abonado hasta la fecha:</strong> ${{ venta.total_pagado|floatformat:2|intcomma }}</p>
+        <p><strong>Saldo Pendiente:</strong> <span class="total-pendiente">${{ venta.saldo_restante|floatformat:2|intcomma }}</span></p>
+    </section>
+
+    <section>
+        <h3>Detalle de Pagos Realizados</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID Abono</th>
+                    <th>Fecha de Pago</th>
+                    <th>Monto Abonado</th>
+                    <th>Método de Pago</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for abono in venta.abonos.all %}
+                <tr>
+                    <td>{{ abono.pk }}</td>
+                    <td>{{ abono.fecha_pago|date:"d/m/Y H:i" }}</td>
+                    {# 🚨 AJUSTE 2: Se usa 'abono.monto' en lugar de 'abono.monto_abonado' (asumiendo el nombre del campo del modelo AbonoPago) #}
+                    <td>${{ abono.monto|floatformat:2|intcomma }}</td>
+                    <td>{{ abono.metodo_pago }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <footer style="position: fixed; bottom: 0; width: 100%;">
+        <p>Documento generado por el sistema Movums el {{ now|date:"d/m/Y H:i" }}</p>
+    </footer>
+
 </body>
 </html>

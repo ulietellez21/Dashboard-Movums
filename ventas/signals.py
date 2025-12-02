@@ -19,35 +19,18 @@ def obtener_usuarios_jefe():
 
 @receiver(post_save, sender=AbonoPago)
 def notificar_abono_registrado(sender, instance, created, **kwargs):
-    """
-    Crea una notificación cuando se registra un nuevo abono.
-    IMPORTANTE: Solo para abonos en efectivo. Para transferencia/tarjeta, 
-    las notificaciones se crean manualmente en la vista como PAGO_PENDIENTE.
-    """
+    """Crea una notificación cuando se registra un nuevo abono."""
     if created:
-        # Solo crear notificación tipo ABONO para abonos en efectivo
-        # Para transferencia/tarjeta, las notificaciones se manejan en la vista
-        if instance.forma_pago == 'EFE':
-            usuarios_jefe = obtener_usuarios_jefe()
-            mensaje = f"Se registró un abono de ${instance.monto} (Efectivo) para la Venta #{instance.venta.pk} - Cliente: {instance.venta.cliente.nombre_completo_display}"
-            
-            for jefe in usuarios_jefe:
-                # Solo crear si no existe ya una notificación PAGO_PENDIENTE para este abono
-                existe_pendiente = Notificacion.objects.filter(
-                    usuario=jefe,
-                    venta=instance.venta,
-                    abono=instance,
-                    tipo='PAGO_PENDIENTE'
-                ).exists()
-                
-                if not existe_pendiente:
-                    Notificacion.objects.create(
-                        usuario=jefe,
-                        tipo='ABONO',
-                        mensaje=mensaje,
-                        venta=instance.venta,
-                        abono=instance
-                    )
+        usuarios_jefe = obtener_usuarios_jefe()
+        mensaje = f"Se registró un abono de ${instance.monto} para la Venta #{instance.venta.pk} - Cliente: {instance.venta.cliente.nombre_completo_display}"
+        
+        for jefe in usuarios_jefe:
+            Notificacion.objects.create(
+                usuario=jefe,
+                tipo='ABONO',
+                mensaje=mensaje,
+                venta=instance.venta
+            )
 
 
 @receiver(post_save, sender=VentaViaje)
@@ -75,10 +58,10 @@ def notificar_cambios_venta(sender, instance, created, **kwargs):
             # Verificar si la venta está liquidada
             if instance.total_pagado >= instance.costo_venta_final:
                 # Verificar si ya existe una notificación de liquidación para esta venta
-                # IMPORTANTE: No filtrar por vista=False para evitar duplicados cuando se marca como vista
                 existe_notificacion = Notificacion.objects.filter(
                     venta=instance,
-                    tipo='LIQUIDACION'
+                    tipo='LIQUIDACION',
+                    vista=False
                 ).exists()
                 
                 if not existe_notificacion:
@@ -100,17 +83,15 @@ def notificar_cambio_logistica(sender, instance, created, **kwargs):
     """Crea una notificación cuando hay cambios en la logística."""
     if not created:  # Solo para actualizaciones
         # Verificar si algún campo de logística cambió a True (confirmado)
-        # Solo verificar servicios que están contratados
         cambios = []
-        
-        if instance.servicio_contratado('VUE') and instance.vuelo_confirmado:
+        if instance.vuelo_confirmado:
             cambios.append("Vuelo confirmado")
-        if instance.servicio_contratado('HOS') and instance.hospedaje_reservado:
+        if instance.hospedaje_reservado:
             cambios.append("Hospedaje reservado")
-        if instance.servicio_contratado('TRA') and instance.traslado_confirmado:
-            cambios.append("Traslado confirmado")
-        if instance.servicio_contratado('TOU') and instance.tickets_confirmado:
-            cambios.append("Tickets confirmados")
+        if instance.seguro_emitido:
+            cambios.append("Seguro emitido")
+        if instance.documentos_enviados:
+            cambios.append("Documentos enviados")
         
         if cambios:
             usuarios_jefe = obtener_usuarios_jefe()
@@ -118,14 +99,12 @@ def notificar_cambio_logistica(sender, instance, created, **kwargs):
             
             for jefe in usuarios_jefe:
                 # Evitar notificaciones duplicadas recientes (últimos 5 minutos)
-                # IMPORTANTE: Verificar también el mensaje exacto para evitar duplicados
                 from datetime import timedelta
                 tiempo_limite = timezone.now() - timedelta(minutes=5)
                 existe_reciente = Notificacion.objects.filter(
                     usuario=jefe,
                     venta=instance.venta,
                     tipo='LOGISTICA',
-                    mensaje=mensaje,  # Verificar el mensaje exacto
                     fecha_creacion__gte=tiempo_limite
                 ).exists()
                 

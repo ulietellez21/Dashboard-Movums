@@ -24,91 +24,84 @@
         /* Configuración de página para PDF (WeasyPrint) */
         @page {
             size: A4;
-            margin: 1.2cm 0.8cm 2.0cm 0.8cm;
-            background: url("{% static 'img/image1.png' %}") no-repeat top center;
-            background-size: cover;
+            margin: 2.5cm 2.5cm 2.5cm 2.5cm;
         }
         body {
-            font-family: Arial, sans-serif;
-            font-size: 12pt;
-            line-height: 1.5;
-            color: #333333;
+            font-family: 'Arial', sans-serif;
+            font-size: 11pt;
+            line-height: 1.6;
+            color: #333;
             margin: 0;
-            padding: 180px 30px 50px 30px;
-            background-image: url("{% static 'img/image1.png' %}");
-            background-repeat: no-repeat;
-            background-position: top center;
-            background-size: cover;
+            padding: 0;
         }
         .container {
             max-width: 100%;
             padding: 0;
-            margin-top: 0;
         }
-        /* Título principal centrado (tamaño 18) */
-        .titulo-principal {
-            text-align: center;
-            font-family: Arial, sans-serif;
-            font-size: 18pt;
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #004a8e;
+            padding-bottom: 15px;
+        }
+        .header-logo {
+            width: 150px;
+            height: auto;
+        }
+        .header-right {
+            text-align: right;
+            flex: 1;
+        }
+        .header-title {
+            font-size: 16pt;
             font-weight: bold;
             color: #004a8e;
-            margin: 20px 0 15px 0;
-            padding: 0;
+            margin-bottom: 5px;
         }
-        /* Información de cliente y fecha en la misma línea */
-        .info-venta {
-            text-align: center;
-            font-family: Arial, sans-serif;
-            font-size: 12pt;
-            margin: 0 0 25px 0;
-            padding: 0;
-        }
-        .info-venta strong {
-            font-weight: bold;
+        .header-date {
+            font-size: 10pt;
+            color: #666;
         }
         .recibo-title {
             font-size: 14pt;
             font-weight: bold;
             text-align: center;
-            margin: 25px 0 20px 0;
+            margin: 30px 0 20px 0;
             color: #004a8e;
-            font-family: Arial, sans-serif;
         }
         .recibo-content {
             text-align: justify;
-            line-height: 1.8;
-            font-size: 12pt;
-            font-family: Arial, sans-serif;
+            line-height: 2;
+            font-size: 11pt;
         }
         .recibo-content p {
-            margin: 12px 0;
+            margin: 10px 0;
         }
         .monto-destacado {
             font-weight: bold;
             font-size: 12pt;
-            font-family: Arial, sans-serif;
         }
         .line-break {
             margin: 15px 0;
         }
         .info-line {
-            margin: 10px 0;
-            font-family: Arial, sans-serif;
-            font-size: 12pt;
-        }
-        .info-line strong {
-            font-weight: bold;
+            margin: 8px 0;
         }
     </style>
 </head>
 <body>
 <div class="container">
-    <!-- Título principal centrado -->
-    <h1 class="titulo-principal">CONTRATO SERVICIOS TURÍSTICOS</h1>
-    
-    <!-- Información de cliente y fecha en la misma línea -->
-    <div class="info-venta">
-        <strong>Cliente:</strong> {{ venta.cliente.nombre_completo_display }} | <strong>Fecha de Generación:</strong> {{ fecha_generacion }}
+    <!-- Header con Logo y Título -->
+    <div class="header">
+        <div class="header-logo">
+            <img src="{% static 'img/logo_mini.png' %}" alt="Logo" class="header-logo" />
+        </div>
+        <div class="header-right">
+            <div class="header-title">CONTRATO SERVICIOS TURISTICOS</div>
+            <div class="header-date">{{ fecha_generacion }}</div>
+        </div>
     </div>
 
     <!-- Cuerpo del Recibo -->
@@ -176,7 +169,7 @@
         <div class="line-break"></div>
         
         <p>
-            Con un costo total de <strong>${{ venta.costo_total_con_modificacion|floatformat:2|intcomma }}</strong>{% if venta.costo_modificacion and venta.costo_modificacion > 0 %} (incluyendo costo de modificación de ${{ venta.costo_modificacion|floatformat:2|intcomma }}){% endif %}. Restando la cantidad de <strong>${{ saldo_pendiente|floatformat:2|intcomma }}</strong> el cual deberá estar cubierto a más tardar el día <strong>{% if venta.fecha_vencimiento_pago %}{{ venta.fecha_vencimiento_pago|date:"j \d\e F \d\e Y" }}{% else %}No especificada{% endif %}</strong>.
+            Con un costo total de <strong>${{ venta.costo_venta_final|floatformat:2|intcomma }}</strong>. Restando la cantidad de <strong>${{ saldo_pendiente|floatformat:2|intcomma }}</strong> el cual deberá estar cubierto a más tardar el día <strong>{% if venta.fecha_vencimiento_pago %}{{ venta.fecha_vencimiento_pago|date:"j \d\e F \d\e Y" }}{% else %}No especificada{% endif %}</strong>.
         </p>
     </div>
 </div>
