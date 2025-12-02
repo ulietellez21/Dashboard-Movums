@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Confirmaciones - Venta #{{ venta.id }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-file-alt"></i> Plantillas de Confirmación - Venta #{{ venta.id }}
+        </h1>
+        
+        <div class="mb-4">
+            <a href="{% url 'detalle_venta' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver a Detalle de Venta
+            </a>
+            
+            {% if plantillas %}
+                <a href="{% url 'generar_documento_confirmacion' pk=venta.pk slug=venta.slug_safe %}"
+                   class="btn btn-primary"
+                   data-no-transition="true">
+                    <i class="fas fa-file-word"></i> Generar Documento Word
+                </a>
+            {% endif %}
+        </div>
+        
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <h3 class="mb-3">Seleccionar Plantilla a Llenar</h3>
+                <div class="d-grid gap-2 d-md-flex">
+                    {% if mostrar_vuelo_unico %}
+                    <a href="{% url 'crear_vuelo_unico' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-outline-primary flex-fill">
+                        <i class="fas fa-plane"></i> Vuelo Sencillo
+                    </a>
+                    {% endif %}
+                    {% if mostrar_vuelo_redondo %}
+                    <a href="{% url 'crear_vuelo_redondo' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-outline-primary flex-fill">
+                        <i class="fas fa-plane-departure"></i> Vuelo Redondo
+                    </a>
+                    {% endif %}
+                    {% if mostrar_hospedaje %}
+                    <a href="{% url 'crear_hospedaje' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-outline-primary flex-fill">
+                        <i class="fas fa-hotel"></i> Hospedaje
+                    </a>
+                    {% endif %}
+                    {% if mostrar_traslado %}
+                    <a href="{% url 'crear_traslado' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-outline-primary flex-fill">
+                        <i class="fas fa-car"></i> Traslado
+                    </a>
+                    {% endif %}
+                    {% if mostrar_generica %}
+                    <a href="{% url 'crear_generica' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-outline-primary flex-fill">
+                        <i class="fas fa-file"></i> Genérica
+                    </a>
+                    {% endif %}
+                </div>
+                {% if not mostrar_vuelo_unico and not mostrar_vuelo_redondo and not mostrar_hospedaje and not mostrar_traslado and not mostrar_generica %}
+                <div class="alert alert-warning mt-3">
+                    <i class="fas fa-exclamation-triangle"></i> No hay servicios contratados en esta venta. Por favor, edita la venta y selecciona los servicios correspondientes.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        {% if plantillas %}
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Plantillas Creadas ({{ plantillas.count }})</h4>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Tipo</th>
+                                    <th>Fecha Creación</th>
+                                    <th>Creado Por</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for plantilla in plantillas %}
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-info">{{ plantilla.get_tipo_display }}</span>
+                                    </td>
+                                    <td>{{ plantilla.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                                    <td>{{ plantilla.creado_por.username|default:"N/A" }}</td>
+                                    <td>
+                                        {% if plantilla.tipo == 'VUELO_UNICO' %}
+                                            <a href="{% url 'crear_vuelo_unico' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-sm btn-warning">
+                                                <i class="fas fa-edit"></i> Editar
+                                            </a>
+                                        {% elif plantilla.tipo == 'VUELO_REDONDO' %}
+                                            <a href="{% url 'crear_vuelo_redondo' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-sm btn-warning">
+                                                <i class="fas fa-edit"></i> Editar
+                                            </a>
+                                        {% elif plantilla.tipo == 'HOSPEDAJE' %}
+                                            <a href="{% url 'crear_hospedaje' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-sm btn-warning">
+                                                <i class="fas fa-edit"></i> Editar
+                                            </a>
+                                        {% elif plantilla.tipo == 'TRASLADO' %}
+                                            <a href="{% url 'crear_traslado' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-sm btn-warning">
+                                                <i class="fas fa-edit"></i> Editar
+                                            </a>
+                                        {% elif plantilla.tipo == 'GENERICA' %}
+                                            <a href="{% url 'crear_generica' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-sm btn-warning">
+                                                <i class="fas fa-edit"></i> Editar
+                                            </a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> No hay plantillas creadas aún. Selecciona una plantilla arriba para comenzar.
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

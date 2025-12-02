@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Plantilla Genérica - Venta #{{ venta.id }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-file"></i> Plantilla: Genérica (Cualquier Captura) - Venta #{{ venta.id }}
+        </h1>
+        
+        <div class="mb-4">
+            <a href="{% url 'listar_confirmaciones' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver a Confirmaciones
+            </a>
+        </div>
+        
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Información Genérica</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Título de la Confirmación</label>
+                        <input type="text" name="titulo" class="form-control" placeholder="Ej: Entradas a Parque Temático, Tour, etc." value="{{ datos.titulo|default:'' }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Contenido Completo (Copia y Pega aquí)</label>
+                        <textarea name="contenido" class="form-control" rows="20" placeholder="Pega aquí toda la información que copiaste de la captura de pantalla...">{{ datos.contenido|default:'' }}</textarea>
+                        <small class="form-text text-muted">Copia y pega toda la información relevante de la captura</small>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'listar_confirmaciones' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Guardar Plantilla
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+
+

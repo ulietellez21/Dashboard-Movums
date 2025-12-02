@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Hospedaje - Venta #{{ venta.id }}{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Asegurar que los spinners de los inputs numéricos sean visibles */
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+        opacity: 1;
+        height: 20px;
+        cursor: pointer;
+    }
+    
+    /* Para Firefox */
+    input[type="number"] {
+        -moz-appearance: textfield;
+    }
+    
+    input[type="number"]::-webkit-inner-spin-button {
+        opacity: 1;
+    }
+    
+    /* Mejorar la apariencia de los botones del input-group */
+    .input-group .btn {
+        border-radius: 0;
+        min-width: 40px;
+    }
+    
+    .input-group .btn:first-child {
+        border-top-left-radius: 0.375rem;
+        border-bottom-left-radius: 0.375rem;
+    }
+    
+    .input-group .btn:last-child {
+        border-top-right-radius: 0.375rem;
+        border-bottom-right-radius: 0.375rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-hotel"></i> Plantilla: Hospedaje - Venta #{{ venta.id }}
+        </h1>
+        
+        <div class="mb-4">
+            <a href="{% url 'listar_confirmaciones' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver a Confirmaciones
+            </a>
+        </div>
+        
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Información del Hospedaje</h4>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Nombre del Alojamiento</label>
+                            <textarea name="nombre_alojamiento" class="form-control" rows="2" placeholder="Ej: Hotel Gran Cancún">{{ datos.nombre_alojamiento|default:'' }}</textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Número de Referencia</label>
+                            <textarea name="numero_referencia" class="form-control" rows="2" placeholder="Ej: REF123456">{{ datos.numero_referencia|default:'' }}</textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Viajero Principal</label>
+                        <input type="text" name="viajero_principal" class="form-control" value="{{ datos.viajero_principal|default:'' }}" placeholder="Ej: Juan Pérez García">
+                        <small class="form-text text-muted">Nombre completo del viajero principal</small>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Fecha Check-in</label>
+                            <textarea name="fecha_checkin" class="form-control" rows="2" placeholder="Ej: 15 de marzo 2025">{{ datos.fecha_checkin|default:'' }}</textarea>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Fecha Check-out</label>
+                            <textarea name="fecha_checkout" class="form-control" rows="2" placeholder="Ej: 20 de marzo 2025">{{ datos.fecha_checkout|default:'' }}</textarea>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Tipo de Habitación</label>
+                            <textarea name="tipo_habitacion" class="form-control" rows="2" placeholder="Ej: Suite con vista al mar">{{ datos.tipo_habitacion|default:'' }}</textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Adultos</label>
+                            <div class="input-group">
+                                <button class="btn btn-outline-secondary" type="button" onclick="decrementar('adultos')">-</button>
+                                <input type="number" name="adultos" id="adultos" class="form-control text-center" min="1" value="{{ datos.adultos|default:'1' }}" placeholder="Ej: 2" step="1">
+                                <button class="btn btn-outline-secondary" type="button" onclick="incrementar('adultos')">+</button>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Niños</label>
+                            <div class="input-group">
+                                <button class="btn btn-outline-secondary" type="button" onclick="decrementar('ninos')">-</button>
+                                <input type="number" name="ninos" id="ninos" class="form-control text-center" min="0" value="{{ datos.ninos|default:'0' }}" placeholder="Ej: 1" step="1">
+                                <button class="btn btn-outline-secondary" type="button" onclick="incrementar('ninos')">+</button>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Régimen</label>
+                            <textarea name="regimen" class="form-control" rows="2" placeholder="Ej: Todo Incluido, Desayuno, Sin Alimentos">{{ datos.regimen|default:'' }}</textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Observaciones</label>
+                        <textarea name="observaciones" class="form-control" rows="4" placeholder="Información relevante sobre el hospedaje...">{{ datos.observaciones|default:'' }}</textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Información Completa del Hospedaje (Pega una imagen)</label>
+                        <div class="border rounded p-3 text-center" 
+                             id="imagen_paste_area" 
+                             style="min-height: 200px; background-color: #f8f9fa; cursor: pointer; border: 2px dashed #dee2e6;"
+                             tabindex="0">
+                            {% if datos.imagen_hospedaje_url %}
+                                <img src="{{ datos.imagen_hospedaje_url }}" alt="Imagen del hospedaje" id="imagen_preview" class="img-thumbnail" style="max-width: 100%; max-height: 400px;">
+                                <p class="text-muted small mt-2">Haz clic aquí y pega (Ctrl+V / Cmd+V) para cambiar la imagen</p>
+                            {% else %}
+                                <div id="imagen_placeholder">
+                                    <i class="fas fa-image fa-3x text-muted mb-2"></i>
+                                    <p class="text-muted mb-0">Haz clic aquí y pega una imagen (Ctrl+V / Cmd+V)</p>
+                                    <p class="text-muted small">O arrastra y suelta una imagen aquí</p>
+                                </div>
+                                <img id="imagen_preview" style="display: none; max-width: 100%; max-height: 400px;" class="img-thumbnail">
+                            {% endif %}
+                        </div>
+                        <input type="hidden" name="imagen_hospedaje_base64" id="imagen_hospedaje_base64">
+                        <small class="form-text text-muted">Copia una imagen desde cualquier lugar y péga la aquí con Ctrl+V (Windows/Linux) o Cmd+V (Mac)</small>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'listar_confirmaciones' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Guardar Plantilla
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const pasteArea = document.getElementById('imagen_paste_area');
+    const imagenPreview = document.getElementById('imagen_preview');
+    const imagenPlaceholder = document.getElementById('imagen_placeholder');
+    const imagenBase64Input = document.getElementById('imagen_hospedaje_base64');
+    const form = document.querySelector('form');
+    
+    // Función para manejar la imagen pegado o seleccionada
+    function handleImage(imageFile) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const base64 = e.target.result;
+            imagenBase64Input.value = base64;
+            
+            // Mostrar preview
+            imagenPreview.src = base64;
+            imagenPreview.style.display = 'block';
+            if (imagenPlaceholder) {
+                imagenPlaceholder.style.display = 'none';
+            }
+        };
+        reader.readAsDataURL(imageFile);
+    }
+    
+    // Manejar pegado desde portapapeles
+    pasteArea.addEventListener('paste', function(e) {
+        e.preventDefault();
+        const items = e.clipboardData.items;
+        
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                const blob = items[i].getAsFile();
+                handleImage(blob);
+                break;
+            }
+        }
+    });
+    
+    // Manejar drag and drop
+    pasteArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        pasteArea.style.borderColor = '#0d6efd';
+        pasteArea.style.backgroundColor = '#e7f1ff';
+    });
+    
+    pasteArea.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        pasteArea.style.borderColor = '#dee2e6';
+        pasteArea.style.backgroundColor = '#f8f9fa';
+    });
+    
+    pasteArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        pasteArea.style.borderColor = '#dee2e6';
+        pasteArea.style.backgroundColor = '#f8f9fa';
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0 && files[0].type.startsWith('image/')) {
+            handleImage(files[0]);
+        }
+    });
+    
+    // Hacer el área focusable para recibir eventos de pegado
+    pasteArea.addEventListener('click', function() {
+        pasteArea.focus();
+    });
+    
+    // Prevenir que el formulario se envíe con Enter en el área de pegado
+    pasteArea.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+        }
+    });
+    });
+    
+    // Funciones para incrementar y decrementar valores
+    function incrementar(campo) {
+        const input = document.getElementById(campo);
+        if (input) {
+            const valorActual = parseInt(input.value) || 0;
+            const min = parseInt(input.getAttribute('min')) || 0;
+            const nuevoValor = valorActual + 1;
+            input.value = nuevoValor;
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    }
+    
+    function decrementar(campo) {
+        const input = document.getElementById(campo);
+        if (input) {
+            const valorActual = parseInt(input.value) || 0;
+            const min = parseInt(input.getAttribute('min')) || 0;
+            const nuevoValor = Math.max(min, valorActual - 1);
+            input.value = nuevoValor;
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    }
+</script>
+{% endblock %}
+

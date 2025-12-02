@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Traslado - Venta #{{ venta.id }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-car"></i> Plantilla: Traslado - Venta #{{ venta.id }}
+        </h1>
+        
+        <div class="mb-4">
+            <a href="{% url 'listar_confirmaciones' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver a Confirmaciones
+            </a>
+        </div>
+        
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">Información de los Traslados</h4>
+                <button type="button" class="btn btn-light btn-sm" id="agregar_traslado">
+                    <i class="fas fa-plus"></i> Agregar Otro Traslado
+                </button>
+            </div>
+            <div class="card-body">
+                <form method="post" id="form_traslados">
+                    {% csrf_token %}
+                    <input type="hidden" name="traslados_count" id="traslados_count" value="1">
+                    
+                    <div id="traslados_container">
+                        <!-- Los traslados se agregarán dinámicamente aquí -->
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                        <a href="{% url 'listar_confirmaciones' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Guardar Plantilla
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const container = document.getElementById('traslados_container');
+    const agregarBtn = document.getElementById('agregar_traslado');
+    const countInput = document.getElementById('traslados_count');
+    let trasladoCount = 1;
+    
+    // Datos iniciales desde el servidor
+    let trasladosData = [];
+    try {
+        trasladosData = {{ traslados_json|safe|default:"[]" }};
+        if (!Array.isArray(trasladosData)) {
+            trasladosData = [];
+        }
+    } catch(e) {
+        trasladosData = [];
+    }
+    
+    // Función para escapar HTML
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Función para crear un formulario de traslado
+    function crearTrasladoForm(index, datos = null) {
+        datos = datos || {
+            compania: '',
+            codigo_reserva: '',
+            tipo_servicio: '',
+            horario_inicio: '',
+            desde: '',
+            hasta: '',
+            adultos: '1',
+            ninos: '0',
+            informacion_adicional: ''
+        };
+        
+        const trasladoDiv = document.createElement('div');
+        trasladoDiv.className = 'traslado-item mb-4 p-3 border rounded';
+        trasladoDiv.dataset.index = index;
+        
+        trasladoDiv.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Traslado ${index + 1}</h5>
+                ${index > 0 ? '<button type="button" class="btn btn-danger btn-sm eliminar-traslado"><i class="fas fa-trash"></i> Eliminar</button>' : ''}
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Compañía</label>
+                    <textarea name="traslados[${index}][compania]" class="form-control" rows="2" placeholder="Ej: Transporte XYZ">${escapeHtml(datos.compania || '')}</textarea>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Código de Reserva</label>
+                    <textarea name="traslados[${index}][codigo_reserva]" class="form-control" rows="2" placeholder="Ej: TRF123456">${escapeHtml(datos.codigo_reserva || '')}</textarea>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Horario de Inicio de Viaje</label>
+                    <textarea name="traslados[${index}][horario_inicio]" class="form-control" rows="2" placeholder="Ej: 10:00 AM">${escapeHtml(datos.horario_inicio || '')}</textarea>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Tipo de Servicio</label>
+                    <textarea name="traslados[${index}][tipo_servicio]" class="form-control" rows="2" placeholder="Ej: Van, Sedán, SUV">${escapeHtml(datos.tipo_servicio || '')}</textarea>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Desde</label>
+                    <textarea name="traslados[${index}][desde]" class="form-control" rows="2" placeholder="Ej: Aeropuerto de Cancún">${escapeHtml(datos.desde || '')}</textarea>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Hasta</label>
+                    <textarea name="traslados[${index}][hasta]" class="form-control" rows="2" placeholder="Ej: Hotel Gran Cancún">${escapeHtml(datos.hasta || '')}</textarea>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Pasajeros: Adultos</label>
+                    <select name="traslados[${index}][adultos]" class="form-select">
+                        ${Array.from({length: 20}, (_, i) => `<option value="${i + 1}" ${datos.adultos == (i + 1).toString() ? 'selected' : ''}>${i + 1}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Niños</label>
+                    <select name="traslados[${index}][ninos]" class="form-select">
+                        ${Array.from({length: 10}, (_, i) => `<option value="${i}" ${datos.ninos == i.toString() ? 'selected' : ''}>${i}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label fw-bold">Información Adicional</label>
+                <textarea name="traslados[${index}][informacion_adicional]" class="form-control" rows="4" placeholder="Información adicional relevante del traslado...">${escapeHtml(datos.informacion_adicional || '')}</textarea>
+            </div>
+        `;
+        
+        // Agregar event listener para el botón de eliminar
+        if (index > 0) {
+            trasladoDiv.querySelector('.eliminar-traslado').addEventListener('click', function() {
+                trasladoDiv.remove();
+                actualizarIndices();
+                actualizarCount();
+            });
+        }
+        
+        return trasladoDiv;
+    }
+    
+    // Función para actualizar los índices de los traslados
+    function actualizarIndices() {
+        const items = container.querySelectorAll('.traslado-item');
+        items.forEach((item, index) => {
+            item.dataset.index = index;
+            const title = item.querySelector('h5');
+            if (title) title.textContent = `Traslado ${index + 1}`;
+            
+            // Actualizar todos los nombres de campos
+            item.querySelectorAll('[name^="traslados["]').forEach(input => {
+                const oldName = input.name;
+                const match = oldName.match(/traslados\[(\d+)\]/);
+                if (match) {
+                    const campo = oldName.split(']')[1].substring(1);
+                    input.name = `traslados[${index}][${campo}]`;
+                }
+            });
+            
+            // Mostrar/ocultar botón eliminar
+            const eliminarBtn = item.querySelector('.eliminar-traslado');
+            if (eliminarBtn) {
+                if (index === 0) {
+                    eliminarBtn.remove();
+                } else {
+                    if (!eliminarBtn.parentElement) {
+                        const header = item.querySelector('.d-flex');
+                        if (header && !header.querySelector('.eliminar-traslado')) {
+                            header.innerHTML += '<button type="button" class="btn btn-danger btn-sm eliminar-traslado"><i class="fas fa-trash"></i> Eliminar</button>';
+                            header.querySelector('.eliminar-traslado').addEventListener('click', function() {
+                                item.remove();
+                                actualizarIndices();
+                                actualizarCount();
+                            });
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Función para actualizar el contador
+    function actualizarCount() {
+        trasladoCount = container.querySelectorAll('.traslado-item').length;
+        countInput.value = trasladoCount;
+    }
+    
+    // Inicializar con datos existentes o un traslado vacío
+    if (trasladosData && trasladosData.length > 0) {
+        trasladosData.forEach((datos, index) => {
+            container.appendChild(crearTrasladoForm(index, datos));
+        });
+        trasladoCount = trasladosData.length;
+    } else {
+        container.appendChild(crearTrasladoForm(0));
+        trasladoCount = 1;
+    }
+    
+    countInput.value = trasladoCount;
+    
+    // Agregar nuevo traslado
+    agregarBtn.addEventListener('click', function() {
+        container.appendChild(crearTrasladoForm(trasladoCount));
+        trasladoCount++;
+        actualizarCount();
+        actualizarIndices();
+    });
+});
+</script>
+{% endblock %}
+

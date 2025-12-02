@@ -9,7 +9,7 @@
     <div class="card p-4 shadow-sm mb-4">
         <p class="h4">Venta #{{ venta.id }} - Cliente: {{ venta.cliente.nombre_completo_display }}</p>
         <p><strong>Fecha de Viaje:</strong> {{ venta.fecha_inicio_viaje|date:"d M Y" }}</p>
-        <p><strong>Costo Venta Final:</strong> ${{ venta.costo_venta_final|floatformat:2|intcomma }}</p>
+        <p><strong>Costo Venta Final:</strong> ${{ venta.costo_total_con_modificacion|floatformat:2|intcomma }}{% if venta.costo_modificacion and venta.costo_modificacion > 0 %} (incluye modificación: ${{ venta.costo_modificacion|floatformat:2|intcomma }}){% endif %}</p>
     </div>
 
     <form method="post" class="card p-4 shadow-sm">

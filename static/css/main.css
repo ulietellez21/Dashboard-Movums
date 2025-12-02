@@ -122,11 +122,89 @@ body {
     background-color: white; 
 }
 
-/* Botones */
-.btn {
+/* ============================================
+   BOTONES CON ANIMACIONES DINÁMICAS
+   ============================================ */
+
+/* Botones base con transiciones suaves */
+.btn,
+button.btn,
+a.btn,
+input.btn[type="button"],
+input.btn[type="submit"] {
     border-radius: 8px; 
     font-weight: 500;
     padding: .375rem 1.2rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+/* Animación de entrada cuando el contenido está cargado */
+#main-content.loaded .btn {
+    animation: buttonFadeIn 0.5s ease-out forwards;
+    animation-fill-mode: both;
+}
+
+@keyframes buttonFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Efecto hover dinámico - elevación y sombra - Mayor especificidad */
+.btn:hover,
+button.btn:hover,
+a.btn:hover,
+input.btn:hover {
+    transform: translateY(-4px) scale(1.05) !important;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2) !important;
+    filter: brightness(1.1) !important;
+}
+
+/* Efecto activo - feedback táctil - Mayor especificidad */
+.btn:active,
+button.btn:active,
+a.btn:active,
+input.btn:active {
+    transform: translateY(-1px) scale(0.97) !important;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15) !important;
+    transition: all 0.1s ease !important;
+    filter: brightness(0.9) !important;
+}
+
+/* Efecto de onda al hacer click */
+.btn::after,
+button.btn::after,
+a.btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.4);
+    transform: translate(-50%, -50%);
+    transition: width 0.4s ease, height 0.4s ease, opacity 0.4s ease;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.btn:active::after,
+button.btn:active::after,
+a.btn:active::after {
+    width: 300px;
+    height: 300px;
+    opacity: 0.9;
+    transition: width 0s ease, height 0s ease, opacity 0.2s ease;
 }
 
 /* Botón "Buscar" y Botones Primarios (Usa el color de Acento: Azul Eléctrico) */
@@ -134,12 +212,14 @@ body {
     background-color: var(--secondary-color);
     border-color: var(--secondary-color);
     color: white; 
-    transition: all 0.2s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 .btn-primary:hover {
     /* Ligeramente más oscuro en hover */
-    background-color: #1a6ac9; 
-    border-color: #1a6ac9;
+    background-color: #1a6ac9 !important; 
+    border-color: #1a6ac9 !important;
+    transform: translateY(-4px) scale(1.05) !important;
+    box-shadow: 0 8px 25px rgba(41, 128, 225, 0.3) !important;
 }
 
 /* Botón "Agregar Nuevo Cliente" y Botones de Éxito */
@@ -148,14 +228,16 @@ body {
     border-color: var(--success-accent);
     /* CAMBIO CLAVE: Aseguramos el texto oscuro para alto contraste */
     color: var(--text-color) !important; 
-    transition: all 0.2s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 .btn-success:hover {
     /* Ligeramente más oscuro en hover */
-    background-color: #72c301; 
-    border-color: #72c301;
+    background-color: #72c301 !important; 
+    border-color: #72c301 !important;
     /* Mantenemos el texto oscuro */
-    color: var(--text-color) !important; 
+    color: var(--text-color) !important;
+    transform: translateY(-4px) scale(1.05) !important;
+    box-shadow: 0 8px 25px rgba(134, 218, 2, 0.3) !important;
 }
 
 /* NUEVO: ESTILO PARA BOTONES DE ACCIÓN (INFO/DETALLE) */
@@ -165,11 +247,14 @@ body {
     border-color: var(--info-accent) !important;
     color: white !important;
     padding: .3rem .5rem; /* Ajuste para iconos */
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 .btn-info:hover {
     background-color: #279ee1 !important; /* Ligeramente más oscuro en hover */
     border-color: #279ee1 !important;
+    transform: translateY(-4px) scale(1.05) !important;
+    box-shadow: 0 8px 25px rgba(44, 149, 206, 0.3) !important;
 }
 /* FIN DE NUEVO ESTILO */
 
@@ -208,3 +293,76 @@ body {
     /* Franja sutil: Usamos el color de fondo de página para mantener la limpieza */
     background-color: rgba(245, 249, 255, 0.5); 
 }
+
+/* ============================================
+   ANIMACIONES Y TRANSICIONES GLOBALES
+   ============================================ */
+
+/* Transiciones suaves para elementos interactivos (los botones tienen sus propias animaciones arriba) */
+a:not(.btn), button:not(.btn), .card {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Animación para cards al hover */
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+/* Animación suave para inputs */
+.form-control:focus, .form-select:focus {
+    transform: scale(1.02);
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+}
+
+/* Animación para tabs */
+.nav-link {
+    position: relative;
+}
+
+.nav-link.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    animation: tabIndicator 0.3s ease-out;
+}
+
+@keyframes tabIndicator {
+    from {
+        transform: scaleX(0);
+    }
+    to {
+        transform: scaleX(1);
+    }
+}
+
+/* Efecto de pulso para elementos importantes */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+.pulse-animation {
+    animation: pulse 2s ease-in-out infinite;
+}
+
+/* Animación de shake para errores */
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+.shake-animation {
+    animation: shake 0.5s ease-in-out;
+}
+
+

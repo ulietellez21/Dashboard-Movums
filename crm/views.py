@@ -1,11 +1,12 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse_lazy, reverse
 from django.views.generic import ListView, DetailView, CreateView, UpdateView
-from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib import messages
 from django.db.models import Q, Max 
 from django.views.decorators.http import require_POST
 from .models import Cliente 
+from .services import KilometrosService
 from .forms import ClienteForm 
 # Importa tu VentaViaje si no está en este mismo módulo
 # from ventas.models import VentaViaje 
@@ -54,16 +55,26 @@ class ClienteDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['ventas_cliente'] = self.object.ventas_asociadas.all().order_by('-fecha_inicio_viaje')
+        context['kilometros'] = KilometrosService.resumen_cliente(self.object)
         return context
 
 
 # ------------------- 3. CREACIÓN DE CLIENTE (CLAVE) -------------------
 
-class ClienteCreateView(LoginRequiredMixin, CreateView):
+class ClienteCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     """Permite crear un nuevo cliente usando el formulario con validación condicional."""
     model = Cliente
     template_name = 'crm/crear_cliente.html' 
     form_class = ClienteForm
+    
+    def test_func(self):
+        """Solo JEFE y VENDEDOR pueden crear clientes. CONTADOR solo lectura."""
+        user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
+        return user_rol in ['JEFE', 'VENDEDOR']
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "No tienes permiso para crear clientes. Solo puedes visualizarlos.")
+        return redirect('lista_clientes')
     
     def form_valid(self, form):
         messages.success(self.request, f"Cliente '{form.instance}' creado exitosamente.")
@@ -74,11 +85,21 @@ class ClienteCreateView(LoginRequiredMixin, CreateView):
 
 
 # ------------------- 4. EDICIÓN DE CLIENTE -------------------
-class ClienteUpdateView(LoginRequiredMixin, UpdateView):
+class ClienteUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     """Permite editar los datos de un cliente existente."""
     model = Cliente
     template_name = 'crm/crear_cliente.html' 
     form_class = ClienteForm
+    
+    def test_func(self):
+        """Solo JEFE y VENDEDOR pueden editar clientes. CONTADOR solo lectura."""
+        user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
+        return user_rol in ['JEFE', 'VENDEDOR']
+    
+    def handle_no_permission(self):
+        cliente = self.get_object()
+        messages.error(self.request, "No tienes permiso para editar clientes. Solo puedes visualizarlos.")
+        return redirect('detalle_cliente', pk=cliente.pk)
     
     def form_valid(self, form):
         messages.success(self.request, f"Cliente '{form.instance}' actualizado exitosamente.")
@@ -95,7 +116,14 @@ def eliminar_cliente(request, pk):
     """
     Vista que maneja la eliminación de un cliente específico.
     Solo accesible mediante método POST (formulario).
+    Solo JEFE y VENDEDOR pueden eliminar. CONTADOR solo lectura.
     """
+    # Verificar permisos
+    user_rol = request.user.perfil.rol if hasattr(request.user, 'perfil') else 'INVITADO'
+    if user_rol not in ['JEFE', 'VENDEDOR']:
+        messages.error(request, "No tienes permiso para eliminar clientes. Solo puedes visualizarlos.")
+        return redirect('detalle_cliente', pk=pk)
+    
     try:
         cliente = get_object_or_404(Cliente, pk=pk)
         cliente_nombre = str(cliente) 
