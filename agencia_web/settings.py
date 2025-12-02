@@ -157,7 +157,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_REDIRECT_URL = '/' 
 
 # URL a la que se redirige si un usuario no loggeado intenta acceder a una vista protegida.
-LOGIN_URL = '/admin/login/'
+LOGIN_URL = '/login/'
+# URL posterior al logout (por consistencia con la vista LogoutView)
+LOGOUT_REDIRECT_URL = '/login/'
 
 # 🚨 CONFIGURACIONES DE CRISPY FORMS (NUEVO)
 # Indica a Crispy Forms qué framework de CSS usar por defecto.
