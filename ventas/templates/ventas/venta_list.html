@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load humanize %}
+{% load static %}
 
 {# Asegúrate de que tienes una URL configurada como 'eliminar_venta' que acepte el PK #}
 
@@ -18,20 +19,80 @@ Mis Ventas 💼
 </h1>
 {% with user.perfil.rol|default:""|upper as user_rol %}
     {% if "CONTADOR" not in user_rol %}
-        <a href="{% url 'crear_venta' %}" class="btn btn-success">
-            <i class="fas fa-plus-circle"></i> Registrar Nueva Venta
-        </a>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{% url 'crear_venta' %}" class="btn btn-success">
+                <i class="fas fa-plus-circle"></i> Registrar Nueva Venta
+            </a>
+            <button type="button"
+                    class="btn btn-primary"
+                    data-bs-toggle="modal"
+                    data-bs-target="#cotizacionModal"
+                    {% if not puede_generar_cotizacion %}disabled title="No hay ventas disponibles para generar cotización"{% endif %}>
+                <i class="fas fa-file-invoice-dollar"></i> Generar Cotización
+            </button>
+        </div>
     {% endif %}
 {% endwith %}
 </div>
 
+<!-- Formulario Compacto de Filtros por Fecha -->
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-header bg-light py-2">
+        <div class="d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold">
+                <i class="fas fa-search me-2"></i> Filtrar por Fecha de Viaje
+            </h6>
+            {% if fecha_filtro %}
+            <a href="{% url 'lista_ventas' %}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-times"></i> Limpiar
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body py-3">
+        <form method="get" action="{% url 'lista_ventas' %}" class="row g-2 mb-2">
+            <div class="col-md-4">
+                <label for="fecha_filtro" class="form-label small mb-1">
+                    <strong>Fecha de Viaje</strong>
+                    <small class="text-muted d-block">Presiona Shift para seleccionar rango</small>
+                </label>
+                <input type="text" class="form-control form-control-sm" id="fecha_filtro" name="fecha_filtro" 
+                       value="{% if fecha_filtro %}{{ fecha_filtro }}{% elif fecha_desde and fecha_hasta %}{{ fecha_desde }} a {{ fecha_hasta }}{% endif %}" 
+                       placeholder="Selecciona fecha o rango" readonly>
+                <input type="hidden" id="fecha_desde" name="fecha_desde" value="{{ fecha_desde }}">
+                <input type="hidden" id="fecha_hasta" name="fecha_hasta" value="{{ fecha_hasta }}">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary btn-sm w-100">
+                    <i class="fas fa-search me-1"></i> Buscar
+                </button>
+            </div>
+        </form>
+        {% if fecha_desde and fecha_hasta %}
+        <div class="alert alert-info py-2 mb-0">
+            <small><i class="fas fa-info-circle me-1"></i> Mostrando ventas desde <strong>{{ fecha_desde }}</strong> hasta <strong>{{ fecha_hasta }}</strong></small>
+        </div>
+        {% elif fecha_filtro %}
+        <div class="alert alert-info py-2 mb-0">
+            <small><i class="fas fa-info-circle me-1"></i> Mostrando ventas del <strong>{{ fecha_filtro }}</strong></small>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
 {# ================================================================= #}
-{#          TABLA DE VENTAS ACTIVAS / ABIERTAS                       #}
+{#          TABLA DE VENTAS ACTIVAS / ABIERTAS                       #}
 {# ================================================================= #}
 
-<h2 class="mb-3 mt-5 text-warning">
+{% if fecha_filtro %}
+<h2 class="mb-3 mt-3 text-info">
+<i class="fas fa-filter"></i> Resultados de la Búsqueda: {{ fecha_filtro }}
+</h2>
+{% else %}
+<h2 class="mb-3 mt-3 text-warning">
 <i class="fas fa-folder-open"></i> Contratos Activos (Pendientes de Cerrar)
 </h2>
+{% endif %}
 {% if ventas_activas %}
 <div class="table-responsive">
 <table class="table table-striped table-hover align-middle shadow-sm">
@@ -52,20 +113,26 @@ Mis Ventas 💼
 </thead>
 <tbody>
 {% for venta in ventas_activas %}
-<tr>
+{% with user.perfil.rol|default:""|upper as user_rol %}
+<tr {% if venta.estado_confirmacion == 'EN_CONFIRMACION' %}class="table-warning"{% endif %}>
 <td>{{ venta.id }}</td>
 <td>
 <a href="{% url 'detalle_cliente' pk=venta.cliente.pk %}">
 <i class="fas fa-user-circle"></i> {{ venta.cliente.nombre_completo_display }}
 </a>
 </td>
-{% if user.perfil.rol == 'JEFE' or user.perfil.rol == 'CONTADOR' %}
+{% if user_rol == 'JEFE' or user_rol == 'CONTADOR' %}
 <td>{{ venta.vendedor.username }}</td>
 {% endif %}
 
                 <td>{{ venta.fecha_inicio_viaje|date:"d M Y" }}</td>
                 {# Asegúrate de que esta celda sea simple para evitar roturas #}
-                <td class="text-end text-primary">${{ venta.costo_venta_final|floatformat:2|intcomma }}</td>
+                <td class="text-end text-primary">
+                    ${{ venta.costo_total_con_modificacion|floatformat:2|intcomma }}
+                    {% if venta.costo_modificacion and venta.costo_modificacion > 0 %}
+                        <br><small class="text-muted">(Incl. modif.)</small>
+                    {% endif %}
+                </td>
                 
                 <td class="text-end">
                     <span class="badge bg-success">${{ venta.total_pagado|floatformat:2|intcomma }}</span>
@@ -80,15 +147,28 @@ Mis Ventas 💼
                 </td>
                 
                 <td>
-                    <span class="badge bg-warning text-dark">Pendiente</span>
+                    {% if venta.estado_confirmacion == 'EN_CONFIRMACION' %}
+                        <span class="badge bg-warning text-dark">
+                            <i class="fas fa-clock"></i> En Confirmación
+                        </span>
+                        {% if user_rol == 'CONTADOR' %}
+                            <br><small class="text-warning"><i class="fas fa-exclamation-triangle"></i> Requiere acción</small>
+                        {% endif %}
+                    {% elif venta.estado_confirmacion == 'COMPLETADO' %}
+                        <span class="badge bg-success">Completado</span>
+                    {% else %}
+                        <span class="badge bg-info">Pendiente</span>
+                    {% endif %}
                 </td>
                 <td>
                     {# RUTA DE DETALLE CORREGIDA: Requiere slug y pk #}
-                    <a href="{% url 'detalle_venta' slug=venta.slug_safe pk=venta.pk %}" class="btn btn-sm btn-info text-white">
+                    <a href="{% url 'detalle_venta' slug=venta.slug_safe pk=venta.pk %}{% if user_rol == 'CONTADOR' %}?tab=abonos{% endif %}" 
+                       class="btn btn-sm btn-info text-white">
                         <i class="fas fa-eye"></i> Detalle
                     </a>
                 </td>
             </tr>
+            {% endwith %}
             {% endfor %}
         </tbody>
     </table>
@@ -137,46 +217,29 @@ Mis Ventas 💼
 {% endif %}
 
                 <td>{{ venta.fecha_inicio_viaje|date:"d M Y" }}</td>
-                <td class="text-end text-primary">${{ venta.costo_venta_final|floatformat:2|intcomma }}</td>
+                <td class="text-end text-primary">
+                    ${{ venta.costo_total_con_modificacion|floatformat:2|intcomma }}
+                    {% if venta.costo_modificacion and venta.costo_modificacion > 0 %}
+                        <br><small class="text-muted">(Incl. modif.)</small>
+                    {% endif %}
+                </td>
                 <td class="text-end">
                     <span class="badge bg-success">${{ venta.total_pagado|floatformat:2|intcomma }}</span>
                 </td>
                 <td>
-                    <span class="badge bg-success">CERRADA</span>
+                    {% if venta.estado == 'CANCELADA' %}
+                        <span class="badge bg-danger"><i class="fas fa-times-circle"></i> CANCELADA</span>
+                    {% else %}
+                        <span class="badge bg-success"><i class="fas fa-check-circle"></i> CERRADA</span>
+                    {% endif %}
                 </td>
                 <td>
                     {# RUTA DE DETALLE CORREGIDA: Requiere slug y pk #}
-                    <a href="{% url 'detalle_venta' slug=venta.slug pk=venta.pk %}" class="btn btn-sm btn-info text-white me-2">
+                    <a href="{% url 'detalle_venta' slug=venta.slug_safe pk=venta.pk %}" class="btn btn-sm btn-info text-white">
                         <i class="fas fa-eye"></i> Detalle
                     </a>
-                    {# BOTÓN DE ELIMINAR AÑADIDO #}
-                    <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal{{ venta.pk }}">
-                        <i class="fas fa-trash-alt"></i> Eliminar
-                    </button>
                 </td>
             </tr>
-
-            {# MODAL DE CONFIRMACIÓN DE ELIMINACIÓN #}
-            <div class="modal fade" id="confirmDeleteModal{{ venta.pk }}" tabindex="-1" aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
-                <div class="modal-dialog">
-                    <div class="modal-content">
-                        <div class="modal-header bg-danger text-white">
-                            <h5 class="modal-title" id="confirmDeleteModalLabel">Confirmar Eliminación</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            ¿Estás seguro de que deseas eliminar la venta **#{{ venta.id }}** del cliente **{{ venta.cliente.nombre_completo_display }}**? Esta acción es irreversible.
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                            <form action="{% url 'eliminar_venta' pk=venta.pk %}" method="post" style="display:inline;">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-danger">Sí, Eliminar Permanentemente</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            </div>
             {% endfor %}
         </tbody>
     </table>
@@ -189,7 +252,498 @@ Mis Ventas 💼
 
 {% endblock %}
 
+{% block modals %}
+<div class="modal fade" id="cotizacionModal" tabindex="-1" aria-labelledby="cotizacionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="cotizacionModalLabel">
+                    <i class="fas fa-file-invoice-dollar me-2"></i> Generar Cotización
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <form id="cotizacionForm">
+                    <div class="alert alert-info mb-4">
+                        Completa la información para generar tu cotización con el formato Movums.
+                    </div>
+
+                    <hr class="my-4">
+
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Tipo de cotización</label>
+                            <div class="btn-group w-100" role="group">
+                                <input type="radio" class="btn-check" name="tipo_cotizacion" id="cotTipoVuelos" value="vuelos" checked>
+                                <label class="btn btn-outline-primary" for="cotTipoVuelos"><i class="fas fa-plane"></i> Vuelos</label>
+                                <input type="radio" class="btn-check" name="tipo_cotizacion" id="cotTipoHospedaje" value="hospedaje">
+                                <label class="btn btn-outline-primary" for="cotTipoHospedaje"><i class="fas fa-hotel"></i> Hospedaje</label>
+                                <input type="radio" class="btn-check" name="tipo_cotizacion" id="cotTipoPaquete" value="paquete">
+                                <label class="btn btn-outline-primary" for="cotTipoPaquete"><i class="fas fa-suitcase-rolling"></i> Paquete</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Fecha de cotización</label>
+                            <input type="date" class="form-control" name="fecha_cotizacion" value="{{ cotizacion_fecha_hoy }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Origen</label>
+                            <input type="text" class="form-control" name="origen" placeholder="Ej: Guadalajara">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Destino</label>
+                            <input type="text" class="form-control" name="destino" placeholder="Ej: Cancún">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Duración del viaje</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" name="dias" placeholder="Días" min="1">
+                                <span class="input-group-text">días</span>
+                                <input type="number" class="form-control" name="noches" placeholder="Noches" min="0">
+                                <span class="input-group-text">noches</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Fecha inicio</label>
+                            <input type="date" class="form-control" name="fecha_inicio">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Fecha fin</label>
+                            <input type="date" class="form-control" name="fecha_fin">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold">Pasajeros</label>
+                            <input type="number" class="form-control" name="pasajeros" min="1" value="1">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold">Adultos</label>
+                            <input type="number" class="form-control" name="adultos" min="0" value="2">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold">Menores</label>
+                            <input type="number" class="form-control" name="menores" min="0" value="0">
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <div class="cotizacion-section" data-section="vuelos">
+                        <h5 class="text-primary fw-bold mb-3"><i class="fas fa-plane"></i> Propuestas de Vuelo</h5>
+                        <div class="row g-3">
+                            {% for idx in "123" %}
+                            <div class="col-md-4">
+                                <div class="border rounded p-3 h-100">
+                                    <h6 class="fw-bold text-uppercase text-secondary">Opción {{ forloop.counter }}</h6>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Aerolínea</label>
+                                        <input type="text" class="form-control form-control-sm" name="vuelo_aerolinea_{{ forloop.counter }}" placeholder="Ej: Volaris">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Salida</label>
+                                        <input type="text" class="form-control form-control-sm" name="vuelo_salida_{{ forloop.counter }}" placeholder="Ej: 07:50 CDMX">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Regreso</label>
+                                        <input type="text" class="form-control form-control-sm" name="vuelo_regreso_{{ forloop.counter }}" placeholder="Ej: 22:20 Cancún">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Incluye</label>
+                                        <textarea class="form-control form-control-sm" rows="2" name="vuelo_incluye_{{ forloop.counter }}" placeholder="Equipaje, tiempos, etc."></textarea>
+                                    </div>
+                                    <div>
+                                        <label class="form-label small fw-semibold">Total MXN</label>
+                                        <input type="text" class="form-control form-control-sm" name="vuelo_total_{{ forloop.counter }}" placeholder="24,909.00">
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="cotizacion-section d-none" data-section="hospedaje">
+                        <h5 class="text-primary fw-bold mb-3"><i class="fas fa-hotel"></i> Propuestas de Hospedaje</h5>
+                        <div class="row g-3">
+                            {% for idx in "123" %}
+                            <div class="col-md-4">
+                                <div class="border rounded p-3 h-100">
+                                    <h6 class="fw-bold text-uppercase text-secondary">Opción {{ forloop.counter }}</h6>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Hotel</label>
+                                        <input type="text" class="form-control form-control-sm" name="hotel_nombre_{{ forloop.counter }}" placeholder="Ej: Sotavento Hotel">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Habitación</label>
+                                        <input type="text" class="form-control form-control-sm" name="hotel_habitacion_{{ forloop.counter }}" placeholder="2 x Estándar">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Dirección</label>
+                                        <textarea class="form-control form-control-sm" rows="2" name="hotel_direccion_{{ forloop.counter }}" placeholder="Blvr Kukulkán km 4..."></textarea>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Plan de alimentos</label>
+                                        <input type="text" class="form-control form-control-sm" name="hotel_plan_{{ forloop.counter }}" placeholder="Desayuno buffet">
+                                    </div>
+                                    <div>
+                                        <label class="form-label small fw-semibold">Total MXN</label>
+                                        <input type="text" class="form-control form-control-sm" name="hotel_total_{{ forloop.counter }}" placeholder="28,349.00">
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="cotizacion-section d-none" data-section="paquete">
+                        <h5 class="text-primary fw-bold mb-3"><i class="fas fa-layer-group"></i> Detalles del Paquete (Vuelo + Hospedaje)</h5>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="border rounded p-3">
+                                    <h6 class="fw-bold text-uppercase text-secondary">Vuelo</h6>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Aerolínea</label>
+                                        <input type="text" class="form-control form-control-sm" name="paquete_vuelo_aerolinea" placeholder="Volaris">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Salida</label>
+                                        <input type="text" class="form-control form-control-sm" name="paquete_vuelo_salida" placeholder="07:50 CDMX">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Regreso</label>
+                                        <input type="text" class="form-control form-control-sm" name="paquete_vuelo_regreso" placeholder="22:20 CDMX">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Incluye</label>
+                                        <textarea class="form-control form-control-sm" rows="3" name="paquete_vuelo_incluye" placeholder="Equipaje, traslados, etc."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="border rounded p-3">
+                                    <h6 class="fw-bold text-uppercase text-secondary">Hospedaje</h6>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Hotel</label>
+                                        <input type="text" class="form-control form-control-sm" name="paquete_hotel_nombre" placeholder="Grand Oasis Cancún">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Habitación / Plan</label>
+                                        <input type="text" class="form-control form-control-sm" name="paquete_hotel_habitacion" placeholder="Gran Std | Todo Incluido">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold">Notas</label>
+                                        <textarea class="form-control form-control-sm" rows="2" name="paquete_hotel_notas" placeholder="Incluye traslado redondo"></textarea>
+                                    </div>
+                                    <div>
+                                        <label class="form-label small fw-semibold">Total MXN</label>
+                                        <input type="text" class="form-control form-control-sm" name="paquete_total" placeholder="37,199.00">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <button type="button" class="btn btn-outline-secondary" id="limpiarCotizacionBtn">
+                    <i class="fas fa-eraser"></i> Limpiar
+                </button>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="button" class="btn btn-primary" id="generarCotizacionBtn">
+                        <i class="fas fa-print"></i> Generar cotización
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+<script id="cotizacionVentasJSON" type="application/json">{{ cotizacion_ventas_json|default:"[]"|safe }}</script>
+
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
 crossorigin="anonymous" referrerpolicy="no-referrer" />
+<!-- Flatpickr para selección de rango de fechas -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+{% endblock %}
+
+{% block extra_js %}
+<!-- Flatpickr para selección de rango de fechas -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+<script>
+    // Configurar Flatpickr para selección de rango con Shift
+    document.addEventListener('DOMContentLoaded', function() {
+        const fechaInput = document.getElementById('fecha_filtro');
+        const fechaDesdeInput = document.getElementById('fecha_desde');
+        const fechaHastaInput = document.getElementById('fecha_hasta');
+        const fechaDesdeDefault = "{{ fecha_desde|default:'' }}";
+        const fechaHastaDefault = "{{ fecha_hasta|default:'' }}";
+        const fechaFiltroDefault = "{{ fecha_filtro|default:'' }}";
+        
+        if (fechaInput) {
+            // Configurar Flatpickr en modo rango
+            let flatpickrInstance = flatpickr(fechaInput, {
+                mode: "range",
+                dateFormat: "Y-m-d",
+                locale: "es",
+                altInput: true,
+                altFormat: "d/m/Y",
+                allowInput: false,
+                clickOpens: true,
+                enableTime: false,
+                onChange: function(selectedDates, dateStr, instance) {
+                    if (selectedDates.length === 1) {
+                        // Solo una fecha seleccionada
+                        fechaDesdeInput.value = selectedDates[0].toISOString().split('T')[0];
+                        fechaHastaInput.value = '';
+                        fechaInput.value = dateStr;
+                    } else if (selectedDates.length === 2) {
+                        // Rango completo seleccionado
+                        fechaDesdeInput.value = selectedDates[0].toISOString().split('T')[0];
+                        fechaHastaInput.value = selectedDates[1].toISOString().split('T')[0];
+                        fechaInput.value = dateStr;
+                    } else {
+                        // Sin selección
+                        fechaDesdeInput.value = '';
+                        fechaHastaInput.value = '';
+                        fechaInput.value = '';
+                    }
+                }
+            });
+            
+            // Restaurar valores si existen
+            if (fechaDesdeDefault && fechaHastaDefault) {
+                fechaDesdeInput.value = fechaDesdeDefault;
+                fechaHastaInput.value = fechaHastaDefault;
+                flatpickrInstance.setDate([fechaDesdeDefault, fechaHastaDefault]);
+            } else if (fechaFiltroDefault) {
+                fechaInput.value = fechaFiltroDefault;
+                flatpickrInstance.setDate(fechaFiltroDefault);
+            }
+        }
+    });
+</script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const cotizacionForm = document.getElementById('cotizacionForm');
+        if (!cotizacionForm) {
+            return;
+        }
+
+        const tipoRadios = document.querySelectorAll('input[name="tipo_cotizacion"]');
+        const sections = cotizacionForm.querySelectorAll('.cotizacion-section');
+        const limpiarBtn = document.getElementById('limpiarCotizacionBtn');
+        const generarBtn = document.getElementById('generarCotizacionBtn');
+        const datosEl = document.getElementById('cotizacionVentasJSON');
+        const docxUrl = "{% url 'generar_cotizacion_docx' %}";
+
+        const origenInput = cotizacionForm.querySelector('input[name="origen"]');
+        const destinoInput = cotizacionForm.querySelector('input[name="destino"]');
+        const diasInput = cotizacionForm.querySelector('input[name="dias"]');
+        const nochesInput = cotizacionForm.querySelector('input[name="noches"]');
+        const fechaInicioInput = cotizacionForm.querySelector('input[name="fecha_inicio"]');
+        const fechaFinInput = cotizacionForm.querySelector('input[name="fecha_fin"]');
+
+        let ventasMap = new Map();
+        try {
+            const parsed = JSON.parse(datosEl?.textContent || '[]');
+            parsed.forEach(item => ventasMap.set(String(item.id), item));
+        } catch (error) {
+            console.warn('No se pudo parsear el JSON de cotizaciones', error);
+        }
+
+        let selectedVenta = ventasMap.values().next().value || null;
+
+        function toggleSection(tipo) {
+            sections.forEach(section => {
+                if (section.dataset.section === tipo) {
+                    section.classList.remove('d-none');
+                } else {
+                    section.classList.add('d-none');
+                }
+            });
+        }
+
+        function fillForm(venta) {
+            if (!venta) {
+                diasInput.value = '';
+                nochesInput.value = '';
+                fechaInicioInput.value = '';
+                fechaFinInput.value = '';
+                return;
+            }
+            fechaInicioInput.value = venta.fecha_inicio || '';
+            fechaFinInput.value = venta.fecha_fin || '';
+            diasInput.value = venta.dias ?? '';
+            nochesInput.value = venta.noches ?? '';
+        }
+
+        const cotizacionModalEl = document.getElementById('cotizacionModal');
+        cotizacionModalEl?.addEventListener('shown.bs.modal', function() {
+            if (!selectedVenta) {
+                selectedVenta = ventasMap.values().next().value || null;
+            }
+            fillForm(selectedVenta);
+        });
+
+        tipoRadios.forEach(radio => {
+            radio.addEventListener('change', () => toggleSection(radio.value));
+        });
+
+        const defaults = {
+            fecha_cotizacion: cotizacionForm.querySelector('input[name="fecha_cotizacion"]')?.value || '',
+            pasajeros: cotizacionForm.querySelector('input[name="pasajeros"]')?.value || '',
+            adultos: cotizacionForm.querySelector('input[name="adultos"]')?.value || '',
+            menores: cotizacionForm.querySelector('input[name="menores"]')?.value || ''
+        };
+
+        limpiarBtn?.addEventListener('click', function() {
+            cotizacionForm.reset();
+            Object.entries(defaults).forEach(([key, value]) => {
+                const input = cotizacionForm.querySelector(`[name="${key}"]`);
+                if (input && value !== undefined) {
+                    input.value = value;
+                }
+            });
+            fillForm(selectedVenta);
+            const checked = document.querySelector('input[name="tipo_cotizacion"]:checked');
+            toggleSection(checked ? checked.value : 'vuelos');
+        });
+
+        generarBtn?.addEventListener('click', function() {
+            if (!selectedVenta) {
+                selectedVenta = {
+                    cliente: '',
+                    id: null
+                };
+            }
+
+            const formData = new FormData(cotizacionForm);
+            const data = Object.fromEntries(formData.entries());
+            const tipo = data.tipo_cotizacion || 'vuelos';
+
+            const requiredFields = ['origen', 'destino', 'fecha_cotizacion', 'fecha_inicio', 'fecha_fin'];
+            const missing = requiredFields.filter(field => !(data[field] || '').trim());
+            if (missing.length) {
+                alert('Por favor completa los campos obligatorios: Origen, Destino y Fechas.');
+                return;
+            }
+
+            const propuestasVuelo = [1, 2, 3].map(idx => ({
+                aerolinea: (data[`vuelo_aerolinea_${idx}`] || '').trim(),
+                salida: (data[`vuelo_salida_${idx}`] || '').trim(),
+                regreso: (data[`vuelo_regreso_${idx}`] || '').trim(),
+                incluye: (data[`vuelo_incluye_${idx}`] || '').trim(),
+                total: (data[`vuelo_total_${idx}`] || '').trim()
+            })).filter(item => Object.values(item).some(value => value));
+
+            const propuestasHotel = [1, 2, 3].map(idx => ({
+                nombre: (data[`hotel_nombre_${idx}`] || '').trim(),
+                habitacion: (data[`hotel_habitacion_${idx}`] || '').trim(),
+                direccion: (data[`hotel_direccion_${idx}`] || '').trim(),
+                plan: (data[`hotel_plan_${idx}`] || '').trim(),
+                total: (data[`hotel_total_${idx}`] || '').trim()
+            })).filter(item => Object.values(item).some(value => value));
+
+            if (tipo === 'vuelos' && propuestasVuelo.length === 0) {
+                alert('Agrega al menos una propuesta de vuelo.');
+                return;
+            }
+            if (tipo === 'hospedaje' && propuestasHotel.length === 0) {
+                alert('Agrega al menos una propuesta de hospedaje.');
+                return;
+            }
+            if (tipo === 'paquete' && !(data.paquete_total || '').trim()) {
+                alert('Agrega la información del paquete (total, vuelo u hotel).');
+                return;
+            }
+
+            const cotizacionData = {
+                tipo,
+                general: {
+                    cliente: selectedVenta?.cliente || '',
+                    fechaCotizacion: data.fecha_cotizacion,
+                    origen: data.origen,
+                    destino: data.destino,
+                    dias: data.dias,
+                    noches: data.noches,
+                    fechaInicio: data.fecha_inicio,
+                    fechaFin: data.fecha_fin,
+                    pasajeros: data.pasajeros,
+                    adultos: data.adultos,
+                    menores: data.menores
+                },
+                vuelos: propuestasVuelo,
+                hoteles: propuestasHotel,
+                paquete: {
+                    vuelo: {
+                        aerolinea: (data.paquete_vuelo_aerolinea || '').trim(),
+                        salida: (data.paquete_vuelo_salida || '').trim(),
+                        regreso: (data.paquete_vuelo_regreso || '').trim(),
+                        incluye: (data.paquete_vuelo_incluye || '').trim(),
+                    },
+                    hotel: {
+                        nombre: (data.paquete_hotel_nombre || '').trim(),
+                        habitacion: (data.paquete_hotel_habitacion || '').trim(),
+                        notas: (data.paquete_hotel_notas || '').trim(),
+                    },
+                    total: (data.paquete_total || '').trim()
+                }
+            };
+
+            fetch(docxUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    cotizacion: cotizacionData,
+                    venta_id: selectedVenta.id || null
+                })
+            })
+            .then(async response => {
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || 'No se pudo generar la cotización.');
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                const nombreCliente = (selectedVenta.cliente || 'cotizacion').replace(/\s+/g, '_');
+                link.href = url;
+                link.download = `cotizacion_${nombreCliente}.docx`;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                window.URL.revokeObjectURL(url);
+            })
+            .catch(error => {
+                alert(error.message || 'No se pudo generar la cotización.');
+            });
+        });
+
+        toggleSection('vuelos');
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    });
+</script>
+
 {% endblock %}

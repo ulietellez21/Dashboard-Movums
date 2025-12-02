@@ -1,7 +1,8 @@
 import os
+import json
 
 from django.db import models
-from django.db.models import Sum
+from django.db.models import Sum, Q
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth.models import User
@@ -104,6 +105,34 @@ class VentaViaje(models.Model):
         verbose_name="Cantidad de Apertura/Anticipo"
     )
     
+    # Modo de pago para la apertura
+    MODO_PAGO_CHOICES = [
+        ('EFE', 'Efectivo'),
+        ('TRN', 'Transferencia'),
+        ('TAR', 'Tarjeta'),
+    ]
+    modo_pago_apertura = models.CharField(
+        max_length=3,
+        choices=MODO_PAGO_CHOICES,
+        default='EFE',
+        verbose_name="Modo de Pago de Apertura",
+        help_text="Modo de pago del anticipo/apertura"
+    )
+    
+    # Estado de confirmación del pago
+    ESTADO_CONFIRMACION_CHOICES = [
+        ('PENDIENTE', 'Pendiente'),
+        ('EN_CONFIRMACION', 'En Confirmación'),
+        ('COMPLETADO', 'Completado'),
+    ]
+    estado_confirmacion = models.CharField(
+        max_length=20,
+        choices=ESTADO_CONFIRMACION_CHOICES,
+        default='PENDIENTE',
+        verbose_name="Estado de Confirmación",
+        help_text="Estado de confirmación del pago por el contador"
+    )
+    
     costo_neto = models.DecimalField(
         max_digits=10, 
         decimal_places=2, 
@@ -114,11 +143,45 @@ class VentaViaje(models.Model):
         decimal_places=2, 
         help_text="Precio total que paga el cliente."
     )
+    aplica_descuento_kilometros = models.BooleanField(
+        default=False,
+        verbose_name="Aplicar descuento Kilómetros Movums",
+        help_text="Marca si se otorgó un descuento promocional del 10%."
+    )
+    descuento_kilometros_mxn = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Monto de descuento Kilómetros Movums",
+        help_text="Se calcula automáticamente como el 10% del precio final."
+    )
     
     fecha_vencimiento_pago = models.DateField(
         null=True, 
         blank=True,
         verbose_name="Fecha Límite de Pago Total"
+    )
+    
+    # Estado general de la venta
+    ESTADO_VENTA_CHOICES = [
+        ('ACTIVA', 'Activa'),
+        ('CANCELADA', 'Cancelada'),
+    ]
+    estado = models.CharField(
+        max_length=20,
+        choices=ESTADO_VENTA_CHOICES,
+        default='ACTIVA',
+        verbose_name="Estado de la Venta",
+        help_text="Estado general de la venta"
+    )
+    
+    # Costo de modificación (solo se agrega cuando se edita una venta)
+    costo_modificacion = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Costo de Modificación",
+        help_text="Costo adicional por modificar la venta. Se suma al costo total."
     )
 
     # ------------------- DOCUMENTACIÓN Y METADATOS -------------------
@@ -207,16 +270,74 @@ class VentaViaje(models.Model):
     
     @property
     def total_pagado(self):
-        # Incluye el monto de apertura/anticipo más los abonos registrados
-        total_abonos = self.abonos.aggregate(Sum('monto'))['monto__sum']
+        """
+        Calcula el total pagado incluyendo solo abonos confirmados.
+        Para abonos con Transferencia/Tarjeta, solo cuenta los confirmados por el contador.
+        Para abonos con Efectivo, se cuentan todos (ya que se confirman automáticamente).
+        """
+        # Sumar solo abonos confirmados o abonos en efectivo (que se confirman automáticamente)
+        # Un abono está confirmado si:
+        # 1. confirmado=True (confirmado por contador), O
+        # 2. forma_pago='EFE' (efectivo, se confirma automáticamente)
+        total_abonos = self.abonos.filter(
+            Q(confirmado=True) | Q(forma_pago='EFE')
+        ).aggregate(Sum('monto'))['monto__sum']
         total_abonos = total_abonos if total_abonos is not None else Decimal('0.00')
-        # Sumar el monto de apertura al total pagado
-        monto_apertura = self.cantidad_apertura if self.cantidad_apertura else Decimal('0.00')
+        
+        # Sumar el monto de apertura solo si está confirmado o es efectivo
+        monto_apertura = Decimal('0.00')
+        if self.cantidad_apertura and self.cantidad_apertura > 0:
+            # Si la apertura es efectivo, se cuenta automáticamente
+            if self.modo_pago_apertura == 'EFE':
+                monto_apertura = self.cantidad_apertura
+            # Si la apertura es transferencia/tarjeta/depósito:
+            # - Si está en 'EN_CONFIRMACION', NO se cuenta (pendiente de confirmación del contador)
+            # - Si el estado NO es 'EN_CONFIRMACION', se cuenta (significa que ya fue confirmada)
+            # IMPORTANTE: Una vez que el contador confirma la apertura, el estado cambia temporalmente 
+            # a 'COMPLETADO' y luego puede cambiar a 'PENDIENTE' si aún falta pagar. En ambos casos,
+            # la apertura debe contarse porque ya fue confirmada.
+            elif self.modo_pago_apertura in ['TRN', 'TAR', 'DEP']:
+                # IMPORTANTE: La lógica es simple:
+                # - Si está en 'EN_CONFIRMACION', NO se cuenta (pendiente de confirmación del contador)
+                # - Si NO está en 'EN_CONFIRMACION', se cuenta porque:
+                #   1. Ya fue confirmada por el contador (estado cambió de EN_CONFIRMACION a COMPLETADO/PENDIENTE)
+                #   2. O nunca necesitó confirmación (estado siempre fue PENDIENTE desde el inicio)
+                # Una vez que el contador confirma, el estado cambia de 'EN_CONFIRMACION' a 'COMPLETADO'
+                # y luego puede cambiar a 'PENDIENTE' si aún falta pagar. En ambos casos, la apertura
+                # debe contarse porque ya fue confirmada.
+                if self.estado_confirmacion != 'EN_CONFIRMACION':
+                    monto_apertura = self.cantidad_apertura
+        
         return total_abonos + monto_apertura
 
     @property
+    def costo_total_con_modificacion(self):
+        """
+        Calcula el costo total incluyendo el costo de modificación.
+        Este es el costo final que debe pagar el cliente.
+        """
+        costo_mod = self.costo_modificacion if self.costo_modificacion else Decimal('0.00')
+        total = self.costo_venta_final + costo_mod
+        if self.aplica_descuento_kilometros:
+            total -= self.descuento_kilometros_mxn
+        return max(Decimal('0.00'), total)
+
+    @property
+    def total_con_descuento(self):
+        """
+        Total de la venta considerando modificaciones y aplicando el descuento Movums.
+        """
+        total = self.costo_venta_final + (self.costo_modificacion or Decimal('0.00'))
+        if self.aplica_descuento_kilometros:
+            total -= self.descuento_kilometros_mxn
+        return max(Decimal('0.00'), total)
+
+    @property
     def saldo_restante(self):
-        saldo = self.costo_venta_final - self.total_pagado
+        """
+        Calcula el saldo restante usando el costo total incluyendo modificaciones.
+        """
+        saldo = self.costo_total_con_modificacion - self.total_pagado
         # Crucial para la estabilidad del dashboard: el saldo nunca es negativo
         return max(Decimal('0.00'), saldo)
     
@@ -255,6 +376,23 @@ class VentaViaje(models.Model):
             self.save(update_fields=['slug'])
         return self.slug
 
+    def actualizar_estado_financiero(self, guardar=True):
+        """
+        Actualiza el estado de confirmación según lo pagado vs. el costo total.
+        """
+        nuevo_total = self.total_pagado
+        estado = self.estado_confirmacion
+
+        if nuevo_total >= self.costo_total_con_modificacion:
+            estado = 'COMPLETADO'
+        elif self.estado_confirmacion == 'COMPLETADO':
+            estado = 'PENDIENTE'
+
+        if estado != self.estado_confirmacion:
+            self.estado_confirmacion = estado
+            if guardar:
+                self.save(update_fields=['estado_confirmacion'])
+
 
     def __str__(self):
         # Se mantiene la asunción de nombre_completo_display en el Cliente
@@ -285,6 +423,19 @@ class AbonoPago(models.Model):
     
     registrado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name="Registrado Por")
     recibo_pdf = models.FileField(upload_to='recibos/', blank=True, null=True, verbose_name="Recibo/Comprobante")
+    
+    # Campos para confirmación de pagos por transferencia/tarjeta
+    confirmado = models.BooleanField(default=False, verbose_name="Confirmado por Contador")
+    confirmado_por = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='abonos_confirmados',
+        verbose_name="Confirmado Por",
+        limit_choices_to={'perfil__rol': 'CONTADOR'}
+    )
+    confirmado_en = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de Confirmación")
 
     def __str__(self):
         return f"Abono de ${self.monto} ({self.get_forma_pago_display()}) para Venta {self.venta.pk}"
@@ -299,10 +450,10 @@ class AbonoPago(models.Model):
 class Logistica(models.Model):
     """Rastrea el estado de confirmación de los servicios para una VentaViaje."""
     venta = models.OneToOneField(VentaViaje, on_delete=models.CASCADE, related_name='logistica', verbose_name="Venta Asociada")
-    vuelo_confirmado = models.BooleanField(default=False, verbose_name="Vuelo/Transporte Confirmado")
+    vuelo_confirmado = models.BooleanField(default=False, verbose_name="Vuelo Confirmado")
     hospedaje_reservado = models.BooleanField(default=False, verbose_name="Hospedaje Reservado")
-    seguro_emitido = models.BooleanField(default=False, verbose_name="Seguro de Viaje Emitido")
-    documentos_enviados = models.BooleanField(default=False, verbose_name="Documentación Final Enviada al Cliente")
+    traslado_confirmado = models.BooleanField(default=False, verbose_name="Traslado Confirmado")
+    tickets_confirmado = models.BooleanField(default=False, verbose_name="Tickets Confirmados")
     fecha_actualizacion = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -312,21 +463,116 @@ class Logistica(models.Model):
     def __str__(self):
         return f"Logística para Venta {self.venta.pk}"
     
+    def servicio_contratado(self, codigo_servicio):
+        """
+        Verifica si un servicio está contratado en la venta asociada.
+        codigo_servicio: 'VUE', 'HOS', 'TRA', 'TOU', etc.
+        """
+        if not self.venta.servicios_seleccionados:
+            return False
+        servicios_codes = [s.strip() for s in self.venta.servicios_seleccionados.split(',')]
+        return codigo_servicio in servicios_codes
+    
     @property
     def is_fully_confirmed(self):
-        return self.vuelo_confirmado and self.hospedaje_reservado and self.seguro_emitido and self.documentos_enviados
+        """Verifica si todos los servicios contratados están confirmados."""
+        servicios_contratados = self.get_servicios_contratados()
+        if not servicios_contratados:
+            return True  # Si no hay servicios contratados, se considera completado
+        
+        for servicio in servicios_contratados:
+            if servicio['codigo'] == 'VUE' and not self.vuelo_confirmado:
+                return False
+            elif servicio['codigo'] == 'HOS' and not self.hospedaje_reservado:
+                return False
+            elif servicio['codigo'] == 'TRA' and not self.traslado_confirmado:
+                return False
+            elif servicio['codigo'] == 'TOU' and not self.tickets_confirmado:
+                return False
+        
+        return True
+    
+    def get_servicios_contratados(self):
+        """Retorna una lista de los servicios contratados en la venta."""
+        if not self.venta.servicios_seleccionados:
+            return []
+        
+        servicios_codes = [s.strip() for s in self.venta.servicios_seleccionados.split(',')]
+        servicios_info = []
+        
+        # Mapeo de códigos a información de logística
+        servicios_logistica = {
+            'VUE': {'codigo': 'VUE', 'nombre': 'Vuelo', 'campo': 'vuelo_confirmado'},
+            'HOS': {'codigo': 'HOS', 'nombre': 'Hospedaje', 'campo': 'hospedaje_reservado'},
+            'TRA': {'codigo': 'TRA', 'nombre': 'Traslado', 'campo': 'traslado_confirmado'},
+            'TOU': {'codigo': 'TOU', 'nombre': 'Tickets', 'campo': 'tickets_confirmado'},
+        }
+        
+        # Solo retornar servicios que están en la lista de logística
+        for code in servicios_codes:
+            if code in servicios_logistica:
+                servicio_info = servicios_logistica[code].copy()
+                servicio_info['confirmado'] = getattr(self, servicio_info['campo'], False)
+                servicios_info.append(servicio_info)
+        
+        return servicios_info
 
     def get_fields(self):
+        """Retorna solo los campos de logística para servicios contratados."""
         fields_data = []
-        for field in self._meta.fields:
-            if isinstance(field, models.BooleanField) and field.name not in ('id', 'venta'):
-                fields_data.append({
-                    'label': field.verbose_name,
-                    'value': getattr(self, field.name),
-                    'name': field.name 
-                })
+        servicios_contratados = self.get_servicios_contratados()
+        
+        for servicio in servicios_contratados:
+            campo = servicio['campo']
+            value = getattr(self, campo, False)
+            fields_data.append({
+                'label': servicio['nombre'],
+                'value': value,
+                'name': campo,
+                'codigo': servicio['codigo']
+            })
+        
         return fields_data
 
+
+class LogisticaServicio(models.Model):
+    """Detalle financiero por servicio contratado en una venta."""
+    ESTADO_CHOICES = VentaViaje.SERVICIOS_CHOICES
+
+    venta = models.ForeignKey(
+        VentaViaje,
+        on_delete=models.CASCADE,
+        related_name='servicios_logisticos',
+        verbose_name="Venta Asociada"
+    )
+    codigo_servicio = models.CharField(
+        max_length=5,
+        choices=ESTADO_CHOICES,
+        verbose_name="Código de Servicio"
+    )
+    nombre_servicio = models.CharField(
+        max_length=120,
+        verbose_name="Nombre mostrado"
+    )
+    monto_planeado = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Monto planificado"
+    )
+    pagado = models.BooleanField(default=False, verbose_name="Servicio pagado")
+    fecha_pagado = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de pago")
+    notas = models.CharField(max_length=255, blank=True, verbose_name="Notas internas")
+    orden = models.PositiveIntegerField(default=0, verbose_name="Orden de visualización")
+
+    class Meta:
+        verbose_name = "Servicio logístico"
+        verbose_name_plural = "Servicios logísticos"
+        ordering = ['orden', 'pk']
+        unique_together = ('venta', 'codigo_servicio')
+
+    def __str__(self):
+        return f"{self.nombre_servicio} - Venta {self.venta.pk}"
 
 # ------------------- MODELOS PARA CONTRATOS (Sin cambios) -------------------
 
@@ -488,6 +734,11 @@ class Ejecutivo(models.Model):
     """
     Representa a los ejecutivos/vendedores gestionados por el usuario Jefe.
     """
+    TIPO_VENDEDOR_CHOICES = [
+        ('OFICINA', 'Ejecutivo de Ventas Internas'),
+        ('CALLE', 'Ejecutivo de Ventas de Campo'),
+    ]
+    
     nombre_completo = models.CharField(max_length=255, verbose_name="Nombre Completo")
     direccion = models.TextField(verbose_name="Dirección")
     telefono = models.CharField(max_length=25, verbose_name="Teléfono de Contacto")
@@ -499,6 +750,13 @@ class Ejecutivo(models.Model):
         help_text="Será usado para crear sus credenciales."
     )
     ubicacion_asignada = models.CharField(max_length=150, verbose_name="Ubicación Asignada")
+    tipo_vendedor = models.CharField(
+        max_length=10,
+        choices=TIPO_VENDEDOR_CHOICES,
+        default='OFICINA',
+        verbose_name="Tipo de Vendedor",
+        help_text="Determina el sistema de comisiones: Ventas Internas (escalonado) o Ventas de Campo (4% fijo)"
+    )
     sueldo_base = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -541,20 +799,23 @@ class Ejecutivo(models.Model):
 # ------------------- MODELO: Notificacion -------------------
 
 class Notificacion(models.Model):
-    """Modelo para almacenar notificaciones para el usuario JEFE."""
+    """Modelo para almacenar notificaciones para JEFE, CONTADOR y VENDEDOR."""
     TIPO_CHOICES = [
         ('ABONO', 'Abono Registrado'),
         ('LIQUIDACION', 'Venta Liquidada'),
         ('APERTURA', 'Apertura Registrada'),
         ('LOGISTICA', 'Cambio en Logística'),
+        ('PAGO_PENDIENTE', 'Pago Pendiente de Confirmación'),
+        ('PAGO_CONFIRMADO', 'Pago Confirmado por Contador'),
+        ('CANCELACION', 'Venta Cancelada'),
     ]
     
     usuario = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
         related_name='notificaciones',
-        verbose_name="Usuario",
-        limit_choices_to={'perfil__rol': 'JEFE'}  # Solo para JEFE
+        verbose_name="Usuario"
+        # Ahora puede ser JEFE, CONTADOR o VENDEDOR
     )
     tipo = models.CharField(
         max_length=20,
@@ -570,9 +831,30 @@ class Notificacion(models.Model):
         blank=True,
         verbose_name="Venta Relacionada"
     )
+    abono = models.ForeignKey(
+        'ventas.AbonoPago',
+        on_delete=models.CASCADE,
+        related_name='notificaciones',
+        null=True,
+        blank=True,
+        verbose_name="Abono Relacionado"
+    )
     fecha_creacion = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Creación")
     vista = models.BooleanField(default=False, verbose_name="Vista")
     fecha_vista = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de Vista")
+    
+    # Campos para confirmación de pagos
+    confirmado = models.BooleanField(default=False, verbose_name="Confirmado")
+    confirmado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='notificaciones_confirmadas',
+        verbose_name="Confirmado Por",
+        limit_choices_to={'perfil__rol': 'CONTADOR'}
+    )
+    confirmado_en = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de Confirmación")
     
     class Meta:
         verbose_name = "Notificación"
@@ -592,6 +874,67 @@ class Notificacion(models.Model):
         self.vista = True
         self.fecha_vista = timezone.now()
         self.save(update_fields=['vista', 'fecha_vista'])
+
+
+# ------------------- MODELO: PlantillaConfirmacion -------------------
+
+class PlantillaConfirmacion(models.Model):
+    """
+    Almacena las plantillas de confirmación llenadas por el vendedor.
+    Cada plantilla puede ser de tipo: vuelo único, vuelo redondo, hospedaje, traslado, o genérica.
+    """
+    
+    TIPO_CHOICES = [
+        ('VUELO_UNICO', 'Vuelo Sencillo'),
+        ('VUELO_REDONDO', 'Vuelo Redondo'),
+        ('HOSPEDAJE', 'Hospedaje'),
+        ('TRASLADO', 'Traslado'),
+        ('GENERICA', 'Genérica (Cualquier captura)'),
+    ]
+    
+    venta = models.ForeignKey(
+        VentaViaje,
+        on_delete=models.CASCADE,
+        related_name='plantillas_confirmacion',
+        verbose_name="Venta Asociada"
+    )
+    
+    tipo = models.CharField(
+        max_length=20,
+        choices=TIPO_CHOICES,
+        verbose_name="Tipo de Plantilla"
+    )
+    
+    # Almacenamos los datos en formato JSON para flexibilidad
+    datos = models.JSONField(
+        default=dict,
+        verbose_name="Datos de la Plantilla",
+        help_text="Almacena todos los campos llenados de la plantilla en formato JSON"
+    )
+    
+    creado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='plantillas_creadas',
+        verbose_name="Creado Por"
+    )
+    
+    fecha_creacion = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Creación")
+    fecha_actualizacion = models.DateTimeField(auto_now=True, verbose_name="Fecha de Actualización")
+    
+    class Meta:
+        verbose_name = "Plantilla de Confirmación"
+        verbose_name_plural = "Plantillas de Confirmación"
+        ordering = ['-fecha_creacion']
+        indexes = [
+            models.Index(fields=['venta', 'tipo']),
+            models.Index(fields=['-fecha_creacion']),
+        ]
+    
+    def __str__(self):
+        return f"{self.get_tipo_display()} - Venta #{self.venta.pk} - {self.fecha_creacion.strftime('%d/%m/%Y')}"
 
 
 # ------------------- SIGNALS (Sin cambios) -------------------

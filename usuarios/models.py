@@ -32,9 +32,14 @@ class Perfil(models.Model):
 
 # ------------------- Signals para crear el Perfil automáticamente -------------------
 @receiver(post_save, sender=User)
-def crear_o_actualizar_perfil_usuario(sender, instance, created, **kwargs):
-    """Crea el Perfil automáticamente cuando se crea un nuevo User."""
+def crear_o_actualizar_perfil_usuario(sender, instance, created, raw=False, **kwargs):
+    """Crea o actualiza el Perfil automáticamente cuando se persiste un User."""
+    if raw:
+        # Evita ejecutar la señal durante loaddata/fixtures
+        return
+
     if created:
         Perfil.objects.create(user=instance)
-    # Si el usuario ya existe, asegura que el perfil se guarde
-    instance.perfil.save()
+    else:
+        # Si el usuario ya existe, asegura que el perfil refleje los cambios
+        instance.perfil.save()

@@ -1,0 +1,2414 @@
+[
+  {
+    "model": "auth.user",
+    "fields": {
+      "password": "pbkdf2_sha256$1000000$PRfjPUdn7vIEXAzlkMn7Pb$Qc/U3TD+Nrqg3lVp/D+C9BVD01rQmBjkBuzik07NdEY=",
+      "last_login": "2025-11-28T18:29:00.892Z",
+      "is_superuser": true,
+      "username": "jefe_usuario",
+      "first_name": "",
+      "last_name": "",
+      "email": "ulie2112@outlook.com",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2025-10-22T01:19:21Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth.user",
+    "fields": {
+      "password": "pbkdf2_sha256$1000000$heuTaMVEuAjKv3UEQr27FF$E7MToVSQ24Axln4itCnuC4sTBIr9BqD0bQTmbi6mR0Y=",
+      "last_login": "2025-11-04T01:12:56.227Z",
+      "is_superuser": false,
+      "username": "agente1",
+      "first_name": "",
+      "last_name": "",
+      "email": "",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2025-10-22T02:34:15Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth.user",
+    "fields": {
+      "password": "pbkdf2_sha256$1000000$77AVp3Q6EbkO6ITu8pr8Aw$HC5begR/hiyJW1QbAml+Bow8TyHGmYp+qMGcHIRuWgU=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "ventas2",
+      "first_name": "",
+      "last_name": "",
+      "email": "",
+      "is_staff": false,
+      "is_active": true,
+      "date_joined": "2025-10-23T18:06:37.220Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth.user",
+    "fields": {
+      "password": "",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "carlos",
+      "first_name": "Carlos",
+      "last_name": "Ramirez",
+      "email": "",
+      "is_staff": false,
+      "is_active": true,
+      "date_joined": "2025-11-10T19:03:55.773Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth.user",
+    "fields": {
+      "password": "pbkdf2_sha256$1000000$Bw81t40B9PLeEiqDTmSHju$mVpOsyHWR2uWa2EoSddkX6c4uRR2GnlsMuHn6s1wpZ8=",
+      "last_login": "2025-11-19T03:08:19.518Z",
+      "is_superuser": false,
+      "username": "oscarsanchez",
+      "first_name": "Oscar",
+      "last_name": "Sanchez",
+      "email": "oscar@hotmail.com",
+      "is_staff": false,
+      "is_active": true,
+      "date_joined": "2025-11-15T23:52:24.326Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth.user",
+    "fields": {
+      "password": "pbkdf2_sha256$1000000$ACV2i8jg9SwQSK4LvIww2X$5mcsCbuix9xiplKPp3dezhchE/acOINN0bue8C4u8IY=",
+      "last_login": "2025-11-28T18:28:08.633Z",
+      "is_superuser": false,
+      "username": "daviddiaz",
+      "first_name": "David",
+      "last_name": "Diaz",
+      "email": "daviddiaz@hotmail.com",
+      "is_staff": false,
+      "is_active": true,
+      "date_joined": "2025-11-17T19:27:18.381Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth.user",
+    "fields": {
+      "password": "pbkdf2_sha256$1000000$473qysFFdseubvM7uEy9Dg$ojUYnRVBJ1ed/VA2c+FaXAmwhWC+RETpsNCj+sMlVpM=",
+      "last_login": "2025-11-28T18:28:50.879Z",
+      "is_superuser": false,
+      "username": "edgarsuarez",
+      "first_name": "Edgar",
+      "last_name": "Suarez",
+      "email": "edgarin1724@hotmail.com",
+      "is_staff": false,
+      "is_active": true,
+      "date_joined": "2025-11-24T04:49:20.894Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "usuarios.perfil",
+    "pk": 1,
+    "fields": {
+      "user": [
+        "jefe_usuario"
+      ],
+      "rol": "JEFE",
+      "tipo_vendedor": "OFICINA"
+    }
+  },
+  {
+    "model": "usuarios.perfil",
+    "pk": 2,
+    "fields": {
+      "user": [
+        "agente1"
+      ],
+      "rol": "VENDEDOR",
+      "tipo_vendedor": "OFICINA"
+    }
+  },
+  {
+    "model": "usuarios.perfil",
+    "pk": 3,
+    "fields": {
+      "user": [
+        "ventas2"
+      ],
+      "rol": "VENDEDOR",
+      "tipo_vendedor": "OFICINA"
+    }
+  },
+  {
+    "model": "usuarios.perfil",
+    "pk": 4,
+    "fields": {
+      "user": [
+        "carlos"
+      ],
+      "rol": "VENDEDOR",
+      "tipo_vendedor": "OFICINA"
+    }
+  },
+  {
+    "model": "usuarios.perfil",
+    "pk": 6,
+    "fields": {
+      "user": [
+        "oscarsanchez"
+      ],
+      "rol": "VENDEDOR",
+      "tipo_vendedor": "OFICINA"
+    }
+  },
+  {
+    "model": "usuarios.perfil",
+    "pk": 7,
+    "fields": {
+      "user": [
+        "daviddiaz"
+      ],
+      "rol": "VENDEDOR",
+      "tipo_vendedor": "OFICINA"
+    }
+  },
+  {
+    "model": "usuarios.perfil",
+    "pk": 9,
+    "fields": {
+      "user": [
+        "edgarsuarez"
+      ],
+      "rol": "CONTADOR",
+      "tipo_vendedor": "OFICINA"
+    }
+  },
+  {
+    "model": "crm.cliente",
+    "pk": 1,
+    "fields": {
+      "tipo_cliente": "PARTICULAR",
+      "nombre": "Juan Perez",
+      "apellido": null,
+      "nombre_empresa": null,
+      "rfc": null,
+      "direccion_fiscal": null,
+      "telefono": "5539384029",
+      "email": "ulie21@outlook.com",
+      "fuente_contacto": "OTR",
+      "notas": null,
+      "fecha_nacimiento": "1998-12-01",
+      "documento_identificacion": "INE",
+      "preferencias_viaje": "",
+      "fecha_registro": "2025-10-22T02:37:18.446Z",
+      "fecha_actualizacion": "2025-10-24T01:26:10.107Z"
+    }
+  },
+  {
+    "model": "crm.cliente",
+    "pk": 2,
+    "fields": {
+      "tipo_cliente": "PARTICULAR",
+      "nombre": "Ulises Tellez",
+      "apellido": null,
+      "nombre_empresa": null,
+      "rfc": null,
+      "direccion_fiscal": null,
+      "telefono": "5215632784029",
+      "email": "ulie2112@outlook.com",
+      "fuente_contacto": "OTR",
+      "notas": null,
+      "fecha_nacimiento": "1998-06-01",
+      "documento_identificacion": "Pasaporte",
+      "preferencias_viaje": "",
+      "fecha_registro": "2025-10-22T23:17:01.293Z",
+      "fecha_actualizacion": "2025-10-24T01:26:10.107Z"
+    }
+  },
+  {
+    "model": "crm.cliente",
+    "pk": 4,
+    "fields": {
+      "tipo_cliente": "PARTICULAR",
+      "nombre": "Angela",
+      "apellido": "Aguilar",
+      "nombre_empresa": null,
+      "rfc": null,
+      "direccion_fiscal": null,
+      "telefono": "5523456734",
+      "email": "angie21@gmal.com",
+      "fuente_contacto": "OTR",
+      "notas": "",
+      "fecha_nacimiento": null,
+      "documento_identificacion": null,
+      "preferencias_viaje": "",
+      "fecha_registro": "2025-10-26T23:50:58.739Z",
+      "fecha_actualizacion": "2025-10-28T18:15:30.800Z"
+    }
+  },
+  {
+    "model": "crm.cliente",
+    "pk": 7,
+    "fields": {
+      "tipo_cliente": "PARTICULAR",
+      "nombre": "Karen",
+      "apellido": "Peregrino",
+      "nombre_empresa": null,
+      "rfc": null,
+      "direccion_fiscal": null,
+      "telefono": "5623986734",
+      "email": "karenp@hotmail.com",
+      "fuente_contacto": "OTR",
+      "notas": "",
+      "fecha_nacimiento": "2000-07-10",
+      "documento_identificacion": null,
+      "preferencias_viaje": "",
+      "fecha_registro": "2025-11-17T19:29:43.475Z",
+      "fecha_actualizacion": "2025-11-17T19:29:43.475Z"
+    }
+  },
+  {
+    "model": "crm.cliente",
+    "pk": 8,
+    "fields": {
+      "tipo_cliente": "PARTICULAR",
+      "nombre": "Daniela",
+      "apellido": "De la rosa",
+      "nombre_empresa": null,
+      "rfc": null,
+      "direccion_fiscal": null,
+      "telefono": "5645329867",
+      "email": "Daniela22@hotmail.com",
+      "fuente_contacto": "OTR",
+      "notas": "",
+      "fecha_nacimiento": "2002-01-11",
+      "documento_identificacion": null,
+      "preferencias_viaje": "",
+      "fecha_registro": "2025-11-17T22:22:35.486Z",
+      "fecha_actualizacion": "2025-11-17T22:22:35.486Z"
+    }
+  },
+  {
+    "model": "crm.cliente",
+    "pk": 9,
+    "fields": {
+      "tipo_cliente": "PARTICULAR",
+      "nombre": "Rosalia",
+      "apellido": "Perez",
+      "nombre_empresa": null,
+      "rfc": null,
+      "direccion_fiscal": null,
+      "telefono": "4565765476",
+      "email": "Rosalia21@hotmail.com",
+      "fuente_contacto": "OTR",
+      "notas": "",
+      "fecha_nacimiento": "1980-01-12",
+      "documento_identificacion": null,
+      "preferencias_viaje": "",
+      "fecha_registro": "2025-11-20T17:31:38.449Z",
+      "fecha_actualizacion": "2025-11-20T17:31:38.449Z"
+    }
+  },
+  {
+    "model": "ventas.ventaviaje",
+    "pk": 13,
+    "fields": {
+      "vendedor": [
+        "jefe_usuario"
+      ],
+      "cliente": 2,
+      "tipo_viaje": "NAC",
+      "pasajeros": "Fernanda Tellez\r\nGuadalupe Tellez",
+      "fecha_inicio_viaje": "2025-12-20",
+      "fecha_fin_viaje": "2025-12-25",
+      "servicios_seleccionados": "VUE,HOS",
+      "servicios_detalle": "Vuelo - Proveedor: Volaris\nHospedaje - Proveedor: Travelinn",
+      "proveedor": 2,
+      "cantidad_apertura": "2000.00",
+      "costo_neto": "35000.00",
+      "costo_venta_final": "40000.00",
+      "fecha_vencimiento_pago": "2025-12-19",
+      "documentos_cliente": "",
+      "slug": "ulises-20251125183020855",
+      "fecha_creacion": "2025-11-26T00:30:20.856Z"
+    }
+  },
+  {
+    "model": "ventas.ventaviaje",
+    "pk": 14,
+    "fields": {
+      "vendedor": [
+        "daviddiaz"
+      ],
+      "cliente": 4,
+      "tipo_viaje": "NAC",
+      "pasajeros": "Sara Rodriguez\r\nMariana Buendia",
+      "fecha_inicio_viaje": "2025-12-06",
+      "fecha_fin_viaje": "2025-12-11",
+      "servicios_seleccionados": "VUE,HOS",
+      "servicios_detalle": "Vuelo - Proveedor: AeroMexico\nHospedaje - Proveedor: Travelinn",
+      "proveedor": 3,
+      "cantidad_apertura": "5000.00",
+      "costo_neto": "50000.00",
+      "costo_venta_final": "70000.00",
+      "fecha_vencimiento_pago": "2025-12-04",
+      "documentos_cliente": "",
+      "slug": "angela-20251127133910866",
+      "fecha_creacion": "2025-11-27T19:39:10.867Z"
+    }
+  },
+  {
+    "model": "ventas.ventaviaje",
+    "pk": 15,
+    "fields": {
+      "vendedor": [
+        "jefe_usuario"
+      ],
+      "cliente": 8,
+      "tipo_viaje": "NAC",
+      "pasajeros": "Daniela de la rosa\r\nAngel guerrero",
+      "fecha_inicio_viaje": "2025-12-10",
+      "fecha_fin_viaje": "2025-12-15",
+      "servicios_seleccionados": "VUE,HOS,TRA",
+      "servicios_detalle": "Vuelo - Proveedor: Volaris\nHospedaje - Proveedor: Travelinn\nTraslado - Proveedor: Aventuras nuevas",
+      "proveedor": 2,
+      "cantidad_apertura": "5000.00",
+      "costo_neto": "70000.00",
+      "costo_venta_final": "80000.00",
+      "fecha_vencimiento_pago": "2025-12-04",
+      "documentos_cliente": "",
+      "slug": "daniela-20251129190323717",
+      "fecha_creacion": "2025-11-30T01:03:23.718Z"
+    }
+  },
+  {
+    "model": "ventas.ventaviaje",
+    "pk": 16,
+    "fields": {
+      "vendedor": [
+        "jefe_usuario"
+      ],
+      "cliente": 7,
+      "tipo_viaje": "NAC",
+      "pasajeros": "Karen Peregrino\r\nLuis Peregrino\r\nAbby Peregrino",
+      "fecha_inicio_viaje": "2026-01-10",
+      "fecha_fin_viaje": "2026-01-15",
+      "servicios_seleccionados": "VUE,HOS,REN",
+      "servicios_detalle": "Vuelo - Proveedor: AeroMexico\nHospedaje - Proveedor: Travelinn\nRenta Auto - Proveedor: Juanitos Tours",
+      "proveedor": 3,
+      "cantidad_apertura": "5000.00",
+      "costo_neto": "35000.00",
+      "costo_venta_final": "40000.00",
+      "fecha_vencimiento_pago": "2026-01-07",
+      "documentos_cliente": "",
+      "slug": "karen-20251201122947735",
+      "fecha_creacion": "2025-12-01T18:29:47.736Z"
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 34,
+    "fields": {
+      "venta": 13,
+      "monto": "5000.00",
+      "forma_pago": "TRN",
+      "fecha_pago": "2025-11-26T00:48:25.087Z",
+      "registrado_por": [
+        "jefe_usuario"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 35,
+    "fields": {
+      "venta": 13,
+      "monto": "2000.00",
+      "forma_pago": "EFE",
+      "fecha_pago": "2025-11-26T04:00:21.501Z",
+      "registrado_por": [
+        "jefe_usuario"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 36,
+    "fields": {
+      "venta": 13,
+      "monto": "2500.00",
+      "forma_pago": "EFE",
+      "fecha_pago": "2025-11-26T04:20:54.603Z",
+      "registrado_por": [
+        "jefe_usuario"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 37,
+    "fields": {
+      "venta": 13,
+      "monto": "2000.00",
+      "forma_pago": "TRN",
+      "fecha_pago": "2025-11-26T18:17:29.267Z",
+      "registrado_por": [
+        "jefe_usuario"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 38,
+    "fields": {
+      "venta": 14,
+      "monto": "3000.00",
+      "forma_pago": "EFE",
+      "fecha_pago": "2025-11-27T19:58:26.331Z",
+      "registrado_por": [
+        "jefe_usuario"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 39,
+    "fields": {
+      "venta": 14,
+      "monto": "6000.00",
+      "forma_pago": "DEP",
+      "fecha_pago": "2025-11-27T20:13:59.292Z",
+      "registrado_por": [
+        "daviddiaz"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 40,
+    "fields": {
+      "venta": 14,
+      "monto": "1500.00",
+      "forma_pago": "TRN",
+      "fecha_pago": "2025-11-27T23:43:24.540Z",
+      "registrado_por": [
+        "daviddiaz"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 41,
+    "fields": {
+      "venta": 14,
+      "monto": "1000.00",
+      "forma_pago": "TRN",
+      "fecha_pago": "2025-11-27T23:47:27.398Z",
+      "registrado_por": [
+        "daviddiaz"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 42,
+    "fields": {
+      "venta": 14,
+      "monto": "900.00",
+      "forma_pago": "TRN",
+      "fecha_pago": "2025-11-27T23:47:42.037Z",
+      "registrado_por": [
+        "daviddiaz"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 43,
+    "fields": {
+      "venta": 14,
+      "monto": "800.00",
+      "forma_pago": "TRN",
+      "fecha_pago": "2025-11-27T23:56:02.814Z",
+      "registrado_por": [
+        "daviddiaz"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 44,
+    "fields": {
+      "venta": 14,
+      "monto": "800.00",
+      "forma_pago": "TRN",
+      "fecha_pago": "2025-11-27T23:57:08.140Z",
+      "registrado_por": [
+        "daviddiaz"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 45,
+    "fields": {
+      "venta": 14,
+      "monto": "700.00",
+      "forma_pago": "TRN",
+      "fecha_pago": "2025-11-28T00:08:17.026Z",
+      "registrado_por": [
+        "daviddiaz"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 46,
+    "fields": {
+      "venta": 14,
+      "monto": "600.00",
+      "forma_pago": "TRN",
+      "fecha_pago": "2025-11-28T00:09:47.834Z",
+      "registrado_por": [
+        "daviddiaz"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 47,
+    "fields": {
+      "venta": 14,
+      "monto": "500.00",
+      "forma_pago": "TRN",
+      "fecha_pago": "2025-11-28T00:15:15.889Z",
+      "registrado_por": [
+        "daviddiaz"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 48,
+    "fields": {
+      "venta": 14,
+      "monto": "400.00",
+      "forma_pago": "TRN",
+      "fecha_pago": "2025-11-28T00:15:55.198Z",
+      "registrado_por": [
+        "daviddiaz"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 49,
+    "fields": {
+      "venta": 14,
+      "monto": "300.00",
+      "forma_pago": "TRN",
+      "fecha_pago": "2025-11-28T00:17:45.442Z",
+      "registrado_por": [
+        "daviddiaz"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 50,
+    "fields": {
+      "venta": 14,
+      "monto": "200.00",
+      "forma_pago": "TRN",
+      "fecha_pago": "2025-11-28T00:26:06.098Z",
+      "registrado_por": [
+        "daviddiaz"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 51,
+    "fields": {
+      "venta": 14,
+      "monto": "100.00",
+      "forma_pago": "TRN",
+      "fecha_pago": "2025-11-28T00:26:29.052Z",
+      "registrado_por": [
+        "daviddiaz"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 52,
+    "fields": {
+      "venta": 14,
+      "monto": "90.00",
+      "forma_pago": "TRN",
+      "fecha_pago": "2025-11-28T01:25:58.116Z",
+      "registrado_por": [
+        "daviddiaz"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 53,
+    "fields": {
+      "venta": 14,
+      "monto": "80.00",
+      "forma_pago": "TRN",
+      "fecha_pago": "2025-11-28T01:38:33.014Z",
+      "registrado_por": [
+        "daviddiaz"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 54,
+    "fields": {
+      "venta": 14,
+      "monto": "70.00",
+      "forma_pago": "TRN",
+      "fecha_pago": "2025-11-28T01:47:18.046Z",
+      "registrado_por": [
+        "daviddiaz"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 55,
+    "fields": {
+      "venta": 14,
+      "monto": "60.00",
+      "forma_pago": "TRN",
+      "fecha_pago": "2025-11-28T01:48:14.508Z",
+      "registrado_por": [
+        "daviddiaz"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 56,
+    "fields": {
+      "venta": 14,
+      "monto": "50.00",
+      "forma_pago": "TRN",
+      "fecha_pago": "2025-11-28T01:48:19.506Z",
+      "registrado_por": [
+        "daviddiaz"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 57,
+    "fields": {
+      "venta": 14,
+      "monto": "47850.00",
+      "forma_pago": "EFE",
+      "fecha_pago": "2025-11-28T02:02:32.516Z",
+      "registrado_por": [
+        "daviddiaz"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 58,
+    "fields": {
+      "venta": 13,
+      "monto": "2000.00",
+      "forma_pago": "EFE",
+      "fecha_pago": "2025-11-28T18:24:51.132Z",
+      "registrado_por": [
+        "jefe_usuario"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 59,
+    "fields": {
+      "venta": 13,
+      "monto": "20000.00",
+      "forma_pago": "EFE",
+      "fecha_pago": "2025-11-30T00:56:37.701Z",
+      "registrado_por": [
+        "jefe_usuario"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 60,
+    "fields": {
+      "venta": 13,
+      "monto": "4800.00",
+      "forma_pago": "EFE",
+      "fecha_pago": "2025-11-30T00:58:43.011Z",
+      "registrado_por": [
+        "jefe_usuario"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 61,
+    "fields": {
+      "venta": 15,
+      "monto": "10000.00",
+      "forma_pago": "EFE",
+      "fecha_pago": "2025-12-01T18:25:42.044Z",
+      "registrado_por": [
+        "jefe_usuario"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 62,
+    "fields": {
+      "venta": 16,
+      "monto": "10000.00",
+      "forma_pago": "EFE",
+      "fecha_pago": "2025-12-01T18:31:46.800Z",
+      "registrado_por": [
+        "jefe_usuario"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.abonopago",
+    "pk": 63,
+    "fields": {
+      "venta": 16,
+      "monto": "10000.00",
+      "forma_pago": "EFE",
+      "fecha_pago": "2025-12-01T20:31:43.750Z",
+      "registrado_por": [
+        "jefe_usuario"
+      ],
+      "recibo_pdf": ""
+    }
+  },
+  {
+    "model": "ventas.logistica",
+    "pk": 21,
+    "fields": {
+      "venta": 13,
+      "vuelo_confirmado": true,
+      "hospedaje_reservado": false,
+      "tickets_confirmado": false,
+      "traslado_confirmado": false,
+      "fecha_actualizacion": "2025-11-26T00:49:35.649Z"
+    }
+  },
+  {
+    "model": "ventas.logistica",
+    "pk": 22,
+    "fields": {
+      "venta": 14,
+      "vuelo_confirmado": false,
+      "hospedaje_reservado": false,
+      "tickets_confirmado": false,
+      "traslado_confirmado": false,
+      "fecha_actualizacion": "2025-11-27T19:39:10.870Z"
+    }
+  },
+  {
+    "model": "ventas.logistica",
+    "pk": 23,
+    "fields": {
+      "venta": 15,
+      "vuelo_confirmado": true,
+      "hospedaje_reservado": false,
+      "tickets_confirmado": false,
+      "traslado_confirmado": false,
+      "fecha_actualizacion": "2025-12-01T18:26:49.811Z"
+    }
+  },
+  {
+    "model": "ventas.logistica",
+    "pk": 24,
+    "fields": {
+      "venta": 16,
+      "vuelo_confirmado": false,
+      "hospedaje_reservado": false,
+      "tickets_confirmado": false,
+      "traslado_confirmado": false,
+      "fecha_actualizacion": "2025-12-01T18:29:47.739Z"
+    }
+  },
+  {
+    "model": "ventas.contratoplantilla",
+    "pk": 1,
+    "fields": {
+      "nombre": "Plantilla Base de Contratos",
+      "tipo": "OTROS",
+      "contenido_base": "\n<h3>Cláusula Primera: Partes y Objeto</h3>\n<p>\n    El presente Contrato de Servicios Turísticos es celebrado en la Ciudad de México, el <strong>{{ fecha_contrato }}</strong>, entre \n    la Agencia [NOMBRE AGENCIA], representada por <strong>{{ vendedor_nombre }}</strong>, y el Cliente \n    <strong>{{ cliente_nombre_completo }}</strong>, identificado con [DNI/Pasaporte] y domicilio en \n    <strong>{{ cliente_direccion_completa }}</strong>.\n</p>\n\n<h3>Cláusula Segunda: Servicios Contratados</h3>\n<p>\n    El objeto de la venta (Folio: {{ venta.id }}) es la organización y provisión del paquete de viaje a \n    <strong>{{ destino_viaje }}</strong>, con inicio el <strong>{{ fecha_inicio_viaje }}</strong> y finalización el \n    <strong>{{ fecha_fin_viaje }}</strong>. \n</p>\n<p>\n    **Detalle de Servicios:**\n    <ul>\n        <li>Vuelo Incluido: {{ servicio_vuelo_txt }}</li>\n        <li>Hospedaje Incluido: {{ servicio_hospedaje_txt }}</li>\n        <li>Traslados Incluidos: {{ servicio_traslado_txt }}</li>\n        <li>Seguro de Viaje: {{ servicio_seguro_txt }}</li>\n    </ul>\n</p>\n<p>\n    **Pasajeros Adicionales:** {{ pasajeros_detalle|linebreaksbr }}\n</p>\n\n<h3>Cláusula Tercera: Precios y Pagos</h3>\n<p>\n    El Cliente acepta el precio total del paquete de **${{ costo_total_localizado }}**, del cual se cubrió un anticipo de \n    ${{ monto_apertura_localizado }}. El saldo pendiente es de **${{ saldo_pendiente_localizado }}**.\n</p>\n",
+      "fecha_actualizacion": "2025-11-10T18:34:33.976Z"
+    }
+  },
+  {
+    "model": "ventas.contratoplantilla",
+    "pk": 2,
+    "fields": {
+      "nombre": "Plantilla Base de Contratos NACIONAL",
+      "tipo": "NAC",
+      "contenido_base": "\n        <h1>CONTRATO DE VENTA DE VIAJE (NACIONAL)</h1>\n        <p>En la ciudad de {{ cliente.ciudad }}, a {{ fecha_contrato }}, comparecen:</p>\n\n        <h2>1. CLIENTE</h2>\n        <p><strong>Nombre:</strong> {{ cliente_nombre_completo }}</p>\n        <p><strong>Dirección:</strong> {{ cliente_direccion_completa }}</p>\n        <p><strong>Vendedor Asignado:</strong> {{ vendedor_nombre }}</p>\n\n        <h2>2. DETALLES DEL VIAJE (ID Venta: {{ venta.id }})</h2>\n        <p><strong>Destino:</strong> {{ destino_viaje }}</p>\n        <p><strong>Fechas:</strong> Desde el {{ fecha_inicio_viaje }} hasta el {{ fecha_fin_viaje }}.</p>\n        <p><strong>Pasajeros:</strong> {{ pasajeros_detalle|linebreaksbr }}</p>\n        \n        <h3>Servicios Incluidos:</h3>\n        <ul>\n            <li>Vuelo: {{ servicio_vuelo_txt }}</li>\n            <li>Hospedaje: {{ servicio_hospedaje_txt }}</li>\n            <li>Seguro de Viaje: {{ servicio_seguro_txt }}</li>\n            <li>Otros Servicios (Detalle): {{ venta.servicios_detalle }}</li>\n        </ul>\n\n        <h2>3. MONTOS</h2>\n        <p><strong>Costo Total:</strong> {{ costo_total_localizado }}</p>\n        <p><strong>Monto de Apertura:</strong> {{ monto_apertura_localizado }}</p>\n        <p><strong>Saldo Pendiente:</strong> {{ saldo_pendiente_localizado }} (Fecha límite: {{ venta.fecha_vencimiento_pago|date:\"j \\d\\e F \\d\\e Y\" }})</p>\n\n        <br><br><p style=\"text-align: center;\">_________________________</p>\n        <p style=\"text-align: center;\">Firma del Cliente</p>\n        ",
+      "fecha_actualizacion": "2025-11-10T19:03:55.750Z"
+    }
+  },
+  {
+    "model": "ventas.contratogenerado",
+    "pk": 11,
+    "fields": {
+      "venta": 13,
+      "plantilla": 2,
+      "contenido_final": "\n        <h1>CONTRATO DE VENTA DE VIAJE (NACIONAL)</h1>\n        <p>En la ciudad de , a 29 de Noviembre de 2025, comparecen:</p>\n\n        <h2>1. CLIENTE</h2>\n        <p><strong>Nombre:</strong> ULISES TELLEZ</p>\n        <p><strong>Dirección:</strong> Ulises Tellez - 5215632784029</p>\n        <p><strong>Vendedor Asignado:</strong> jefe_usuario</p>\n\n        <h2>2. DETALLES DEL VIAJE (ID Venta: 13)</h2>\n        <p><strong>Destino:</strong> Vuelo - Proveedor: Volaris\nHospedaje - Proveedor: Travelinn</p>\n        <p><strong>Fechas:</strong> Desde el 20 de Diciembre de 2025 hasta el 25 de Diciembre de 2025.</p>\n        <p><strong>Pasajeros:</strong> Fernanda Tellez<br>Guadalupe Tellez</p>\n        \n        <h3>Servicios Incluidos:</h3>\n        <ul>\n            <li>Vuelo: Sí</li>\n            <li>Hospedaje: Sí</li>\n            <li>Seguro de Viaje: No</li>\n            <li>Otros Servicios (Detalle): Vuelo - Proveedor: Volaris\nHospedaje - Proveedor: Travelinn</li>\n        </ul>\n\n        <h2>3. MONTOS</h2>\n        <p><strong>Costo Total:</strong> 40000.00</p>\n        <p><strong>Monto de Apertura:</strong> 2000.00</p>\n        <p><strong>Saldo Pendiente:</strong> 0.00 (Fecha límite: 19 de Diciembre de 2025)</p>\n\n        <br><br><p style=\"text-align: center;\">_________________________</p>\n        <p style=\"text-align: center;\">Firma del Cliente</p>\n        ",
+      "archivo_pdf": "contratos/contrato-13-20251129185843.pdf",
+      "fecha_generacion": "2025-11-30T00:58:43.025Z"
+    }
+  },
+  {
+    "model": "ventas.contratogenerado",
+    "pk": 12,
+    "fields": {
+      "venta": 14,
+      "plantilla": 2,
+      "contenido_final": "\n        <h1>CONTRATO DE VENTA DE VIAJE (NACIONAL)</h1>\n        <p>En la ciudad de , a 27 de Noviembre de 2025, comparecen:</p>\n\n        <h2>1. CLIENTE</h2>\n        <p><strong>Nombre:</strong> ANGELA AGUILAR</p>\n        <p><strong>Dirección:</strong> Angela Aguilar - 5523456734</p>\n        <p><strong>Vendedor Asignado:</strong> David Diaz</p>\n\n        <h2>2. DETALLES DEL VIAJE (ID Venta: 14)</h2>\n        <p><strong>Destino:</strong> Vuelo - Proveedor: AeroMexico\nHospedaje - Proveedor: Travelinn</p>\n        <p><strong>Fechas:</strong> Desde el 6 de Diciembre de 2025 hasta el 11 de Diciembre de 2025.</p>\n        <p><strong>Pasajeros:</strong> Sara Rodriguez<br>Mariana Buendia</p>\n        \n        <h3>Servicios Incluidos:</h3>\n        <ul>\n            <li>Vuelo: Sí</li>\n            <li>Hospedaje: Sí</li>\n            <li>Seguro de Viaje: No</li>\n            <li>Otros Servicios (Detalle): Vuelo - Proveedor: AeroMexico\nHospedaje - Proveedor: Travelinn</li>\n        </ul>\n\n        <h2>3. MONTOS</h2>\n        <p><strong>Costo Total:</strong> 70000.00</p>\n        <p><strong>Monto de Apertura:</strong> 5000.00</p>\n        <p><strong>Saldo Pendiente:</strong> 0.00 (Fecha límite: 4 de Diciembre de 2025)</p>\n\n        <br><br><p style=\"text-align: center;\">_________________________</p>\n        <p style=\"text-align: center;\">Firma del Cliente</p>\n        ",
+      "archivo_pdf": "contratos/contrato-14-20251127200232.pdf",
+      "fecha_generacion": "2025-11-28T02:02:32.532Z"
+    }
+  },
+  {
+    "model": "ventas.contratogenerado",
+    "pk": 13,
+    "fields": {
+      "venta": 15,
+      "plantilla": 2,
+      "contenido_final": "\n        <h1>CONTRATO DE VENTA DE VIAJE (NACIONAL)</h1>\n        <p>En la ciudad de , a 1 de Diciembre de 2025, comparecen:</p>\n\n        <h2>1. CLIENTE</h2>\n        <p><strong>Nombre:</strong> DANIELA DE LA ROSA</p>\n        <p><strong>Dirección:</strong> Daniela De la rosa - 5645329867</p>\n        <p><strong>Vendedor Asignado:</strong> jefe_usuario</p>\n\n        <h2>2. DETALLES DEL VIAJE (ID Venta: 15)</h2>\n        <p><strong>Destino:</strong> Vuelo - Proveedor: Volaris\nHospedaje - Proveedor: Travelinn\nTraslado - Proveedor: Aventuras nuevas</p>\n        <p><strong>Fechas:</strong> Desde el 10 de Diciembre de 2025 hasta el 15 de Diciembre de 2025.</p>\n        <p><strong>Pasajeros:</strong> Daniela de la rosa<br>Angel guerrero</p>\n        \n        <h3>Servicios Incluidos:</h3>\n        <ul>\n            <li>Vuelo: Sí</li>\n            <li>Hospedaje: Sí</li>\n            <li>Seguro de Viaje: No</li>\n            <li>Otros Servicios (Detalle): Vuelo - Proveedor: Volaris\nHospedaje - Proveedor: Travelinn\nTraslado - Proveedor: Aventuras nuevas</li>\n        </ul>\n\n        <h2>3. MONTOS</h2>\n        <p><strong>Costo Total:</strong> 80000.00</p>\n        <p><strong>Monto de Apertura:</strong> 5000.00</p>\n        <p><strong>Saldo Pendiente:</strong> 66000.00 (Fecha límite: 4 de Diciembre de 2025)</p>\n\n        <br><br><p style=\"text-align: center;\">_________________________</p>\n        <p style=\"text-align: center;\">Firma del Cliente</p>\n        ",
+      "archivo_pdf": "contratos/contrato-15-20251201132546.pdf",
+      "fecha_generacion": "2025-12-01T19:25:46.946Z"
+    }
+  },
+  {
+    "model": "ventas.contratogenerado",
+    "pk": 14,
+    "fields": {
+      "venta": 16,
+      "plantilla": 2,
+      "contenido_final": "\n        <h1>CONTRATO DE VENTA DE VIAJE (NACIONAL)</h1>\n        <p>En la ciudad de , a 1 de Diciembre de 2025, comparecen:</p>\n\n        <h2>1. CLIENTE</h2>\n        <p><strong>Nombre:</strong> KAREN PEREGRINO</p>\n        <p><strong>Dirección:</strong> Karen Peregrino - 5623986734</p>\n        <p><strong>Vendedor Asignado:</strong> jefe_usuario</p>\n\n        <h2>2. DETALLES DEL VIAJE (ID Venta: 16)</h2>\n        <p><strong>Destino:</strong> Vuelo - Proveedor: AeroMexico\nHospedaje - Proveedor: Travelinn\nRenta Auto - Proveedor: Juanitos Tours</p>\n        <p><strong>Fechas:</strong> Desde el 10 de Enero de 2026 hasta el 15 de Enero de 2026.</p>\n        <p><strong>Pasajeros:</strong> Karen Peregrino<br>Luis Peregrino<br>Abby Peregrino</p>\n        \n        <h3>Servicios Incluidos:</h3>\n        <ul>\n            <li>Vuelo: Sí</li>\n            <li>Hospedaje: Sí</li>\n            <li>Seguro de Viaje: No</li>\n            <li>Otros Servicios (Detalle): Vuelo - Proveedor: AeroMexico\nHospedaje - Proveedor: Travelinn\nRenta Auto - Proveedor: Juanitos Tours</li>\n        </ul>\n\n        <h2>3. MONTOS</h2>\n        <p><strong>Costo Total:</strong> 40000.00</p>\n        <p><strong>Monto de Apertura:</strong> 5000.00</p>\n        <p><strong>Saldo Pendiente:</strong> 25000.00 (Fecha límite: 7 de Enero de 2026)</p>\n\n        <br><br><p style=\"text-align: center;\">_________________________</p>\n        <p style=\"text-align: center;\">Firma del Cliente</p>\n        ",
+      "archivo_pdf": "contratos/contrato-16-20251201123146.pdf",
+      "fecha_generacion": "2025-12-01T18:31:46.814Z"
+    }
+  },
+  {
+    "model": "ventas.proveedor",
+    "pk": 1,
+    "fields": {
+      "nombre": "Travelinn",
+      "telefono": "5523456734",
+      "ejecutivo": "Alberto Redondo",
+      "servicio": "HOTELES",
+      "link": "",
+      "genera_factura": true,
+      "fecha_creacion": "2025-11-13T22:42:48.753Z",
+      "fecha_actualizacion": "2025-11-13T22:42:48.753Z"
+    }
+  },
+  {
+    "model": "ventas.proveedor",
+    "pk": 2,
+    "fields": {
+      "nombre": "Volaris",
+      "telefono": "5678653421",
+      "ejecutivo": "Daniel Rodriguez",
+      "servicio": "VUELOS",
+      "link": "",
+      "genera_factura": false,
+      "fecha_creacion": "2025-11-19T03:06:59.148Z",
+      "fecha_actualizacion": "2025-11-19T03:06:59.148Z"
+    }
+  },
+  {
+    "model": "ventas.proveedor",
+    "pk": 3,
+    "fields": {
+      "nombre": "AeroMexico",
+      "telefono": "5667984356",
+      "ejecutivo": "Paco Rodriguez",
+      "servicio": "VUELOS",
+      "link": "",
+      "genera_factura": true,
+      "fecha_creacion": "2025-11-20T17:58:16.593Z",
+      "fecha_actualizacion": "2025-11-20T17:58:16.593Z"
+    }
+  },
+  {
+    "model": "ventas.confirmacionventa",
+    "pk": 6,
+    "fields": {
+      "venta": 13,
+      "archivo": "confirmaciones/2025/11/25/red-white-airplane-ticket-design-260nw-2178760431.jpg.webp",
+      "nota": "tickets vuelo",
+      "subido_por": [
+        "jefe_usuario"
+      ],
+      "fecha_subida": "2025-11-26T01:03:22.110Z"
+    }
+  },
+  {
+    "model": "ventas.ejecutivo",
+    "pk": 3,
+    "fields": {
+      "nombre_completo": "Oscar Sanchez",
+      "direccion": "San Pedro Texcoco",
+      "telefono": "5672635489",
+      "email": "oscar@hotmail.com",
+      "ubicacion_asignada": "Texcoco",
+      "sueldo_base": "13000.00",
+      "documento_pdf": "",
+      "usuario": [
+        "oscarsanchez"
+      ],
+      "ultima_contrasena": "WlwqOoJMIumCMQ",
+      "creado_en": "2025-11-15T23:52:24.324Z",
+      "actualizado_en": "2025-11-15T23:52:24.324Z"
+    }
+  },
+  {
+    "model": "ventas.ejecutivo",
+    "pk": 4,
+    "fields": {
+      "nombre_completo": "David Diaz",
+      "direccion": "Cuautlalpan Texcoco Edomex",
+      "telefono": "5643980289",
+      "email": "daviddiaz@hotmail.com",
+      "ubicacion_asignada": "Texcoco",
+      "sueldo_base": "15000.00",
+      "documento_pdf": "",
+      "usuario": [
+        "daviddiaz"
+      ],
+      "ultima_contrasena": "fdKNWV8PrFGN7g",
+      "creado_en": "2025-11-17T19:27:18.379Z",
+      "actualizado_en": "2025-11-17T19:27:18.379Z"
+    }
+  },
+  {
+    "model": "ventas.ejecutivo",
+    "pk": 6,
+    "fields": {
+      "nombre_completo": "Edgar Suarez",
+      "direccion": "juan de la barrera",
+      "telefono": "5951049676",
+      "email": "edgarin1724@hotmail.com",
+      "ubicacion_asignada": "Texcoco",
+      "sueldo_base": "15000.00",
+      "documento_pdf": "",
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "ultima_contrasena": "H_6PWaNYOrrjyQ",
+      "creado_en": "2025-11-24T04:49:20.892Z",
+      "actualizado_en": "2025-11-24T04:49:20.892Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 130,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "APERTURA",
+      "mensaje": "Se registró una apertura de $2000 para la Venta #13 - Cliente: Ulises Tellez",
+      "venta": 13,
+      "fecha_creacion": "2025-11-26T00:30:20.861Z",
+      "vista": true,
+      "fecha_vista": "2025-11-26T00:30:34.035Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 131,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Pago confirmado: $2,000.00 - Venta #13",
+      "venta": 13,
+      "fecha_creacion": "2025-11-26T00:30:21.068Z",
+      "vista": true,
+      "fecha_vista": "2025-11-26T00:32:08.723Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 132,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "APERTURA",
+      "mensaje": "Pago de apertura pendiente de confirmación: $2,000.00 (Transferencia) - Venta #13",
+      "venta": 13,
+      "fecha_creacion": "2025-11-26T00:30:21.069Z",
+      "vista": true,
+      "fecha_vista": "2025-11-26T00:30:34.848Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 133,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Pago confirmado por el contador: $2,000.00 - Venta #13",
+      "venta": 13,
+      "fecha_creacion": "2025-11-26T00:32:08.725Z",
+      "vista": true,
+      "fecha_vista": "2025-11-26T00:48:34.056Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 134,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $5,000.00 (Transferencia) - Venta #13",
+      "venta": 13,
+      "fecha_creacion": "2025-11-26T00:48:25.178Z",
+      "vista": true,
+      "fecha_vista": "2025-11-26T00:48:50.128Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 135,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $5,000.00 (Transferencia) - Venta #13",
+      "venta": 13,
+      "fecha_creacion": "2025-11-26T00:48:25.179Z",
+      "vista": true,
+      "fecha_vista": "2025-11-26T00:48:50.127Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 136,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado por el contador: $5,000.00 (Transferencia) - Venta #13",
+      "venta": 13,
+      "fecha_creacion": "2025-11-26T00:48:50.130Z",
+      "vista": true,
+      "fecha_vista": "2025-11-26T00:49:18.380Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 137,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "LOGISTICA",
+      "mensaje": "Cambios en logística para Venta #13 - Cliente: Ulises Tellez - Vuelo confirmado",
+      "venta": 13,
+      "fecha_creacion": "2025-11-26T00:49:35.654Z",
+      "vista": true,
+      "fecha_vista": "2025-11-26T00:49:59.203Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 138,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "ABONO",
+      "mensaje": "Se registró un abono de $2000 (Efectivo) para la Venta #13 - Cliente: Ulises Tellez",
+      "venta": 13,
+      "fecha_creacion": "2025-11-26T04:00:21.507Z",
+      "vista": true,
+      "fecha_vista": "2025-11-26T04:02:38.106Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 139,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "ABONO",
+      "mensaje": "Se registró un abono de $2500 (Efectivo) para la Venta #13 - Cliente: Ulises Tellez",
+      "venta": 13,
+      "fecha_creacion": "2025-11-26T04:20:54.613Z",
+      "vista": true,
+      "fecha_vista": "2025-11-26T04:50:35.662Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 140,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $2,000.00 (Transferencia) - Venta #13",
+      "venta": 13,
+      "fecha_creacion": "2025-11-26T18:17:29.389Z",
+      "vista": true,
+      "fecha_vista": "2025-11-26T18:17:52.472Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 141,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $2,000.00 (Transferencia) - Venta #13",
+      "venta": 13,
+      "fecha_creacion": "2025-11-26T18:17:29.390Z",
+      "vista": true,
+      "fecha_vista": "2025-11-26T18:17:52.471Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 142,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado por el contador: $2,000.00 (Transferencia) - Venta #13",
+      "venta": 13,
+      "fecha_creacion": "2025-11-26T18:17:52.474Z",
+      "vista": true,
+      "fecha_vista": "2025-11-26T18:21:39.572Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 143,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "APERTURA",
+      "mensaje": "Se registró una apertura de $5000 para la Venta #14 - Cliente: Angela Aguilar",
+      "venta": 14,
+      "fecha_creacion": "2025-11-27T19:39:10.872Z",
+      "vista": true,
+      "fecha_vista": "2025-11-27T19:53:08.895Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 144,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Pago confirmado: $5,000.00 - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-27T19:39:11.112Z",
+      "vista": true,
+      "fecha_vista": "2025-11-27T19:39:57.245Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 145,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "APERTURA",
+      "mensaje": "Pago de apertura pendiente de confirmación: $5,000.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-27T19:39:11.113Z",
+      "vista": true,
+      "fecha_vista": "2025-11-27T19:53:07.737Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 146,
+    "fields": {
+      "usuario": [
+        "daviddiaz"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Tu pago ha sido confirmado por el contador. Puedes proceder con la venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-27T19:39:57.247Z",
+      "vista": true,
+      "fecha_vista": "2025-11-27T19:52:28.421Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 147,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Pago confirmado por el contador: $5,000.00 - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-27T19:39:57.249Z",
+      "vista": true,
+      "fecha_vista": "2025-11-27T19:53:06.436Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 148,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "ABONO",
+      "mensaje": "Se registró un abono de $3000 (Efectivo) para la Venta #14 - Cliente: Angela Aguilar",
+      "venta": 14,
+      "fecha_creacion": "2025-11-27T19:58:26.340Z",
+      "vista": true,
+      "fecha_vista": "2025-11-27T20:13:31.876Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 149,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $6,000.00 (Depósito) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-27T20:13:59.430Z",
+      "vista": true,
+      "fecha_vista": "2025-11-27T20:21:29.418Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 150,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $6,000.00 (Depósito) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-27T20:13:59.431Z",
+      "vista": true,
+      "fecha_vista": "2025-11-27T20:21:29.416Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 151,
+    "fields": {
+      "usuario": [
+        "daviddiaz"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Tu abono de $6,000.00 ha sido confirmado por el contador. Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-27T20:21:29.419Z",
+      "vista": true,
+      "fecha_vista": "2025-11-27T20:27:43.780Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 152,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado por el contador: $6,000.00 (Depósito) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-27T20:21:29.420Z",
+      "vista": true,
+      "fecha_vista": "2025-11-27T23:43:05.780Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 153,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $1,500.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-27T23:43:24.723Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:27:26.288Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 154,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado por el contador: $1,500.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-27T23:43:24.724Z",
+      "vista": true,
+      "fecha_vista": "2025-11-27T23:57:28.788Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 155,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $1,000.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-27T23:47:27.516Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:27:22.337Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 156,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado por el contador: $1,000.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-27T23:47:27.517Z",
+      "vista": true,
+      "fecha_vista": "2025-11-27T23:57:24.461Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 157,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $900.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-27T23:47:42.131Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:27:17.683Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 158,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado por el contador: $900.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-27T23:47:42.132Z",
+      "vista": true,
+      "fecha_vista": "2025-11-27T23:57:21.335Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 159,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $800.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-27T23:56:02.912Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:27:13.878Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 160,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado por el contador: $800.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-27T23:56:02.913Z",
+      "vista": true,
+      "fecha_vista": "2025-11-27T23:57:18.032Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 161,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $800.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-27T23:57:08.237Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:27:08.254Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 162,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado por el contador: $800.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-27T23:57:08.239Z",
+      "vista": true,
+      "fecha_vista": "2025-11-27T23:57:14.435Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 163,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $700.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:08:17.162Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:27:04.888Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 164,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado por el contador: $700.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:08:17.163Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:08:25.858Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 165,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $600.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:09:47.929Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:27:01.134Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 166,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado por el contador: $600.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:09:47.930Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:27:42.704Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 167,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $500.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:15:16.048Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:26:57.584Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 168,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado por el contador: $500.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:15:16.049Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:27:40.922Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 169,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $400.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:15:55.295Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:26:53.943Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 170,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado por el contador: $400.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:15:55.296Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:27:40.120Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 171,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $300.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:17:45.587Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:26:50.141Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 172,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado por el contador: $300.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:17:45.588Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:27:39.448Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 173,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $200.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:26:06.256Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:26:44.128Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 174,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado por el contador: $200.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:26:06.261Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:27:38.005Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 175,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $100.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:26:29.148Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:26:39.086Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 176,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado por el contador: $100.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:26:29.149Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:27:36.577Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 177,
+    "fields": {
+      "usuario": [
+        "daviddiaz"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Tu abono de $100.00 ha sido confirmado por el contador. Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:26:39.088Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:28:10.355Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 178,
+    "fields": {
+      "usuario": [
+        "daviddiaz"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Tu abono de $200.00 ha sido confirmado por el contador. Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:26:44.130Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:28:09.632Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 179,
+    "fields": {
+      "usuario": [
+        "daviddiaz"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Tu abono de $300.00 ha sido confirmado por el contador. Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:26:50.143Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:28:08.942Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 180,
+    "fields": {
+      "usuario": [
+        "daviddiaz"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Tu abono de $400.00 ha sido confirmado por el contador. Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:26:53.946Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:28:08.186Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 181,
+    "fields": {
+      "usuario": [
+        "daviddiaz"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Tu abono de $500.00 ha sido confirmado por el contador. Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:26:57.587Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:28:07.413Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 182,
+    "fields": {
+      "usuario": [
+        "daviddiaz"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Tu abono de $600.00 ha sido confirmado por el contador. Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:27:01.136Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:28:06.678Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 183,
+    "fields": {
+      "usuario": [
+        "daviddiaz"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Tu abono de $700.00 ha sido confirmado por el contador. Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:27:04.890Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:28:05.953Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 184,
+    "fields": {
+      "usuario": [
+        "daviddiaz"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Tu abono de $800.00 ha sido confirmado por el contador. Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:27:08.256Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:28:05.237Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 185,
+    "fields": {
+      "usuario": [
+        "daviddiaz"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Tu abono de $800.00 ha sido confirmado por el contador. Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:27:13.879Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:28:04.451Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 186,
+    "fields": {
+      "usuario": [
+        "daviddiaz"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Tu abono de $900.00 ha sido confirmado por el contador. Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:27:17.685Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:28:03.600Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 187,
+    "fields": {
+      "usuario": [
+        "daviddiaz"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Tu abono de $1,000.00 ha sido confirmado por el contador. Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:27:22.339Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:28:02.560Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 188,
+    "fields": {
+      "usuario": [
+        "daviddiaz"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Tu abono de $1,500.00 ha sido confirmado por el contador. Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T00:27:26.290Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T00:28:01.177Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 189,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $90.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T01:25:58.254Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T01:38:52.987Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 190,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado por el contador: $90.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T01:25:58.255Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T01:39:29.236Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 191,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $80.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T01:38:33.179Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T01:38:58.448Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 192,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado por el contador: $80.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T01:38:33.180Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T01:39:24.491Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 193,
+    "fields": {
+      "usuario": [
+        "daviddiaz"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Tu abono de $90.00 ha sido confirmado por el contador. Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T01:38:52.988Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T01:39:11.424Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 194,
+    "fields": {
+      "usuario": [
+        "daviddiaz"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Tu abono de $80.00 ha sido confirmado por el contador. Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T01:38:58.449Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T01:39:09.843Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 195,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $70.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T01:47:18.133Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T01:47:33.443Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 196,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado por el contador: $70.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T01:47:18.135Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T01:47:56.893Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 197,
+    "fields": {
+      "usuario": [
+        "daviddiaz"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Tu abono de $70.00 ha sido confirmado por el contador. Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T01:47:33.446Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T01:47:44.697Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 198,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $60.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T01:48:14.607Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T01:48:37.745Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 199,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado por el contador: $60.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T01:48:14.608Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T01:48:53.866Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 200,
+    "fields": {
+      "usuario": [
+        "edgarsuarez"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado: $50.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T01:48:19.601Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T01:48:33.317Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 201,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Abono confirmado por el contador: $50.00 (Transferencia) - Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T01:48:19.602Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T01:48:52.604Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 202,
+    "fields": {
+      "usuario": [
+        "daviddiaz"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Tu abono de $50.00 ha sido confirmado por el contador. Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T01:48:33.318Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T01:48:46.163Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 203,
+    "fields": {
+      "usuario": [
+        "daviddiaz"
+      ],
+      "tipo": "PAGO_CONFIRMADO",
+      "mensaje": "✅ Tu abono de $60.00 ha sido confirmado por el contador. Venta #14",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T01:48:37.747Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T01:48:44.400Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 204,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "ABONO",
+      "mensaje": "Se registró un abono de $47850 (Efectivo) para la Venta #14 - Cliente: Angela Aguilar",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T02:02:32.522Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T02:06:44.925Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 205,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "LIQUIDACION",
+      "mensaje": "¡Venta #14 LIQUIDADA! - Cliente: Angela Aguilar - Total pagado: $70000.00",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T02:02:32.528Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T02:06:43.823Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 206,
+    "fields": {
+      "usuario": [
+        "daviddiaz"
+      ],
+      "tipo": "LIQUIDACION",
+      "mensaje": "¡Venta #14 completamente liquidada! - Cliente: Angela Aguilar - Total: $70,000.00",
+      "venta": 14,
+      "fecha_creacion": "2025-11-28T02:02:32.656Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T02:02:32.668Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 207,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "ABONO",
+      "mensaje": "Se registró un abono de $2000 (Efectivo) para la Venta #13 - Cliente: Ulises Tellez",
+      "venta": 13,
+      "fecha_creacion": "2025-11-28T18:24:51.139Z",
+      "vista": true,
+      "fecha_vista": "2025-11-28T18:24:51.276Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 208,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "ABONO",
+      "mensaje": "Se registró un abono de $20000 (Efectivo) para la Venta #13 - Cliente: Ulises Tellez",
+      "venta": 13,
+      "fecha_creacion": "2025-11-30T00:56:37.709Z",
+      "vista": true,
+      "fecha_vista": "2025-11-30T00:56:37.900Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 209,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "ABONO",
+      "mensaje": "Se registró un abono de $4800 (Efectivo) para la Venta #13 - Cliente: Ulises Tellez",
+      "venta": 13,
+      "fecha_creacion": "2025-11-30T00:58:43.015Z",
+      "vista": true,
+      "fecha_vista": "2025-11-30T00:58:43.257Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 210,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "LIQUIDACION",
+      "mensaje": "¡Venta #13 LIQUIDADA! - Cliente: Ulises Tellez - Total pagado: $40300.00",
+      "venta": 13,
+      "fecha_creacion": "2025-11-30T00:58:43.020Z",
+      "vista": true,
+      "fecha_vista": "2025-11-30T00:58:43.257Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 211,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "LIQUIDACION",
+      "mensaje": "¡Venta #13 completamente liquidada! - Cliente: Ulises Tellez - Total: $40,000.00",
+      "venta": 13,
+      "fecha_creacion": "2025-11-30T00:58:43.233Z",
+      "vista": true,
+      "fecha_vista": "2025-11-30T00:58:43.257Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 212,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "APERTURA",
+      "mensaje": "Se registró una apertura de $5000 para la Venta #15 - Cliente: Daniela De la rosa",
+      "venta": 15,
+      "fecha_creacion": "2025-11-30T01:03:23.727Z",
+      "vista": true,
+      "fecha_vista": "2025-11-30T01:03:23.945Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 213,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "APERTURA",
+      "mensaje": "Apertura registrada y confirmada en tu venta #15: $5,000.00 (Efectivo) - Cliente: Daniela De la rosa",
+      "venta": 15,
+      "fecha_creacion": "2025-11-30T01:03:23.937Z",
+      "vista": true,
+      "fecha_vista": "2025-11-30T01:03:23.945Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 214,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "ABONO",
+      "mensaje": "Se registró un abono de $10000 (Efectivo) para la Venta #15 - Cliente: Daniela De la rosa",
+      "venta": 15,
+      "fecha_creacion": "2025-12-01T18:25:42.051Z",
+      "vista": true,
+      "fecha_vista": "2025-12-01T18:25:42.180Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 215,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "LOGISTICA",
+      "mensaje": "Cambios en logística para Venta #15 - Cliente: Daniela De la rosa - Vuelo confirmado",
+      "venta": 15,
+      "fecha_creacion": "2025-12-01T18:26:49.815Z",
+      "vista": true,
+      "fecha_vista": "2025-12-01T18:26:49.828Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 216,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "APERTURA",
+      "mensaje": "Se registró una apertura de $5000 para la Venta #16 - Cliente: Karen Peregrino",
+      "venta": 16,
+      "fecha_creacion": "2025-12-01T18:29:47.741Z",
+      "vista": true,
+      "fecha_vista": "2025-12-01T18:29:47.895Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 217,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "APERTURA",
+      "mensaje": "Apertura registrada y confirmada en tu venta #16: $5,000.00 (Efectivo) - Cliente: Karen Peregrino",
+      "venta": 16,
+      "fecha_creacion": "2025-12-01T18:29:47.870Z",
+      "vista": true,
+      "fecha_vista": "2025-12-01T18:29:47.895Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 218,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "ABONO",
+      "mensaje": "Se registró un abono de $10000 (Efectivo) para la Venta #16 - Cliente: Karen Peregrino",
+      "venta": 16,
+      "fecha_creacion": "2025-12-01T18:31:46.805Z",
+      "vista": true,
+      "fecha_vista": "2025-12-01T18:31:46.901Z"
+    }
+  },
+  {
+    "model": "ventas.notificacion",
+    "pk": 219,
+    "fields": {
+      "usuario": [
+        "jefe_usuario"
+      ],
+      "tipo": "ABONO",
+      "mensaje": "Se registró un abono de $10000 (Efectivo) para la Venta #16 - Cliente: Karen Peregrino",
+      "venta": 16,
+      "fecha_creacion": "2025-12-01T20:31:43.758Z",
+      "vista": true,
+      "fecha_vista": "2025-12-01T20:31:43.774Z"
+    }
+  }
+]

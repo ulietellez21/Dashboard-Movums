@@ -1,4 +1,5 @@
 from django.db import models
+from decimal import Decimal
 
 class Cliente(models.Model):
     """Almacena la información de contacto y detalles de los clientes,
@@ -72,6 +73,53 @@ class Cliente(models.Model):
     fecha_registro = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
 
+    # ------------------- Métricas -------------------
+    cotizaciones_generadas = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Total de cotizaciones generadas"
+    )
+
+    participa_kilometros = models.BooleanField(
+        default=True,
+        verbose_name="Participa en Kilómetros Movums"
+    )
+    referencia_programa = models.CharField(
+        max_length=120,
+        blank=True,
+        null=True,
+        help_text="Código o nota interna para el programa de lealtad."
+    )
+    referido_por = models.ForeignKey(
+        'self',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='referidos',
+        verbose_name="Referido por"
+    )
+    kilometros_acumulados = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Kilómetros acumulados históricos"
+    )
+    kilometros_disponibles = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Kilómetros disponibles"
+    )
+    ultima_fecha_km = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name="Última acumulación de kilómetros"
+    )
+    fecha_ultimo_bono_cumple = models.DateField(
+        blank=True,
+        null=True,
+        verbose_name="Último bono de cumpleaños aplicado"
+    )
+
     # ------------------- PROPIEDAD AGREGADA PARA USO EXTERNO -------------------
     @property
     def nombre_completo_display(self):
@@ -105,3 +153,47 @@ class Cliente(models.Model):
             return self.ventas_asociadas.order_by('-fecha_creacion').first() 
         except:
             return None
+
+    @property
+    def valor_kilometros_disponibles(self):
+        return (self.kilometros_disponibles or Decimal('0.00')) * Decimal('0.05')
+
+
+class HistorialKilometros(models.Model):
+    TIPO_EVENTO = [
+        ('COMPRA', 'Compra de servicios'),
+        ('REFERIDO', 'Bonificación por referido'),
+        ('CUMPLE', 'Bonificación por cumpleaños'),
+        ('CAMPANIA', 'Campaña especial'),
+        ('AJUSTE', 'Ajuste manual'),
+        ('REDENCION', 'Redención aplicada'),
+        ('EXPIRACION', 'Expiración de kilómetros'),
+    ]
+
+    cliente = models.ForeignKey(
+        Cliente,
+        on_delete=models.CASCADE,
+        related_name='historial_kilometros'
+    )
+    tipo_evento = models.CharField(max_length=12, choices=TIPO_EVENTO)
+    descripcion = models.CharField(max_length=255, blank=True, null=True)
+    kilometros = models.DecimalField(max_digits=12, decimal_places=2)
+    multiplicador = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal('1.00'))
+    valor_equivalente = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    fecha_registro = models.DateTimeField(auto_now_add=True)
+    fecha_expiracion = models.DateTimeField(blank=True, null=True)
+    venta = models.ForeignKey(
+        'ventas.VentaViaje',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='movimientos_kilometros'
+    )
+    es_redencion = models.BooleanField(default=False)
+    expirado = models.BooleanField(default=False, help_text="Indica si este movimiento ya fue procesado para expiración.")
+
+    class Meta:
+        ordering = ['-fecha_registro']
+
+    def __str__(self):
+        return f"{self.tipo_evento} - {self.kilometros} km ({self.cliente})"

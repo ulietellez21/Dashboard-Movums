@@ -11,6 +11,7 @@ from .models import (
     ContratoGenerado,
     Proveedor,
     ConfirmacionVenta,
+    LogisticaServicio,
 ) # Importar modelos
 
 # =================================================================
@@ -82,12 +83,8 @@ class LogisticaInline(admin.TabularInline):
     model = Logistica
     max_num = 1
     can_delete = False
-    fields = ('vuelo_confirmado', 'hospedaje_reservado', 'seguro_emitido', 'documentos_enviados')
-    # Se añade 'is_fully_confirmed' solo si está definido como propiedad en Logistica.
-    # Si no es un campo de modelo, se recomienda mostrarlo en la vista de detalle, no en el inline.
-    # Por ahora lo eliminamos del readonly_fields para evitar un posible error si no existe.
-    # fields = ('vuelo_confirmado', 'hospedaje_reservado', 'seguro_emitido', 'documentos_enviados')
-    # readonly_fields = ()
+    fields = ('vuelo_confirmado', 'hospedaje_reservado', 'traslado_confirmado', 'tickets_confirmado')
+    readonly_fields = ()
 
 
 # --- ContratoGenerado Inline (Para ver el contrato en la Venta) ---
@@ -216,6 +213,15 @@ class ConfirmacionVentaAdmin(admin.ModelAdmin):
     list_filter = ('fecha_subida', 'subido_por')
     search_fields = ('venta__cliente__nombre', 'venta__cliente__apellido', 'venta__cliente__nombre_empresa', 'nota', 'archivo')
     autocomplete_fields = ('venta', 'subido_por')
+
+
+@admin.register(LogisticaServicio)
+class LogisticaServicioAdmin(admin.ModelAdmin):
+    list_display = ('venta', 'nombre_servicio', 'monto_planeado', 'pagado', 'fecha_pagado')
+    list_filter = ('pagado', 'codigo_servicio')
+    search_fields = ('venta__id', 'venta__cliente__nombre', 'venta__cliente__apellido', 'nombre_servicio')
+    raw_id_fields = ('venta',)
+    readonly_fields = ('fecha_pagado',)
 
 # --- 4. Registrar AbonoPagoAdmin ---
 admin.site.register(AbonoPago, AbonoPagoAdmin)
