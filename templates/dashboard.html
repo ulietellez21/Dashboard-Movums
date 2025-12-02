@@ -1,6 +1,5 @@
 {% extends 'base.html' %}
 {% load static %}
-{% load humanize %}
 
 {% block title %}Dashboard | Movums{% endblock %}
 
@@ -9,18 +8,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
     <!-- Incluir jQuery para funcionalidad de notificaciones -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <!-- Incluir DataTables para tablas interactivas -->
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
-    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
-    <!-- Flatpickr para selección de rango de fechas -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    
 {% endblock %}
 
 {% block content %}
-{# Token CSRF oculto para peticiones AJAX #}
-{% csrf_token %}
 <div class="row mb-4">
     <div class="col-12">
         <h1 class="fw-bold text-dark mb-0">Dashboard de Gestión</h1>
@@ -105,25 +95,27 @@
 
 </div>
 
-<!-- Sección de Notificaciones para JEFE -->
+<!-- Sección de Notificaciones (Solo para JEFE) -->
 {% if user_rol == 'JEFE' and notificaciones %}
-<div class="row g-4 mb-5">
+<div class="row g-4 mb-5" id="notificaciones-section">
     <div class="col-12">
-        <div class="card shadow-sm border-0 rounded-4 border-info">
-            <div class="card-header bg-info text-white py-3">
-                <h5 class="fw-bold mb-0">
-                    <i class="fas fa-bell me-2"></i>
-                    Notificaciones del Sistema
-                    {% if notificaciones_count > 0 %}
-                        <span class="badge bg-warning text-dark ms-2">{{ notificaciones_count }}</span>
-                    {% endif %}
-                </h5>
-                <p class="mb-0">Revisa todos los movimientos y eventos importantes del sistema</p>
+        <div class="card shadow-sm border-0 rounded-4" id="notificaciones-card">
+            <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="fw-bold mb-0">
+                        <i class="fas fa-bell text-warning me-2"></i>
+                        Notificaciones
+                        {% if notificaciones_count > 0 %}
+                            <span class="badge bg-danger ms-2">{{ notificaciones_count }}</span>
+                        {% endif %}
+                    </h5>
+                    <p class="text-secondary mb-0">Eventos importantes del sistema</p>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="list-group list-group-flush">
                     {% for notificacion in notificaciones %}
-                    <div class="list-group-item border-0 border-bottom py-3 px-4 notificacion-item {% if not notificacion.vista %}bg-light{% endif %}" data-notificacion-id="{{ notificacion.pk }}">
+                    <div class="list-group-item border-0 border-bottom py-3 px-4 notificacion-item" data-notificacion-id="{{ notificacion.pk }}">
                         <div class="d-flex justify-content-between align-items-start">
                             <div class="flex-grow-1">
                                 <div class="d-flex align-items-center mb-2">
@@ -139,340 +131,28 @@
                                     {% elif notificacion.tipo == 'LOGISTICA' %}
                                         <i class="fas fa-shipping-fast text-warning me-2"></i>
                                         <span class="badge bg-warning text-dark me-2">{{ notificacion.get_tipo_display }}</span>
-                                    {% elif notificacion.tipo == 'PAGO_PENDIENTE' %}
-                                        <i class="fas fa-clock text-warning me-2"></i>
-                                        <span class="badge bg-warning text-dark me-2">{{ notificacion.get_tipo_display }}</span>
-                                    {% elif notificacion.tipo == 'PAGO_CONFIRMADO' %}
-                                        <i class="fas fa-check-circle text-success me-2"></i>
-                                        <span class="badge bg-success me-2">{{ notificacion.get_tipo_display }}</span>
-                                    {% elif notificacion.tipo == 'CANCELACION' %}
-                                        <i class="fas fa-times-circle text-danger me-2"></i>
-                                        <span class="badge bg-danger me-2">{{ notificacion.get_tipo_display }}</span>
                                     {% endif %}
                                     <small class="text-muted">{{ notificacion.fecha_creacion|date:"d/m/Y H:i" }}</small>
-                                    {% if notificacion.vista %}
-                                        <span class="badge bg-secondary ms-2">Vista</span>
-                                    {% endif %}
                                 </div>
                                 <p class="mb-0">{{ notificacion.mensaje }}</p>
                                 {% if notificacion.venta %}
-                                    <p class="mb-0 text-muted small mt-1">
-                                        <i class="fas fa-tag"></i> Venta #{{ notificacion.venta.pk }} - {{ notificacion.venta.cliente }}
-                                    </p>
-                                {% endif %}
-                            </div>
-                            <div class="ms-3 d-flex flex-column gap-2">
-                                {% if notificacion.venta %}
-                                    <a href="{% url 'detalle_venta' slug=notificacion.venta.slug_safe pk=notificacion.venta.pk %}" 
-                                       class="btn btn-sm btn-outline-primary ver-venta-btn" 
-                                       data-notificacion-id="{{ notificacion.pk }}"
-                                       title="Ver detalles de la venta">
+                                    <a href="{% url 'detalle_venta' slug=notificacion.venta.slug_safe pk=notificacion.venta.pk %}" class="btn btn-sm btn-outline-primary mt-2">
                                         <i class="fas fa-eye"></i> Ver Venta
                                     </a>
                                 {% endif %}
-                                {% if not notificacion.vista %}
-                                    <button class="btn btn-sm btn-outline-success marcar-vista-btn" 
-                                            data-notificacion-id="{{ notificacion.pk }}" 
-                                            title="Marcar como vista">
-                                        <i class="fas fa-check"></i> Marcar Vista
-                                    </button>
-                                {% endif %}
+                            </div>
+                            <div class="ms-3">
+                                <button class="btn btn-sm btn-outline-secondary marcar-vista-btn" data-notificacion-id="{{ notificacion.pk }}" title="Marcar como vista">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger eliminar-notificacion-btn ms-1" data-notificacion-id="{{ notificacion.pk }}" title="Eliminar">
+                                    <i class="fas fa-times"></i>
+                                </button>
                             </div>
                         </div>
                     </div>
                     {% endfor %}
                 </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Sección de Notificaciones para VENDEDOR -->
-{% if user_rol == 'VENDEDOR' and notificaciones %}
-<div class="row g-4 mb-5">
-    <div class="col-12">
-        <div class="card shadow-sm border-0 rounded-4 border-success">
-            <div class="card-header bg-success text-white py-3">
-                <h5 class="fw-bold mb-0">
-                    <i class="fas fa-bell me-2"></i>
-                    Mis Notificaciones
-                    {% if notificaciones_count > 0 %}
-                        <span class="badge bg-warning text-dark ms-2">{{ notificaciones_count }}</span>
-                    {% endif %}
-                </h5>
-                <p class="mb-0">Revisa los movimientos y actualizaciones de tus ventas</p>
-            </div>
-            <div class="card-body p-0">
-                <div class="list-group list-group-flush">
-                    {% for notificacion in notificaciones %}
-                    <div class="list-group-item border-0 border-bottom py-3 px-4 notificacion-item {% if not notificacion.vista %}bg-light{% endif %}" data-notificacion-id="{{ notificacion.pk }}">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div class="flex-grow-1">
-                                <div class="d-flex align-items-center mb-2">
-                                    {% if notificacion.tipo == 'ABONO' %}
-                                        <i class="fas fa-dollar-sign text-success me-2"></i>
-                                        <span class="badge bg-success me-2">Abono</span>
-                                    {% elif notificacion.tipo == 'PAGO_CONFIRMADO' %}
-                                        <i class="fas fa-check-circle text-success me-2"></i>
-                                        <span class="badge bg-success me-2">Pago Confirmado</span>
-                                    {% elif notificacion.tipo == 'APERTURA' %}
-                                        <i class="fas fa-hand-holding-usd text-info me-2"></i>
-                                        <span class="badge bg-info me-2">Apertura</span>
-                                    {% elif notificacion.tipo == 'LIQUIDACION' %}
-                                        <i class="fas fa-check-double text-success me-2"></i>
-                                        <span class="badge bg-success me-2">Venta Liquidada</span>
-                                    {% elif notificacion.tipo == 'LOGISTICA' %}
-                                        <i class="fas fa-shipping-fast text-warning me-2"></i>
-                                        <span class="badge bg-warning text-dark me-2">Logística</span>
-                                    {% elif notificacion.tipo == 'CANCELACION' %}
-                                        <i class="fas fa-times-circle text-danger me-2"></i>
-                                        <span class="badge bg-danger me-2">Cancelación</span>
-                                    {% else %}
-                                        <i class="fas fa-info-circle text-primary me-2"></i>
-                                        <span class="badge bg-primary me-2">{{ notificacion.get_tipo_display }}</span>
-                                    {% endif %}
-                                    <small class="text-muted">{{ notificacion.fecha_creacion|date:"d/m/Y H:i" }}</small>
-                                    {% if not notificacion.vista %}
-                                        <span class="badge bg-danger ms-2">Nueva</span>
-                                    {% endif %}
-                                </div>
-                                <p class="mb-1">{{ notificacion.mensaje }}</p>
-                                {% if notificacion.venta %}
-                                    <p class="mb-0 text-muted small">
-                                        <strong>Venta #{{ notificacion.venta.pk }}</strong> - Cliente: {{ notificacion.venta.cliente.nombre_completo_display }}
-                                    </p>
-                                {% endif %}
-                            </div>
-                            <div class="ms-3 d-flex flex-column gap-2">
-                                {% if notificacion.venta %}
-                                    <a href="{% url 'detalle_venta' slug=notificacion.venta.slug_safe pk=notificacion.venta.pk %}" 
-                                       class="btn btn-sm btn-outline-primary ver-venta-btn" 
-                                       data-notificacion-id="{{ notificacion.pk }}">
-                                        <i class="fas fa-eye"></i> Ver Venta
-                                    </a>
-                                {% endif %}
-                                {% if not notificacion.vista %}
-                                    <button class="btn btn-sm btn-outline-secondary marcar-vista-btn" 
-                                            data-notificacion-id="{{ notificacion.pk }}" 
-                                            title="Marcar como vista">
-                                        <i class="fas fa-check"></i> Marcar vista
-                                    </button>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Sección Especial para CONTADOR: Notificaciones de Apertura Pendientes -->
-{% if user_rol == 'CONTADOR' and notificaciones_apertura_pendiente %}
-<div class="row g-4 mb-5">
-    <div class="col-12">
-        <div class="card shadow-sm border-0 rounded-4 border-warning">
-            <div class="card-header bg-warning text-dark py-3">
-                <h5 class="fw-bold mb-0">
-                    <i class="fas fa-hand-holding-usd me-2"></i>
-                    Pagos de Apertura Pendientes de Confirmación
-                    <span class="badge bg-danger ms-2">{{ notificaciones_apertura_pendiente|length }}</span>
-                </h5>
-                <p class="mb-0">Pagos de apertura que requieren tu confirmación</p>
-            </div>
-            <div class="card-body p-0">
-                <div class="list-group list-group-flush">
-                    {% for notificacion in notificaciones_apertura_pendiente %}
-                    <div class="list-group-item border-0 border-bottom py-3 px-4">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div class="flex-grow-1">
-                                <div class="d-flex align-items-center mb-2">
-                                    <i class="fas fa-clock text-warning me-2"></i>
-                                    <span class="badge bg-warning text-dark me-2">Pendiente</span>
-                                    <small class="text-muted">{{ notificacion.fecha_creacion|date:"d/m/Y H:i" }}</small>
-                                </div>
-                                <p class="mb-1">{{ notificacion.mensaje }}</p>
-                                {% if notificacion.venta %}
-                                    <p class="mb-0 text-muted small">
-                                        <strong>Venta #{{ notificacion.venta.pk }}</strong> - Cliente: {{ notificacion.venta.cliente }}
-                                    </p>
-                                {% endif %}
-                            </div>
-                            <div class="ms-3 d-flex flex-column gap-2">
-                                {% if notificacion.venta %}
-                                    <form method="post" action="{% url 'confirmar_pago' notificacion_id=notificacion.pk %}" class="d-inline">
-                                        {% csrf_token %}
-                                        <button type="submit" class="btn btn-sm btn-success" title="Confirmar este pago de apertura" onclick="return confirm('¿Estás seguro de confirmar este pago de apertura?');">
-                                            <i class="fas fa-check"></i> Confirmar
-                                        </button>
-                                    </form>
-                                    <a href="{% url 'detalle_venta' slug=notificacion.venta.slug_safe pk=notificacion.venta.pk %}?tab=abonos" 
-                                       class="btn btn-sm btn-outline-primary">
-                                        <i class="fas fa-eye"></i> Ver Venta
-                                    </a>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Sección Especial para CONTADOR: Abonos Pendientes -->
-{% if user_rol == 'CONTADOR' and abonos_pendientes %}
-<div class="row g-4 mb-5">
-    <div class="col-12">
-        <div class="card shadow-sm border-0 rounded-4 border-info">
-            <div class="card-header bg-info text-white py-3">
-                <h5 class="fw-bold mb-0">
-                    <i class="fas fa-money-bill-wave me-2"></i>
-                    Abonos Pendientes de Confirmación
-                    <span class="badge bg-warning text-dark ms-2">{{ abonos_pendientes|length }}</span>
-                </h5>
-                <p class="mb-0">Abonos recientes que requieren tu confirmación</p>
-            </div>
-            <div class="card-body p-0">
-                <div class="list-group list-group-flush">
-                    {% for abono in abonos_pendientes %}
-                    <div class="list-group-item border-0 border-bottom py-3 px-4 abono-pendiente-item" data-abono-id="{{ abono.pk }}">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div class="flex-grow-1">
-                                <div class="d-flex align-items-center mb-2">
-                                    <i class="fas fa-clock text-warning me-2"></i>
-                                    <span class="badge bg-warning text-dark me-2">Pendiente</span>
-                                    <small class="text-muted">{{ abono.fecha_pago|date:"d/m/Y H:i" }}</small>
-                                </div>
-                                <p class="mb-1">
-                                    <strong>Monto:</strong> ${{ abono.monto|floatformat:2|intcomma }} 
-                                    <strong>Forma de Pago:</strong> {{ abono.get_forma_pago_display }}
-                                </p>
-                                <p class="mb-1">
-                                    <strong>Venta #{{ abono.venta.pk }}</strong> - Cliente: {{ abono.venta.cliente }}
-                                </p>
-                                <p class="mb-0 text-muted small">
-                                    Registrado por: {{ abono.registrado_por.username }} 
-                                </p>
-                            </div>
-                            <div class="ms-3 d-flex flex-column gap-2">
-                                <form method="post" action="{% url 'confirmar_abono' abono_id=abono.pk %}" class="d-inline">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-success" title="Confirmar este abono" onclick="return confirm('¿Estás seguro de confirmar este abono de ${{ abono.monto|floatformat:2|intcomma }}?');">
-                                        <i class="fas fa-check"></i> Confirmar
-                                    </button>
-                                </form>
-                                {% if abono.venta %}
-                                    <a href="{% url 'detalle_venta' slug=abono.venta.slug_safe pk=abono.venta.pk %}?tab=abonos" 
-                                       class="btn btn-sm btn-outline-primary">
-                                        <i class="fas fa-eye"></i> Ver Venta
-                                    </a>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Sección Compacta de Búsqueda de Ventas por Fecha -->
-{% if user_rol == 'JEFE' or user_rol == 'VENDEDOR' or user_rol == 'CONTADOR' %}
-<div class="row g-3 mb-4">
-    <div class="col-12">
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-light py-2">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0 fw-bold">
-                        <i class="fas fa-search me-2"></i> Buscar Ventas por Fecha de Viaje
-                    </h6>
-                    {% if fecha_filtro %}
-                    <a href="{% url 'dashboard' %}" class="btn btn-sm btn-outline-secondary">
-                        <i class="fas fa-times"></i> Limpiar
-                    </a>
-                    {% endif %}
-                </div>
-            </div>
-            <div class="card-body py-3">
-                <!-- Formulario Compacto -->
-                <form method="get" action="{% url 'dashboard' %}" class="row g-2 mb-3">
-                    <div class="col-md-4">
-                        <label for="fecha_filtro" class="form-label small mb-1">
-                            <strong>Fecha de Viaje</strong>
-                            <small class="text-muted d-block">Presiona Shift para seleccionar rango</small>
-                        </label>
-                        <input type="text" class="form-control form-control-sm" id="fecha_filtro" name="fecha_filtro" 
-                               value="{% if fecha_filtro %}{{ fecha_filtro }}{% elif fecha_desde and fecha_hasta %}{{ fecha_desde }} a {{ fecha_hasta }}{% endif %}" 
-                               placeholder="Selecciona fecha o rango" readonly>
-                        <input type="hidden" id="fecha_desde" name="fecha_desde" value="{{ fecha_desde }}">
-                        <input type="hidden" id="fecha_hasta" name="fecha_hasta" value="{{ fecha_hasta }}">
-                    </div>
-                    <div class="col-md-2 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary btn-sm w-100">
-                            <i class="fas fa-search me-1"></i> Buscar
-                        </button>
-                    </div>
-                </form>
-                
-                <!-- Resultados: Cards de Ventas Individuales -->
-                {% if fecha_filtro and ventas_filtradas %}
-                    <div class="row g-3">
-                        {% for venta in ventas_filtradas %}
-                        <div class="col-lg-3 col-md-4 col-sm-6">
-                            <div class="card h-100 border-0 shadow-sm venta-card" 
-                                 style="transition: transform 0.2s; cursor: pointer;"
-                                 data-href="{% url 'detalle_venta' slug=venta.slug_safe pk=venta.pk %}"
-                                 onclick="window.location.href=this.getAttribute('data-href')"
-                                 onmouseover="this.style.transform='translateY(-3px)'"
-                                 onmouseout="this.style.transform='translateY(0)'">
-                                <div class="card-header bg-gradient-info text-white py-2" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <small class="fw-bold">{{ venta.fecha_inicio_viaje|date:"d/m/Y" }}</small>
-                                        <span class="badge bg-light text-dark small">#{{ venta.id }}</span>
-                                    </div>
-                                </div>
-                                <div class="card-body py-2">
-                                    <div class="mb-2">
-                                        <small class="text-muted">Total en Ventas</small>
-                                        <h6 class="text-primary mb-0">${{ venta.costo_total_con_modificacion|floatformat:2|intcomma }}</h6>
-                                    </div>
-                                    <div class="mb-2">
-                                        <small class="text-muted">Total Pagado</small>
-                                        <h6 class="text-success mb-0">${{ venta.total_pagado|floatformat:2|intcomma }}</h6>
-                                    </div>
-                                    <div>
-                                        <small class="text-muted">Saldo Pendiente</small>
-                                        <h6 class="{% if venta.saldo_restante > 0 %}text-danger{% else %}text-success{% endif %} mb-0">
-                                            ${{ venta.saldo_restante|floatformat:2|intcomma }}
-                                        </h6>
-                                    </div>
-                                </div>
-                                <div class="card-footer bg-light py-1">
-                                    <small class="text-muted"><i class="fas fa-mouse-pointer"></i> Click para ver detalles</small>
-                                </div>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                {% elif fecha_filtro or fecha_desde %}
-                    <div class="alert alert-warning py-2 mb-0">
-                        <small><i class="fas fa-exclamation-triangle me-1"></i> No se encontraron ventas 
-                        {% if fecha_desde and fecha_hasta %}
-                            para el rango desde <strong>{{ fecha_desde }}</strong> hasta <strong>{{ fecha_hasta }}</strong>
-                        {% else %}
-                            para la fecha <strong>{{ fecha_filtro }}</strong>
-                        {% endif %}
-                        </small>
-                    </div>
-                {% endif %}
             </div>
         </div>
     </div>
@@ -513,84 +193,10 @@
     </div>
 </div>
 
-<!-- Variables de Django para JavaScript (ocultas) -->
-<div id="django-vars" 
-     data-fecha-desde="{% if fecha_desde %}{{ fecha_desde }}{% endif %}"
-     data-fecha-hasta="{% if fecha_hasta %}{{ fecha_hasta }}{% endif %}"
-     data-fecha-filtro="{% if fecha_filtro %}{{ fecha_filtro }}{% endif %}"
-     data-user-rol="{{ user_rol|default:'INVITADO' }}"
-     style="display: none;"></div>
-
 {% endblock %}
 
-
 {% block extra_js %}
-<!-- Flatpickr para selección de rango de fechas -->
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
 <script>
-    // Leer variables de Django desde data attributes
-    const djangoVarsEl = document.getElementById('django-vars');
-    const fechaDesde = djangoVarsEl.getAttribute('data-fecha-desde') || null;
-    const fechaHasta = djangoVarsEl.getAttribute('data-fecha-hasta') || null;
-    const fechaFiltro = djangoVarsEl.getAttribute('data-fecha-filtro') || null;
-    const userRol = djangoVarsEl.getAttribute('data-user-rol') || 'INVITADO';
-    const tienePermisoNotificaciones = userRol === 'JEFE' || userRol === 'CONTADOR' || userRol === 'VENDEDOR';
-    const puedeMarcarVista = userRol === 'JEFE' || userRol === 'VENDEDOR';
-    
-    // Configurar Flatpickr para selección de rango con Shift
-    document.addEventListener('DOMContentLoaded', function() {
-        const fechaInput = document.getElementById('fecha_filtro');
-        const fechaDesdeInput = document.getElementById('fecha_desde');
-        const fechaHastaInput = document.getElementById('fecha_hasta');
-        
-        if (fechaInput) {
-            // Configurar Flatpickr en modo rango
-            let flatpickrInstance = flatpickr(fechaInput, {
-                mode: "range",
-                dateFormat: "Y-m-d",
-                locale: "es",
-                altInput: true,
-                altFormat: "d/m/Y",
-                allowInput: false,
-                clickOpens: true,
-                enableTime: false,
-                onChange: function(selectedDates, dateStr, instance) {
-                    if (selectedDates.length === 1) {
-                        // Solo una fecha seleccionada
-                        fechaDesdeInput.value = selectedDates[0].toISOString().split('T')[0];
-                        fechaHastaInput.value = '';
-                        fechaInput.value = dateStr;
-                    } else if (selectedDates.length === 2) {
-                        // Rango completo seleccionado
-                        fechaDesdeInput.value = selectedDates[0].toISOString().split('T')[0];
-                        fechaHastaInput.value = selectedDates[1].toISOString().split('T')[0];
-                        fechaInput.value = dateStr;
-                    } else {
-                        // Sin selección
-                        fechaDesdeInput.value = '';
-                        fechaHastaInput.value = '';
-                        fechaInput.value = '';
-                    }
-                }
-            });
-            
-            // Restaurar valores si existen
-            if (fechaDesde && fechaHasta) {
-                if (fechaDesdeInput && fechaHastaInput) {
-                    fechaDesdeInput.value = fechaDesde;
-                    fechaHastaInput.value = fechaHasta;
-                    flatpickrInstance.setDate([fechaDesde, fechaHasta]);
-                }
-            } else if (fechaFiltro) {
-                if (fechaInput) {
-                    fechaInput.value = fechaFiltro;
-                    flatpickrInstance.setDate(fechaFiltro);
-                }
-            }
-        }
-    });
-
     // Configuración global de Chart.js para estilo Movums
     Chart.defaults.font.family = "'Inter', sans-serif";
     Chart.defaults.color = '#6c757d'; // Color gris para etiquetas
@@ -711,342 +317,128 @@
         });
     }
 
-    // Funcionalidad de Notificaciones (para JEFE, CONTADOR y VENDEDOR)
-    if (tienePermisoNotificaciones) {
-        // Función para obtener el CSRF token
-        function getCookie(name) {
-            let cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                const cookies = document.cookie.split(';');
-                for (let i = 0; i < cookies.length; i++) {
-                    const cookie = cookies[i].trim();
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
-                    }
+    // Funcionalidad de Notificaciones (Solo para JEFE)
+    {% if user_rol == 'JEFE' %}
+    // Función para obtener el CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
                 }
             }
-            return cookieValue;
         }
-        
-        // Obtener CSRF token de múltiples fuentes
-        function getCSRFToken() {
-            // 1. Intentar desde cookie (método más confiable)
-            const cookieToken = getCookie('csrftoken');
-            if (cookieToken) return cookieToken;
+        return cookieValue;
+    }
+    
+    const csrftoken = getCookie('csrftoken');
+    
+    $(document).ready(function() {
+        // Marcar notificación como vista
+        $(document).on('click', '.marcar-vista-btn', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const notificacionId = $(this).data('notificacion-id');
+            const notificacionItem = $(this).closest('.notificacion-item');
+            const btn = $(this);
             
-            // 2. Intentar desde input hidden en formularios
-            const csrfInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
-            if (csrfInput) return csrfInput.value;
+            // Deshabilitar botón mientras se procesa
+            btn.prop('disabled', true);
             
-            console.warn('CSRF token no encontrado. Las peticiones AJAX pueden fallar.');
-            return null;
-        }
-        
-        // Obtener token CSRF cuando el DOM esté listo
-        let csrftoken = null;
-        $(document).ready(function() {
-            csrftoken = getCSRFToken();
-            if (!csrftoken) {
-                console.error('No se pudo obtener el token CSRF. Por favor, recarga la página.');
-            }
-            
-            // Asegurar que el token CSRF esté disponible
-            if (!csrftoken) {
-                csrftoken = getCSRFToken();
-            }
-            
-            // Marcar notificación como vista (solo para JEFE y VENDEDOR)
-            if (puedeMarcarVista) {
-                $(document).on('click', '.marcar-vista-btn', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    // Usar attr() en lugar de data() para evitar problemas de conversión
-                    const notificacionId = $(this).attr('data-notificacion-id') || $(this).data('notificacion-id') || $(this).data('notificacionId');
-                    const notificacionItem = $(this).closest('.notificacion-item');
-                    const btn = $(this);
-                    
-                    // Validar que el ID existe
-                    if (!notificacionId) {
-                        console.error('Error: No se pudo obtener el ID de la notificación. Atributos:', {
-                            'data-notificacion-id': $(this).attr('data-notificacion-id'),
-                            'data()': $(this).data('notificacion-id'),
-                            'data() camelCase': $(this).data('notificacionId')
-                        });
-                        alert('Error: No se pudo obtener el ID de la notificación. Por favor, recarga la página.');
-                        return;
-                    }
-                    
-                    // Convertir a número si es necesario
-                    const notificacionIdNum = parseInt(notificacionId, 10);
-                    if (isNaN(notificacionIdNum)) {
-                        console.error('Error: El ID de la notificación no es un número válido:', notificacionId);
-                        alert('Error: ID de notificación inválido. Por favor, recarga la página.');
-                        return;
-                    }
-                    
-                    console.log('Intentando marcar notificación como vista. ID:', notificacionIdNum, '(original:', notificacionId + ')');
-                    
-                    // Deshabilitar botón mientras se procesa
-                    btn.prop('disabled', true);
-                    btn.html('<i class="fas fa-spinner fa-spin"></i> Procesando...');
-                    
-                    // Obtener token CSRF justo antes de usarlo (por si no estaba disponible antes)
-                    const currentToken = getCSRFToken();
-                    if (!currentToken) {
-                        alert('Error: No se pudo obtener el token de seguridad. Por favor, recarga la página.');
-                        btn.prop('disabled', false);
-                        btn.html('<i class="fas fa-check"></i> Marcar Vista');
-                        return;
-                    }
-                    
-                    const url = '/ventas/notificaciones/' + notificacionIdNum + '/marcar-vista/';
-                    console.log('URL de la petición:', url);
-                    
-                    $.ajax({
-                        url: url,
-                        method: 'POST',
-                        beforeSend: function(xhr) {
-                            xhr.setRequestHeader('X-CSRFToken', currentToken);
-                        },
-                        success: function(response) {
-                            if (response.success) {
-                                // Guardar referencias antes de modificar el elemento
-                                const cardContainer = notificacionItem.closest('.card');
-                                const cardHeader = cardContainer.find('.card-header');
-                                const rowContainer = notificacionItem.closest('.row');
-                                const badge = cardHeader.find('.badge.bg-warning, .badge.bg-danger');
-                                
-                                // Para VENDEDOR: eliminar la notificación del DOM completamente
-                                if (userRol === 'VENDEDOR') {
-                                    // Remover la notificación con animación
-                                    notificacionItem.fadeOut(300, function() {
-                                        $(this).remove();
-                                        
-                                        // Actualizar contador en el header
-                                        if (badge.length > 0) {
-                                            const count = parseInt(badge.text()) - 1;
-                                            if (count > 0) {
-                                                badge.text(count);
-                                            } else {
-                                                badge.remove();
-                                            }
-                                        }
-                                        
-                                        // Verificar si quedan notificaciones en el contenedor
-                                        const notificacionesRestantes = cardContainer.find('.notificacion-item').length;
-                                        if (notificacionesRestantes === 0) {
-                                            // Si no quedan notificaciones, ocultar toda la sección
-                                            rowContainer.fadeOut(300, function() {
-                                                $(this).remove();
-                                            });
-                                        }
-                                    });
+            $.ajax({
+                url: '/ventas/notificaciones/' + notificacionId + '/marcar-vista/',
+                method: 'POST',
+                beforeSend: function(xhr) {
+                    xhr.setRequestHeader('X-CSRFToken', csrftoken);
+                },
+                success: function(response) {
+                    if (response.success) {
+                        notificacionItem.fadeOut(300, function() {
+                            $(this).remove();
+                            // Actualizar contador si existe
+                            const badge = $('.badge.bg-danger');
+                            if (badge.length > 0) {
+                                const count = parseInt(badge.text()) - 1;
+                                if (count > 0) {
+                                    badge.text(count);
                                 } else {
-                                    // Para JEFE: eliminar la notificación del DOM completamente
-                                    // Ya que el backend solo muestra notificaciones con vista=False
-                                    if (userRol === 'JEFE') {
-                                        // Remover la notificación con animación
-                                        notificacionItem.fadeOut(300, function() {
-                                            $(this).remove();
-                                            
-                                            // Actualizar contador en el header
-                                            if (badge.length > 0) {
-                                                const count = parseInt(badge.text()) - 1;
-                                                if (count > 0) {
-                                                    badge.text(count);
-                                                } else {
-                                                    badge.remove();
-                                                }
-                                            }
-                                            
-                                            // Verificar si quedan notificaciones en el contenedor
-                                            const notificacionesRestantes = cardContainer.find('.notificacion-item').length;
-                                            if (notificacionesRestantes === 0) {
-                                                // Si no quedan notificaciones, ocultar toda la sección
-                                                rowContainer.fadeOut(300, function() {
-                                                    $(this).remove();
-                                                });
-                                            }
-                                        });
-                                    } else {
-                                        // Para otros roles (CONTADOR): solo quitar el badge y el botón, mantener la notificación visible
-                                        // Remover el badge "Nueva" si existe
-                                        notificacionItem.find('.badge.bg-danger').remove();
-                                        
-                                        // Cambiar el fondo de la notificación (quitar bg-light)
-                                        notificacionItem.removeClass('bg-light');
-                                        
-                                        // Ocultar el botón de marcar como vista
-                                        btn.fadeOut(300, function() {
-                                            $(this).remove();
-                                        });
-                                        
-                                        // Actualizar contador si existe
-                                        if (badge.length > 0) {
-                                            const count = parseInt(badge.text()) - 1;
-                                            if (count > 0) {
-                                                badge.text(count);
-                                            } else {
-                                                badge.remove();
-                                            }
-                                        }
-                                    }
+                                    badge.remove();
                                 }
-                            } else {
-                                console.error('Error al marcar notificación:', response.message);
-                                alert('Error: ' + (response.message || 'No se pudo marcar como vista'));
-                                btn.prop('disabled', false);
-                                btn.html('<i class="fas fa-check"></i> Marcar Vista');
                             }
-                        },
-                        error: function(xhr, status, error) {
-                            console.error('Error AJAX al marcar notificación:', {
-                                status: xhr.status,
-                                statusText: xhr.statusText,
-                                responseText: xhr.responseText,
-                                error: error,
-                                notificacionId: notificacionIdNum,
-                                url: url
-                            });
-                            
-                            let errorMessage = 'Error al marcar la notificación como vista.';
-                            if (xhr.responseJSON && xhr.responseJSON.message) {
-                                errorMessage = xhr.responseJSON.message;
-                            } else if (xhr.status === 404) {
-                                errorMessage = 'Notificación no encontrada. Puede que ya haya sido eliminada.';
-                            } else if (xhr.status === 403) {
-                                errorMessage = 'No tienes permiso para marcar esta notificación como vista.';
-                            } else if (xhr.status === 500) {
-                                errorMessage = 'Error del servidor. Por favor, contacta al administrador.';
+                            // Si no quedan notificaciones, ocultar solo la sección de notificaciones
+                            if ($('.notificacion-item').length === 0) {
+                                $('#notificaciones-section').fadeOut(300);
                             }
-                            
-                            alert(errorMessage);
-                            btn.prop('disabled', false);
-                            btn.html('<i class="fas fa-check"></i> Marcar Vista');
-                        }
-                    });
-                });
-                
-                // Marcar notificación como vista al hacer click en "Ver Venta"
-                $(document).on('click', '.ver-venta-btn', function(e) {
-                    // Usar attr() en lugar de data() para evitar problemas de conversión
-                    const notificacionId = $(this).attr('data-notificacion-id') || $(this).data('notificacion-id') || $(this).data('notificacionId');
-                    const notificacionItem = $(this).closest('.notificacion-item');
-                    const link = $(this);
-                    
-                    // Solo marcar como vista si no está ya vista
-                    if (notificacionItem.hasClass('bg-light') && notificacionId) {
-                        const notificacionIdNum = parseInt(notificacionId, 10);
-                        if (isNaN(notificacionIdNum)) {
-                            console.error('Error: El ID de la notificación no es un número válido:', notificacionId);
-                            return; // Continuar con la navegación aunque falle
-                        }
-                        const currentToken = getCSRFToken();
-                        if (currentToken) {
-                            // Guardar referencias antes de modificar el elemento
-                            const cardContainer = notificacionItem.closest('.card');
-                            const cardHeader = cardContainer.find('.card-header');
-                            const rowContainer = notificacionItem.closest('.row');
-                            const badge = cardHeader.find('.badge.bg-warning, .badge.bg-danger');
-                            
-                            $.ajax({
-                                url: '/ventas/notificaciones/' + notificacionIdNum + '/marcar-vista/',
-                                method: 'POST',
-                                beforeSend: function(xhr) {
-                                    xhr.setRequestHeader('X-CSRFToken', currentToken);
-                                },
-                                success: function(response) {
-                                    if (response.success) {
-                                        // Para VENDEDOR: eliminar la notificación del DOM completamente
-                                        if (userRol === 'VENDEDOR') {
-                                            // Remover la notificación con animación
-                                            notificacionItem.fadeOut(300, function() {
-                                                $(this).remove();
-                                                
-                                                // Actualizar contador en el header
-                                                if (badge.length > 0) {
-                                                    const count = parseInt(badge.text()) - 1;
-                                                    if (count > 0) {
-                                                        badge.text(count);
-                                                    } else {
-                                                        badge.remove();
-                                                    }
-                                                }
-                                                
-                                                // Verificar si quedan notificaciones en el contenedor
-                                                const notificacionesRestantes = cardContainer.find('.notificacion-item').length;
-                                                if (notificacionesRestantes === 0) {
-                                                    // Si no quedan notificaciones, ocultar toda la sección
-                                                    rowContainer.fadeOut(300, function() {
-                                                        $(this).remove();
-                                                    });
-                                                }
-                                            });
-                                        } else {
-                                            // Para JEFE: eliminar la notificación del DOM completamente
-                                            // Ya que el backend solo muestra notificaciones con vista=False
-                                            if (userRol === 'JEFE') {
-                                                // Remover la notificación con animación
-                                                notificacionItem.fadeOut(300, function() {
-                                                    $(this).remove();
-                                                    
-                                                    // Actualizar contador en el header
-                                                    if (badge.length > 0) {
-                                                        const count = parseInt(badge.text()) - 1;
-                                                        if (count > 0) {
-                                                            badge.text(count);
-                                                        } else {
-                                                            badge.remove();
-                                                        }
-                                                    }
-                                                    
-                                                    // Verificar si quedan notificaciones en el contenedor
-                                                    const notificacionesRestantes = cardContainer.find('.notificacion-item').length;
-                                                    if (notificacionesRestantes === 0) {
-                                                        // Si no quedan notificaciones, ocultar toda la sección
-                                                        rowContainer.fadeOut(300, function() {
-                                                            $(this).remove();
-                                                        });
-                                                    }
-                                                });
-                                            } else {
-                                                // Para otros roles: solo quitar el badge y el botón, mantener la notificación visible
-                                                // Remover badge "Nueva" si existe
-                                                notificacionItem.find('.badge.bg-danger').remove();
-                                                // Cambiar el fondo de la notificación (quitar bg-light)
-                                                notificacionItem.removeClass('bg-light');
-                                                // Ocultar el botón de marcar como vista si existe
-                                                notificacionItem.find('.marcar-vista-btn').fadeOut(300, function() {
-                                                    $(this).remove();
-                                                });
-                                                
-                                                // Actualizar contador si existe
-                                                if (badge.length > 0) {
-                                                    const count = parseInt(badge.text()) - 1;
-                                                    if (count > 0) {
-                                                        badge.text(count);
-                                                    } else {
-                                                        badge.remove();
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                },
-                                error: function(xhr, status, error) {
-                                    console.error('Error al marcar notificación al ver venta:', error);
-                                    // Continuar con la navegación aunque falle el AJAX
-                                }
-                            });
-                        }
+                        });
+                    } else {
+                        alert('Error: ' + (response.message || 'No se pudo marcar como vista'));
+                        btn.prop('disabled', false);
                     }
-                    // Permitir que el link funcione normalmente
+                },
+                error: function(xhr) {
+                    console.error('Error:', xhr);
+                    alert('Error al marcar la notificación como vista. Por favor, recarga la página.');
+                    btn.prop('disabled', false);
+                }
+            });
+        });
+        
+        // Eliminar notificación
+        $(document).on('click', '.eliminar-notificacion-btn', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const notificacionId = $(this).data('notificacion-id');
+            const notificacionItem = $(this).closest('.notificacion-item');
+            const btn = $(this);
+            
+            if (confirm('¿Estás seguro de que deseas eliminar esta notificación?')) {
+                // Deshabilitar botón mientras se procesa
+                btn.prop('disabled', true);
+                
+                $.ajax({
+                    url: '/ventas/notificaciones/' + notificacionId + '/eliminar/',
+                    method: 'POST',
+                    beforeSend: function(xhr) {
+                        xhr.setRequestHeader('X-CSRFToken', csrftoken);
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            notificacionItem.fadeOut(300, function() {
+                                $(this).remove();
+                                // Actualizar contador si existe
+                                const badge = $('.badge.bg-danger');
+                                if (badge.length > 0) {
+                                    const count = parseInt(badge.text()) - 1;
+                                    if (count > 0) {
+                                        badge.text(count);
+                                    } else {
+                                        badge.remove();
+                                    }
+                                }
+                                // Si no quedan notificaciones, ocultar la sección
+                                if ($('.notificacion-item').length === 0) {
+                                    $('.card.shadow-sm').closest('.row').fadeOut();
+                                }
+                            });
+                        } else {
+                            alert('Error: ' + (response.message || 'No se pudo eliminar'));
+                            btn.prop('disabled', false);
+                        }
+                    },
+                    error: function(xhr) {
+                        console.error('Error:', xhr);
+                        alert('Error al eliminar la notificación. Por favor, recarga la página.');
+                        btn.prop('disabled', false);
+                    }
                 });
             }
-        }); // Cierre del $(document).ready
-    } // Cierre del if (tienePermisoNotificaciones)
-
+        });
+    });
+    {% endif %}
 
 </script>
 {% endblock %}

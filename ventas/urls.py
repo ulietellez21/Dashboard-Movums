@@ -13,13 +13,7 @@ from .views import (
     ProveedorListCreateView,
     MarcarNotificacionVistaView,
     EliminarNotificacionView,
-    IncrementarCotizacionClienteView,
-    GenerarCotizacionDocxView,
     EliminarConfirmacionView,
-    ConfirmarPagoView,
-    ConfirmarAbonoView,
-    CancelarVentaView,
-    ClienteKilometrosResumenView,
     
     # ----------------------------------------------------
     # IMPORTACIÓN DE LA NUEVA VISTA DE PDF DEL CONTRATO
@@ -29,15 +23,6 @@ from .views import (
     # Si la vista es solo para mostrar el HTML del contrato y no generar el PDF, 
     # mantendrías ContratoGeneradoDetailView (asumo que es ContratoVentaPDFView ahora)
     # ----------------------------------------------------
-    
-    # Plantillas de Confirmación
-    ListarConfirmacionesView,
-    CrearVueloUnicoView,
-    CrearVueloRedondoView,
-    CrearHospedajeView,
-    CrearTrasladoView,
-    CrearGenericaView,
-    GenerarDocumentoConfirmacionView,
 )
 
 # app_name = 'ventas' 
@@ -55,18 +40,14 @@ urlpatterns = [
     # 2.1 Notificaciones (AJAX)
     path('notificaciones/<int:pk>/marcar-vista/', MarcarNotificacionVistaView.as_view(), name='marcar_notificacion_vista'),
     path('notificaciones/<int:pk>/eliminar/', EliminarNotificacionView.as_view(), name='eliminar_notificacion'),
-    path('notificaciones/<int:notificacion_id>/confirmar-pago/', ConfirmarPagoView.as_view(), name='confirmar_pago'),
-    path('abonos/<int:abono_id>/confirmar/', ConfirmarAbonoView.as_view(), name='confirmar_abono'),
     
     # 2.2 Confirmaciones de Venta
     path('confirmaciones/<int:pk>/eliminar/', EliminarConfirmacionView.as_view(), name='eliminar_confirmacion'),
 
     # 3. CRUD de Ventas
     path('crear/', VentaViajeCreateView.as_view(), name='crear_venta'),
-    path('clientes/<int:cliente_id>/kilometros/', ClienteKilometrosResumenView.as_view(), name='cliente_kilometros_resumen'),
     path('<int:pk>/eliminar/', VentaViajeDeleteView.as_view(), name='eliminar_venta'),
     path('<int:pk>/editar/', VentaViajeUpdateView.as_view(), name='editar_venta'),
-    path('<int:pk>/cancelar/', CancelarVentaView.as_view(), name='cancelar_venta'),
 
     
     # ******************************************************************************
@@ -94,53 +75,6 @@ urlpatterns = [
         '<slug:slug>-<int:pk>/comprobante-abonos/', 
         ComprobanteAbonoPDFView.as_view(), 
         name='comprobante_abonos_pdf'
-    ),
-    path(
-        'cotizaciones/generar-docx/',
-        GenerarCotizacionDocxView.as_view(),
-        name='generar_cotizacion_docx'
-    ),
-    path(
-        '<slug:slug>-<int:pk>/cotizaciones/contador/',
-        IncrementarCotizacionClienteView.as_view(),
-        name='incrementar_cotizaciones_cliente'
-    ),
-    
-    # 3.4 RUTAS PARA PLANTILLAS DE CONFIRMACIÓN
-    path(
-        '<slug:slug>-<int:pk>/confirmaciones/',
-        ListarConfirmacionesView.as_view(),
-        name='listar_confirmaciones'
-    ),
-    path(
-        '<slug:slug>-<int:pk>/confirmaciones/vuelo-unico/',
-        CrearVueloUnicoView.as_view(),
-        name='crear_vuelo_unico'
-    ),
-    path(
-        '<slug:slug>-<int:pk>/confirmaciones/vuelo-redondo/',
-        CrearVueloRedondoView.as_view(),
-        name='crear_vuelo_redondo'
-    ),
-    path(
-        '<slug:slug>-<int:pk>/confirmaciones/hospedaje/',
-        CrearHospedajeView.as_view(),
-        name='crear_hospedaje'
-    ),
-    path(
-        '<slug:slug>-<int:pk>/confirmaciones/traslado/',
-        CrearTrasladoView.as_view(),
-        name='crear_traslado'
-    ),
-    path(
-        '<slug:slug>-<int:pk>/confirmaciones/generica/',
-        CrearGenericaView.as_view(),
-        name='crear_generica'
-    ),
-    path(
-        '<slug:slug>-<int:pk>/confirmaciones/generar-documento/',
-        GenerarDocumentoConfirmacionView.as_view(),
-        name='generar_documento_confirmacion'
     ),
 
     # Rutas Base (Debe ir al final para no anular otras rutas)

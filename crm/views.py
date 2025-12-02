@@ -6,7 +6,6 @@ from django.contrib import messages
 from django.db.models import Q, Max 
 from django.views.decorators.http import require_POST
 from .models import Cliente 
-from .services import KilometrosService
 from .forms import ClienteForm 
 # Importa tu VentaViaje si no está en este mismo módulo
 # from ventas.models import VentaViaje 
@@ -55,7 +54,6 @@ class ClienteDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['ventas_cliente'] = self.object.ventas_asociadas.all().order_by('-fecha_inicio_viaje')
-        context['kilometros'] = KilometrosService.resumen_cliente(self.object)
         return context
 
 

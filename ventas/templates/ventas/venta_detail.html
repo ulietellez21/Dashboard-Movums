@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% load humanize %}
 {% load widget_tweaks %} 
-{% load venta_filters %}
+{% load venta_filters %}  
+
 {% block title %}Venta #{{ venta.id }} | {{ venta.cliente.nombre_completo_display }}{% endblock %}
 
 {% block content %}
@@ -43,13 +44,6 @@
                 title="Genera el comprobante de todos los abonos realizados">
                 <i class="fas fa-receipt me-1"></i> Comprobante Abonos
             </a>
-            
-            <!-- Botón de Plantillas de Confirmación -->
-            <a href="{% url 'listar_confirmaciones' slug=venta.slug pk=venta.pk %}" 
-                class="btn btn-info shadow-sm text-white"
-                title="Generar plantillas de confirmación (Vuelo, Hospedaje, Traslado, etc.)">
-                <i class="fas fa-file-alt me-1"></i> Generar Confirmaciones
-            </a>
 
             <!-- Botón de Eliminar -->
             {% if user.perfil.rol in 'JEFE' %}
@@ -61,41 +55,13 @@
         <!-- Fin de la Fila de Botones de Documentos -->
 
         {% if messages %}
-            {# Mostrar mensajes: para mensajes de abono, mostrar solo el último; para otros, mostrar todos #}
-            {# Primero mostrar todos los mensajes que NO son de abono #}
             {% for message in messages %}
-                {% if "Abono" not in message|stringformat:"s" %}
                 <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
                     {{ message }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
-                {% endif %}
-            {% endfor %}
-            
-            {# Luego, mostrar todos los mensajes de abono (JavaScript eliminará los duplicados) #}
-            {# Agregar un atributo data para identificar mensajes de abono y usar JavaScript para eliminar duplicados #}
-            {% for message in messages %}
-                {% if "Abono" in message|stringformat:"s" %}
-                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show mensaje-abono" role="alert" data-abono-message="true">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                {% endif %}
             {% endfor %}
         {% endif %}
-        
-        {# JavaScript para eliminar mensajes de abono duplicados, dejando solo el último #}
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                var mensajesAbono = document.querySelectorAll('.mensaje-abono');
-                if (mensajesAbono.length > 1) {
-                    // Eliminar todos excepto el último
-                    for (var i = 0; i < mensajesAbono.length - 1; i++) {
-                        mensajesAbono[i].remove();
-                    }
-                }
-            });
-        </script>
         
         <!-- 3. Contenedor de Métricas: Aseguramos que los bordes verticales se quiten en móviles -->
         <div class="card bg-light mb-4 shadow-sm border-primary">
@@ -104,13 +70,7 @@
                     <!-- En móviles (col-12), el borde vertical (border-end) se quita usando border-md-end -->
                     <div class="col-12 col-md-4 border-bottom border-md-end pb-3 pb-md-0"> 
                         <h6 class="text-muted">Costo Venta Final</h6>
-                        <h2 class="text-success">${{ venta.costo_total_con_modificacion|floatformat:2|intcomma }}</h2>
-                        {% if venta.costo_modificacion and venta.costo_modificacion > 0 %}
-                            <p class="text-muted small mb-0">Incluye modificaciones: +${{ venta.costo_modificacion|floatformat:2|intcomma }}</p>
-                        {% endif %}
-                        {% if venta.aplica_descuento_kilometros %}
-                            <p class="text-muted small mb-0">Descuento Movums aplicado: -${{ venta.descuento_kilometros_mxn|floatformat:2|intcomma }}</p>
-                        {% endif %}
+                        <h2 class="text-success">${{ venta.costo_venta_final|floatformat:2|intcomma }}</h2>
                     </div>
                     <!-- Aplicamos border-bottom solo en móviles para separar las tarjetas -->
                     <div class="col-12 col-md-4 border-bottom border-md-end py-3 py-md-0">
@@ -140,7 +100,7 @@
                     <i class="fas fa-dollar-sign"></i> Abonos y Pagos
                 </button>
             </li>
-            {% if mostrar_tab_logistica %}
+            {% if user.perfil.rol in 'JEFE,CONTADOR' %}
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="logistica-tab" data-bs-toggle="tab" data-bs-target="#logistica" type="button" role="tab" aria-controls="logistica" aria-selected="false">
                         <i class="fas fa-shipping-fast"></i> Logística
@@ -176,13 +136,6 @@
                                 <p><strong>Fin:</strong> {{ venta.fecha_fin_viaje|date:"d M Y" }}</p>
                                 <p><strong>Proveedor asignado:</strong> {{ venta.proveedor.nombre|default:"Sin proveedor" }}</p>
                                 <p><strong>Costo Neto (Agencia):</strong> ${{ venta.costo_neto|floatformat:2|intcomma }}</p>
-                                <p><strong>Descuento Movums:</strong>
-                                    {% if venta.aplica_descuento_kilometros %}
-                                        -${{ venta.descuento_kilometros_mxn|floatformat:2|intcomma }} (10%)
-                                    {% else %}
-                                        No aplicado
-                                    {% endif %}
-                                </p>
                             </div>
                         </div>
                     </div>
@@ -232,7 +185,7 @@
                                 Historial de Pagos ({{ abonos|length }})
                             </div>
                             <div class="card-body">
-                                {% if abonos or venta.cantidad_apertura > 0 %}
+                                {% if abonos %}
                                     <div class="table-responsive">
                                         <table class="table table-sm table-striped">
                                             <thead class="table-light">
@@ -240,39 +193,15 @@
                                                     <th>Fecha</th>
                                                     <th>Monto</th>
                                                     <th>Forma</th>
-                                                    <th>Estado</th>
                                                     <th>Registrado por</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {% if venta.cantidad_apertura > 0 %}
-                                                <tr class="{% if venta.estado_confirmacion == 'EN_CONFIRMACION' %}table-warning{% else %}table-info{% endif %}">
-                                                    <td>{{ venta.fecha_creacion|date:"d/M/y H:i" }}</td>
-                                                    <td><strong>${{ venta.cantidad_apertura|floatformat:2|intcomma }}</strong></td>
-                                                    <td><span class="badge bg-info">{{ venta.get_modo_pago_apertura_display }}</span></td>
-                                                    <td>
-                                                        {# Solo está pendiente si la venta está en confirmación Y NO hay otros abonos pendientes #}
-                                                        {% if venta.estado_confirmacion == 'EN_CONFIRMACION' and venta.modo_pago_apertura in 'TRN,TAR,DEP' and not tiene_abonos_pendientes %}
-                                                            <span class="badge bg-warning text-dark"><i class="fas fa-clock"></i> Pendiente</span>
-                                                        {% else %}
-                                                            <span class="badge bg-success"><i class="fas fa-check"></i> Confirmado</span>
-                                                        {% endif %}
-                                                    </td>
-                                                    <td><em>Apertura/Anticipo</em> - {{ venta.vendedor.username|default:"Sistema" }}</td>
-                                                </tr>
-                                                {% endif %}
                                                 {% for abono in abonos %}
-                                                <tr class="{% if not abono.confirmado and abono.forma_pago in 'TRN,TAR,DEP' %}table-warning{% endif %}">
+                                                <tr>
                                                     <td>{{ abono.fecha_pago|date:"d/M/y H:i" }}</td>
-                                                    <td><strong>${{ abono.monto|floatformat:2|intcomma }}</strong></td>
-                                                    <td><span class="badge {% if abono.forma_pago == 'EFE' %}bg-success{% elif abono.forma_pago == 'TRN' %}bg-primary{% elif abono.forma_pago == 'TAR' %}bg-info{% elif abono.forma_pago == 'DEP' %}bg-secondary{% else %}bg-secondary{% endif %}">{{ abono.get_forma_pago_display }}</span></td>
-                                                    <td>
-                                                        {% if abono.confirmado or abono.forma_pago == 'EFE' %}
-                                                            <span class="badge bg-success"><i class="fas fa-check"></i> Confirmado</span>
-                                                        {% else %}
-                                                            <span class="badge bg-warning text-dark"><i class="fas fa-clock"></i> Pendiente</span>
-                                                        {% endif %}
-                                                    </td>
+                                                    <td>${{ abono.monto|floatformat:2|intcomma }}</td>
+                                                    <td>{{ abono.get_forma_pago_display }}</td>
                                                     <td>{{ abono.registrado_por.username }}</td>
                                                 </tr>
                                                 {% endfor %}
@@ -288,139 +217,36 @@
                 </div>
             </div>
 
-            {% if mostrar_tab_logistica %}
+            {% if user.perfil.rol in 'JEFE,CONTADOR' %}
                 <div class="tab-pane fade" id="logistica" role="tabpanel" aria-labelledby="logistica-tab">
-                    <div class="card mb-4 shadow border-info" id="logisticaFinanzasCard">
+                    <div class="card mb-4 shadow-sm border-info">
                         <div class="card-header bg-info text-white">
-                            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center">
-                                <span><i class="fas fa-layer-group me-2"></i>Control financiero por servicio</span>
-                                <small class="text-white-50">Los importes se actualizan con abonos y apertura confirmados</small>
-                            </div>
+                            Checklist de Logística
                         </div>
                         <div class="card-body">
-                            {% if servicios_logisticos_rows %}
-                            <div class="row text-center g-3 mb-4">
-                                <div class="col-12 col-md-3">
-                                    <p class="text-muted mb-1">Total Venta</p>
-                                    <h4 class="text-primary mb-0">${{ logistica_finanzas.total_venta|floatformat:2|intcomma }}</h4>
-                                </div>
-                                <div class="col-12 col-md-3">
-                                    <p class="text-muted mb-1">Total Neto</p>
-                                    <h4 class="text-secondary mb-0">${{ logistica_finanzas.total_neto|floatformat:2|intcomma }}</h4>
-                                </div>
-                                <div class="col-12 col-md-3">
-                                    <p class="text-muted mb-1">Apertura + Abonos</p>
-                                    <h4 class="text-success mb-0">${{ logistica_finanzas.total_pagado|floatformat:2|intcomma }}</h4>
-                                </div>
-                                <div class="col-12 col-md-3">
-                                    <p class="text-muted mb-1">Saldo disponible para servicios</p>
-                                    <h4 class="text-warning mb-0">${{ logistica_finanzas.saldo_disponible_servicios|floatformat:2|intcomma }}</h4>
-                                </div>
-                            </div>
-                            <div class="row text-center g-3 mb-4">
-                                <div class="col-12 col-md-4">
-                                    <p class="text-muted mb-1">Servicios planificados</p>
-                                    <h5 class="mb-0">${{ logistica_finanzas.total_servicios_planeados|floatformat:2|intcomma }}</h5>
-                                    <small class="text-muted">Monto objetivo a cubrir</small>
-                                </div>
-                                <div class="col-12 col-md-4">
-                                    <p class="text-muted mb-1">Servicios pagados</p>
-                                    <h5 class="text-success mb-0">${{ logistica_finanzas.monto_pagado_servicios|floatformat:2|intcomma }}</h5>
-                                    <small class="text-muted">Monto ya aplicado</small>
-                                </div>
-                                <div class="col-12 col-md-4">
-                                    <p class="text-muted mb-1">Ganancia estimada</p>
-                                    <h5 class="mb-0">${{ logistica_finanzas.ganancia_estimada|floatformat:2|intcomma }}</h5>
-                                    <small class="text-muted">Pendiente: ${{ logistica_finanzas.ganancia_pendiente|floatformat:2|intcomma }}</small>
-                                </div>
-                            </div>
-                        {% if logistica_finanzas.modificaciones and logistica_finanzas.modificaciones > 0 %}
-                        <div class="alert alert-light border-start border-info mt-3 py-2">
-                            <small>
-                                <i class="fas fa-info-circle me-1 text-info"></i>
-                                Modificaciones acumuladas: <strong>${{ logistica_finanzas.modificaciones|floatformat:2|intcomma }}</strong>
-                            </small>
-                        </div>
-                        {% endif %}
-                            {% if servicios_financieros_formset.non_form_errors %}
-                                <div class="alert alert-danger">
-                                    {% for error in servicios_financieros_formset.non_form_errors %}
-                                        <div>{{ error }}</div>
+                            <form method="post">
+                                {% csrf_token %}
+                                
+                                <div class="row">
+                                    {% for field in logistica_form %}
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check">
+                                                {{ field|add_class:"form-check-input" }}
+                                                <label class="form-check-label {% if field.value %}text-success{% else %}text-danger{% endif %}" for="{{ field.id_for_label }}">
+                                                    <i class="fas {% if field.value %}fa-check-square{% else %}fa-square{% endif %}"></i>
+                                                    {{ field.label }}
+                                                </label>
+                                            </div>
+                                        </div>
                                     {% endfor %}
                                 </div>
-                            {% endif %}
-                            <form method="post" class="table-responsive">
-                                {% csrf_token %}
-                                <input type="hidden" name="actualizar_servicios_logistica" value="1">
-                                {{ servicios_financieros_formset.management_form }}
-                                <table class="table align-middle table-hover">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th>Servicio</th>
-                                            <th width="180">Monto Planificado</th>
-                                            <th width="200">Estado</th>
-                                            <th width="140">Pagado</th>
-                                            <th>Notas</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for row in servicios_logisticos_rows %}
-                                        <tr class="logistica-servicio-row status-{{ row.status }}">
-                                            <td>
-                                                <strong>{{ row.servicio.nombre_servicio }}</strong>
-                                                {% if row.servicio.fecha_pagado %}
-                                                    <div class="text-muted small">Actualizado: {{ row.servicio.fecha_pagado|date:"d/m/Y H:i" }}</div>
-                                                {% endif %}
-                                            </td>
-                                            <td>
-                                                {{ row.form.id }}
-                                                <div class="input-group">
-                                                    <span class="input-group-text">$</span>
-                                                    {{ row.form.monto_planeado }}
-                                                </div>
-                                                {% for error in row.form.monto_planeado.errors %}
-                                                    <div class="text-danger small">{{ error }}</div>
-                                                {% endfor %}
-                                            </td>
-                                            <td>
-                                                <span class="badge bg-{{ row.badge_class }} px-3 py-2">{{ row.status_label }}</span>
-                                                <small class="d-block text-muted mt-1">{{ row.status_hint }}</small>
-                                            </td>
-                                            <td>
-                                                <div class="form-check">
-                                                    {{ row.form.pagado }}
-                                                    <label class="form-check-label">Pagado</label>
-                                                </div>
-                                                {% for error in row.form.pagado.errors %}
-                                                    <div class="text-danger small">{{ error }}</div>
-                                                {% endfor %}
-                                            </td>
-                                            <td>
-                                                {{ row.form.notas }}
-                                                {% for error in row.form.notas.errors %}
-                                                    <div class="text-danger small">{{ error }}</div>
-                                                {% endfor %}
-                                            </td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                                {% if puede_editar_servicios_financieros %}
-                                <div class="text-end">
-                                    <button type="submit" class="btn btn-info">
-                                        <i class="fas fa-save me-1"></i> Guardar ajustes
-                                    </button>
-                                </div>
-                                {% endif %}
+                                <hr>
+                                <button type="submit" name="actualizar_logistica" class="btn btn-info w-100">
+                                    <i class="fas fa-sync-alt"></i> Guardar Cambios de Logística
+                                </button>
                             </form>
-                            {% else %}
-                                <div class="alert alert-info mb-0">
-                                    <i class="fas fa-info-circle me-2"></i> Esta venta todavía no tiene servicios contratados para desglosar.
-                                </div>
-                            {% endif %}
                         </div>
                     </div>
-
                 </div>
             {% endif %}
 
@@ -432,43 +258,35 @@
                                 Subir confirmaciones
                             </div>
                             <div class="card-body">
-                                {% if confirmacion_form %}
-                                    {% if puede_subir_confirmaciones %}
-                                        <form method="post" enctype="multipart/form-data">
-                                            {% csrf_token %}
-                                            <div class="mb-3">
-                                                <label for="{{ confirmacion_form.archivos.id_for_label }}" class="form-label fw-semibold">
-                                                    {{ confirmacion_form.archivos.label }}
-                                                </label>
-                                                {{ confirmacion_form.archivos }}
-                                                <div class="form-text text-muted">{{ confirmacion_form.archivos.help_text }}</div>
-                                                {% for error in confirmacion_form.archivos.errors %}
-                                                    <div class="text-danger small mt-1">{{ error }}</div>
-                                                {% endfor %}
-                                            </div>
-                                            <div class="mb-3">
-                                                <label for="{{ confirmacion_form.nota.id_for_label }}" class="form-label fw-semibold">
-                                                    {{ confirmacion_form.nota.label }}
-                                                </label>
-                                                {{ confirmacion_form.nota }}
-                                                {% for error in confirmacion_form.nota.errors %}
-                                                    <div class="text-danger small mt-1">{{ error }}</div>
-                                                {% endfor %}
-                                            </div>
-                                            <button type="submit" name="registrar_confirmacion" class="btn btn-secondary w-100">
-                                                <i class="fas fa-upload me-1"></i> Guardar confirmaciones
-                                            </button>
-                                        </form>
-                                    {% else %}
-                                        <div class="alert alert-warning">
-                                            <i class="fas fa-exclamation-triangle me-2"></i>
-                                            No tienes permisos para subir confirmaciones en esta venta.
+                                {% if puede_subir_confirmaciones %}
+                                    <form method="post" enctype="multipart/form-data">
+                                        {% csrf_token %}
+                                        <div class="mb-3">
+                                            <label for="{{ confirmacion_form.archivos.id_for_label }}" class="form-label fw-semibold">
+                                                {{ confirmacion_form.archivos.label }}
+                                            </label>
+                                            {{ confirmacion_form.archivos }}
+                                            <div class="form-text text-muted">{{ confirmacion_form.archivos.help_text }}</div>
+                                            {% for error in confirmacion_form.archivos.errors %}
+                                                <div class="text-danger small mt-1">{{ error }}</div>
+                                            {% endfor %}
                                         </div>
-                                    {% endif %}
+                                        <div class="mb-3">
+                                            <label for="{{ confirmacion_form.nota.id_for_label }}" class="form-label fw-semibold">
+                                                {{ confirmacion_form.nota.label }}
+                                            </label>
+                                            {{ confirmacion_form.nota }}
+                                            {% for error in confirmacion_form.nota.errors %}
+                                                <div class="text-danger small mt-1">{{ error }}</div>
+                                            {% endfor %}
+                                        </div>
+                                        <button type="submit" name="registrar_confirmacion" class="btn btn-secondary w-100">
+                                            <i class="fas fa-upload me-1"></i> Guardar confirmaciones
+                                        </button>
+                                    </form>
                                 {% else %}
-                                    <div class="alert alert-danger">
-                                        <i class="fas fa-exclamation-circle me-2"></i>
-                                        Error: El formulario de confirmaciones no está disponible.
+                                    <div class="alert alert-warning">
+                                        No tienes permisos para subir confirmaciones en esta venta.
                                     </div>
                                 {% endif %}
                             </div>
@@ -547,26 +365,11 @@
 </div>
 
 
-
 {% endblock %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" 
           crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <style>
-        .logistica-servicio-row.status-pending {
-            border-left: 4px solid #dc3545;
-            background-color: rgba(220,53,69,0.05);
-        }
-        .logistica-servicio-row.status-ready {
-            border-left: 4px solid #ffc107;
-            background-color: rgba(255,193,7,0.08);
-        }
-        .logistica-servicio-row.status-paid {
-            border-left: 4px solid #198754;
-            background-color: rgba(25,135,84,0.08);
-        }
-    </style>
 {% endblock %}
 
 {% block extra_js %}
@@ -598,6 +401,4 @@
         }
     });
 </script>
-
- 
 {% endblock %}
