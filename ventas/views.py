@@ -952,3 +952,29 @@ class EliminarNotificacionView(LoginRequiredMixin, View):
             return JsonResponse({'success': False, 'message': 'Notificación no encontrada'}, status=404)
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+class EliminarConfirmacionView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
+    """
+    Vista para eliminar una confirmación de venta (archivo adjunto).
+    """
+    model = ConfirmacionVenta
+    template_name = 'ventas/confirmacion_confirm_delete.html' 
+
+    def get_success_url(self):
+        venta = self.object.venta
+        return reverse_lazy('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}) + '?tab=confirmaciones'
+
+    def test_func(self):
+        confirmacion = self.get_object()
+        user = self.request.user
+        # Permitir si es superusuario, el que subió el archivo, o JEFE/CONTADOR
+        if user.is_superuser: return True
+        if confirmacion.subido_por == user: return True
+        
+        rol = get_user_role(user).upper()
+        return 'JEFE' in rol or 'CONTADOR' in rol
+
+    def handle_no_permission(self):
+        messages.error(self.request, "No tienes permiso para eliminar esta confirmación.")
+        venta = self.get_object().venta
+        return redirect(reverse('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}) + '?tab=confirmaciones')
