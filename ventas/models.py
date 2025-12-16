@@ -110,6 +110,7 @@ class VentaViaje(models.Model):
         ('EFE', 'Efectivo'),
         ('TRN', 'Transferencia'),
         ('TAR', 'Tarjeta'),
+        ('DEP', 'Depósito'),
     ]
     modo_pago_apertura = models.CharField(
         max_length=3,
@@ -154,6 +155,77 @@ class VentaViaje(models.Model):
         default=Decimal('0.00'),
         verbose_name="Monto de descuento Kilómetros Movums",
         help_text="Se calcula automáticamente como el 10% del precio final."
+    )
+
+    # ------------------- PROMOCIONES CONFIGURABLES -------------------
+    promociones = models.ManyToManyField(
+        'crm.PromocionKilometros',
+        through='VentaPromocionAplicada',
+        blank=True,
+        related_name='ventas_aplicadas'
+    )
+    descuento_promociones_mxn = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Descuento total por promociones"
+    )
+    resumen_promociones = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Resumen de promociones aplicadas"
+    )
+    descuento_promociones_aplicado_como_pago = models.BooleanField(
+        default=False,
+        verbose_name="Descuento de promociones registrado en abonos"
+    )
+    
+    # ------------------- CAMPOS PARA VENTAS INTERNACIONALES (USD) -------------------
+    # Estos campos almacenan los valores en dólares americanos para ventas internacionales
+    tarifa_base_usd = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        blank=True,
+        null=True,
+        verbose_name="Tarifa Base (USD)",
+        help_text="Tarifa base en dólares americanos para ventas internacionales."
+    )
+    impuestos_usd = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        blank=True,
+        null=True,
+        verbose_name="Impuestos (USD)",
+        help_text="Impuestos en dólares americanos para ventas internacionales."
+    )
+    suplementos_usd = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        blank=True,
+        null=True,
+        verbose_name="Suplementos (USD)",
+        help_text="Suplementos en dólares americanos para ventas internacionales."
+    )
+    tours_usd = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        blank=True,
+        null=True,
+        verbose_name="Tours (USD)",
+        help_text="Tours en dólares americanos para ventas internacionales."
+    )
+    tipo_cambio = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        default=Decimal('0.0000'),
+        blank=True,
+        null=True,
+        verbose_name="Tipo de Cambio (USD a MXN)",
+        help_text="Tipo de cambio del día para convertir dólares a pesos mexicanos."
     )
     
     fecha_vencimiento_pago = models.DateField(
@@ -308,7 +380,13 @@ class VentaViaje(models.Model):
                 if self.estado_confirmacion != 'EN_CONFIRMACION':
                     monto_apertura = self.cantidad_apertura
         
-        return total_abonos + monto_apertura
+        total = total_abonos + monto_apertura
+
+        # Restar el abono virtual de promociones si ya se aplicó, para no marcar como pagada
+        if self.descuento_promociones_aplicado_como_pago and self.descuento_promociones_mxn:
+            total = total - (self.descuento_promociones_mxn or Decimal('0.00'))
+
+        return max(total, Decimal('0.00'))
 
     @property
     def costo_total_con_modificacion(self):
@@ -340,6 +418,55 @@ class VentaViaje(models.Model):
         saldo = self.costo_total_con_modificacion - self.total_pagado
         # Crucial para la estabilidad del dashboard: el saldo nunca es negativo
         return max(Decimal('0.00'), saldo)
+    
+    # ------------------- PROPIEDADES PARA VENTAS INTERNACIONALES (USD) -------------------
+    
+    @property
+    def total_usd(self):
+        """Calcula el total en USD para ventas internacionales."""
+        if self.tipo_viaje != 'INT' or not self.tipo_cambio or self.tipo_cambio <= 0:
+            return Decimal('0.00')
+        tarifa_base = self.tarifa_base_usd or Decimal('0.00')
+        impuestos = self.impuestos_usd or Decimal('0.00')
+        suplementos = self.suplementos_usd or Decimal('0.00')
+        tours = self.tours_usd or Decimal('0.00')
+        return tarifa_base + impuestos + suplementos + tours
+    
+    @property
+    def cantidad_apertura_usd(self):
+        """Convierte la cantidad de apertura de MXN a USD para ventas internacionales."""
+        if self.tipo_viaje != 'INT' or not self.tipo_cambio or self.tipo_cambio <= 0 or not self.cantidad_apertura:
+            return Decimal('0.00')
+        return (self.cantidad_apertura / self.tipo_cambio).quantize(Decimal('0.01'))
+    
+    @property
+    def total_pagado_usd(self):
+        """Convierte el total pagado de MXN a USD para ventas internacionales."""
+        if self.tipo_viaje != 'INT' or not self.tipo_cambio or self.tipo_cambio <= 0:
+            return Decimal('0.00')
+        total_usd_abonos = Decimal('0.00')
+        for abono in self.abonos.filter(confirmado=True):
+            if abono.monto_usd is not None and abono.tipo_cambio_aplicado:
+                total_usd_abonos += abono.monto_usd
+            else:
+                total_usd_abonos += (abono.monto / self.tipo_cambio)
+        return (self.cantidad_apertura_usd + total_usd_abonos).quantize(Decimal('0.01'))
+    
+    @property
+    def saldo_restante_usd(self):
+        """Convierte el saldo restante de MXN a USD para ventas internacionales."""
+        if self.tipo_viaje != 'INT' or not self.tipo_cambio or self.tipo_cambio <= 0:
+            return Decimal('0.00')
+        saldo_usd = self.total_usd - self.total_pagado_usd
+        return saldo_usd.quantize(Decimal('0.01')) if saldo_usd > 0 else Decimal('0.00')
+    
+    @property
+    def costo_total_con_modificacion_usd(self):
+        """Convierte el costo total con modificación de MXN a USD para ventas internacionales."""
+        if self.tipo_viaje != 'INT' or not self.tipo_cambio or self.tipo_cambio <= 0:
+            return Decimal('0.00')
+        costo_mxn = self.costo_total_con_modificacion
+        return (costo_mxn / self.tipo_cambio).quantize(Decimal('0.01'))
     
     @property
     def esta_pagada(self):
@@ -402,6 +529,37 @@ class VentaViaje(models.Model):
         verbose_name = "Venta de Viaje"
         verbose_name_plural = "Ventas de Viajes"
 
+
+# ------------------- MODELO: VentaPromocionAplicada -------------------
+
+class VentaPromocionAplicada(models.Model):
+    """Relación de promociones aplicadas a una venta, con montos y snapshot."""
+    venta = models.ForeignKey(
+        VentaViaje,
+        on_delete=models.CASCADE,
+        related_name='promociones_aplicadas'
+    )
+    promocion = models.ForeignKey(
+        'crm.PromocionKilometros',
+        on_delete=models.CASCADE,
+        related_name='aplicaciones_venta'
+    )
+    nombre_promocion = models.CharField(max_length=150)
+    porcentaje_aplicado = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal('0.00'))
+    monto_descuento = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    combinable_snapshot = models.BooleanField(default=True)
+    requiere_confirmacion_snapshot = models.BooleanField(default=False)
+    km_bono = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    creada_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Promoción aplicada a venta"
+        verbose_name_plural = "Promociones aplicadas a ventas"
+
+    def __str__(self):
+        return f"{self.nombre_promocion} en venta {self.venta_id}"
+
+
 # ------------------- MODELO: AbonoPago (Corregido el default de fecha_pago) -------------------
 
 class AbonoPago(models.Model):
@@ -423,6 +581,9 @@ class AbonoPago(models.Model):
     
     registrado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name="Registrado Por")
     recibo_pdf = models.FileField(upload_to='recibos/', blank=True, null=True, verbose_name="Recibo/Comprobante")
+    # Campos para ventas internacionales
+    monto_usd = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name="Monto en USD")
+    tipo_cambio_aplicado = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, verbose_name="Tipo de Cambio aplicado")
     
     # Campos para confirmación de pagos por transferencia/tarjeta
     confirmado = models.BooleanField(default=False, verbose_name="Confirmado por Contador")

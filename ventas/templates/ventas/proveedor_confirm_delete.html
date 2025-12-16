@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Eliminar Proveedor | Movums The Travel Store{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm border-0 rounded-4">
+            <div class="card-header bg-danger text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Confirmar Eliminación
+                </h4>
+            </div>
+            <div class="card-body p-4">
+                <div class="alert alert-warning" role="alert">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Advertencia:</strong> Esta acción no se puede deshacer. El proveedor será eliminado permanentemente del sistema.
+                </div>
+                
+                <h5 class="mb-3">¿Estás seguro de que deseas eliminar el siguiente proveedor?</h5>
+                
+                <div class="card bg-light mb-4">
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-4">Nombre:</dt>
+                            <dd class="col-sm-8"><strong>{{ object.nombre }}</strong></dd>
+                            
+                            <dt class="col-sm-4">Servicio:</dt>
+                            <dd class="col-sm-8">{{ object.get_servicio_display }}</dd>
+                            
+                            {% if object.telefono %}
+                            <dt class="col-sm-4">Teléfono:</dt>
+                            <dd class="col-sm-8">{{ object.telefono }}</dd>
+                            {% endif %}
+                            
+                            {% if object.ejecutivo %}
+                            <dt class="col-sm-4">Ejecutivo:</dt>
+                            <dd class="col-sm-8">{{ object.ejecutivo }}</dd>
+                            {% endif %}
+                            
+                            <dt class="col-sm-4">Factura:</dt>
+                            <dd class="col-sm-8">
+                                {% if object.genera_factura %}
+                                    <span class="badge bg-success">Automática</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Manual</span>
+                                {% endif %}
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="d-flex gap-2 justify-content-end">
+                        <a href="{% url 'proveedores' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times me-2"></i>Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash me-2"></i>Sí, eliminar proveedor
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

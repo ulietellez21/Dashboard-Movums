@@ -1,0 +1,368 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4">
+    <div>
+      <h4 class="mb-1 fw-bold text-primary"><i class="fas fa-route me-2"></i>Kilómetros Movums</h4>
+      <p class="text-muted mb-0">Panel de promociones, socios, movimientos y ventas con promo</p>
+    </div>
+    <div class="d-flex gap-2 mt-3 mt-md-0">
+      <a class="btn btn-outline-primary btn-sm" href="{% url 'dashboard' %}"><i class="fas fa-home me-1"></i>Dashboard</a>
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'lista_clientes' %}"><i class="fas fa-users me-1"></i>Clientes</a>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Km acumulados</p>
+          <h5 class="mb-0">{{ total_km_acumulados|floatformat:0|intcomma }}</h5>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Km disponibles</p>
+          <h5 class="mb-0">{{ total_km_disponibles|floatformat:0|intcomma }}</h5>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Km canjeados</p>
+          <h5 class="mb-0">{{ total_km_canjeados|floatformat:0|intcomma }}</h5>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Km expirados</p>
+          <h5 class="mb-0">{{ total_km_expirados|floatformat:0|intcomma }}</h5>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-5">
+      <div class="card shadow-sm mb-3 border-0">
+        <div class="card-header d-flex justify-content-between align-items-center bg-white border-0">
+          <strong class="text-primary"><i class="fas fa-bullhorn me-2"></i>Promociones</strong>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table mb-0 align-middle table-hover table-striped">
+              <thead class="table-light">
+                <tr>
+                  <th>Nombre</th>
+                  <th>Tipo</th>
+                  <th>% Desc</th>
+                  <th>Km Bono</th>
+                  <th>Tope</th>
+                  <th>Condición</th>
+                  <th>Alcance</th>
+                  <th>Vigencia</th>
+                  <th>Estado</th>
+                  {% if request.user.perfil.rol == 'JEFE' %}<th>Acciones</th>{% endif %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for promo in promociones %}
+                  <tr>
+                    <td>{{ promo.nombre }}</td>
+                    <td>{{ promo.get_tipo_display }}</td>
+                    <td>{{ promo.porcentaje_descuento|floatformat:2 }}%</td>
+                    <td>{{ promo.kilometros_bono|floatformat:0 }}</td>
+                    <td>${{ promo.monto_tope_mxn|floatformat:2 }}</td>
+                    <td>{{ promo.get_condicion_display }}</td>
+                    <td>{{ promo.get_alcance_display }}</td>
+                    <td>
+                      {% if promo.fecha_inicio %}{{ promo.fecha_inicio }}{% else %}-{% endif %} /
+                      {% if promo.fecha_fin %}{{ promo.fecha_fin }}{% else %}-{% endif %}
+                    </td>
+                    <td>
+                      {% if promo.activa %}
+                        <span class="badge bg-success">Activa</span>
+                      {% else %}
+                        <span class="badge bg-secondary">Inactiva</span>
+                      {% endif %}
+                    </td>
+                    {% if request.user.perfil.rol == 'JEFE' %}
+                    <td>
+                      <a class="btn btn-outline-primary btn-sm" href="{% url 'editar_promocion_km' promo.pk %}"><i class="fas fa-pen"></i></a>
+                    </td>
+                    {% endif %}
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="9" class="text-center text-muted py-3">Sin promociones registradas.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% if request.user.perfil.rol == 'JEFE' %}
+        <div class="card-footer">
+          {% with tipo_actual=promocion_form.initial.tipo|default:promocion_form.instance.tipo|default:"" %}
+          <form method="post" class="row g-2">
+            {% csrf_token %}
+            {{ promocion_form.non_field_errors }}
+            <div class="col-12">
+              <label class="form-label mb-1">Nombre</label>
+              {{ promocion_form.nombre }}
+              {{ promocion_form.nombre.errors }}
+            </div>
+            <div class="col-12">
+              <label class="form-label mb-1">Descripción</label>
+              {{ promocion_form.descripcion }}
+              {{ promocion_form.descripcion.errors }}
+            </div>
+            <div class="col-6">
+              <label class="form-label mb-1">Tipo</label>
+              {{ promocion_form.tipo }}
+              {{ promocion_form.tipo.errors }}
+            </div>
+            <div class="col-3 {% if tipo_actual == 'KM' %}d-none{% endif %}" data-field="porcentaje">
+              <label class="form-label mb-1">% Descuento</label>
+              {{ promocion_form.porcentaje_descuento }}
+              {{ promocion_form.porcentaje_descuento.errors }}
+            </div>
+            <div class="col-3 {% if tipo_actual == 'KM' %}d-none{% endif %}" data-field="tope">
+              <label class="form-label mb-1">Tope MXN</label>
+              {{ promocion_form.monto_tope_mxn }}
+              {{ promocion_form.monto_tope_mxn.errors }}
+            </div>
+            <div class="col-3 {% if tipo_actual != 'KM' %}d-none{% endif %}" data-field="km_bono">
+              <label class="form-label mb-1">Km a bonificar</label>
+              {{ promocion_form.kilometros_bono }}
+              {{ promocion_form.kilometros_bono.errors }}
+            </div>
+            <div class="col-6">
+              <label class="form-label mb-1">Inicio</label>
+              {{ promocion_form.fecha_inicio }}
+              {{ promocion_form.fecha_inicio.errors }}
+            </div>
+            <div class="col-6">
+              <label class="form-label mb-1">Fin</label>
+              {{ promocion_form.fecha_fin }}
+              {{ promocion_form.fecha_fin.errors }}
+            </div>
+            <div class="col-6">
+              <label class="form-label mb-1">Condición</label>
+              {{ promocion_form.condicion }}
+              {{ promocion_form.condicion.errors }}
+            </div>
+            <div class="col-6">
+              <label class="form-label mb-1">Valor condición</label>
+              {{ promocion_form.valor_condicion }}
+              {{ promocion_form.valor_condicion.errors }}
+            </div>
+            <div class="col-6">
+              <label class="form-label mb-1">Alcance</label>
+              {{ promocion_form.alcance }}
+              {{ promocion_form.alcance.errors }}
+            </div>
+            <div class="col-6 d-flex align-items-end">
+              <div class="form-check mt-3">
+                {{ promocion_form.requiere_confirmacion }} <label class="form-check-label">Requiere confirmación</label>
+              </div>
+            </div>
+            <div class="col-12 d-flex align-items-center">
+              <div class="form-check">
+                {{ promocion_form.activa }} <label class="form-check-label">Activa</label>
+              </div>
+            </div>
+            <div class="col-12 text-end">
+              <button class="btn btn-primary btn-sm" type="submit">Guardar promoción</button>
+            </div>
+          </form>
+          {% endwith %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-7">
+      <div class="card shadow-sm mb-3 border-0">
+        <div class="card-header d-flex justify-content-between align-items-center bg-white border-0">
+          <strong class="text-primary"><i class="fas fa-receipt me-2"></i>Ventas con promociones aplicadas</strong>
+          <span class="badge bg-primary">{{ ventas_con_promos|length }}</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table mb-0 align-middle table-hover table-striped">
+            <thead class="table-light">
+              <tr>
+                <th>ID</th>
+                <th>Cliente</th>
+                <th>Fecha viaje</th>
+                <th>Promo</th>
+                <th>Pagado</th>
+                <th>Saldo</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for v in ventas_con_promos %}
+              <tr>
+                <td>#{{ v.id }}</td>
+                <td><a href="{% url 'detalle_cliente' pk=v.cliente.pk %}" class="text-decoration-none">{{ v.cliente }}</a></td>
+                <td>{{ v.fecha_inicio_viaje|date:"d M Y" }}</td>
+                <td>${{ v.descuento_promociones_mxn|floatformat:2|intcomma }}</td>
+                <td>${{ v.total_pagado|floatformat:2|intcomma }}</td>
+                <td>
+                  {% if v.saldo_restante > 0 %}
+                    <span class="badge bg-danger">${{ v.saldo_restante|floatformat:2|intcomma }}</span>
+                  {% else %}
+                    <span class="badge bg-success">Pagado</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if v.estado_confirmacion == 'EN_CONFIRMACION' %}
+                    <span class="badge bg-warning text-dark">En confirmación</span>
+                  {% elif v.saldo_restante > 0 %}
+                    <span class="badge bg-info text-dark">Pendiente</span>
+                  {% else %}
+                    <span class="badge bg-success">Completado</span>
+                  {% endif %}
+                </td>
+                <td><a href="{% url 'detalle_venta' slug=v.slug_safe pk=v.pk %}" class="btn btn-sm btn-outline-primary">Ver</a></td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="9" class="text-center text-muted py-3">Sin ventas con promociones.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong>Top socios (km disponibles)</strong>
+          <span class="badge bg-secondary">{{ socios_count }} socios</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table mb-0 align-middle">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>Km disp.</th>
+                <th>Km acum.</th>
+                <th>Último mov.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in socios %}
+                <tr>
+                  <td><a href="{% url 'detalle_cliente' pk=c.pk %}" class="text-decoration-none">{{ c }}</a></td>
+                  <td>{{ c.kilometros_disponibles|floatformat:0|intcomma }}</td>
+                  <td>{{ c.kilometros_acumulados|floatformat:0|intcomma }}</td>
+                  <td>{% if c.ultima_fecha_km %}{{ c.ultima_fecha_km|date:"d/m/Y H:i" }}{% else %}-{% endif %}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="4" class="text-center text-muted py-3">Sin socios registrados.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card shadow-sm">
+        <div class="card-header">
+          <strong>Movimientos recientes</strong>
+        </div>
+        <div class="table-responsive">
+          <table class="table mb-0 align-middle">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th>Tipo</th>
+                <th>Kilómetros</th>
+                <th>Descripción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for mov in movimientos %}
+                <tr>
+                  <td>{{ mov.fecha_registro|date:"d/m/Y H:i" }}</td>
+                  <td>{{ mov.cliente }}</td>
+                  <td>{{ mov.get_tipo_evento_display }}</td>
+                  <td>
+                    {% if mov.es_redencion %}<span class="text-danger">-{{ mov.kilometros|floatformat:0|intcomma }}</span>
+                    {% else %}<span class="text-success">+{{ mov.kilometros|floatformat:0|intcomma }}</span>{% endif %}
+                  </td>
+                  <td>{{ mov.descripcion|default:"-" }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="5" class="text-center text-muted py-3">Sin movimientos.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="card-footer">
+          {% if is_paginated %}
+            <nav aria-label="Paginación">
+              <ul class="pagination pagination-sm mb-0 justify-content-end">
+                {% if page_obj.has_previous %}
+                  <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a></li>
+                {% endif %}
+                <li class="page-item disabled"><span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span></li>
+                {% if page_obj.has_next %}
+                  <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Siguiente</a></li>
+                {% endif %}
+              </ul>
+            </nav>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  (function() {
+    const tipoSelect = document.getElementById("id_tipo");
+    const condicionSelect = document.getElementById("id_condicion");
+    const fieldKm = document.querySelector('[data-field="km_bono"]');
+    const fieldPorc = document.querySelector('[data-field="porcentaje"]');
+    const fieldTope = document.querySelector('[data-field="tope"]');
+    const valorCond = document.getElementById("id_valor_condicion")?.closest('.col-6');
+
+    function toggleTipo() {
+      const tipo = tipoSelect?.value;
+      if (tipo === 'KM') {
+        fieldKm?.classList.remove('d-none');
+        fieldPorc?.classList.add('d-none');
+        fieldTope?.classList.add('d-none');
+      } else {
+        fieldKm?.classList.add('d-none');
+        fieldPorc?.classList.remove('d-none');
+        fieldTope?.classList.remove('d-none');
+      }
+    }
+
+    function toggleCondicion() {
+      const cond = condicionSelect?.value;
+      if (!valorCond) return;
+      if (cond === 'MES') {
+        valorCond.classList.remove('d-none');
+        const label = valorCond.querySelector('.form-label');
+        if (label) label.textContent = "Mes (1-12)";
+      } else {
+        valorCond.classList.add('d-none');
+      }
+    }
+
+    tipoSelect?.addEventListener('change', toggleTipo);
+    condicionSelect?.addEventListener('change', toggleCondicion);
+    toggleTipo();
+    toggleCondicion();
+  })();
+</script>
+{% endblock %}
+

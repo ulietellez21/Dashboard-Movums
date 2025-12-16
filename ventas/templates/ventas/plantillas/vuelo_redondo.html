@@ -3,6 +3,71 @@
 
 {% block title %}Vuelo Redondo - Venta #{{ venta.id }}{% endblock %}
 
+{% block extra_head %}
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap">
+<style>
+    body { 
+        font-family: 'Roboto', Arial, sans-serif; 
+        background-color: #f8f9fa;
+    }
+    h1, h2, h3, h4, h5, h6 { 
+        font-family: 'Roboto', Arial, sans-serif; 
+        font-weight: 700; 
+        color: #004a8e; 
+    }
+    label.form-label { 
+        font-weight: 600; 
+        color: #374151; 
+    }
+    .card { 
+        border: 1px solid #dfe3e8; 
+        border-radius: 12px; 
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .card-header { 
+        background-color: #004a8e; 
+        color: #fff; 
+        border: none; 
+        border-top-left-radius: 12px; 
+        border-top-right-radius: 12px; 
+        font-weight: 600;
+    }
+    .card-header.bg-primary {
+        background-color: #004a8e !important;
+    }
+    .table thead th { 
+        background: #004a8e; 
+        color: #fff; 
+        border: none; 
+        font-weight: 600;
+    }
+    .table tbody tr:nth-child(even) { 
+        background: #f8f9fb; 
+    }
+    .table tbody tr:hover {
+        background: #e9ecef;
+    }
+    .btn-primary {
+        background-color: #004a8e;
+        border-color: #004a8e;
+    }
+    .btn-primary:hover {
+        background-color: #003a6e;
+        border-color: #003a6e;
+    }
+    .form-control:focus {
+        border-color: #004a8e;
+        box-shadow: 0 0 0 0.2rem rgba(0, 74, 142, 0.25);
+    }
+    .card.border-info {
+        border-color: #004a8e !important;
+    }
+    .card-header.bg-info {
+        background-color: #004a8e !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="row">
     <div class="col-12">
@@ -45,6 +110,34 @@
                     </div>
                     
                     <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Tipo de Vuelo</label>
+                            <select name="tipo_vuelo_ida" id="tipo_vuelo_ida" class="form-select">
+                                <option value="">Selecciona una opción</option>
+                                <option value="Directo" {% if datos.tipo_vuelo_ida == 'Directo' %}selected{% endif %}>Directo</option>
+                                <option value="Escalas" {% if datos.tipo_vuelo_ida == 'Escalas' %}selected{% endif %}>Con Escalas</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Sección de Escalas Ida (se muestra solo si tipo_vuelo_ida == "Escalas") -->
+                    <div id="escalas_ida_section" style="display: none;" class="mb-4">
+                        <div class="card border-info">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0"><i class="fas fa-plane-arrival"></i> Escalas - Vuelo de Ida</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="escalas_ida_container">
+                                    <!-- Las escalas se agregarán dinámicamente aquí -->
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="agregar_escala_ida">
+                                    <i class="fas fa-plus"></i> Agregar Escala
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Fecha Salida</label>
                             <textarea name="fecha_salida_ida" class="form-control" rows="2" placeholder="Ej: 15 de marzo 2025">{{ datos.fecha_salida_ida|default:'' }}</textarea>
@@ -80,6 +173,34 @@
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Aerolínea Regreso</label>
                             <textarea name="aerolinea_regreso" class="form-control" rows="2" placeholder="Ej: Volaris">{{ datos.aerolinea_regreso|default:'' }}</textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Tipo de Vuelo</label>
+                            <select name="tipo_vuelo_regreso" id="tipo_vuelo_regreso" class="form-select">
+                                <option value="">Selecciona una opción</option>
+                                <option value="Directo" {% if datos.tipo_vuelo_regreso == 'Directo' %}selected{% endif %}>Directo</option>
+                                <option value="Escalas" {% if datos.tipo_vuelo_regreso == 'Escalas' %}selected{% endif %}>Con Escalas</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Sección de Escalas Regreso (se muestra solo si tipo_vuelo_regreso == "Escalas") -->
+                    <div id="escalas_regreso_section" style="display: none;" class="mb-4">
+                        <div class="card border-info">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0"><i class="fas fa-plane-arrival"></i> Escalas - Vuelo de Regreso</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="escalas_regreso_container">
+                                    <!-- Las escalas se agregarán dinámicamente aquí -->
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="agregar_escala_regreso">
+                                    <i class="fas fa-plus"></i> Agregar Escala
+                                </button>
+                            </div>
                         </div>
                     </div>
                     
@@ -134,5 +255,227 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // ========== ESCALAS VUELO DE IDA ==========
+    const tipoVueloIdaSelect = document.getElementById('tipo_vuelo_ida');
+    const escalasIdaSection = document.getElementById('escalas_ida_section');
+    const escalasIdaContainer = document.getElementById('escalas_ida_container');
+    const agregarEscalaIdaBtn = document.getElementById('agregar_escala_ida');
+    let escalaIdaCount = 0;
+    
+    // Datos de escalas existentes para ida (si hay)
+    let escalasIdaExistentes = [];
+    {% if escalas_ida_json %}
+        try {
+            escalasIdaExistentes = {{ escalas_ida_json|safe }};
+            if (!Array.isArray(escalasIdaExistentes)) {
+                escalasIdaExistentes = [];
+            }
+        } catch(e) {
+            escalasIdaExistentes = [];
+        }
+    {% endif %}
+    
+    // Función para mostrar/ocultar sección de escalas ida
+    function toggleEscalasIda() {
+        if (tipoVueloIdaSelect.value === 'Escalas') {
+            escalasIdaSection.style.display = 'block';
+        } else {
+            escalasIdaSection.style.display = 'none';
+        }
+    }
+    
+    // Inicializar escalas ida
+    toggleEscalasIda();
+    tipoVueloIdaSelect.addEventListener('change', toggleEscalasIda);
+    
+    // Función para crear HTML de una escala ida
+    function crearEscalaIdaHTML(index, escalaData = {}) {
+        return `
+            <div class="escala-item card mb-3" data-escala-index="${index}">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0">Escala ${index + 1}</h6>
+                        <button type="button" class="btn btn-sm btn-danger eliminar-escala-ida" data-index="${index}">
+                            <i class="fas fa-times"></i> Eliminar
+                        </button>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <label class="form-label">Ciudad de Escala</label>
+                            <textarea name="escalas_ida[${index}][ciudad]" class="form-control" rows="1" placeholder="Ej: Guadalajara">${escalaData.ciudad || ''}</textarea>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label class="form-label">Aeropuerto/Terminal</label>
+                            <textarea name="escalas_ida[${index}][aeropuerto]" class="form-control" rows="1" placeholder="Ej: Aeropuerto Internacional de Guadalajara Terminal 1">${escalaData.aeropuerto || ''}</textarea>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label">Hora de Llegada</label>
+                            <textarea name="escalas_ida[${index}][hora_llegada]" class="form-control" rows="1" placeholder="Ej: 10:15 AM">${escalaData.hora_llegada || ''}</textarea>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label">Hora de Salida</label>
+                            <textarea name="escalas_ida[${index}][hora_salida]" class="form-control" rows="1" placeholder="Ej: 11:30 AM">${escalaData.hora_salida || ''}</textarea>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label">Número de Vuelo</label>
+                            <textarea name="escalas_ida[${index}][numero_vuelo]" class="form-control" rows="1" placeholder="Ej: Y4 456">${escalaData.numero_vuelo || ''}</textarea>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label">Duración de Escala</label>
+                            <textarea name="escalas_ida[${index}][duracion]" class="form-control" rows="1" placeholder="Ej: 1h 15min">${escalaData.duracion || ''}</textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Cargar escalas ida existentes si hay
+    if (escalasIdaExistentes && escalasIdaExistentes.length > 0) {
+        escalasIdaExistentes.forEach((escala, index) => {
+            escalaIdaCount = index + 1;
+            escalasIdaContainer.insertAdjacentHTML('beforeend', crearEscalaIdaHTML(index, escala));
+        });
+    }
+    
+    // Event listener para agregar escala ida
+    agregarEscalaIdaBtn.addEventListener('click', function() {
+        escalasIdaContainer.insertAdjacentHTML('beforeend', crearEscalaIdaHTML(escalaIdaCount, {}));
+        escalaIdaCount++;
+    });
+    
+    // Event listener para eliminar escala ida
+    escalasIdaContainer.addEventListener('click', function(e) {
+        if (e.target.closest('.eliminar-escala-ida')) {
+            const btn = e.target.closest('.eliminar-escala-ida');
+            const escalaItem = btn.closest('.escala-item');
+            escalaItem.remove();
+            actualizarNumeracionEscalasIda();
+        }
+    });
+    
+    function actualizarNumeracionEscalasIda() {
+        const items = escalasIdaContainer.querySelectorAll('.escala-item');
+        items.forEach((item, index) => {
+            const header = item.querySelector('h6');
+            if (header) {
+                header.textContent = `Escala ${index + 1}`;
+            }
+        });
+    }
+    
+    // ========== ESCALAS VUELO DE REGRESO ==========
+    const tipoVueloRegresoSelect = document.getElementById('tipo_vuelo_regreso');
+    const escalasRegresoSection = document.getElementById('escalas_regreso_section');
+    const escalasRegresoContainer = document.getElementById('escalas_regreso_container');
+    const agregarEscalaRegresoBtn = document.getElementById('agregar_escala_regreso');
+    let escalaRegresoCount = 0;
+    
+    // Datos de escalas existentes para regreso (si hay)
+    let escalasRegresoExistentes = [];
+    {% if escalas_regreso_json %}
+        try {
+            escalasRegresoExistentes = {{ escalas_regreso_json|safe }};
+            if (!Array.isArray(escalasRegresoExistentes)) {
+                escalasRegresoExistentes = [];
+            }
+        } catch(e) {
+            escalasRegresoExistentes = [];
+        }
+    {% endif %}
+    
+    // Función para mostrar/ocultar sección de escalas regreso
+    function toggleEscalasRegreso() {
+        if (tipoVueloRegresoSelect.value === 'Escalas') {
+            escalasRegresoSection.style.display = 'block';
+        } else {
+            escalasRegresoSection.style.display = 'none';
+        }
+    }
+    
+    // Inicializar escalas regreso
+    toggleEscalasRegreso();
+    tipoVueloRegresoSelect.addEventListener('change', toggleEscalasRegreso);
+    
+    // Función para crear HTML de una escala regreso
+    function crearEscalaRegresoHTML(index, escalaData = {}) {
+        return `
+            <div class="escala-item card mb-3" data-escala-index="${index}">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0">Escala ${index + 1}</h6>
+                        <button type="button" class="btn btn-sm btn-danger eliminar-escala-regreso" data-index="${index}">
+                            <i class="fas fa-times"></i> Eliminar
+                        </button>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <label class="form-label">Ciudad de Escala</label>
+                            <textarea name="escalas_regreso[${index}][ciudad]" class="form-control" rows="1" placeholder="Ej: Guadalajara">${escalaData.ciudad || ''}</textarea>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label class="form-label">Aeropuerto/Terminal</label>
+                            <textarea name="escalas_regreso[${index}][aeropuerto]" class="form-control" rows="1" placeholder="Ej: Aeropuerto Internacional de Guadalajara Terminal 1">${escalaData.aeropuerto || ''}</textarea>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label">Hora de Llegada</label>
+                            <textarea name="escalas_regreso[${index}][hora_llegada]" class="form-control" rows="1" placeholder="Ej: 10:15 AM">${escalaData.hora_llegada || ''}</textarea>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label">Hora de Salida</label>
+                            <textarea name="escalas_regreso[${index}][hora_salida]" class="form-control" rows="1" placeholder="Ej: 11:30 AM">${escalaData.hora_salida || ''}</textarea>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label">Número de Vuelo</label>
+                            <textarea name="escalas_regreso[${index}][numero_vuelo]" class="form-control" rows="1" placeholder="Ej: Y4 456">${escalaData.numero_vuelo || ''}</textarea>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label">Duración de Escala</label>
+                            <textarea name="escalas_regreso[${index}][duracion]" class="form-control" rows="1" placeholder="Ej: 1h 15min">${escalaData.duracion || ''}</textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Cargar escalas regreso existentes si hay
+    if (escalasRegresoExistentes && escalasRegresoExistentes.length > 0) {
+        escalasRegresoExistentes.forEach((escala, index) => {
+            escalaRegresoCount = index + 1;
+            escalasRegresoContainer.insertAdjacentHTML('beforeend', crearEscalaRegresoHTML(index, escala));
+        });
+    }
+    
+    // Event listener para agregar escala regreso
+    agregarEscalaRegresoBtn.addEventListener('click', function() {
+        escalasRegresoContainer.insertAdjacentHTML('beforeend', crearEscalaRegresoHTML(escalaRegresoCount, {}));
+        escalaRegresoCount++;
+    });
+    
+    // Event listener para eliminar escala regreso
+    escalasRegresoContainer.addEventListener('click', function(e) {
+        if (e.target.closest('.eliminar-escala-regreso')) {
+            const btn = e.target.closest('.eliminar-escala-regreso');
+            const escalaItem = btn.closest('.escala-item');
+            escalaItem.remove();
+            actualizarNumeracionEscalasRegreso();
+        }
+    });
+    
+    function actualizarNumeracionEscalasRegreso() {
+        const items = escalasRegresoContainer.querySelectorAll('.escala-item');
+        items.forEach((item, index) => {
+            const header = item.querySelector('h6');
+            if (header) {
+                header.textContent = `Escala ${index + 1}`;
+            }
+        });
+    }
+});
+</script>
 {% endblock %}
 

@@ -7,7 +7,9 @@ from .views import (
     ClienteDetailView, 
     ClienteCreateView, 
     ClienteUpdateView,
-    eliminar_cliente # <--- NUEVA IMPORTACIÓN
+    eliminar_cliente,
+    KilometrosDashboardView,
+    PromocionKilometrosUpdateView,
 )
 
 urlpatterns = [
@@ -26,4 +28,8 @@ urlpatterns = [
     
     # /crm/123/ -> Muestra el detalle de un cliente específico (ClienteDetailView)
     path('<int:pk>/', ClienteDetailView.as_view(), name='detalle_cliente'),
+
+    # Programa Kilómetros Movums
+    path('kilometros/', KilometrosDashboardView.as_view(), name='kilometros_dashboard'),
+    path('kilometros/promociones/<int:pk>/editar/', PromocionKilometrosUpdateView.as_view(), name='editar_promocion_km'),
 ]

@@ -15,12 +15,12 @@
             background-size: cover;
         }
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Roboto', Arial, sans-serif;
             font-size: 12pt;
-            line-height: 1.5;
-            color: #333333;
+            line-height: 1.6;
+            color: #2f2f2f;
             margin: 0;
-            padding: 180px 30px 50px 30px;
+            padding: 150px 30px 60px 30px;
             background-image: url("{% static 'img/image1.png' %}");
             background-repeat: no-repeat;
             background-position: top center;
@@ -32,52 +32,52 @@
         }
         .table-wrapper {
             page-break-inside: avoid;
-            padding-top: 140px;
+            padding-top: 80px;
         }
         /* Título principal centrado (tamaño 18) */
         .titulo-principal {
             text-align: center;
-            font-family: Arial, sans-serif;
+            font-family: 'Roboto', Arial, sans-serif;
             font-size: 18pt;
             font-weight: bold;
             color: #004a8e;
-            margin: 20px 0 15px 0;
+            margin: 10px 0 12px 0;
             padding: 0;
         }
         /* Información de cliente y fecha en la misma línea */
         .info-venta {
             text-align: center;
-            font-family: Arial, sans-serif;
+            font-family: 'Roboto', Arial, sans-serif;
             font-size: 12pt;
-            margin: 0 0 25px 0;
+            margin: 0 0 18px 0;
             padding: 0;
         }
         .info-venta strong {
             font-weight: bold;
         }
         section {
-            margin-bottom: 25px;
+            margin-bottom: 18px;
         }
         section p {
             margin: 8px 0;
-            font-family: Arial, sans-serif;
+            font-family: 'Roboto', Arial, sans-serif;
             font-size: 12pt;
         }
         h3 {
-            font-family: Arial, sans-serif;
+            font-family: 'Roboto', Arial, sans-serif;
             font-size: 14pt;
             font-weight: bold;
             color: #004a8e;
             border-bottom: 2px solid #004a8e;
             padding-bottom: 5px;
-            margin-top: 25px;
-            margin-bottom: 15px;
+            margin-top: 20px;
+            margin-bottom: 12px;
         }
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 15px;
-            font-family: Arial, sans-serif;
+            margin-top: 10px;
+            font-family: 'Roboto', Arial, sans-serif;
             font-size: 12pt;
             page-break-inside: avoid;
         }
@@ -90,12 +90,12 @@
             border: 1px solid #004a8e;
         }
         td {
-            border: 1px solid #ddd;
+            border: 1px solid #dfe3e8;
             padding: 8px;
             text-align: left;
         }
         tr:nth-child(even) {
-            background-color: #f9f9f9;
+            background-color: #f8f9fb;
         }
         .total-pendiente {
             color: #dc3545;
@@ -103,7 +103,7 @@
         }
         .info-line {
             margin: 10px 0;
-            font-family: Arial, sans-serif;
+            font-family: 'Roboto', Arial, sans-serif;
             font-size: 12pt;
         }
         .info-line strong {
@@ -135,15 +135,37 @@
 
     <section>
         <h3>Resumen Financiero</h3>
-        <div class="info-line">
-            <strong>Costo Total del Viaje:</strong> ${{ venta.costo_total_con_modificacion|floatformat:2|intcomma }}{% if venta.costo_modificacion and venta.costo_modificacion > 0 %} (incluye modificación: ${{ venta.costo_modificacion|floatformat:2|intcomma }}){% endif %}
-        </div>
-        <div class="info-line">
-            <strong>Total Abonado hasta la fecha:</strong> ${{ venta.total_pagado|floatformat:2|intcomma }}
-        </div>
-        <div class="info-line">
-            <strong>Saldo Pendiente:</strong> <span class="total-pendiente">${{ venta.saldo_restante|floatformat:2|intcomma }}</span>
-        </div>
+        {% if venta.tipo_viaje == 'INT' and venta.tipo_cambio and venta.tipo_cambio > 0 %}
+            <div class="info-line">
+                {% if venta.tipo_cambio and venta.tipo_cambio > 0 %}
+                    {% widthratio venta.costo_modificacion venta.tipo_cambio 1 as costo_modificacion_usd %}
+                {% else %}
+                    {% with 0 as costo_modificacion_usd %}{% endwith %}
+                {% endif %}
+                <strong>Costo Total del Viaje:</strong> USD ${{ venta.costo_total_con_modificacion_usd|floatformat:2|intcomma }}{% if venta.costo_modificacion and venta.costo_modificacion > 0 %} (incluye modificación: USD ${{ costo_modificacion_usd|floatformat:2|intcomma }}){% endif %}
+            </div>
+            <div class="info-line">
+                <strong>Total Abonado hasta la fecha:</strong> USD ${{ venta.total_pagado_usd|floatformat:2|intcomma }}
+            </div>
+            <div class="info-line">
+                <strong>Saldo Pendiente:</strong> <span class="total-pendiente">USD ${{ venta.saldo_restante_usd|floatformat:2|intcomma }}</span>
+            </div>
+            {% if venta.tipo_cambio %}
+                <div class="info-line">
+                    <strong>Tipo de Cambio:</strong> 1 USD = ${{ venta.tipo_cambio|floatformat:4|intcomma }} MXN
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="info-line">
+                <strong>Costo Total del Viaje:</strong> ${{ venta.costo_total_con_modificacion|floatformat:2|intcomma }}{% if venta.costo_modificacion and venta.costo_modificacion > 0 %} (incluye modificación: ${{ venta.costo_modificacion|floatformat:2|intcomma }}){% endif %}
+            </div>
+            <div class="info-line">
+                <strong>Total Abonado hasta la fecha:</strong> ${{ venta.total_pagado|floatformat:2|intcomma }}
+            </div>
+            <div class="info-line">
+                <strong>Saldo Pendiente:</strong> <span class="total-pendiente">${{ venta.saldo_restante|floatformat:2|intcomma }}</span>
+            </div>
+        {% endif %}
     </section>
 
     <section>
@@ -165,7 +187,12 @@
                     <tr>
                         <td><strong>Pago de Apertura</strong></td>
                         <td>{{ venta.fecha_creacion|date:"d/m/Y H:i" }}</td>
-                        <td>${{ venta.cantidad_apertura|floatformat:2|intcomma }}</td>
+                        {% if venta.tipo_viaje == 'INT' and venta.tipo_cambio %}
+                            {% widthratio venta.cantidad_apertura venta.tipo_cambio 1 as apertura_usd %}
+                            <td>USD ${{ apertura_usd|floatformat:2|intcomma }}</td>
+                        {% else %}
+                            <td>${{ venta.cantidad_apertura|floatformat:2|intcomma }}</td>
+                        {% endif %}
                         <td>{{ venta.get_modo_pago_apertura_display }}</td>
                         <td>
                             {% if venta.modo_pago_apertura in 'TRN,TAR,DEP' and venta.estado_confirmacion == 'EN_CONFIRMACION' %}
@@ -180,13 +207,18 @@
                     <tr>
                         <td>Abono</td>
                         <td>{{ abono.fecha_pago|date:"d/m/Y H:i" }}</td>
-                        <td>${{ abono.monto|floatformat:2|intcomma }}</td>
+                        {% if venta.tipo_viaje == 'INT' and abono.monto_usd %}
+                            <td>USD ${{ abono.monto_usd|floatformat:2|intcomma }}</td>
+                        {% elif venta.tipo_viaje == 'INT' and venta.tipo_cambio %}
+                            {% widthratio abono.monto venta.tipo_cambio 1 as abono_usd %}
+                            <td>USD ${{ abono_usd|floatformat:2|intcomma }}</td>
+                        {% else %}
+                            <td>${{ abono.monto|floatformat:2|intcomma }}</td>
+                        {% endif %}
                         <td>{{ abono.get_forma_pago_display }}</td>
                         <td>
                             {% if abono.forma_pago in 'TRN,TAR,DEP' and not abono.confirmado %}
                                 <span style="color: #856404;">Pendiente</span>
-                            {% elif abono.confirmado %}
-                                <span style="color: #155724;">Confirmado</span>
                             {% else %}
                                 <span style="color: #155724;">Confirmado</span>
                             {% endif %}

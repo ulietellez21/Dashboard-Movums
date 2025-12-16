@@ -8,11 +8,20 @@
     <h1 class="mb-4">✏️ Editar Venta de Viaje #{{ ventaviaje.id }}</h1>
 
     <div class="alert alert-warning">
-        <strong>Cliente:</strong> {{ ventaviaje.cliente.nombre_completo_display }}. Recuerde que modificar el <strong>Costo Venta Final</strong> actualizará automáticamente el <strong>Saldo Pendiente</strong>.
+        <strong>Cliente:</strong> 
+        {% if ventaviaje.cliente.tipo_cliente == 'EMPRESA' %}
+            <i class="fas fa-building text-info"></i>
+            <span class="badge bg-info text-white me-1">Empresa</span>
+        {% else %}
+            <i class="fas fa-user text-success"></i>
+            <span class="badge bg-success text-white me-1">Particular</span>
+        {% endif %}
+        {{ ventaviaje.cliente.nombre_completo_display }}. 
+        Recuerde que modificar el <strong>Costo Venta Final</strong> actualizará automáticamente el <strong>Saldo Pendiente</strong>.
     </div>
 
     <div class="card p-4 shadow-sm">
-        <form method="post">
+        <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
             
             {% for field in form %}

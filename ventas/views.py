@@ -1373,71 +1373,730 @@ class ComprobanteAbonoPDFView(LoginRequiredMixin, DetailView):
 # ------------------- 10. NUEVA VISTA PARA EL CONTRATO (LA QUE NECESITAS) -------------------
 class ContratoVentaPDFView(LoginRequiredMixin, DetailView):
     """
-    Vista para generar el Contrato de Venta en formato PDF.
-    Utiliza el modelo VentaViaje y la plantilla 'ventas/contrato_pdf.html'.
+    Vista para generar el Contrato de Venta en formato DOCX.
+    Utiliza python-docx para generar un documento Word editable.
     """
     model = VentaViaje
     
     def get(self, request, *args, **kwargs):
-        if not WEASYPRINT_AVAILABLE:
-             # Si WeasyPrint no está cargado, devuelve un error 503
-             return HttpResponse("Error en la generación de PDF. Faltan dependencias (GTK3).", status=503)
+        try:
+            from docx import Document
+            from docx.shared import Pt, RGBColor, Inches
+            from docx.oxml.ns import qn
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+        except ImportError:
+            return HttpResponse("Error: python-docx no está instalado. Ejecuta: pip install python-docx", status=500)
 
         self.object = self.get_object() 
         venta = self.object
         cliente = venta.cliente
         
-        # Intentar obtener el contrato generado si existe (para el contenido HTML)
-        contenido_html_sustituido = ''
-        try:
-            contrato_generado = ContratoGenerado.objects.get(venta=venta)
-            contenido_html_sustituido = contrato_generado.contenido_final
-        except ContratoGenerado.DoesNotExist:
-            # Si no existe contrato generado, usar contenido vacío o por defecto
-            contenido_html_sustituido = '<p>Contrato en proceso de generación.</p>'
-        
-        # Calcular la dirección completa del cliente
-        cliente_direccion_completa = (
-            cliente.direccion_fiscal if cliente.tipo_cliente == 'EMPRESA' and cliente.direccion_fiscal
-            else f"{cliente.nombre_completo_display} - {cliente.telefono or 'Sin teléfono'}"
-        )
-        
         # Calcular saldo pendiente (asegurarse de que no sea negativo)
         from decimal import Decimal
-        saldo_pendiente = max(Decimal('0.00'), venta.costo_venta_final - venta.cantidad_apertura)
+        saldo_pendiente = max(Decimal('0.00'), venta.costo_total_con_modificacion - venta.total_pagado)
         
-        # Convertir montos a texto
-        monto_apertura_texto = numero_a_texto(venta.cantidad_apertura)
-        saldo_pendiente_texto = numero_a_texto(saldo_pendiente)
+        # Usar plantilla con membrete si existe
+        template_path = os.path.join(settings.BASE_DIR, 'static', 'docx', 'membrete.docx')
+        if os.path.exists(template_path):
+            doc = Document(template_path)
+        else:
+            doc = Document()
         
-        # Contexto completo para el contrato
-        context = {
-            'venta': venta,
-            'cliente': cliente,
-            'fecha_generacion': formats.date_format(datetime.datetime.now(), r"j \d\e F \d\e Y"),
-            'cliente_direccion_completa': cliente_direccion_completa,
-            'contenido_html_sustituido': contenido_html_sustituido,
-            'monto_apertura_texto': monto_apertura_texto,
-            'saldo_pendiente': saldo_pendiente,
-            'saldo_pendiente_texto': saldo_pendiente_texto,
-        }
-
-        # 1. Renderizar la plantilla HTML específica para el CONTRATO
-        # Asegúrate de que tienes un archivo llamado 'ventas/contrato_pdf.html'
-        html_string = render_to_string('ventas/contrato_pdf.html', context, request=request)
+        # Configurar fuente predeterminada Arial 12
+        style = doc.styles['Normal']
+        style.font.name = 'Arial'
+        style.font.size = Pt(12)
+        style._element.rPr.rFonts.set(qn('w:eastAsia'), 'Arial')
         
-        # 2. Generar el PDF con WeasyPrint
-        # Es crucial usar base_url para que WeasyPrint pueda cargar CSS e imágenes
-        html = HTML(string=html_string, base_url=request.build_absolute_uri())
-        pdf_file = html.write_pdf(stylesheets=[])
+        MOVUMS_BLUE = RGBColor(0, 74, 142)  # #004a8e
+        TEXT_COLOR = RGBColor(47, 47, 47)  # #2f2f2f
         
-        # 3. Preparar la respuesta HTTP para el Contrato
-        response = HttpResponse(pdf_file, content_type='application/pdf')
-        # Nombre más descriptivo para el contrato
+        def set_run_font(run, size=12, bold=False, color=TEXT_COLOR):
+            run.font.name = 'Arial'
+            run.font.size = Pt(size)
+            run.bold = bold
+            run.font.color.rgb = color
+        
+        def add_paragraph(doc_obj, text='', size=12, bold=False, color=TEXT_COLOR, space_before=0, space_after=0, alignment=None):
+            paragraph = doc_obj.add_paragraph()
+            paragraph.paragraph_format.space_before = Pt(space_before)
+            paragraph.paragraph_format.space_after = Pt(space_after)
+            if alignment:
+                paragraph.alignment = alignment
+            if text:
+                run = paragraph.add_run(text)
+                set_run_font(run, size=size, bold=bold, color=color)
+            return paragraph
+        
+        def format_date(value):
+            if not value:
+                return ''
+            try:
+                if isinstance(value, datetime.date):
+                    return value.strftime('%d/%m/%Y')
+                return str(value)
+            except:
+                return str(value)
+        
+        def format_currency(value):
+            if value in (None, '', 0):
+                return '0.00'
+            try:
+                number = Decimal(str(value).replace(',', ''))
+            except:
+                return str(value)
+            return f"{number:,.2f}"
+        
+        # Título principal
+        titulo = add_paragraph(doc, 'CONTRATO DE SERVICIOS TURÍSTICOS', size=18, bold=True, color=MOVUMS_BLUE, space_after=10, alignment=WD_ALIGN_PARAGRAPH.CENTER)
+        
+        # Sección 1: DATOS GENERALES DEL CLIENTE
+        add_paragraph(doc, '1. DATOS GENERALES DEL CLIENTE', size=14, bold=True, color=MOVUMS_BLUE, space_before=15, space_after=8)
+        
+        # Nombre completo
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        run1 = p.add_run('Nombre completo: ')
+        set_run_font(run1, size=12, bold=True)
+        if cliente.nombre_completo_display:
+            run2 = p.add_run(cliente.nombre_completo_display)
+            set_run_font(run2, size=12)
+        else:
+            run2 = p.add_run('________________________')
+            set_run_font(run2, size=12)
+            run2.font.underline = True
+        
+        # Teléfono
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        run1 = p.add_run('Teléfono: ')
+        set_run_font(run1, size=12, bold=True)
+        if cliente.telefono:
+            run2 = p.add_run(cliente.telefono)
+            set_run_font(run2, size=12)
+        else:
+            run2 = p.add_run('________________________')
+            set_run_font(run2, size=12)
+            run2.font.underline = True
+        
+        # Email
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        run1 = p.add_run('Correo electrónico: ')
+        set_run_font(run1, size=12, bold=True)
+        if cliente.email:
+            run2 = p.add_run(cliente.email)
+            set_run_font(run2, size=12)
+        else:
+            run2 = p.add_run('________________________')
+            set_run_font(run2, size=12)
+            run2.font.underline = True
+        
+        # Identificación
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        run1 = p.add_run('Identificación oficial: ')
+        set_run_font(run1, size=12, bold=True)
+        if cliente.documento_identificacion:
+            run2 = p.add_run(cliente.documento_identificacion)
+            set_run_font(run2, size=12)
+        else:
+            run2 = p.add_run('________________________')
+            set_run_font(run2, size=12)
+            run2.font.underline = True
+        run3 = p.add_run('  INE / Pasaporte / Otro: ')
+        set_run_font(run3, size=12)
+        # El tipo de identificación siempre va con línea porque no lo tenemos en el sistema
+        run4 = p.add_run('________')
+        set_run_font(run4, size=12)
+        run4.font.underline = True
+        
+        # Acompañantes
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        run1 = p.add_run('Acompañantes:')
+        set_run_font(run1, size=12, bold=True)
+        
+        # Procesar acompañantes: quitar saltos de línea y separar con comas
+        p = doc.add_paragraph()
+        p.paragraph_format.left_indent = Inches(0.5)
+        p.paragraph_format.space_after = Pt(4)
+        run1 = p.add_run('• Nombre(s) y edad(es): ')
+        set_run_font(run1, size=12, bold=True)
+        if venta.pasajeros:
+            # Limpiar el texto: quitar saltos de línea y espacios extra, separar con comas
+            pasajeros_texto = venta.pasajeros.replace('\n', ', ').replace('\r', ', ')
+            # Limpiar espacios múltiples y comas múltiples
+            import re
+            pasajeros_texto = re.sub(r'\s+', ' ', pasajeros_texto)
+            pasajeros_texto = re.sub(r',\s*,', ',', pasajeros_texto)
+            pasajeros_texto = pasajeros_texto.strip().rstrip(',')
+            run2 = p.add_run(pasajeros_texto)
+            set_run_font(run2, size=12)
+        else:
+            run2 = p.add_run('________________________')
+            set_run_font(run2, size=12)
+            run2.font.underline = True
+        
+        # Sección 2: DATOS DEL SERVICIO TURÍSTICO CONTRATADO
+        add_paragraph(doc, '2. DATOS DEL SERVICIO TURÍSTICO CONTRATADO', size=14, bold=True, color=MOVUMS_BLUE, space_before=15, space_after=8)
+        
+        campos_servicio = [
+            ('Nombre del Paquete:', ''),
+            ('Destino(s):', ''),
+            ('Fecha de inicio:', format_date(venta.fecha_inicio_viaje) if venta.fecha_inicio_viaje else '//2025'),
+            ('Fecha de término:', format_date(venta.fecha_fin_viaje) if venta.fecha_fin_viaje else '//2025'),
+            ('Número total de viajeros:', ''),
+        ]
+        
+        for label, value in campos_servicio:
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(6)
+            run1 = p.add_run(f'{label} ')
+            set_run_font(run1, size=12, bold=True)
+            if value:
+                run2 = p.add_run(value)
+                set_run_font(run2, size=12)
+            else:
+                run2 = p.add_run('________________________')
+                set_run_font(run2, size=12)
+                run2.font.underline = True
+        
+        # Sección 3: TRANSPORTE
+        add_paragraph(doc, '3. TRANSPORTE', size=14, bold=True, color=MOVUMS_BLUE, space_before=15, space_after=8)
+        
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        run1 = p.add_run('Tipo de transporte: ')
+        set_run_font(run1, size=12, bold=True)
+        run2 = p.add_run('________________________')
+        set_run_font(run2, size=12)
+        run2.font.underline = True
+        run3 = p.add_run('  Avión / Autobús / Transporte terrestre privado / Otro')
+        set_run_font(run3, size=12)
+        
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        run1 = p.add_run('Proveedor: ')
+        set_run_font(run1, size=12, bold=True)
+        if venta.proveedor:
+            run2 = p.add_run(venta.proveedor.nombre)
+            set_run_font(run2, size=12)
+        else:
+            run2 = p.add_run('________________________')
+            set_run_font(run2, size=12)
+            run2.font.underline = True
+        
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        run1 = p.add_run('Número de viaje o clave de reservación: ')
+        set_run_font(run1, size=12, bold=True)
+        run2 = p.add_run('________________________')
+        set_run_font(run2, size=12)
+        run2.font.underline = True
+        
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        run1 = p.add_run('Incluye equipaje?: ')
+        set_run_font(run1, size=12, bold=True)
+        run2 = p.add_run('________________________')
+        set_run_font(run2, size=12)
+        run2.font.underline = True
+        run3 = p.add_run('  Sí / No / Detallar: ')
+        set_run_font(run3, size=12)
+        run4 = p.add_run('________________________')
+        set_run_font(run4, size=12)
+        run4.font.underline = True
+        
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        run = p.add_run('(La AGENCIA no garantiza horarios o cambios operados por el transportista.)')
+        set_run_font(run, size=11, color=RGBColor(102, 102, 102))
+        run.italic = True
+        
+        # Sección 4: HOSPEDAJE
+        add_paragraph(doc, '4. HOSPEDAJE', size=14, bold=True, color=MOVUMS_BLUE, space_before=15, space_after=8)
+        
+        campos_hospedaje = [
+            ('Hotel:', ''),
+            ('Categoría:', ''),
+            ('Dirección:', ''),
+            ('Noches incluidas:', ''),
+            ('Tipo de habitación:', ''),
+        ]
+        
+        for label, value in campos_hospedaje:
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(6)
+            run1 = p.add_run(f'{label} ')
+            set_run_font(run1, size=12, bold=True)
+            run2 = p.add_run('________________________')
+            set_run_font(run2, size=12)
+            run2.font.underline = True
+        
+        # Plan de alimentos
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        run1 = p.add_run('Plan de alimentos:')
+        set_run_font(run1, size=12, bold=True)
+        
+        planes = ['Sólo hospedaje', 'Desayuno', 'Media pensión', 'Todo incluido', 'Otro:']
+        for plan in planes:
+            p = doc.add_paragraph()
+            p.paragraph_format.left_indent = Inches(0.5)
+            p.paragraph_format.space_after = Pt(4)
+            run1 = p.add_run('○ ')
+            set_run_font(run1, size=12)
+            run2 = p.add_run(plan)
+            set_run_font(run2, size=12)
+            if plan == 'Otro:':
+                run3 = p.add_run(' ________________________')
+                set_run_font(run3, size=12)
+                run3.font.underline = True
+        
+        # Sección 5: SERVICIOS ADICIONALES INCLUIDOS
+        add_paragraph(doc, '5. SERVICIOS ADICIONALES INCLUIDOS', size=14, bold=True, color=MOVUMS_BLUE, space_before=15, space_after=8)
+        
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        run = p.add_run('(Marca los que apliquen)')
+        set_run_font(run, size=11, color=RGBColor(102, 102, 102))
+        run.italic = True
+        
+        servicios_adicionales = [
+            'Traslado aeropuerto-hotel-aeropuerto',
+            ('Tours o excursiones (describir):', True),
+            'Coordinador o guía turístico',
+            'Entradas o accesos',
+            'Seguro de viajero nacional (si aplica)',
+            ('Otros servicios incluidos:', True),
+        ]
+        
+        for servicio in servicios_adicionales:
+            p = doc.add_paragraph()
+            p.paragraph_format.left_indent = Inches(0.5)
+            p.paragraph_format.space_after = Pt(4)
+            run1 = p.add_run('☐ ')
+            set_run_font(run1, size=12)
+            if isinstance(servicio, tuple):
+                run2 = p.add_run(servicio[0])
+                set_run_font(run2, size=12)
+                run3 = p.add_run(' ________________________')
+                set_run_font(run3, size=12)
+                run3.font.underline = True
+            else:
+                run2 = p.add_run(servicio)
+                set_run_font(run2, size=12)
+        
+        # Sección 6: SERVICIOS NO INCLUIDOS
+        doc.add_page_break()
+        add_paragraph(doc, '6. SERVICIOS NO INCLUIDOS', size=14, bold=True, color=MOVUMS_BLUE, space_before=15, space_after=8)
+        
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        run = p.add_run('(Para evitar reclamaciones)')
+        set_run_font(run, size=11, color=RGBColor(102, 102, 102))
+        run.italic = True
+        
+        servicios_no_incluidos = [
+            'Impuestos locales, resort fees o cuotas gubernamentales',
+            'Propinas',
+            'Servicios no listados como incluidos',
+            'Actividades opcionales',
+            'Gastos personales',
+            'Sobrepeso de equipaje',
+            'Comidas no contempladas',
+        ]
+        
+        for servicio in servicios_no_incluidos:
+            p = doc.add_paragraph()
+            p.paragraph_format.left_indent = Inches(0.5)
+            p.paragraph_format.space_after = Pt(4)
+            run = p.add_run(f'• {servicio}')
+            set_run_font(run, size=12)
+        
+        # Sección 7: PRECIO Y CONDICIONES ECONÓMICAS
+        add_paragraph(doc, '7. PRECIO Y CONDICIONES ECONÓMICAS', size=14, bold=True, color=MOVUMS_BLUE, space_before=15, space_after=8)
+        
+        # Precio total
+        p = doc.add_paragraph()
+        p.paragraph_format.left_indent = Inches(0.5)
+        p.paragraph_format.space_after = Pt(6)
+        run1 = p.add_run('Precio total del paquete: ')
+        set_run_font(run1, size=12, bold=True)
+        if venta.tipo_viaje == 'INT':
+            if venta.costo_total_con_modificacion_usd:
+                run2 = p.add_run(f'USD ${format_currency(venta.costo_total_con_modificacion_usd)}')
+                set_run_font(run2, size=12)
+            else:
+                run2 = p.add_run('USD $________________________')
+                set_run_font(run2, size=12)
+                run2.font.underline = True
+        else:
+            if venta.costo_total_con_modificacion:
+                run2 = p.add_run(f'${format_currency(venta.costo_total_con_modificacion)} MXN')
+                set_run_font(run2, size=12)
+            else:
+                run2 = p.add_run('$________________________ MXN')
+                set_run_font(run2, size=12)
+                run2.font.underline = True
+        
+        # Anticipo recibido
+        p = doc.add_paragraph()
+        p.paragraph_format.left_indent = Inches(0.5)
+        p.paragraph_format.space_after = Pt(6)
+        run1 = p.add_run('Anticipo recibido: ')
+        set_run_font(run1, size=12, bold=True)
+        if venta.tipo_viaje == 'INT':
+            if venta.cantidad_apertura_usd:
+                run2 = p.add_run(f'USD ${format_currency(venta.cantidad_apertura_usd)}')
+                set_run_font(run2, size=12)
+            else:
+                run2 = p.add_run('USD $________________________ MXN')
+                set_run_font(run2, size=12)
+                run2.font.underline = True
+        else:
+            if venta.cantidad_apertura:
+                run2 = p.add_run(f'${format_currency(venta.cantidad_apertura)} MXN')
+                set_run_font(run2, size=12)
+            else:
+                run2 = p.add_run('$________________________ MXN')
+                set_run_font(run2, size=12)
+                run2.font.underline = True
+        
+        # Saldo pendiente
+        p = doc.add_paragraph()
+        p.paragraph_format.left_indent = Inches(0.5)
+        p.paragraph_format.space_after = Pt(6)
+        run1 = p.add_run('Saldo pendiente: ')
+        set_run_font(run1, size=12, bold=True)
+        if venta.tipo_viaje == 'INT':
+            if venta.saldo_restante_usd:
+                run2 = p.add_run(f'USD ${format_currency(venta.saldo_restante_usd)}')
+                set_run_font(run2, size=12)
+            else:
+                run2 = p.add_run('USD $________________________ MXN')
+                set_run_font(run2, size=12)
+                run2.font.underline = True
+        else:
+            if saldo_pendiente:
+                run2 = p.add_run(f'${format_currency(saldo_pendiente)} MXN')
+                set_run_font(run2, size=12)
+            else:
+                run2 = p.add_run('$________________________ MXN')
+                set_run_font(run2, size=12)
+                run2.font.underline = True
+        
+        # Fecha límite de pago
+        p = doc.add_paragraph()
+        p.paragraph_format.left_indent = Inches(0.5)
+        p.paragraph_format.space_after = Pt(6)
+        run1 = p.add_run('Fecha límite de pago total: ')
+        set_run_font(run1, size=12, bold=True)
+        run2 = p.add_run('________________________')
+        set_run_font(run2, size=12)
+        run2.font.underline = True
+        if venta.fecha_vencimiento_pago:
+            run3 = p.add_run(f' {format_date(venta.fecha_vencimiento_pago)}')
+            set_run_font(run3, size=12)
+        else:
+            run3 = p.add_run(' //2025')
+            set_run_font(run3, size=12)
+        
+        # Desglose de pagos
+        p = doc.add_paragraph()
+        p.paragraph_format.left_indent = Inches(0.5)
+        p.paragraph_format.space_after = Pt(6)
+        run1 = p.add_run('Desglose de pagos (si aplica):')
+        set_run_font(run1, size=12, bold=True)
+        
+        for i in range(1, 4):
+            p = doc.add_paragraph()
+            p.paragraph_format.left_indent = Inches(1.0)
+            p.paragraph_format.space_after = Pt(4)
+            run1 = p.add_run(f'Parcialidad {i}: $________________________  Fecha: ________________________ //2025')
+            set_run_font(run1, size=12)
+            # Subrayar espacios en blanco
+            for run in p.runs:
+                if '________________' in run.text:
+                    run.font.underline = True
+        
+        # Sección 8: DOCUMENTACIÓN ENTREGADA AL CLIENTE
+        doc.add_page_break()
+        add_paragraph(doc, '8. DOCUMENTACIÓN ENTREGADA AL CLIENTE', size=14, bold=True, color=MOVUMS_BLUE, space_before=15, space_after=8)
+        
+        documentacion = [
+            'Contrato firmado',
+            'Copia de esta caratula',
+            'Itinerario preliminar',
+            'Políticas del proveedor',
+            'Comprobantes de pago',
+            'Claves de reservación',
+            'Información de contacto para emergencias',
+        ]
+        
+        for doc_item in documentacion:
+            p = doc.add_paragraph()
+            p.paragraph_format.left_indent = Inches(0.5)
+            p.paragraph_format.space_after = Pt(4)
+            run = p.add_run(f'☐ {doc_item}')
+            set_run_font(run, size=12)
+        
+        # Sección 9: DECLARACIÓN DEL CLIENTE
+        add_paragraph(doc, '9. DECLARACIÓN DEL CLIENTE', size=14, bold=True, color=MOVUMS_BLUE, space_before=15, space_after=8)
+        
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        run1 = p.add_run('EL CLIENTE declara que:')
+        set_run_font(run1, size=12, bold=True)
+        
+        declaraciones = [
+            'Ha revisado y entendido toda la información contenida en este Anexo.',
+            'Proporcionó datos veraces y completos.',
+            'Acepta las condiciones del servicio, políticas de proveedores y cláusulas del contrato.',
+        ]
+        
+        for decl in declaraciones:
+            p = doc.add_paragraph()
+            p.paragraph_format.left_indent = Inches(0.5)
+            p.paragraph_format.space_after = Pt(4)
+            run = p.add_run(f'• {decl}')
+            set_run_font(run, size=12)
+        
+        # Sección 10: TÉRMINOS Y CONDICIONES
+        doc.add_page_break()
+        add_paragraph(doc, '10. TÉRMINOS Y CONDICIONES', size=14, bold=True, color=MOVUMS_BLUE, space_before=15, space_after=8)
+        
+        # Título del contrato
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(8)
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = p.add_run('CONTRATO DE MEDIACIÓN PARA LA PRESTACIÓN DE SERVICIOS TURÍSTICOS')
+        set_run_font(run, size=12, bold=True)
+        
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        run = p.add_run('QUE CELEBRAN POR UNA PARTE LA AGENCIA DE VIAJES "GRUPO IMVED, S.A. DE C.V." ACTUANDO EN USO DE SU NOMBRE COMERCIAL MOVUMS THE TRAVEL STORE, EN ADELANTE DENOMINADA COMO "LA AGENCIA", Y POR LA OTRA EL (LA) C')
+        set_run_font(run, size=12)
+        run2 = p.add_run('________________________')
+        set_run_font(run2, size=12)
+        run2.font.underline = True
+        run3 = p.add_run(' A QUIEN EN LO SUCESIVO SE LE DENOMINARÁ "EL CLIENTE", AL TENOR DE LAS SIGUIENTES DEFINICIONES, DECLARACIONES Y CLÁUSULAS:')
+        set_run_font(run3, size=12)
+        
+        # GLOSARIO
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(10)
+        p.paragraph_format.space_after = Pt(6)
+        run = p.add_run('GLOSARIO')
+        set_run_font(run, size=12, bold=True)
+        
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(4)
+        run = p.add_run('Para efectos del presente contrato, se entiende por:')
+        set_run_font(run, size=12)
+        
+        glosario_items = [
+            'Agencia: Es el proveedor de servicios turísticos que intermedia, contrata u ofrece servicios o productos turístico nacionales, previo pago de un precio cierto y determinado.',
+            'Cliente: Consumidor que contrata los servicios turísticos nacionales mediante el pago de un precio cierto y determinado.',
+            'Paquete turístico: Integración de uno o más servicios turísticos en un solo producto, ofrecidos al Cliente y detallado en el Anexo del presente contrato.',
+            'Servicio turístico: Prestación de carácter comercial en transporte nacional, hospedaje, alimentación, excursiones u otros servicios relacionados, detallados en el Anexo del presente contrato.',
+            'Caratula: Documento que detalla servicios, fechas, precios y condiciones del servicio turístico contratado.',
+        ]
+        
+        for item in glosario_items:
+            p = doc.add_paragraph()
+            p.paragraph_format.left_indent = Inches(0.5)
+            p.paragraph_format.space_after = Pt(4)
+            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            run1 = p.add_run('◆ ')
+            set_run_font(run1, size=12)
+            run2 = p.add_run(item)
+            set_run_font(run2, size=12)
+        
+        # DECLARACIONES
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(10)
+        p.paragraph_format.space_after = Pt(6)
+        run = p.add_run('DECLARACIONES')
+        set_run_font(run, size=12, bold=True)
+        
+        # Declaración I - LA AGENCIA
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        run = p.add_run('I. Declara LA AGENCIA:')
+        set_run_font(run, size=12, bold=True)
+        
+        declaraciones_agencia = [
+            'Ser una persona moral legalmente constituida conforme a las leyes mexicanas.',
+            'Ser un Prestador de Servicios Turísticos con Razón Social: GRUPO IMVED, S.A. de C.V.',
+            'Ser la única propietaria de la marca MOVUMS THE TRAVEL STORE',
+            'RFC GIM190722FS7 y domicilio ubicado en: Plaza Mora, Juárez Sur, 321, interior 18, Colonia Centro, Texcoco, Estado de México, C.P. 56100.',
+            'Teléfono, correo electrónico y horario de atención al público: 59 59319954, 5951255279 ventas@movums.com, lunes a sábado de 09:00 a 18:00 horas.',
+            'Contar con infraestructura, personal capacitado y experiencia suficiente para la prestación de los servicios turísticos contratados.',
+            'Haber informado previamente al Cliente sobre los precios, tarifas, condiciones, características y costo total del servicio turístico contratado.',
+        ]
+        
+        for item in declaraciones_agencia:
+            p = doc.add_paragraph()
+            p.paragraph_format.left_indent = Inches(0.5)
+            p.paragraph_format.space_after = Pt(4)
+            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            run1 = p.add_run('◆ ')
+            set_run_font(run1, size=12)
+            run2 = p.add_run(item)
+            set_run_font(run2, size=12)
+        
+        # Declaración II - EL CLIENTE
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(6)
+        p.paragraph_format.space_after = Pt(6)
+        run = p.add_run('II. Declara EL CLIENTE:')
+        set_run_font(run, size=12, bold=True)
+        
+        declaraciones_cliente = [
+            'Ser persona física/moral con capacidad legal y económica para obligarse en términos del presente contrato.',
+            'En caso de persona moral: Ser una persona moral legalmente constituida conforme a las leyes mexicanas, conforme lo acredita con copia del instrumento número ____________, de fecha ___________, otorgado ante la Fe del Notario Público Número ____, de ____________, y que el(la) C. _________ __________________ en este acto interviene en su carácter de Representante Legal, calidad que acredita con copia del instrumento número _______, de fecha _________, otorgada ante la Fe del Notario Público número _______ del _________, facultad y calidad que no le han sido revocadas, modificadas o limitadas a la fecha de firma del presente contrato.',
+            'Encontrarse inscrito en el Registro Federal de Contribuyentes con la clave que ha manifestado.',
+            'Haber recibido previamente de LA AGENCIA información útil, precisa, veraz y detallada sobre los servicios objeto del presente contrato.',
+            'Proporciona su nombre, domicilio, número telefónico y correo electrónico, tal y como lo ha señalado en la caratula de prestación de servicios, acreditando los mismos con copia de los documentos idóneos para tal efecto.',
+        ]
+        
+        for item in declaraciones_cliente:
+            p = doc.add_paragraph()
+            p.paragraph_format.left_indent = Inches(0.5)
+            p.paragraph_format.space_after = Pt(4)
+            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            run1 = p.add_run('◆ ')
+            set_run_font(run1, size=12)
+            # Procesar líneas en blanco en el texto
+            item_text = item
+            parts = item_text.split('____________')
+            for i, part in enumerate(parts):
+                if part:
+                    run2 = p.add_run(part)
+                    set_run_font(run2, size=12)
+                if i < len(parts) - 1:
+                    run_blank = p.add_run('____________')
+                    set_run_font(run_blank, size=12)
+                    run_blank.font.underline = True
+        
+        # CLÁUSULAS - 3 saltos de línea para bajar de página
+        add_paragraph(doc, '', space_after=0)
+        add_paragraph(doc, '', space_after=0)
+        add_paragraph(doc, '', space_after=0)
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(10)
+        p.paragraph_format.space_after = Pt(6)
+        run = p.add_run('CLÁUSULAS')
+        set_run_font(run, size=12, bold=True)
+        
+        # Cláusulas
+        clausulas = [
+            ('PRIMERA. CONSENTIMIENTO.', 'Las partes manifiestan su voluntad de celebrar el presente contrato, cuya naturaleza jurídica es la mediación para la prestación de servicios turísticos.'),
+            ('SEGUNDA. OBJETO.', 'LA AGENCIA intermediará, contratará u ofrecerá servicios turísticos detallados en la CARATULA, previo pago del Cliente de un precio cierto y determinado.'),
+            ('TERCERA. PRECIO, FORMA Y LUGAR DE PAGO.', 'Las partes manifiestan su conformidad en que el precio total a pagar por EL CLIENTE como contraprestación del Servicio turístico, es la cantidad que por cada concepto se indica en la CARATULA de este Contrato. El importe señalado en la CARATULA, contempla todas las cantidades y conceptos referentes al Servicio turístico, por lo que LA AGENCIA se obliga a respetar en todo momento dicho costo sin poder cobrar otra cantidad o condicionar la prestación del Servicio turístico contratado a la adquisición de otro servicio no requerido por El cliente, salvo que El cliente autorice de manera escrita algún otro cobro no estipulado en el presente Contrato. EL CLIENTE efectuará el pago pactado por el Servicio turístico señalado en la caratula del presente Contrato en los términos y condiciones acordadas pudiendo ser:\na) Al contado: en efectivo, con tarjeta de débito, tarjeta de crédito, transferencia bancaria, y/o cheque en el domicilio de la agencia en moneda nacional, sin menoscabo de poderlo hacer en moneda extranjera al tipo de cambio publicado en el Diario Oficial de la Federación al día en que el pago se efectúe.\nb) A plazos: El cliente podrá, previo acuerdo con La agencia a pagar en parcialidades, para lo cual, La agencia deberá de entregar a El CLIENTE la información por escrito de las fechas, así como los montos parciales a pagar.\nc) En caso de que El cliente realice el pago con cheque y no se cubra el pago por causas imputables al librador, La agencia tendrá el derecho de realizar el cobro adicional del 20% (veinte por ciento) del valor del documento, por concepto de daños y perjuicios, en caso de que el cheque sea devuelto por causas imputables al librador, conforme al artículo 193 de la Ley General del Títulos y Operaciones de Crédito.'),
+            ('QUINTA. OBLIGACIONES DE LA AGENCIA.', 'LA AGENCIA SE OBLIGA A:\nA) Cumplir lo pactado en el contrato.\nB) Entregar a EL CLIENTE copia del contrato y constancias de reservación.\nC) Proporcionar a EL CLIENTE boletos, claves de reservación y documentos de viaje.\nD) Auxiliar a EL CLIENTE en emergencias y gestionar indemnizaciones relacionadas con el servicio contratado\nE) Solicitar los Servicios turísticos que se especifican en la caratula de este Contrato por cuenta de EL CLIENTE de acuerdo a la disponibilidad de los mismos, a contratarlos fungiendo como intermediario entre éste y las personas encargadas de proporcionar directamente el Servicio turístico.\nF) Coadyuvar a EL CLIENTE para reclamar ante el prestador del servicio final, las indemnizaciones que correspondan.\nG) Respetar la Ley Federal de Protección al Consumidor y la NOM-010-TUR-2001.'),
+            ('SEXTA. OBLIGACIONES DE EL CLIENTE:', 'Cumplir con lo establecido en el presente contrato:\nA) Proporcionar previo a la prestación del servicio los datos generales veraces y documentos requeridos para los servicios contratados (como pueden ser de manera enunciativa más no limitativa, el nombre, edad, identificación, comprobante de domicilio, pasaporte, visas, vacunas, constancia de situación fiscal, número telefónico, correo electrónico). Proporcionará sus propios datos y documentos de su persona así como el de las personas que lo acompañen.\nB) Realizar pagos a la AGENCIA conforme a lo pactado en el presente contrato.\nC) Respetar reglamentos de prestadores finales.\nD) Notificar por lo menos con CINCO DÍAS HÁBILES y por escrito a LA AGENCIA cualquier cambio o cancelación una vez aceptado el servicio.'),
+            ('SÉPTIMA. VIGENCIA.', 'El contrato estará vigente mientras se presten los servicios y se cumplan las obligaciones de pago, tiempo en que el presente Contrato surtirá todos sus efectos legales.'),
+            ('OCTAVA. CASO FORTUITO Y FUERZA MAYOR.', 'Se entiende por caso fortuito o fuerza mayor aquellos hechos o acontecimientos ajenos a la voluntad de las partes, que sean imprevisibles, irresistibles, insuperables y que no provengan de negligencia, dolo o falta de cuidado de alguna de ellas. No se considerarán caso fortuito o fuerza mayor las enfermedades personales de EL CLIENTE o de sus acompañantes. EL CLIENTE reconoce que la AGENCIA no será responsable por errores, omisiones, falta de entrega de documentos, información incompleta o inexacta, ni por cualquier otra actuación u omisión atribuible al propio CLIENTE que afecte la reservación, emisión de boletos, acceso a servicios turísticos, cambios, cancelaciones o cualquier trámite derivado del presente contrato. Cuando el servicio turístico no pueda prestarse total o parcialmente por caso fortuito o fuerza mayor, la AGENCIA reembolsará a EL CLIENTE las cantidades que, conforme a las políticas de los prestadores finales (aerolíneas, hoteles, operadores, etc.), sean efectivamente recuperables y devueltas a la AGENCIA. EL CLIENTE tendrá derecho a recibir el reembolso correspondiente únicamente respecto de los importes efectivamente recuperados. En caso de que el servicio turístico se haya prestado de manera parcial, EL CLIENTE tendrá derecho a un reembolso proporcional exclusivamente respecto de los servicios no utilizados, conforme a lo que determine el proveedor correspondiente.'),
+            ('NOVENA. CAMBIOS DE ORDEN DE LOS SERVICIOS CON AUTORIZACIÓN DE EL CLIENTE.', 'La agencia podrá modificar el orden de los Servicios turísticos indicados en el presente Contrato, para un mejor desarrollo de los mismos o por las causas que así lo justifiquen, siempre y cuando respete la cantidad y calidad de los Servicios turísticos que se hayan contratado. Este será con la autorización por escrito de EL CLIENTE, sea cual fuese la causa. El cliente no podrá hacer cambios de fechas, rutas, ni servicios, sin previa autorización de La agencia, en caso de que dichos cambios tengan un costo, éste será indicado en al CARATULA del presente Contrato. EL CLIENTE reconoce que, una vez firmado el presente contrato y realizado el anticipo, pago parcial o total, los pagos efectuados no son cancelables ni reembolsables, en virtud de que la AGENCIA realiza de manera inmediata gestiones, reservaciones y pagos a terceros proveedores, los cuales se rigen por políticas propias de cancelación y reembolso que no dependen de la AGENCIA. EL CLIENTE acepta que cualquier solicitud de cambio, corrección o modificación respecto a fechas, nombres, itinerarios, servicios contratados o cualquier otro aspecto, estará sujeta a la disponibilidad de los proveedores, así como al pago de cargos adicionales o penalidades, conforme a las políticas vigentes de dichos proveedores.'),
+            ('DÉCIMA. CANCELACIÓN.', 'EL CLIENTE reconoce que, una vez firmado el presente Contrato y realizado el anticipo, pago parcial o total, los pagos no son cancelables ni reembolsables, debido a que la AGENCIA realiza de manera inmediata pagos, reservaciones y gestiones con terceros proveedores, cuyas políticas no permiten cancelaciones ni devoluciones. Cualquier solicitud de cancelación o modificación deberá realizarse por escrito, pero no dará derecho a devolución, salvo que algún proveedor permita recuperar total o parcialmente los montos pagados, caso en el cual la AGENCIA entregará al CLIENTE únicamente las cantidades efectivamente devueltas por dicho proveedor. Las modificaciones estarán sujetas a disponibilidad y podrán generar cargos adicionales conforme a las políticas de los prestadores finales. La presente cláusula aplica únicamente a solicitudes voluntarias de cancelación formuladas por EL CLIENTE. Lo anterior es independiente de las consecuencias aplicables por rescisión por incumplimiento, reguladas en las cláusulas siguientes.'),
+            ('DÉCIMA PRIMERA. VUELOS.', 'EL CLIENTE reconoce que los servicios aéreos incluidos en el paquete vacacional son operados exclusivamente por la aerolínea correspondiente, por lo que Movums The Travel Store no es responsable por cambios de itinerario, demoras, reprogramaciones, sobreventas, cancelaciones, modificaciones operativas o cualquier otra decisión adoptada por la aerolínea, toda vez que dichos actos son ajenos al control de la AGENCIA. EL CLIENTE acepta que toda compensación, reembolso, cambio o beneficio derivado de acciones de la aerolínea está sujeto exclusivamente a las políticas y procedimientos de dicha aerolínea, y que la AGENCIA actuará únicamente como intermediaria en la gestión correspondiente.'),
+            ('DÉCIMA SEGUNDA. RESCISIÓN.', 'Procede si alguna parte incumple lo pactado o si el servicio no corresponde a lo solicitado. En caso de rescisión del presente Contrato, la parte que incumpla deberá de pagar lo correspondiente a la pena convencional. La AGENCIA podrá dar por terminado el presente contrato cuando EL CLIENTE no realice los depósitos o pagos en las fechas pactadas. En este supuesto, la AGENCIA notificará al CLIENTE mediante los medios de contacto proporcionados, y dicha terminación se considerará efectiva desde la fecha del incumplimiento. El CLIENTE reconoce que la falta de pago oportuno constituye un incumplimiento del contrato y acepta que los anticipos podrán aplicarse a cargos, penalidades o gastos ya generados conforme a las políticas de proveedores y prestadores de servicios turísticos. La rescisión no será considerada como una cancelación voluntaria, sino como una consecuencia jurídica del incumplimiento de cualquiera de las partes.'),
+            ('DÉCIMA TERCERA. PENA CONVENCIONAL.', 'La parte incumplida pagará el 20% (veinte por ciento) del precio total del servicio, sin incluir IVA.'),
+            ('DÉCIMA CUARTA. RESERVACIONES Y PAGOS.', 'La aceptación y formalización del presente contrato se considerará efectiva una vez que EL CLIENTE envíe el contrato debidamente firmado y efectúe el anticipo, pago parcial o total, mismo que no es reembolsable, en virtud de que Movums The Travel Store realiza gestiones inmediatas con terceros proveedores para asegurar la disponibilidad de los servicios solicitados.'),
+            ('DÉCIMA QUINTA. JURISDICCIÓN.', 'Las partes se someten a PROFECO y, en su caso, a tribunales competentes de Texcoco, Estado de México.'),
+        ]
+        
+        for idx, (titulo, contenido) in enumerate(clausulas):
+            # Salto de página antes de QUINTA. OBLIGACIONES DE LA AGENCIA
+            if 'QUINTA. OBLIGACIONES DE LA AGENCIA' in titulo:
+                doc.add_page_break()
+            
+            p = doc.add_paragraph()
+            p.paragraph_format.space_before = Pt(6)
+            p.paragraph_format.space_after = Pt(4)
+            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            run1 = p.add_run(titulo)
+            set_run_font(run1, size=12, bold=True)
+            
+            # Procesar el contenido que puede tener saltos de línea y subsecciones
+            contenido_lines = contenido.split('\n')
+            for i, line in enumerate(contenido_lines):
+                if i == 0 and line.strip():
+                    # Primera línea va en el mismo párrafo
+                    run2 = p.add_run(' ' + line)
+                    set_run_font(run2, size=12)
+                elif line.strip():
+                    # Líneas subsecuentes en nuevos párrafos
+                    p2 = doc.add_paragraph()
+                    p2.paragraph_format.left_indent = Inches(0.5)
+                    p2.paragraph_format.space_after = Pt(3)
+                    p2.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                    run = p2.add_run(line)
+                    set_run_font(run, size=12)
+        
+        # Sección 11: FIRMAS (combinada con las firmas del contrato)
+        add_paragraph(doc, '11. FIRMAS', size=14, bold=True, color=MOVUMS_BLUE, space_before=15, space_after=10)
+        
+        # Firma Cliente
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        run = p.add_run('CLIENTE')
+        set_run_font(run, size=12, bold=True)
+        
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(15)
+        run1 = p.add_run('Nombre y firma: ')
+        set_run_font(run1, size=12, bold=True)
+        run2 = p.add_run('___________________________________________')
+        set_run_font(run2, size=12)
+        run2.font.underline = True
+        
+        # Firma Agencia
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after = Pt(6)
+        run = p.add_run('AGENCIA – Movums The Travel Store')
+        set_run_font(run, size=12, bold=True)
+        
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        run1 = p.add_run('Nombre y firma del representante: ')
+        set_run_font(run1, size=12, bold=True)
+        run2 = p.add_run('____________________________')
+        set_run_font(run2, size=12)
+        run2.font.underline = True
+        
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        run1 = p.add_run('Fecha: ')
+        set_run_font(run1, size=12, bold=True)
+        run2 = p.add_run('//2025')
+        set_run_font(run2, size=12)
+        
+        # Preparar respuesta HTTP
+        from io import BytesIO
+        buffer = BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+        
         nombre_cliente_safe = venta.cliente.nombre_completo_display.replace(' ', '_').replace('/', '_')
-        filename = f"Contrato_Venta_{venta.pk}_{nombre_cliente_safe}.pdf"
-        response['Content-Disposition'] = f'attachment; filename="{filename}"' 
+        filename = f"Contrato_Venta_{venta.pk}_{nombre_cliente_safe}.docx"
         
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Length'] = str(len(buffer.getvalue()))
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
+        
+        buffer.close()
         return response
 
 # ------------------- 11. ELIMINACIÓN DE VENTA -------------------
@@ -2278,10 +2937,9 @@ class GenerarCotizacionDocxView(LoginRequiredMixin, View):
 
         fecha_paragraph = doc.add_paragraph()
         fecha_paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        fecha_paragraph.paragraph_format.space_after = Pt(6)
         fecha_run = fecha_paragraph.add_run(f"Fecha de Cotización: {format_date(general.get('fechaCotizacion'))}")
         set_run_font(fecha_run, size=14, bold=True, color=MOVUMS_BLUE)
-
-        add_paragraph(doc, "", space_after=4)
 
         info_table = doc.add_table(rows=4, cols=3)
         info_data = [
@@ -2293,78 +2951,265 @@ class GenerarCotizacionDocxView(LoginRequiredMixin, View):
         for row_idx, (label, v1, v2) in enumerate(info_data):
             row = info_table.rows[row_idx].cells
             label_run = row[0].paragraphs[0].add_run(label)
-            set_run_font(label_run, size=12, bold=True, color=MOVUMS_BLUE)
+            set_run_font(label_run, size=14, bold=True, color=MOVUMS_BLUE)
             val1_run = row[1].paragraphs[0].add_run(v1)
             set_run_font(val1_run, size=12)
             val2_run = row[2].paragraphs[0].add_run(v2)
             set_run_font(val2_run, size=12)
 
         add_paragraph(doc, "", space_after=6)
+        
+        # Salto de línea entre la información general y el contenido de la cotización
+        spacer = doc.add_paragraph()
+        spacer.paragraph_format.space_after = Pt(6)
 
-        def render_block(title, subtitle, details, total_text=None):
-            add_paragraph(doc, title, size=18, bold=True, color=MOVUMS_BLUE, space_before=4, space_after=2)
-            if subtitle:
-                add_paragraph(doc, subtitle, size=18, bold=True, color=TEXT_COLOR, space_after=2)
-            for label, value in details:
-                paragraph = doc.add_paragraph()
-                paragraph.paragraph_format.space_after = Pt(2)
-                run_title = paragraph.add_run(f"{label} ")
-                set_run_font(run_title, size=12, bold=True)
-                run_value = paragraph.add_run(value)
-                set_run_font(run_value, size=12)
-            if total_text:
-                add_paragraph(doc, total_text, size=16, bold=True, color=MOVUMS_BLUE, space_before=4, space_after=4)
-            add_paragraph(doc, "", space_after=4)
-
-        def render_hospedaje(hoteles):
-            for hotel in hoteles:
-                render_block(
-                    "Hospedaje",
-                    hotel.get('nombre') or 'Hotel propuesto',
-                    [
-                        ("Habitación:", hotel.get('habitacion') or '-'),
-                        ("Dirección:", hotel.get('direccion') or '-'),
-                        ("Plan de Alimentos:", hotel.get('plan') or '-'),
-                    ],
-                    f"Total MXN {format_currency(hotel.get('total'))} Pesos"
-                )
+        # Funciones helper para el nuevo formato (similar a confirmaciones)
+        MOVUMS_BLUE_CORP = RGBColor(0, 74, 142)  # Color corporativo #004a8e
+        
+        def agregar_subtitulo_con_vineta(texto):
+            """Agrega un subtítulo con viñeta azul."""
+            p = doc.add_paragraph()
+            p.paragraph_format.space_before = Pt(10)
+            p.paragraph_format.space_after = Pt(4)
+            bullet_run = p.add_run('• ')
+            set_run_font(bullet_run, size=14, bold=True, color=MOVUMS_BLUE_CORP)
+            texto_run = p.add_run(texto)
+            set_run_font(texto_run, size=14, bold=True, color=MOVUMS_BLUE_CORP)
+            spacer = doc.add_paragraph()
+            spacer.paragraph_format.space_after = Pt(2)
+            return p
+        
+        def agregar_info_line(etiqueta, valor):
+            """Agrega una línea de información."""
+            if not valor:
+                return
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(4)
+            label_run = p.add_run(f'{etiqueta}: ')
+            set_run_font(label_run, size=12, bold=True)
+            value_run = p.add_run(str(valor))
+            set_run_font(value_run, size=12)
+            return p
+        
+        def agregar_info_inline(*pares_etiqueta_valor, separador=' | '):
+            """Agrega múltiples campos en una sola línea."""
+            if not pares_etiqueta_valor:
+                return
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(4)
+            for idx, (etiqueta, valor) in enumerate(pares_etiqueta_valor):
+                if not valor:
+                    continue
+                if idx > 0:
+                    sep_run = p.add_run(separador)
+                    set_run_font(sep_run, size=12)
+                label_run = p.add_run(f'{etiqueta}: ')
+                set_run_font(label_run, size=12, bold=True)
+                value_run = p.add_run(str(valor))
+                set_run_font(value_run, size=12)
+            return p
+        
+        def agregar_salto_entre_secciones():
+            """Agrega un salto de línea entre secciones."""
+            spacer = doc.add_paragraph()
+            spacer.paragraph_format.space_after = Pt(6)
+            return spacer
+        
+        def agregar_titulo_principal(texto):
+            """Agrega un título principal (tamaño 18)."""
+            p = doc.add_paragraph()
+            p.paragraph_format.space_before = Pt(12)
+            p.paragraph_format.space_after = Pt(10)
+            run = p.add_run(texto)
+            set_run_font(run, size=18, bold=True, color=MOVUMS_BLUE_CORP)
+            return p
 
         def render_vuelos(vuelos):
+            """Renderiza cotización de vuelos con el nuevo formato."""
             for vuelo in vuelos:
-                render_block(
-                    "Vuelo",
-                    vuelo.get('aerolinea') or 'Aerolínea propuesta',
-                    [
-                        ("Salida:", vuelo.get('salida') or '-'),
-                        ("Regreso:", vuelo.get('regreso') or '-'),
-                        ("Incluye:", vuelo.get('incluye') or '-'),
-                    ],
-                    f"Total MXN {format_currency(vuelo.get('total'))} Pesos"
+                agregar_titulo_principal("VUELO")
+                
+                agregar_subtitulo_con_vineta('Información del Vuelo')
+                agregar_info_inline(
+                    ('Aerolínea', vuelo.get('aerolinea') or '-'),
+                    ('Salida', vuelo.get('salida') or '-'),
+                    ('Regreso', vuelo.get('regreso') or '-')
                 )
+                agregar_info_line('Incluye', vuelo.get('incluye') or '-')
+                
+                # Forma de pago si está presente
+                if vuelo.get('forma_pago'):
+                    agregar_info_line('Forma de Pago', vuelo.get('forma_pago'))
+                
+                # Total sin viñeta, tamaño 18 y subrayado (sin salto antes)
+                total_p = doc.add_paragraph()
+                total_p.paragraph_format.space_before = Pt(0)
+                total_p.paragraph_format.space_after = Pt(6)
+                total_run = total_p.add_run(f"Total MXN {format_currency(vuelo.get('total'))} Pesos")
+                set_run_font(total_run, size=18, bold=True, color=MOVUMS_BLUE_CORP)
+                total_run.font.underline = True
+                
+                agregar_salto_entre_secciones()
+
+        def render_hospedaje(hoteles):
+            """Renderiza cotización de hospedaje con el nuevo formato."""
+            for hotel in hoteles:
+                agregar_titulo_principal("HOSPEDAJE")
+                
+                agregar_subtitulo_con_vineta('Información del Alojamiento')
+                
+                # Crear tabla de 2 columnas para la información (como muestra la imagen)
+                info_table = doc.add_table(rows=4, cols=2)
+                info_table.autofit = False
+                
+                # Configurar ancho de columnas (50% cada una)
+                for col in info_table.columns:
+                    for cell in col.cells:
+                        cell.width = Inches(3.25)
+                
+                # Columna izquierda: Nombre, Habitación, Dirección
+                # Nombre (fila 0, columna 0)
+                nombre_cell = info_table.rows[0].cells[0]
+                nombre_label = nombre_cell.paragraphs[0].add_run('Nombre: ')
+                set_run_font(nombre_label, size=12, bold=True)
+                nombre_val = nombre_cell.paragraphs[0].add_run(hotel.get('nombre') or 'Hotel propuesto')
+                set_run_font(nombre_val, size=12)
+                
+                # Habitación (fila 1, columna 0)
+                habitacion_cell = info_table.rows[1].cells[0]
+                habitacion_label = habitacion_cell.paragraphs[0].add_run('Habitación: ')
+                set_run_font(habitacion_label, size=12, bold=True)
+                habitacion_val = habitacion_cell.paragraphs[0].add_run(hotel.get('habitacion') or '-')
+                set_run_font(habitacion_val, size=12)
+                
+                # Dirección (fila 2, columna 0)
+                direccion_cell = info_table.rows[2].cells[0]
+                direccion_label = direccion_cell.paragraphs[0].add_run('Dirección: ')
+                set_run_font(direccion_label, size=12, bold=True)
+                direccion_val = direccion_cell.paragraphs[0].add_run(hotel.get('direccion') or '-')
+                set_run_font(direccion_val, size=12)
+                
+                # Columna derecha: Plan de Alimentos (fila 0, columna 1)
+                plan_cell = info_table.rows[0].cells[1]
+                plan_label = plan_cell.paragraphs[0].add_run('Plan de Alimentos: ')
+                set_run_font(plan_label, size=12, bold=True)
+                plan_val = plan_cell.paragraphs[0].add_run(hotel.get('plan') or '-')
+                set_run_font(plan_val, size=12)
+                
+                # Forma de Pago (en la segunda columna, segunda fila) si está presente
+                if hotel.get('forma_pago'):
+                    forma_pago_cell = info_table.rows[1].cells[1]
+                    forma_pago_label = forma_pago_cell.paragraphs[0].add_run('Forma de Pago: ')
+                    set_run_font(forma_pago_label, size=12, bold=True)
+                    forma_pago_val = forma_pago_cell.paragraphs[0].add_run(hotel.get('forma_pago'))
+                    set_run_font(forma_pago_val, size=12)
+                
+                # Total sin viñeta, tamaño 18 y subrayado (sin salto antes)
+                total_p = doc.add_paragraph()
+                total_p.paragraph_format.space_before = Pt(0)
+                total_p.paragraph_format.space_after = Pt(6)
+                total_run = total_p.add_run(f"Total MXN {format_currency(hotel.get('total'))} Pesos")
+                set_run_font(total_run, size=18, bold=True, color=MOVUMS_BLUE_CORP)
+                total_run.font.underline = True
+                
+                agregar_salto_entre_secciones()
+
+        def render_tours(tours_data):
+            """Renderiza cotización de tours con el nuevo formato."""
+            agregar_titulo_principal("TOUR")
+            
+            agregar_subtitulo_con_vineta('Información del Tour')
+            agregar_info_line('Número de Reserva', tours_data.get('numero_reserva') or '-')
+            agregar_info_line('Nombre del Tour', tours_data.get('nombre') or '-')
+            
+            if tours_data.get('especificaciones'):
+                agregar_salto_entre_secciones()
+                agregar_subtitulo_con_vineta('Especificaciones')
+                especificaciones = tours_data.get('especificaciones', '').strip()
+                if especificaciones:
+                    lineas = especificaciones.split('\n')
+                    for linea in lineas:
+                        if linea.strip():
+                            p = doc.add_paragraph()
+                            p.paragraph_format.space_after = Pt(4)
+                            run = p.add_run(linea.strip())
+                            set_run_font(run, size=12)
+            
+            if tours_data.get('forma_pago'):
+                agregar_salto_entre_secciones()
+                agregar_subtitulo_con_vineta('Forma de Pago')
+                agregar_info_line('Forma de Pago', tours_data.get('forma_pago'))
+            
+            agregar_salto_entre_secciones()
 
         def render_paquete(paquete):
+            """Renderiza cotización de paquete con el nuevo formato."""
             vuelo = paquete.get('vuelo') or {}
             hotel = paquete.get('hotel') or {}
-            render_block(
-                "Vuelo",
-                vuelo.get('aerolinea') or 'Vuelo incluido',
-                [
-                    ("Salida:", vuelo.get('salida') or '-'),
-                    ("Regreso:", vuelo.get('regreso') or '-'),
-                    ("Incluye:", vuelo.get('incluye') or '-'),
-                ]
+            
+            agregar_titulo_principal("PAQUETE")
+            
+            agregar_subtitulo_con_vineta('Vuelo')
+            agregar_info_inline(
+                ('Aerolínea', vuelo.get('aerolinea') or '-'),
+                ('Salida', vuelo.get('salida') or '-'),
+                ('Regreso', vuelo.get('regreso') or '-')
             )
-            render_block(
-                "Hospedaje",
-                hotel.get('nombre') or 'Hotel incluido',
-                [
-                    ("Habitación / Plan:", hotel.get('habitacion') or '-'),
-                    ("Notas:", hotel.get('notas') or '-'),
-                ],
-                f"Total MXN {format_currency(paquete.get('total'))} Pesos"
-            )
-
-            add_paragraph(doc, "Términos y condiciones", size=14, bold=True, color=MOVUMS_BLUE, space_before=6, space_after=2)
+            agregar_info_line('Incluye', vuelo.get('incluye') or '-')
+            
+            # Forma de pago del vuelo si está presente
+            if vuelo.get('forma_pago'):
+                agregar_info_line('Forma de Pago', vuelo.get('forma_pago'))
+            
+            agregar_salto_entre_secciones()
+            
+            agregar_subtitulo_con_vineta('Hospedaje')
+            
+            # Crear tabla de 2 columnas para la información del hospedaje
+            hospedaje_table = doc.add_table(rows=3, cols=2)
+            hospedaje_table.autofit = False
+            
+            # Configurar ancho de columnas (50% cada una)
+            for col in hospedaje_table.columns:
+                for cell in col.cells:
+                    cell.width = Inches(3.25)
+            
+            # Nombre
+            nombre_cell = hospedaje_table.rows[0].cells[0]
+            nombre_label = nombre_cell.paragraphs[0].add_run('Nombre: ')
+            set_run_font(nombre_label, size=12, bold=True)
+            nombre_val = nombre_cell.paragraphs[0].add_run(hotel.get('nombre') or 'Hotel incluido')
+            set_run_font(nombre_val, size=12)
+            
+            # Habitación / Plan
+            habitacion_cell = hospedaje_table.rows[1].cells[0]
+            habitacion_label = habitacion_cell.paragraphs[0].add_run('Habitación / Plan: ')
+            set_run_font(habitacion_label, size=12, bold=True)
+            habitacion_val = habitacion_cell.paragraphs[0].add_run(hotel.get('habitacion') or '-')
+            set_run_font(habitacion_val, size=12)
+            
+            # Notas
+            notas_cell = hospedaje_table.rows[2].cells[0]
+            notas_label = notas_cell.paragraphs[0].add_run('Notas: ')
+            set_run_font(notas_label, size=12, bold=True)
+            notas_val = notas_cell.paragraphs[0].add_run(hotel.get('notas') or '-')
+            set_run_font(notas_val, size=12)
+            
+            # Forma de pago del paquete si está presente
+            if paquete.get('forma_pago'):
+                agregar_info_line('Forma de Pago', paquete.get('forma_pago'))
+            
+            # Total sin viñeta, tamaño 18 y subrayado (sin salto antes)
+            total_p = doc.add_paragraph()
+            total_p.paragraph_format.space_before = Pt(0)
+            total_p.paragraph_format.space_after = Pt(6)
+            total_run = total_p.add_run(f"Total MXN {format_currency(paquete.get('total'))} Pesos")
+            set_run_font(total_run, size=18, bold=True, color=MOVUMS_BLUE_CORP)
+            total_run.font.underline = True
+            
+            agregar_salto_entre_secciones()
+            
+            agregar_subtitulo_con_vineta('Términos y Condiciones')
             terms = [
                 "Los boletos de avión no son reembolsables.",
                 "Una vez emitido el boleto no puede ser asignado a otra persona o aerolínea.",
@@ -2373,15 +3218,21 @@ class GenerarCotizacionDocxView(LoginRequiredMixin, View):
                 "Las tarifas están sujetas a cambios y disponibilidad mientras no se reserve.",
             ]
             for term in terms:
-                paragraph = doc.add_paragraph(f"• {term}")
-                paragraph.paragraph_format.left_indent = Pt(18)
-                paragraph.paragraph_format.space_after = Pt(0)
-                set_run_font(paragraph.runs[0], size=12)
+                p = doc.add_paragraph()
+                p.paragraph_format.space_after = Pt(4)
+                bullet_run = p.add_run('• ')
+                set_run_font(bullet_run, size=12)
+                term_run = p.add_run(term)
+                set_run_font(term_run, size=12)
+            
+            agregar_salto_entre_secciones()
 
         if tipo == 'vuelos':
             render_vuelos(cotizacion.get('vuelos') or [])
         elif tipo == 'hospedaje':
             render_hospedaje(cotizacion.get('hoteles') or [])
+        elif tipo == 'tours':
+            render_tours(cotizacion.get('tours') or {})
         elif tipo == 'paquete':
             render_paquete(cotizacion.get('paquete') or {})
 
@@ -3012,7 +3863,7 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         cliente_run.font.size = Pt(12)
         cliente_run.font.color.rgb = RGBColor(0, 0, 0)
         
-        fecha_run = info_p.add_run(f' | Fecha de generación: {datetime.now().strftime("%d de %B de %Y, %H:%M")}')
+        fecha_run = info_p.add_run(f' | Fecha de generación: {datetime.now().strftime("%d de %B de %Y")}')
         fecha_run.font.name = 'Arial'
         fecha_run.font.size = Pt(12)
         fecha_run.font.color.rgb = RGBColor(0, 0, 0)
@@ -3022,12 +3873,15 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         from docx.enum.text import WD_ALIGN_PARAGRAPH
         from docx.shared import Pt, RGBColor, Inches
         
+        # Salto de línea entre la información del cliente y el título de la plantilla
+        self._agregar_salto_entre_secciones(doc)
+        
         # Agregar título principal (tamaño 18, Arial)
-        self._asegurar_estilo_heading(doc, 'Heading 2', 16)
+        self._asegurar_estilo_heading(doc, 'Heading 2', 18)
         titulo = doc.add_heading(plantilla.get_tipo_display().upper(), level=2)
         titulo.alignment = WD_ALIGN_PARAGRAPH.LEFT
         titulo.paragraph_format.space_before = Pt(12)
-        titulo.paragraph_format.space_after = Pt(6)
+        titulo.paragraph_format.space_after = Pt(10)
         for run in titulo.runs:
             run.font.name = 'Arial'
             run.font.color.rgb = RGBColor(0, 74, 142)  # Azul similar al PDF
@@ -3071,8 +3925,8 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         )
         
         p = doc.add_paragraph()
-        p.paragraph_format.space_after = Pt(2)  # Espaciado ultra compacto
-        p.paragraph_format.line_spacing = 1.1  # Interlineado mínimo
+        p.paragraph_format.space_after = Pt(4)  # Espaciado entre líneas de información
+        p.paragraph_format.line_spacing = 1.15  # Interlineado
         
         # Etiqueta en negrita
         label_run = p.add_run(f'{etiqueta}: ')
@@ -3095,8 +3949,8 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
             return
         
         p = doc.add_paragraph()
-        p.paragraph_format.space_after = Pt(2)
-        p.paragraph_format.line_spacing = 1.1
+        p.paragraph_format.space_after = Pt(4)
+        p.paragraph_format.line_spacing = 1.15
         
         for idx, (etiqueta, valor) in enumerate(pares_etiqueta_valor):
             if not valor:
@@ -3133,25 +3987,32 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         from docx.oxml.ns import qn
         
         p = doc.add_paragraph()
-        p.paragraph_format.space_before = Pt(4)
-        p.paragraph_format.space_after = Pt(2)
+        p.paragraph_format.space_before = Pt(10)
+        p.paragraph_format.space_after = Pt(4)
         p.paragraph_format.left_indent = Pt(0)
         
         # Agregar viñeta manualmente (carácter bullet)
         bullet_run = p.add_run('• ')
         bullet_run.font.name = 'Arial'
-        bullet_run.font.size = Pt(12)
+        bullet_run.font.size = Pt(14)
         bullet_run.font.color.rgb = RGBColor(0, 74, 142)
         bullet_run.font.bold = True
         
-        # Agregar texto del subtítulo
+        # Agregar texto del subtítulo (tamaño 14 para títulos azules)
         texto_run = p.add_run(texto)
         texto_run.font.name = 'Arial'
-        texto_run.font.size = Pt(12)
+        texto_run.font.size = Pt(14)
         texto_run.font.color.rgb = RGBColor(0, 74, 142)
         texto_run.font.bold = True
         
         return p
+    
+    def _agregar_salto_entre_secciones(self, doc):
+        """Agrega un salto de línea entre secciones para separar títulos con viñeta."""
+        from docx.shared import Pt
+        spacer = doc.add_paragraph()
+        spacer.paragraph_format.space_after = Pt(6)
+        return spacer
     
     def _agregar_vuelo_unico(self, doc, datos):
         """Agrega contenido de vuelo único al documento con formato profesional."""
@@ -3167,6 +4028,9 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
             ('Aerolínea', datos.get('aerolinea', '')),
             ('Vuelo', datos.get('numero_vuelo', ''))
         )
+        
+        # Salto de línea entre secciones
+        self._agregar_salto_entre_secciones(doc)
         
         # Detalles del Vuelo (con viñeta)
         self._agregar_subtitulo_con_vineta(doc, 'Detalles del Vuelo')
@@ -3188,11 +4052,11 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
             self._asegurar_estilo_heading(doc, 'Heading 4', 12)
             escalas_titulo = doc.add_heading('Detalles de Escalas', level=4)
             escalas_titulo.paragraph_format.space_before = Pt(4)
-            escalas_titulo.paragraph_format.space_after = Pt(2)
+            escalas_titulo.paragraph_format.space_after = Pt(6)
             escalas_titulo.runs[0].font.size = Pt(10)
             for i, escala in enumerate(datos['escalas'], 1):
                 escala_p = doc.add_paragraph()
-                escala_p.paragraph_format.space_after = Pt(2)
+                escala_p.paragraph_format.space_after = Pt(6)
                 escala_run = escala_p.add_run(f'Escala {i}: ')
                 escala_run.font.name = 'Arial'
                 escala_run.font.size = Pt(12)
@@ -3203,7 +4067,7 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                 
                 escala_info = doc.add_paragraph()
                 escala_info.paragraph_format.left_indent = Inches(0.3)
-                escala_info.paragraph_format.space_after = Pt(2)
+                escala_info.paragraph_format.space_after = Pt(6)
                 for part in [
                     (f"Hora Llegada: {escala.get('hora_llegada', '')}", True),
                     (" | ", False),
@@ -3219,6 +4083,9 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                     if part[1]:
                         run.bold = True
         
+        # Salto de línea entre secciones
+        self._agregar_salto_entre_secciones(doc)
+        
         # Información de Pasajeros (con viñeta)
         self._agregar_subtitulo_con_vineta(doc, 'Información de Pasajeros')
         
@@ -3228,7 +4095,7 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         if datos.get('informacion_adicional'):
             info_normalizada = self._normalizar_valor_campo(datos.get('informacion_adicional', ''), limpiar_saltos_linea=True)
             info_p = doc.add_paragraph()
-            info_p.paragraph_format.space_after = Pt(2)
+            info_p.paragraph_format.space_after = Pt(6)
             info_label = info_p.add_run('Información Adicional: ')
             info_label.font.name = 'Arial'
             info_label.font.size = Pt(12)
@@ -3246,6 +4113,9 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         self._agregar_subtitulo_con_vineta(doc, 'Información de Reserva')
         
         self._agregar_info_line(doc, 'Clave de Reserva', datos.get('clave_reserva', ''))
+        
+        # Salto de línea entre secciones
+        self._agregar_salto_entre_secciones(doc)
         
         # Vuelo de Ida (con viñeta)
         self._agregar_subtitulo_con_vineta(doc, 'Vuelo de Ida')
@@ -3265,6 +4135,9 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
             ('Destino', datos.get('destino_ida', ''))
         )
         
+        # Salto de línea entre secciones
+        self._agregar_salto_entre_secciones(doc)
+        
         # Vuelo de Regreso (con viñeta)
         self._agregar_subtitulo_con_vineta(doc, 'Vuelo de Regreso')
         
@@ -3283,6 +4156,9 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
             ('Destino', datos.get('destino_regreso', ''))
         )
         
+        # Salto de línea entre secciones
+        self._agregar_salto_entre_secciones(doc)
+        
         # Información General (con viñeta)
         self._agregar_subtitulo_con_vineta(doc, 'Información General')
         
@@ -3292,7 +4168,7 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         if datos.get('informacion_adicional'):
             info_normalizada = self._normalizar_valor_campo(datos.get('informacion_adicional', ''), limpiar_saltos_linea=True)
             info_p = doc.add_paragraph()
-            info_p.paragraph_format.space_after = Pt(2)
+            info_p.paragraph_format.space_after = Pt(6)
             info_label = info_p.add_run('Información Adicional: ')
             info_label.font.name = 'Arial'
             info_label.font.size = Pt(12)
@@ -3318,7 +4194,7 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         
         # Crear línea con viajero principal subrayado
         p = doc.add_paragraph()
-        p.paragraph_format.space_after = Pt(2)
+        p.paragraph_format.space_after = Pt(6)
         
         # Alojamiento
         aloj_run = p.add_run('Alojamiento: ')
@@ -3360,6 +4236,9 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         tipo_val_run.font.name = 'Arial'
         tipo_val_run.font.size = Pt(12)
         
+        # Salto de línea entre secciones
+        self._agregar_salto_entre_secciones(doc)
+        
         # Fechas y Estancia (con viñeta)
         self._agregar_subtitulo_con_vineta(doc, 'Fechas y Estancia')
         
@@ -3376,6 +4255,9 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
             ('Check-in', checkin_str),
             ('Check-out', checkout_str)
         )
+        
+        # Salto de línea entre secciones
+        self._agregar_salto_entre_secciones(doc)
         
         # Información de Huéspedes (con viñeta)
         self._agregar_subtitulo_con_vineta(doc, 'Información de Huéspedes')
@@ -3395,7 +4277,7 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         if datos.get('observaciones'):
             obs_normalizada = self._normalizar_valor_campo(datos.get('observaciones', ''), limpiar_saltos_linea=True)
             obs_p = doc.add_paragraph()
-            obs_p.paragraph_format.space_after = Pt(2)
+            obs_p.paragraph_format.space_after = Pt(6)
             obs_label = obs_p.add_run('Observaciones: ')
             obs_label.font.name = 'Arial'
             obs_label.font.size = Pt(12)
@@ -3445,6 +4327,9 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
             ('Código Reserva', datos.get('codigo_reserva', ''))
         )
         
+        # Salto de línea entre secciones
+        self._agregar_salto_entre_secciones(doc)
+        
         # Detalles del Traslado (con viñeta)
         self._agregar_subtitulo_con_vineta(doc, 'Detalles del Traslado')
         
@@ -3466,7 +4351,7 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         if datos.get('informacion_adicional'):
             info_normalizada = self._normalizar_valor_campo(datos.get('informacion_adicional', ''), limpiar_saltos_linea=True)
             info_p = doc.add_paragraph()
-            info_p.paragraph_format.space_after = Pt(2)
+            info_p.paragraph_format.space_after = Pt(6)
             info_label = info_p.add_run('Información Adicional: ')
             info_label.font.name = 'Arial'
             info_label.font.size = Pt(12)
@@ -3493,8 +4378,346 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
             for linea in contenido_normalizado.split('\n'):
                 if linea.strip():
                     p = doc.add_paragraph(linea.strip())
-                    p.paragraph_format.space_after = Pt(2)
+                    p.paragraph_format.space_after = Pt(6)
                     p.paragraph_format.line_spacing = 1.1
                     for run in p.runs:
                         run.font.name = 'Arial'
                         run.font.size = Pt(12)
+
+
+# ------------------- API: Previsualización de promociones -------------------
+from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import login_required
+from ventas.services.promociones import PromocionesService
+
+
+@login_required
+@require_POST
+def preview_promociones(request):
+    """
+    Devuelve las promociones aplicables en tiempo real para el formulario de venta.
+    Espera: cliente_id, tipo_viaje, costo_venta_final (opcional), costo_modificacion (opcional).
+    """
+    try:
+        cliente_id = int(request.POST.get('cliente_id') or 0)
+        tipo_viaje = request.POST.get('tipo_viaje')
+        costo_venta_final = Decimal(request.POST.get('costo_venta_final') or '0')
+        costo_mod = Decimal(request.POST.get('costo_modificacion') or '0')
+    except Exception:
+        return JsonResponse({'ok': False, 'error': 'Parámetros inválidos'}, status=400)
+
+    if not cliente_id or not tipo_viaje:
+        return JsonResponse({'ok': True, 'promos': []})
+
+    try:
+        cliente = Cliente.objects.get(pk=cliente_id)
+    except Cliente.DoesNotExist:
+        return JsonResponse({'ok': True, 'promos': []})
+
+    total_base = costo_venta_final + costo_mod
+    promos = PromocionesService.obtener_promos_aplicables(
+        cliente=cliente,
+        tipo_viaje=tipo_viaje,
+        total_base_mxn=total_base
+    )
+    promos_serialized = []
+    for p in promos:
+        promo = p['promo']
+        promos_serialized.append({
+            'id': promo.id,
+            'nombre': promo.nombre,
+            'tipo': promo.tipo,
+            'porcentaje': str(p.get('porcentaje') or '0'),
+            'monto_descuento': str(p.get('monto_descuento') or '0'),
+            'km_bono': str(p.get('km_bono') or '0'),
+            'requiere_confirmacion': p.get('requiere_confirmacion', False),
+            'condicion': promo.get_condicion_display(),
+        })
+
+    return JsonResponse({'ok': True, 'promos': promos_serialized})
+
+
+# ------------------- VISTAS DE DETALLE Y EXPORTACIÓN DE COMISIONES -------------------
+
+class DetalleComisionesView(LoginRequiredMixin, TemplateView):
+    """
+    Vista detallada de comisiones de un vendedor específico.
+    Muestra desglose por venta.
+    """
+    template_name = 'ventas/detalle_comisiones.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        vendedor_id = kwargs.get('pk')
+        
+        try:
+            vendedor = User.objects.get(pk=vendedor_id, perfil__rol='VENDEDOR')
+        except User.DoesNotExist:
+            from django.http import Http404
+            raise Http404("Vendedor no encontrado")
+        
+        # Verificar permisos: solo puede ver su propio detalle o ser JEFE/CONTADOR
+        user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
+        if user_rol == 'VENDEDOR' and self.request.user.pk != vendedor_id:
+            from django.core.exceptions import PermissionDenied
+            raise PermissionDenied("No tienes permiso para ver este detalle")
+        
+        # Obtener ventas del vendedor
+        ventas_base = VentaViaje.objects.filter(vendedor=vendedor)
+        
+        # Filtrar ventas pagadas al 100%
+        ventas_pagadas = [
+            venta for venta in ventas_base 
+            if venta.total_pagado >= venta.costo_total_con_modificacion
+        ]
+        
+        # Calcular comisiones
+        ejecutivo = getattr(vendedor, 'ejecutivo_asociado', None)
+        tipo_vendedor = ejecutivo.tipo_vendedor if ejecutivo else 'OFICINA'
+        
+        total_ventas_pagadas = sum(
+            venta.costo_venta_final for venta in ventas_pagadas
+        ) or Decimal('0.00')
+        
+        porcentaje_comision, comision_total = calcular_comision_por_tipo(
+            total_ventas_pagadas, 
+            tipo_vendedor
+        )
+        
+        sueldo_base = ejecutivo.sueldo_base if ejecutivo and ejecutivo.sueldo_base else Decimal('10000.00')
+        ingreso_total = sueldo_base + comision_total
+        
+        context.update({
+            'vendedor': vendedor,
+            'ejecutivo': ejecutivo,
+            'tipo_vendedor': tipo_vendedor,
+            'ventas_pagadas': ventas_pagadas,
+            'user_rol': user_rol,
+            'sueldo_base': sueldo_base,
+            'total_ventas_pagadas': total_ventas_pagadas,
+            'porcentaje_comision': porcentaje_comision * 100,
+            'comision_total': comision_total,
+            'ingreso_total': ingreso_total,
+        })
+        
+        return context
+
+
+class ExportarComisionesExcelView(LoginRequiredMixin, View):
+    """
+    Exporta las comisiones de un vendedor a Excel.
+    """
+    def get(self, request, pk):
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+        except ImportError:
+            messages.error(request, "La librería openpyxl no está instalada. Instálala con: pip install openpyxl")
+            return redirect('reporte_comisiones')
+        
+        from django.http import HttpResponse
+        
+        try:
+            vendedor = User.objects.get(pk=pk, perfil__rol='VENDEDOR')
+        except User.DoesNotExist:
+            from django.http import Http404
+            raise Http404("Vendedor no encontrado")
+        
+        # Verificar permisos
+        user_rol = request.user.perfil.rol if hasattr(request.user, 'perfil') else 'INVITADO'
+        if user_rol == 'VENDEDOR' and request.user.pk != pk:
+            from django.core.exceptions import PermissionDenied
+            raise PermissionDenied("No tienes permiso para exportar este detalle")
+        
+        # Obtener ventas
+        ventas_base = VentaViaje.objects.filter(vendedor=vendedor)
+        
+        ventas_pagadas = [
+            venta for venta in ventas_base 
+            if venta.total_pagado >= venta.costo_total_con_modificacion
+        ]
+        
+        # Calcular comisiones
+        ejecutivo = getattr(vendedor, 'ejecutivo_asociado', None)
+        tipo_vendedor = ejecutivo.tipo_vendedor if ejecutivo else 'OFICINA'
+        
+        total_ventas_pagadas = sum(
+            venta.costo_venta_final for venta in ventas_pagadas
+        ) or Decimal('0.00')
+        
+        porcentaje_comision, comision_total = calcular_comision_por_tipo(
+            total_ventas_pagadas, 
+            tipo_vendedor
+        )
+        
+        sueldo_base = ejecutivo.sueldo_base if ejecutivo and ejecutivo.sueldo_base else Decimal('10000.00')
+        ingreso_total = sueldo_base + comision_total
+        
+        # Crear workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Comisiones"
+        
+        # Estilos
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF", size=12)
+        title_font = Font(bold=True, size=14)
+        border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        
+        # Título
+        ws['A1'] = f"Reporte de Comisiones - {vendedor.get_full_name() or vendedor.username}"
+        ws['A1'].font = title_font
+        ws.merge_cells('A1:F1')
+        
+        row = 3
+        
+        # Resumen general
+        ws[f'A{row}'] = "RESUMEN GENERAL"
+        ws[f'A{row}'].font = title_font
+        row += 1
+        
+        ws[f'A{row}'] = "Concepto"
+        ws[f'B{row}'] = "Monto"
+        for cell in [ws[f'A{row}'], ws[f'B{row}']]:
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.border = border
+        row += 1
+        
+        ws[f'A{row}'] = "Sueldo Base"
+        ws[f'B{row}'] = float(sueldo_base)
+        row += 1
+        
+        ws[f'A{row}'] = "Comisión"
+        ws[f'B{row}'] = float(comision_total)
+        row += 1
+        
+        ws[f'A{row}'] = "TOTAL"
+        ws[f'B{row}'] = float(ingreso_total)
+        ws[f'A{row}'].font = Font(bold=True)
+        ws[f'B{row}'].font = Font(bold=True)
+        row += 2
+        
+        # Detalle de ventas
+        ws[f'A{row}'] = "VENTAS"
+        ws[f'A{row}'].font = title_font
+        ws.merge_cells(f'A{row}:F{row}')
+        row += 1
+        
+        headers = ['Venta ID', 'Cliente', 'Total Venta', 'Pagado', 'Comisión']
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=row, column=col, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.border = border
+        row += 1
+        
+        for venta in ventas_pagadas:
+            comision_venta = venta.costo_venta_final * porcentaje_comision
+            ws.cell(row=row, column=1, value=venta.pk)
+            ws.cell(row=row, column=2, value=str(venta.cliente))
+            ws.cell(row=row, column=3, value=float(venta.costo_venta_final))
+            ws.cell(row=row, column=4, value=float(venta.total_pagado))
+            ws.cell(row=row, column=5, value=float(comision_venta))
+            row += 1
+        
+        # Ajustar ancho de columnas
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+        
+        # Preparar respuesta
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename = f"comisiones_{vendedor.username}.xlsx"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        wb.save(response)
+        return response
+
+
+# ------------------- VISTAS PARA PROVEEDORES -------------------
+
+class ProveedorUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    """
+    Vista para editar un proveedor existente.
+    """
+    model = Proveedor
+    form_class = ProveedorForm
+    template_name = 'ventas/proveedores.html'
+    
+    def test_func(self):
+        """Solo JEFE puede editar proveedores."""
+        rol = get_user_role(self.request.user).upper()
+        return 'JEFE' in rol or self.request.user.is_superuser
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "No tienes permiso para editar proveedores.")
+        return redirect('proveedores')
+    
+    def get_success_url(self):
+        messages.success(self.request, "Proveedor actualizado correctamente.")
+        return reverse('proveedores')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Incluir el contexto de la vista de lista
+        proveedores = Proveedor.objects.all()
+        proveedores_por_servicio = {clave: [] for clave, _ in Proveedor.SERVICIO_CHOICES}
+        
+        for proveedor in proveedores:
+            proveedores_por_servicio.setdefault(proveedor.servicio, []).append(proveedor)
+        
+        grupos_proveedores = [
+            {
+                'clave': clave,
+                'label': label,
+                'proveedores': sorted(
+                    proveedores_por_servicio.get(clave, []),
+                    key=lambda p: p.nombre.lower()
+                ),
+            }
+            for clave, label in Proveedor.SERVICIO_CHOICES
+        ]
+        
+        context['grupos_proveedores'] = grupos_proveedores
+        context['total_proveedores'] = sum(len(grupo['proveedores']) for grupo in grupos_proveedores)
+        context['servicio_choices'] = Proveedor.SERVICIO_CHOICES
+        context['proveedor_editando'] = self.object
+        context['form'] = self.get_form()
+        return context
+
+
+class ProveedorDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
+    """
+    Vista para eliminar un proveedor. Solo disponible para JEFE.
+    """
+    model = Proveedor
+    template_name = 'ventas/proveedor_confirm_delete.html'
+    
+    def test_func(self):
+        """Solo JEFE puede eliminar proveedores."""
+        rol = get_user_role(self.request.user).upper()
+        return 'JEFE' in rol or self.request.user.is_superuser
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "No tienes permiso para eliminar proveedores.")
+        return redirect('proveedores')
+    
+    def get_success_url(self):
+        messages.success(self.request, "Proveedor eliminado correctamente.")
+        return reverse('proveedores')

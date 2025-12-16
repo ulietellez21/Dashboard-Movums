@@ -140,6 +140,15 @@ Thumbs.db
 !requirements.txt
 package-lock.json
 
+# Backups (excepto README)
+backups/*.backup_*
+backups/*.tar.gz
+backups/*.sql
+!backups/README_BACKUPS.md
+!backups/backup_servidor.sh
+
+
+
 
 
 

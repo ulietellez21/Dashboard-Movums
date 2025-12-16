@@ -4,10 +4,12 @@ from django.views.generic import ListView, DetailView, CreateView, UpdateView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib import messages
 from django.db.models import Q, Max 
+from django.db import IntegrityError
 from django.views.decorators.http import require_POST
-from .models import Cliente 
+from .models import Cliente, HistorialKilometros, PromocionKilometros
+from ventas.models import VentaViaje
 from .services import KilometrosService
-from .forms import ClienteForm 
+from .forms import ClienteForm, PromocionKilometrosForm 
 # Importa tu VentaViaje si no está en este mismo módulo
 # from ventas.models import VentaViaje 
 
@@ -77,8 +79,36 @@ class ClienteCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         return redirect('lista_clientes')
     
     def form_valid(self, form):
-        messages.success(self.request, f"Cliente '{form.instance}' creado exitosamente.")
-        return super().form_valid(form)
+        try:
+            messages.success(self.request, f"Cliente '{form.instance}' creado exitosamente.")
+            return super().form_valid(form)
+        except IntegrityError as e:
+            # Capturar errores de integridad (campos únicos duplicados)
+            error_str = str(e).lower()
+            if 'telefono' in error_str or 'unique constraint' in error_str and 'telefono' in error_str:
+                form.add_error('telefono', 'Este número de teléfono ya está registrado. Por favor, usa otro número.')
+            elif 'rfc' in error_str or 'unique constraint' in error_str and 'rfc' in error_str:
+                form.add_error('rfc', 'Este RFC ya está registrado. Por favor, verifica el RFC.')
+            elif 'documento_identificacion' in error_str or 'unique constraint' in error_str and 'documento_identificacion' in error_str:
+                form.add_error('documento_identificacion', 'Este documento de identificación ya está registrado.')
+            else:
+                messages.error(self.request, 'Error al guardar el cliente: Ya existe un cliente con estos datos. Por favor, verifica la información.')
+            return self.form_invalid(form)
+        except Exception as e:
+            messages.error(self.request, f'Error al guardar el cliente: {str(e)}')
+            return self.form_invalid(form)
+    
+    def form_invalid(self, form):
+        """Manejar errores de validación y mostrarlos correctamente."""
+        # Agregar mensaje de error general si hay errores
+        if form.errors:
+            error_messages = []
+            for field, errors in form.errors.items():
+                for error in errors:
+                    error_messages.append(f"{field}: {error}")
+            if error_messages:
+                messages.error(self.request, f"Por favor, corrige los siguientes errores: {'; '.join(error_messages[:3])}")
+        return super().form_invalid(form)
 
     def get_success_url(self):
         return reverse_lazy('detalle_cliente', kwargs={'pk': self.object.pk})
@@ -102,8 +132,36 @@ class ClienteUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         return redirect('detalle_cliente', pk=cliente.pk)
     
     def form_valid(self, form):
-        messages.success(self.request, f"Cliente '{form.instance}' actualizado exitosamente.")
-        return super().form_valid(form)
+        try:
+            messages.success(self.request, f"Cliente '{form.instance}' actualizado exitosamente.")
+            return super().form_valid(form)
+        except IntegrityError as e:
+            # Capturar errores de integridad (campos únicos duplicados)
+            error_str = str(e).lower()
+            if 'telefono' in error_str or 'unique constraint' in error_str and 'telefono' in error_str:
+                form.add_error('telefono', 'Este número de teléfono ya está registrado. Por favor, usa otro número.')
+            elif 'rfc' in error_str or 'unique constraint' in error_str and 'rfc' in error_str:
+                form.add_error('rfc', 'Este RFC ya está registrado. Por favor, verifica el RFC.')
+            elif 'documento_identificacion' in error_str or 'unique constraint' in error_str and 'documento_identificacion' in error_str:
+                form.add_error('documento_identificacion', 'Este documento de identificación ya está registrado.')
+            else:
+                messages.error(self.request, 'Error al actualizar el cliente: Ya existe un cliente con estos datos. Por favor, verifica la información.')
+            return self.form_invalid(form)
+        except Exception as e:
+            messages.error(self.request, f'Error al actualizar el cliente: {str(e)}')
+            return self.form_invalid(form)
+    
+    def form_invalid(self, form):
+        """Manejar errores de validación y mostrarlos correctamente."""
+        # Agregar mensaje de error general si hay errores
+        if form.errors:
+            error_messages = []
+            for field, errors in form.errors.items():
+                for error in errors:
+                    error_messages.append(f"{field}: {error}")
+            if error_messages:
+                messages.error(self.request, f"Por favor, corrige los siguientes errores: {'; '.join(error_messages[:3])}")
+        return super().form_invalid(form)
     
     def get_success_url(self):
         return reverse_lazy('detalle_cliente', kwargs={'pk': self.object.pk})
@@ -137,3 +195,84 @@ def eliminar_cliente(request, pk):
     except Exception as e:
         messages.error(request, f'Error al intentar eliminar el cliente: No se pudo completar la operación. Detalles: {e}')
         return redirect('detalle_cliente', pk=pk)
+
+
+# ------------------- 6. Dashboard Kilómetros Movums -------------------
+
+class KilometrosDashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    """
+    Dashboard centralizado para promociones, KPIs y movimientos de Kilómetros Movums.
+    """
+    model = HistorialKilometros
+    template_name = 'crm/kilometros_dashboard.html'
+    context_object_name = 'movimientos'
+    paginate_by = 20
+
+    def test_func(self):
+        user_rol = getattr(getattr(self.request.user, 'perfil', None), 'rol', 'INVITADO')
+        return user_rol in ['JEFE', 'CONTADOR']
+
+    def handle_no_permission(self):
+        messages.error(self.request, "No tienes permiso para ver el programa de Kilómetros Movums.")
+        return redirect('lista_clientes')
+
+    def get_queryset(self):
+        return HistorialKilometros.objects.select_related('cliente').order_by('-fecha_registro')
+
+    def get_context_data(self, **kwargs):
+        from django.db import models as dj_models
+        context = super().get_context_data(**kwargs)
+        socios = Cliente.objects.filter(participa_kilometros=True)
+        total_km_acumulados = socios.aggregate(total=dj_models.Sum('kilometros_acumulados'))['total'] or 0
+        total_km_disponibles = socios.aggregate(total=dj_models.Sum('kilometros_disponibles'))['total'] or 0
+        total_km_canjeados = HistorialKilometros.objects.filter(es_redencion=True).aggregate(total=dj_models.Sum('kilometros'))['total'] or 0
+        total_km_expirados = HistorialKilometros.objects.filter(expirado=True).aggregate(total=dj_models.Sum('kilometros'))['total'] or 0
+        context.update({
+            'total_km_acumulados': total_km_acumulados,
+            'total_km_disponibles': total_km_disponibles,
+            'total_km_canjeados': total_km_canjeados,
+            'total_km_expirados': total_km_expirados,
+            'socios_count': socios.count(),
+        })
+        context['promociones'] = PromocionKilometros.objects.all().order_by('-creada_en')
+        context['promocion_form'] = kwargs.get('promocion_form') or PromocionKilometrosForm()
+        context['socios'] = socios.order_by('-kilometros_disponibles')[:20]
+        context['ventas_con_promos'] = (
+            VentaViaje.objects.filter(descuento_promociones_mxn__gt=0)
+            .select_related('cliente', 'vendedor')
+            .order_by('-fecha_creacion')[:50]
+        )
+        return context
+
+    def post(self, request, *args, **kwargs):
+        user_rol = getattr(getattr(request.user, 'perfil', None), 'rol', 'INVITADO')
+        if user_rol != 'JEFE':
+            messages.error(request, "Solo el rol JEFE puede crear o editar promociones.")
+            return redirect('kilometros_dashboard')
+        form = PromocionKilometrosForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Promoción guardada correctamente.")
+            return redirect('kilometros_dashboard')
+        messages.error(request, "Revisa los errores en la promoción.")
+        context = self.get_context_data(promocion_form=form)
+        return self.render_to_response(context)
+
+
+class PromocionKilometrosUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    model = PromocionKilometros
+    form_class = PromocionKilometrosForm
+    template_name = 'crm/promocion_form.html'
+    context_object_name = 'promocion'
+
+    def test_func(self):
+        user_rol = getattr(getattr(self.request.user, 'perfil', None), 'rol', 'INVITADO')
+        return user_rol == 'JEFE'
+
+    def handle_no_permission(self):
+        messages.error(self.request, "Solo el rol JEFE puede editar promociones.")
+        return redirect('kilometros_dashboard')
+
+    def get_success_url(self):
+        messages.success(self.request, "Promoción actualizada correctamente.")
+        return reverse_lazy('kilometros_dashboard')

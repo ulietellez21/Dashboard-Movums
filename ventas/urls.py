@@ -10,7 +10,11 @@ from .views import (
     ReporteFinancieroView,
     VentaViajeDeleteView, 
     ComisionesVendedoresView,
+    DetalleComisionesView,
+    ExportarComisionesExcelView,
     ProveedorListCreateView,
+    ProveedorUpdateView,
+    ProveedorDeleteView,
     MarcarNotificacionVistaView,
     EliminarNotificacionView,
     IncrementarCotizacionClienteView,
@@ -38,6 +42,7 @@ from .views import (
     CrearTrasladoView,
     CrearGenericaView,
     GenerarDocumentoConfirmacionView,
+    preview_promociones,
 )
 
 # app_name = 'ventas' 
@@ -50,7 +55,12 @@ urlpatterns = [
     path('logistica-pendiente/', LogisticaPendienteView.as_view(), name='logistica_pendiente'), 
     path('reporte-financiero/', ReporteFinancieroView.as_view(), name='reporte_financiero'),
     path('comisiones/', ComisionesVendedoresView.as_view(), name='reporte_comisiones'),
+    path('comisiones/<int:pk>/detalle/', DetalleComisionesView.as_view(), name='detalle_comisiones'),
+    path('comisiones/<int:pk>/exportar-excel/', ExportarComisionesExcelView.as_view(), name='exportar_comisiones_excel'),
+    path('promociones/preview/', preview_promociones, name='preview_promociones'),
     path('proveedores/', ProveedorListCreateView.as_view(), name='proveedores'),
+    path('proveedores/<int:pk>/editar/', ProveedorUpdateView.as_view(), name='editar_proveedor'),
+    path('proveedores/<int:pk>/eliminar/', ProveedorDeleteView.as_view(), name='eliminar_proveedor'),
     
     # 2.1 Notificaciones (AJAX)
     path('notificaciones/<int:pk>/marcar-vista/', MarcarNotificacionVistaView.as_view(), name='marcar_notificacion_vista'),

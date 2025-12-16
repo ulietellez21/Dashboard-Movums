@@ -1,9 +1,11 @@
 from django import forms
 from django.forms import modelformset_factory
+from django.db.models import Case, When, Value, IntegerField
 from .models import AbonoPago, Logistica, VentaViaje, Proveedor, Ejecutivo, LogisticaServicio # Aseguramos la importación de VentaViaje
 from django.contrib.auth.models import User
 from crm.models import Cliente # Importamos Cliente para usarlo en el queryset si es necesario
 from crm.services import KilometrosService
+from ventas.services.promociones import PromocionesService
 from decimal import Decimal
 from datetime import date
 
@@ -62,8 +64,88 @@ class MultipleFileInput(forms.ClearableFileInput):
         # Retorna una lista de archivos cuando hay múltiples seleccionados
         # Django manejará esto automáticamente si el atributo multiple está presente
         if name in files:
-            return files.getlist(name)
+            archivos = files.getlist(name)
+            # Filtrar archivos vacíos o inválidos
+            archivos_validos = []
+            for archivo in archivos:
+                # Verificar que el archivo tenga nombre y tamaño
+                if archivo and hasattr(archivo, 'name') and hasattr(archivo, 'size'):
+                    if archivo.name and archivo.size > 0:
+                        archivos_validos.append(archivo)
+            return archivos_validos if archivos_validos else None
         return None
+    
+    def value_omitted_from_data(self, data, files, name):
+        # Indica si el campo fue omitido del formulario
+        # Si no está en files, se considera omitido (no se envió)
+        return name not in files
+
+# Campo personalizado para manejar múltiples archivos
+class MultipleFileField(forms.FileField):
+    """Campo personalizado que permite múltiples archivos pero guarda solo el primero"""
+    
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('widget', MultipleFileInput)
+        kwargs.setdefault('required', False)
+        super().__init__(*args, **kwargs)
+    
+    def to_python(self, data):
+        # Si no hay datos, retornar None (campo opcional)
+        if data in self.empty_values or data is None:
+            return None
+        
+        # Si es una lista, procesar el primer elemento
+        if isinstance(data, list):
+            if not data:
+                return None
+            # Validar solo el primer archivo (los demás se manejan en la vista)
+            data = data[0]
+        
+        # Verificar que el dato sea un archivo válido antes de validar
+        if not hasattr(data, 'name') or not hasattr(data, 'size'):
+            return None
+        
+        # Llamar al método padre para validar el archivo
+        try:
+            return super().to_python(data)
+        except forms.ValidationError:
+            # Si falla la validación, retornar None (campo opcional)
+            return None
+    
+    def clean(self, data, initial=None):
+        # Si no hay datos y estamos editando, mantener el valor inicial
+        if data in self.empty_values or data is None:
+            if initial:
+                return initial
+            return None
+        
+        # Si es una lista, procesar el primer elemento para validación
+        if isinstance(data, list):
+            if not data:
+                if initial:
+                    return initial
+                return None
+            # Validar solo el primer archivo
+            data = data[0]
+        
+        # Verificar que el dato sea un archivo válido antes de validar
+        if not hasattr(data, 'name') or not hasattr(data, 'size'):
+            if initial:
+                return initial
+            return None
+        
+        # Llamar al método padre para validar
+        try:
+            return super().clean(data, initial)
+        except forms.ValidationError as e:
+            # Si falla la validación y estamos editando, mantener el valor inicial
+            if initial:
+                return initial
+            # Si no hay valor inicial, propagar el error solo si el campo es requerido
+            if self.required:
+                raise
+            return None
+
 
 # Definición de las opciones de servicio para el Multi-Selector
 SERVICIO_CHOICES = [
@@ -311,11 +393,20 @@ LogisticaServicioFormSet = modelformset_factory(
 class VentaViajeForm(forms.ModelForm):
     
     # Campo para filtrar Clientes
+    # El queryset se simplifica, el ordenamiento se hará en __init__ con optgroups
     cliente = forms.ModelChoiceField(
-        queryset=Cliente.objects.all().order_by('apellido'),
-        widget=forms.Select(attrs={'class': 'form-select select2'}), 
+        queryset=Cliente.objects.all(),
+        widget=forms.Select(attrs={'class': 'form-select select2', 'id': 'id_cliente'}), 
         label="Cliente Asociado"
     )
+    
+    
+    def _label_from_cliente(self, obj):
+        """Personaliza el label para incluir información del tipo de cliente (método legacy, ya no se usa con optgroups)"""
+        if obj.tipo_cliente == 'EMPRESA':
+            return f"🏢 {obj.nombre_completo_display}"
+        else:
+            return f"👤 {obj.nombre_completo_display}"
 
     # ✅ CAMPO NUEVO: Selector de Servicios Múltiple con Checkboxes (No está en el modelo, es un campo de formulario temporal)
     servicios_seleccionados = forms.MultipleChoiceField(
@@ -350,6 +441,13 @@ class VentaViajeForm(forms.ModelForm):
             'aplica_descuento_kilometros',
             'descuento_kilometros_mxn',
             
+            # Campos para ventas internacionales (USD)
+            'tarifa_base_usd',
+            'impuestos_usd',
+            'suplementos_usd',
+            'tours_usd',
+            'tipo_cambio',
+            
             # ❌ Campos eliminados: 'tipo_cambio_usd', 'tipo_contrato', 'tipo_vuelo', 'estado', y todos los 'servicio_*' booleanos.
         ]
         widgets = {
@@ -360,8 +458,8 @@ class VentaViajeForm(forms.ModelForm):
             'tipo_viaje': forms.Select(attrs={'class': 'form-select'}),
             'modo_pago_apertura': forms.Select(attrs={'class': 'form-select'}),
 
-            # Archivos
-            'documentos_cliente': forms.ClearableFileInput(attrs={'class': 'form-control'}),
+            # Archivos - Múltiples archivos (hasta 5)
+            'documentos_cliente': MultipleFileInput(attrs={'class': 'form-control', 'accept': '*/*'}),
 
             # Fechas - Usar widget personalizado que formatea en ISO
             'fecha_inicio_viaje': ISODateInput(attrs={'type': 'date', 'class': 'form-control'}),
@@ -374,6 +472,12 @@ class VentaViajeForm(forms.ModelForm):
             'cantidad_apertura': forms.NumberInput(attrs={'step': 'any', 'class': 'form-control'}),
             'aplica_descuento_kilometros': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'descuento_kilometros_mxn': forms.HiddenInput(),
+            # Campos para ventas internacionales (USD)
+            'tarifa_base_usd': forms.NumberInput(attrs={'step': 'any', 'class': 'form-control', 'placeholder': '0.00'}),
+            'impuestos_usd': forms.NumberInput(attrs={'step': 'any', 'class': 'form-control', 'placeholder': '0.00'}),
+            'suplementos_usd': forms.NumberInput(attrs={'step': 'any', 'class': 'form-control', 'placeholder': '0.00'}),
+            'tours_usd': forms.NumberInput(attrs={'step': 'any', 'class': 'form-control', 'placeholder': '0.00'}),
+            'tipo_cambio': forms.NumberInput(attrs={'step': 'any', 'class': 'form-control', 'placeholder': '0.0000'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -500,6 +604,46 @@ class VentaViajeForm(forms.ModelForm):
         # Django ModelForm automáticamente carga los valores de la instancia
         super().__init__(*args, **kwargs)
         
+        # ========== LÓGICA DE AGRUPACIÓN Y ORDENAMIENTO DE CLIENTES ==========
+        # Esta lógica debe ejecutarse DESPUÉS de super().__init__() para que los campos estén disponibles
+        if 'cliente' in self.fields:
+            # Placeholder para Select2 y opción vacía inicial
+            self.fields['cliente'].empty_label = "Selecciona un cliente"
+            self.fields['cliente'].widget.attrs['data-placeholder'] = "Selecciona un cliente"
+            
+            # 1. Obtener Particulares ordenados alfabéticamente
+            particulares = Cliente.objects.filter(tipo_cliente='PARTICULAR').order_by('apellido', 'nombre')
+            opciones_particulares = []
+            for c in particulares:
+                # Usamos el emoji para que el JS lo detecte y coloree
+                label = f"👤 {c.nombre_completo_display}"
+                opciones_particulares.append((c.id, label))
+            
+            # 2. Obtener Empresas ordenadas alfabéticamente
+            empresas = Cliente.objects.filter(tipo_cliente='EMPRESA').order_by('nombre_empresa')
+            opciones_empresas = []
+            for c in empresas:
+                label = f"🏢 {c.nombre_completo_display}"
+                opciones_empresas.append((c.id, label))
+            
+            # 3. Crear la estructura de grupos (Optgroups)
+            # El formato es: [('Nombre Grupo', [opciones]), ...]
+            grouped_choices = []
+            
+            if opciones_particulares:
+                grouped_choices.append(('Particulares', opciones_particulares))
+            
+            if opciones_empresas:
+                grouped_choices.append(('Empresas', opciones_empresas))
+            
+            # 4. Asignar las opciones agrupadas
+            # El formato de optgroups en Django es: [('Nombre Grupo', [(value, label), ...]), ...]
+            # Agregamos siempre una opción vacía inicial para permitir limpiar la selección
+            final_choices = [('', 'Selecciona un cliente')]
+            final_choices.extend(grouped_choices)
+            self.fields['cliente'].choices = final_choices
+        # ========== FIN DE LÓGICA DE AGRUPACIÓN DE CLIENTES ==========
+        
         # Guardar dynamic_initial como atributo de instancia para usarlo más tarde
         self._dynamic_initial = dynamic_initial
         
@@ -586,6 +730,29 @@ class VentaViajeForm(forms.ModelForm):
                 if hasattr(self.fields['fecha_vencimiento_pago'].widget, 'attrs'):
                     if self.fields['fecha_vencimiento_pago'].widget.attrs.get('type') == 'date':
                         self.fields['fecha_vencimiento_pago'].widget.attrs['value'] = fecha_valor.strftime('%Y-%m-%d')
+            
+            # Para ventas internacionales, convertir valores de MXN a USD para mostrar en el formulario
+            if instance.tipo_viaje == 'INT' and instance.tipo_cambio and instance.tipo_cambio > 0:
+                # Los campos USD ya están en USD, no necesitan conversión
+                # La cantidad de apertura está en MXN, convertirla a USD para mostrar
+                if instance.cantidad_apertura and instance.cantidad_apertura > 0:
+                    cantidad_apertura_usd = (instance.cantidad_apertura / instance.tipo_cambio).quantize(Decimal('0.01'))
+                    existing_initial['cantidad_apertura'] = cantidad_apertura_usd
+                    dynamic_initial['cantidad_apertura'] = cantidad_apertura_usd
+                # El costo_neto está en MXN, convertirla a USD para mostrar
+                if instance.costo_neto and instance.costo_neto > 0:
+                    costo_neto_usd = (instance.costo_neto / instance.tipo_cambio).quantize(Decimal('0.01'))
+                    existing_initial['costo_neto'] = costo_neto_usd
+                    dynamic_initial['costo_neto'] = costo_neto_usd
+        
+        # Configurar help_text y required para documentos_cliente (múltiples archivos)
+        if 'documentos_cliente' in self.fields:
+            # Cambiar el campo a nuestro campo personalizado
+            self.fields['documentos_cliente'] = MultipleFileField(
+                required=False,
+                widget=MultipleFileInput(attrs={'class': 'form-control', 'accept': '*/*'}),
+                help_text=""
+            )
         
         # Agregar campos de edición solo cuando se está editando (no al crear)
         if self.instance and self.instance.pk:
@@ -604,43 +771,164 @@ class VentaViajeForm(forms.ModelForm):
                 help_text='Costo adicional por modificar esta venta. Se sumará al costo total.'
             )
 
+    def clean_documentos_cliente(self):
+        """Valida que no se suban más de 5 archivos y maneja múltiples archivos"""
+        # El valor ya viene procesado por MultipleFileField.to_python()
+        # que retorna el primer archivo o None
+        documentos = self.cleaned_data.get('documentos_cliente')
+        
+        # Si no hay documentos, mantener el existente si se está editando
+        if not documentos:
+            if self.instance and self.instance.pk and hasattr(self.instance, 'documentos_cliente') and self.instance.documentos_cliente:
+                return self.instance.documentos_cliente
+            return None
+        
+        # El campo personalizado ya validó el primer archivo
+        # La validación de cantidad se hace en la vista usando request.FILES
+        return documentos
+
     def clean(self):
         cleaned_data = super().clean()
-        aplica_descuento = cleaned_data.get('aplica_descuento_kilometros')
-        costo_venta = cleaned_data.get('costo_venta_final') or Decimal('0.00')
-        cliente = cleaned_data.get('cliente')
-        descuento = Decimal('0.00')
-        credito_disponible = Decimal('0.00')
-        participa_programa = False
-
-        if cliente:
-            resumen = KilometrosService.resumen_cliente(cliente)
-            if resumen:
-                participa_programa = resumen.get('participa', False)
-                valor_equivalente = resumen.get('valor_equivalente') or Decimal('0.00')
-                credito_disponible = valor_equivalente if isinstance(valor_equivalente, Decimal) else Decimal(str(valor_equivalente))
-
-        if aplica_descuento and costo_venta > 0:
-            if not cliente:
-                self.add_error('cliente', "Selecciona un cliente para aplicar el descuento de Kilómetros Movums.")
-                aplica_descuento = False
-            elif not participa_programa:
-                self.add_error('aplica_descuento_kilometros', "El cliente no participa en Kilómetros Movums.")
-                aplica_descuento = False
-            else:
-                max_por_regla = (costo_venta * Decimal('0.10')).quantize(Decimal('0.01'))
-                max_por_credito = credito_disponible.quantize(Decimal('0.01'))
-                descuento = min(max_por_regla, max_por_credito)
-                if descuento <= 0:
-                    self.add_error('aplica_descuento_kilometros', "El cliente no tiene saldo disponible para aplicar el descuento.")
-                    aplica_descuento = False
-        else:
+        tipo_viaje = cleaned_data.get('tipo_viaje', 'NAC')
+        
+        # Desactivar Kilómetros Movums para ventas internacionales
+        if tipo_viaje == 'INT':
             aplica_descuento = False
+            descuento = Decimal('0.00')
+        else:
+            aplica_descuento = cleaned_data.get('aplica_descuento_kilometros')
+            # Cambiar: usar costo_neto en lugar de costo_venta_final para calcular el descuento
+            costo_neto = cleaned_data.get('costo_neto') or Decimal('0.00')
+            cliente = cleaned_data.get('cliente')
+            descuento = Decimal('0.00')
+            credito_disponible = Decimal('0.00')
+            participa_programa = False
+
+            if cliente:
+                resumen = KilometrosService.resumen_cliente(cliente)
+                if resumen:
+                    participa_programa = resumen.get('participa', False)
+                    valor_equivalente = resumen.get('valor_equivalente') or Decimal('0.00')
+                    credito_disponible = valor_equivalente if isinstance(valor_equivalente, Decimal) else Decimal(str(valor_equivalente))
+
+            if aplica_descuento and costo_neto > 0:
+                if not cliente:
+                    self.add_error('cliente', "Selecciona un cliente para aplicar el descuento de Kilómetros Movums.")
+                    aplica_descuento = False
+                elif not participa_programa:
+                    self.add_error('aplica_descuento_kilometros', "El cliente no participa en Kilómetros Movums.")
+                    aplica_descuento = False
+                else:
+                    # Calcular el 10% sobre el costo NETO (no sobre el total de la venta)
+                    max_por_regla = (costo_neto * Decimal('0.10')).quantize(Decimal('0.01'))
+                    max_por_credito = credito_disponible.quantize(Decimal('0.01'))
+                    descuento = min(max_por_regla, max_por_credito)
+                    if descuento <= 0:
+                        self.add_error('aplica_descuento_kilometros', "El cliente no tiene saldo disponible para aplicar el descuento.")
+                        aplica_descuento = False
+            else:
+                aplica_descuento = False
 
         costo_modificacion = cleaned_data.get('costo_modificacion')
         if costo_modificacion is not None and costo_modificacion < 0:
             self.add_error('costo_modificacion', "El costo de modificación debe ser mayor o igual a 0.")
 
+        # ------------------- LÓGICA PARA VENTAS INTERNACIONALES (USD) -------------------
+        tipo_viaje = cleaned_data.get('tipo_viaje', 'NAC')
+        if tipo_viaje == 'INT':
+            # Validar que se proporcionen los campos USD para ventas internacionales
+            tarifa_base_usd = cleaned_data.get('tarifa_base_usd') or Decimal('0.00')
+            impuestos_usd = cleaned_data.get('impuestos_usd') or Decimal('0.00')
+            suplementos_usd = cleaned_data.get('suplementos_usd') or Decimal('0.00')
+            tours_usd = cleaned_data.get('tours_usd') or Decimal('0.00')
+            tipo_cambio = cleaned_data.get('tipo_cambio') or Decimal('0.0000')
+            
+            # Validar que el tipo de cambio sea mayor a 0
+            if tipo_cambio <= 0:
+                self.add_error('tipo_cambio', "El tipo de cambio debe ser mayor a 0 para ventas internacionales.")
+            
+            # Validar que todos los campos USD estén llenos
+            if tarifa_base_usd == 0 and impuestos_usd == 0 and suplementos_usd == 0 and tours_usd == 0:
+                self.add_error('tarifa_base_usd', "Para ventas internacionales, debes llenar al menos uno de los campos: Tarifa Base, Impuestos, Suplementos o Tours.")
+            
+            # Calcular el total en USD
+            total_usd = tarifa_base_usd + impuestos_usd + suplementos_usd + tours_usd
+            
+            # Convertir a MXN usando el tipo de cambio
+            if tipo_cambio > 0 and total_usd > 0:
+                # Para ventas internacionales, calcular costo_venta_final desde USD
+                costo_venta_final_mxn = total_usd * tipo_cambio
+                cleaned_data['costo_venta_final'] = costo_venta_final_mxn.quantize(Decimal('0.01'))
+                
+                # El costo_neto también se ingresa en USD en el formulario, convertir a MXN
+                costo_neto_usd = cleaned_data.get('costo_neto') or Decimal('0.00')
+                if costo_neto_usd > 0:
+                    costo_neto_mxn = costo_neto_usd * tipo_cambio
+                    cleaned_data['costo_neto'] = costo_neto_mxn.quantize(Decimal('0.01'))
+                
+                # La cantidad de apertura se maneja en USD en el formulario, pero se guarda en MXN
+                # Si el usuario ingresa cantidad de apertura, asumimos que está en USD y la convertimos
+                cantidad_apertura_usd = cleaned_data.get('cantidad_apertura') or Decimal('0.00')
+                if cantidad_apertura_usd > 0:
+                    # Convertir cantidad de apertura de USD a MXN
+                    cantidad_apertura_mxn = cantidad_apertura_usd * tipo_cambio
+                    cleaned_data['cantidad_apertura'] = cantidad_apertura_mxn.quantize(Decimal('0.01'))
+        else:
+            # Para ventas nacionales, limpiar los campos USD
+            cleaned_data['tarifa_base_usd'] = Decimal('0.00')
+            cleaned_data['impuestos_usd'] = Decimal('0.00')
+            cleaned_data['suplementos_usd'] = Decimal('0.00')
+            cleaned_data['tours_usd'] = Decimal('0.00')
+            cleaned_data['tipo_cambio'] = Decimal('0.0000')
+
+        # ------------------- PROMOCIONES CONFIGURABLES -------------------
+        self.promos_calculadas = []
+        self.promos_aplicadas_aceptadas = []
+        self.total_descuento_promos = Decimal('0.00')
+        self.resumen_promos_text = ""
+        self.promos_km = []
+
+        cliente = cleaned_data.get('cliente')
+        tipo_viaje = cleaned_data.get('tipo_viaje')
+        if cliente and tipo_viaje and cleaned_data.get('costo_venta_final') is not None:
+            costo_mod = getattr(self.instance, 'costo_modificacion', Decimal('0.00')) or Decimal('0.00')
+            base_total = (cleaned_data.get('costo_venta_final') or Decimal('0.00')) + costo_mod
+            promos = PromocionesService.obtener_promos_aplicables(
+                cliente=cliente,
+                tipo_viaje=tipo_viaje,
+                total_base_mxn=base_total,
+                fecha_ref=date.today()
+            )
+            self.promos_calculadas = promos
+            aceptadas = []
+            resumen_list = []
+            total_desc = Decimal('0.00')
+            for p in promos:
+                promo = p['promo']
+                requiere = p.get('requiere_confirmacion', False)
+                aplicar = True
+                if requiere:
+                    aplicar = self.data.get(f"aplicar_promo_{promo.id}", "on") in ["on", "true", "1"]
+                if not aplicar:
+                    continue
+                aceptadas.append(p)
+                total_desc += p['monto_descuento']
+                if p.get('km_bono') and p['km_bono'] > 0:
+                    self.promos_km.append({'promo': promo, 'km_bono': p['km_bono']})
+                    resumen_list.append(f"{promo.nombre} (+{p['km_bono']} km)")
+                else:
+                    resumen_list.append(f"{promo.nombre} (-${p['monto_descuento']})")
+
+            self.promos_aplicadas_aceptadas = aceptadas
+            self.total_descuento_promos = total_desc
+            self.resumen_promos_text = "; ".join(resumen_list)
+
+            if total_desc > 0:
+                # Ajustar el costo_venta_final para reflejar el descuento, sin tocar costo_modificacion
+                nuevo_total = (cleaned_data.get('costo_venta_final') or Decimal('0.00')) - total_desc
+                cleaned_data['costo_venta_final'] = max(Decimal('0.00'), nuevo_total)
+
+        # ------------------- Kilómetros Movums -------------------
         cleaned_data['aplica_descuento_kilometros'] = aplica_descuento
         cleaned_data['descuento_kilometros_mxn'] = descuento if aplica_descuento else Decimal('0.00')
         return cleaned_data
@@ -705,7 +993,29 @@ class VentaViajeForm(forms.ModelForm):
                 if proveedor:
                     instance.proveedor = proveedor
                     break
-        
+
+        # Guardar resumen y monto de promociones
+        instance.descuento_promociones_mxn = getattr(self, 'total_descuento_promos', Decimal('0.00'))
+        instance.resumen_promociones = getattr(self, 'resumen_promos_text', '') or ''
+
         if commit:
             instance.save()
+
+            # Guardar promociones aplicadas (through)
+            from ventas.models import VentaPromocionAplicada
+            VentaPromocionAplicada.objects.filter(venta=instance).delete()
+            for p in getattr(self, 'promos_aplicadas_aceptadas', []):
+                promo = p['promo']
+                VentaPromocionAplicada.objects.create(
+                    venta=instance,
+                    promocion=promo,
+                    nombre_promocion=promo.nombre,
+                    porcentaje_aplicado=p.get('porcentaje') or Decimal('0.00'),
+                    monto_descuento=p.get('monto_descuento') or Decimal('0.00'),
+                    requiere_confirmacion_snapshot=p.get('requiere_confirmacion', False),
+                    km_bono=p.get('km_bono') or Decimal('0.00'),
+                )
+            # Marcar que no se ha aplicado aún como pago
+            instance.descuento_promociones_aplicado_como_pago = False
+            instance.save(update_fields=['descuento_promociones_aplicado_como_pago'])
         return instance

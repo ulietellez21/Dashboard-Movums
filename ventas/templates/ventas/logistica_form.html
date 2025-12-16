@@ -7,7 +7,17 @@
     <h1 class="mb-4">⚙️ Gestión de Servicios de Logística</h1>
 
     <div class="card p-4 shadow-sm mb-4">
-        <p class="h4">Venta #{{ venta.id }} - Cliente: {{ venta.cliente.nombre_completo_display }}</p>
+        <p class="h4">
+            Venta #{{ venta.id }} - Cliente: 
+            {% if venta.cliente.tipo_cliente == 'EMPRESA' %}
+                <i class="fas fa-building text-info"></i>
+                <span class="badge bg-info text-white me-1">Empresa</span>
+            {% else %}
+                <i class="fas fa-user text-success"></i>
+                <span class="badge bg-success text-white me-1">Particular</span>
+            {% endif %}
+            {{ venta.cliente.nombre_completo_display }}
+        </p>
         <p><strong>Fecha de Viaje:</strong> {{ venta.fecha_inicio_viaje|date:"d M Y" }}</p>
         <p><strong>Costo Venta Final:</strong> ${{ venta.costo_total_con_modificacion|floatformat:2|intcomma }}{% if venta.costo_modificacion and venta.costo_modificacion > 0 %} (incluye modificación: ${{ venta.costo_modificacion|floatformat:2|intcomma }}){% endif %}</p>
     </div>

@@ -16,25 +16,22 @@
 {# CSS CRÍTICO: SOLO LAYOUTS. TODOS LOS COLORES FUERON MOVIDOS A main.css #}
 {# ----------------------------------------------------------- #}
 <style>
-    /* Layout del Sidebar */
+    /* Layout del Sidebar - fijo, visible siempre */
     #sidebar-wrapper {
-        min-height: 100vh;
-        margin-left: -15rem; 
+        height: 100vh;
         width: 15rem;
-        transition: margin .25s ease-out;
+        position: fixed;
+        top: 0;
+        left: 0;
         z-index: 10;
+        overflow-y: auto;
+        background-color: #0d6efd;
     }
     
     #page-content-wrapper {
-        min-width: 100vw;
-    }
-
-    #wrapper.toggled #sidebar-wrapper {
-        margin-left: 0; 
-    }
-    
-    #wrapper.toggled #page-content-wrapper {
-        min-width: calc(100vw - 15rem);
+        margin-left: 15rem;
+        width: calc(100% - 15rem);
+        min-width: 0;
     }
 
     /* CORRECCIÓN DE LOGO: Centrado y escalado correcto (sin aplastar) */
@@ -71,19 +68,6 @@
     @media (min-width: 768px) {
         #sidebar-wrapper {
             margin-left: 0;
-        }
-
-        #page-content-wrapper {
-            min-width: 0;
-            width: 100%;
-        }
-
-        #wrapper.toggled #sidebar-wrapper {
-            margin-left: -15rem; 
-        }
-        
-        #wrapper.toggled #page-content-wrapper {
-            min-width: 100vw;
         }
     }
     
@@ -474,6 +458,17 @@
     .no-animations a.btn {
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
     }
+
+/* ===== Usabilidad de dropdowns (Select2 u otros) ===== */
+/* Limita altura de listas y evita que el scroll de la página se dispare al llegar al final */
+.select2-container--default .select2-results > .select2-results__options {
+    max-height: 260px;
+    overflow-y: auto;
+    pointer-events: auto;
+}
+.select2-results__option {
+    pointer-events: auto;
+}
 </style>
 
 {% block extra_head %}{% endblock %}
@@ -514,6 +509,7 @@
                 {# ACCESO A REPORTE FINANCIERO: JEFE, CONTADOR #}
                 {% if "JEFE" in user_full_rol_upper or "CONTADOR" in user_full_rol_upper %}
                     <a href="{% url 'reporte_financiero' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-file-invoice-dollar fa-fw me-2"></i> Reporte Financiero</a>
+                    <a href="{% url 'kilometros_dashboard' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-route fa-fw me-2"></i> Kilómetros Movums</a>
                 {% endif %}
                 
                 {# ACCESO A COMISIONES: Todos (JEFE, CONTADOR, VENDEDOR) #}
@@ -533,14 +529,9 @@
     {# El div principal de contenido. #}
     <div id="page-content-wrapper"> 
         
-        {# NAV BAR: ELIMINAMOS EL ESTILO INLINE AGRESIVO y usamos la clase CSS para el color #}
+        {# NAV BAR #}
         <nav class="navbar navbar-expand-lg navbar-dark border-bottom sticky-top" id="main-navbar">
             <div class="container-fluid">
-                {# Botón del menú lateral. Usamos btn-outline-light para que sea blanco #}
-                <button class="btn btn-outline-light" id="sidebarToggle">
-                    <i class="fas fa-bars text-white"></i> 
-                </button> 
-                
                 <ul class="navbar-nav ms-auto mt-2 mt-lg-0">
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" id="navbarDropdown" href="#" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -596,31 +587,43 @@
         if (!target) return false;
         return target.hasAttribute('data-bs-toggle') && target.getAttribute('data-bs-toggle') === 'modal' ||
                target.hasAttribute('data-bs-target') && target.getAttribute('data-bs-target').startsWith('#');
-    }
+                }
     
     // Función para verificar si hay un modal abierto
     function hasOpenModal() {
         return document.body.classList.contains('modal-open') || 
-               document.querySelector('.modal.show') ||
+                document.querySelector('.modal.show') ||
                document.querySelector('.modal.in') ||
                document.querySelector('.modal[class*="show"]');
-    }
+            }
     
-    // Lógica de Toggle del Sidebar (con protección de errores)
-    try {
-        const sidebarToggle = document.getElementById("sidebarToggle");
-        if (sidebarToggle) {
-            sidebarToggle.addEventListener("click", event => {
-                event.preventDefault();
-                const wrapper = document.getElementById("wrapper");
-                if (wrapper) {
-                    wrapper.classList.toggle("toggled");
+    // Sidebar fijo: se mantiene siempre visible, sin toggle
+
+    // Evitar que el scroll de listas (ej. Select2) arrastre la página
+    (function() {
+        function handleListWheel(e) {
+            let list = null;
+            if (e.target && e.target.closest) {
+                const option = e.target.closest('.select2-results__option');
+                if (option && option.parentElement && option.parentElement.classList.contains('select2-results__options')) {
+                    list = option.parentElement;
+                } else {
+                    list = e.target.closest('.select2-results__options');
                 }
-            });
+            }
+            if (!list) return;
+            const deltaY = e.deltaY || -e.wheelDelta || e.detail || 0;
+            e.preventDefault();
+            e.stopPropagation();
+            list.scrollTop = Math.min(
+                list.scrollHeight - list.clientHeight,
+                Math.max(0, list.scrollTop + deltaY)
+            );
         }
-    } catch(e) {
-        console.error("Error al inicializar sidebar toggle:", e);
-    }
+        ['wheel', 'mousewheel', 'DOMMouseScroll'].forEach(evt => {
+            document.addEventListener(evt, handleListWheel, { passive: false, capture: true });
+        });
+    })();
     
     // Función para mostrar overlay de transición
     function showPageTransition() {
@@ -822,49 +825,49 @@
         
         // Configurar enlaces para interceptar navegación (solo enlaces internos)
         // SIN setTimeout - ejecutar inmediatamente
-        const links = document.querySelectorAll('a[href]');
-        
-        links.forEach(link => {
-            const href = link.getAttribute('href');
+            const links = document.querySelectorAll('a[href]');
             
-            if (!href) return;
-            
-            // Excluir enlaces especiales y externos, modales, y elementos interactivos
-            if (href.startsWith('http://') || href.startsWith('https://') || 
-                href.startsWith('mailto:') || href.startsWith('tel:') ||
-                link.getAttribute('target') === '_blank' ||
-                href.startsWith('#') ||
-                link.hasAttribute('data-bs-toggle') || 
-                link.hasAttribute('data-toggle') ||
-                link.hasAttribute('data-bs-target') ||
-                link.hasAttribute('data-target') ||
-                link.closest('.modal') || // Si está dentro de un modal
-                link.querySelector('form') ||
-                link.closest('form')) { // Si está dentro de un formulario
-                return;
-            }
-            
-            // Solo interceptar enlaces internos que realmente navegan
-            if (href.startsWith('/') || href.startsWith('./') || (!href.includes('://') && !href.startsWith('#'))) {
-                link.addEventListener('click', function(e) {
-                    // NO interceptar si es un modal o tiene atributos especiales
-                    if (this.getAttribute('onclick') && this.getAttribute('onclick').includes('window.location')) {
-                        return;
-                    }
-                    // NO interceptar si está relacionado con Bootstrap modals
-                    if (this.hasAttribute('data-bs-toggle') || 
-                        this.hasAttribute('data-bs-target') ||
-                        this.closest('.modal') ||
-                        this.closest('[data-bs-toggle="modal"]')) {
-                        // Asegurar que el overlay esté oculto
-                        forceHideOverlay();
-                        return;
-                    }
-                    // Verificar nuevamente antes de mostrar transición
-                    // NO mostrar transición si hay un modal
-                    if (!document.body.classList.contains('modal-open') && 
-                        !document.querySelector('.modal.show') &&
-                        !document.querySelector('.modal.in')) {
+            links.forEach(link => {
+                const href = link.getAttribute('href');
+                
+                if (!href) return;
+                
+                // Excluir enlaces especiales y externos, modales, y elementos interactivos
+                if (href.startsWith('http://') || href.startsWith('https://') || 
+                    href.startsWith('mailto:') || href.startsWith('tel:') ||
+                    link.getAttribute('target') === '_blank' ||
+                    href.startsWith('#') ||
+                    link.hasAttribute('data-bs-toggle') || 
+                    link.hasAttribute('data-toggle') ||
+                    link.hasAttribute('data-bs-target') ||
+                    link.hasAttribute('data-target') ||
+                    link.closest('.modal') || // Si está dentro de un modal
+                    link.querySelector('form') ||
+                    link.closest('form')) { // Si está dentro de un formulario
+                    return;
+                }
+                
+                // Solo interceptar enlaces internos que realmente navegan
+                if (href.startsWith('/') || href.startsWith('./') || (!href.includes('://') && !href.startsWith('#'))) {
+                    link.addEventListener('click', function(e) {
+                        // NO interceptar si es un modal o tiene atributos especiales
+                        if (this.getAttribute('onclick') && this.getAttribute('onclick').includes('window.location')) {
+                            return;
+                        }
+                        // NO interceptar si está relacionado con Bootstrap modals
+                        if (this.hasAttribute('data-bs-toggle') || 
+                            this.hasAttribute('data-bs-target') ||
+                            this.closest('.modal') ||
+                            this.closest('[data-bs-toggle="modal"]')) {
+                            // Asegurar que el overlay esté oculto
+                            forceHideOverlay();
+                            return;
+                        }
+                        // Verificar nuevamente antes de mostrar transición
+                        // NO mostrar transición si hay un modal
+                        if (!document.body.classList.contains('modal-open') && 
+                            !document.querySelector('.modal.show') &&
+                            !document.querySelector('.modal.in')) {
                         const url = this.getAttribute('href') || '';
                         const isDownload = /\.(docx|pdf|xlsx?|pptx?|zip)$/i.test(url);
                         const skipTransition = this.getAttribute('data-no-transition') === 'true';
@@ -873,25 +876,25 @@
                         } else {
                             showPageTransition();
                         }
-                    } else {
-                        // Si hay un modal, asegurar que el overlay esté oculto
-                        forceHideOverlay();
-                    }
-                }, false); // Bubble phase
-            }
-        });
-        
+                        } else {
+                            // Si hay un modal, asegurar que el overlay esté oculto
+                            forceHideOverlay();
+                        }
+                    }, false); // Bubble phase
+                }
+            });
+            
         // SOLUCIÓN #2: Listener global SIMPLIFICADO - solo ocultar overlay, NO interferir con eventos
         // Ejecutar en bubble phase (false) para NO interferir con Bootstrap
-        document.addEventListener('click', function(e) {
+            document.addEventListener('click', function(e) {
             // Solo verificar si es un botón de modal y ocultar overlay
             if (isModalButton(e.target)) {
-                isTransitioning = false;
-                const overlay = document.getElementById('pageTransitionOverlay');
-                if (overlay) {
+                    isTransitioning = false;
+                    const overlay = document.getElementById('pageTransitionOverlay');
+                    if (overlay) {
                     overlay.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -9999 !important;';
-                    overlay.classList.remove('active');
-                }
+                        overlay.classList.remove('active');
+                    }
                 // NO hacer nada más - dejar que Bootstrap maneje todo
             }
         }, false); // Bubble phase - NO capture phase para no interferir

@@ -1,6 +1,7 @@
 from django import forms
-from .models import Cliente
+from .models import Cliente, PromocionKilometros
 from django.core.exceptions import ValidationError
+from decimal import Decimal
 
 class ClienteForm(forms.ModelForm):
     """
@@ -9,8 +10,16 @@ class ClienteForm(forms.ModelForm):
     """
     class Meta:
         model = Cliente
-        # Incluimos todos los campos, la validación se encarga de requerir/limpiar
-        fields = '__all__'
+        # Excluimos campos automáticos/calculados que no deben ser editables
+        exclude = [
+            'cotizaciones_generadas',  # Campo automático
+            'kilometros_acumulados',  # Campo automático con default=0.00
+            'kilometros_disponibles',  # Campo automático con default=0.00
+            'ultima_fecha_km',  # Campo automático
+            'fecha_ultimo_bono_cumple',  # Campo automático
+            'fecha_registro',  # Campo automático
+            'fecha_actualizacion',  # Campo automático
+        ]
         
         # Widgets para aplicar clases de Bootstrap para estilizado
         widgets = {
@@ -71,3 +80,74 @@ class ClienteForm(forms.ModelForm):
              self.add_error('telefono', 'El número de teléfono es obligatorio para contacto.')
 
         return cleaned_data
+    
+    def save(self, commit=True):
+        """
+        Sobreescribe el método save para asegurar que los campos automáticos
+        tengan sus valores por defecto al crear un nuevo cliente.
+        """
+        instance = super().save(commit=False)
+        
+        # Si es un nuevo cliente (sin pk), inicializar campos automáticos
+        if not instance.pk:
+            if instance.cotizaciones_generadas is None:
+                instance.cotizaciones_generadas = 0
+            if instance.kilometros_acumulados is None:
+                instance.kilometros_acumulados = Decimal('0.00')
+            if instance.kilometros_disponibles is None:
+                instance.kilometros_disponibles = Decimal('0.00')
+        
+        if commit:
+            instance.save()
+        return instance
+
+
+class PromocionKilometrosForm(forms.ModelForm):
+    class Meta:
+        model = PromocionKilometros
+        fields = [
+            'nombre',
+            'descripcion',
+            'tipo',
+            'porcentaje_descuento',
+            'monto_tope_mxn',
+            'condicion',
+            'valor_condicion',
+            'alcance',
+            'requiere_confirmacion',
+            'kilometros_bono',
+            'fecha_inicio',
+            'fecha_fin',
+            'activa',
+        ]
+        widgets = {
+            'nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre de la promoción'}),
+            'descripcion': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Descripción breve'}),
+            'tipo': forms.Select(attrs={'class': 'form-select'}),
+            'porcentaje_descuento': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0.00'}),
+            'monto_tope_mxn': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0.00'}),
+            'condicion': forms.Select(attrs={'class': 'form-select'}),
+            'valor_condicion': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 2 para mes, 14-02 para cumple'}),
+            'alcance': forms.Select(attrs={'class': 'form-select'}),
+            'requiere_confirmacion': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'kilometros_bono': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0.00'}),
+            'fecha_inicio': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha_fin': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'activa': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+    def clean(self):
+        cleaned = super().clean()
+        fi = cleaned.get('fecha_inicio')
+        ff = cleaned.get('fecha_fin')
+        if fi and ff and ff < fi:
+            self.add_error('fecha_fin', 'La fecha fin debe ser mayor o igual a la fecha inicio.')
+        porcentaje = cleaned.get('porcentaje_descuento')
+        if porcentaje is not None and porcentaje < 0:
+            self.add_error('porcentaje_descuento', 'El porcentaje no puede ser negativo.')
+        tipo = cleaned.get('tipo')
+        km = cleaned.get('kilometros_bono') or Decimal('0.00')
+        if tipo == 'KM' and km <= 0:
+            self.add_error('kilometros_bono', 'Ingresa kilómetros mayores a 0 para bonificar.')
+        return cleaned
+        return cleaned

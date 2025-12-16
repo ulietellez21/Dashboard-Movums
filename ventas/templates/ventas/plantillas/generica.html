@@ -3,6 +3,71 @@
 
 {% block title %}Plantilla Genérica - Venta #{{ venta.id }}{% endblock %}
 
+{% block extra_head %}
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap">
+<style>
+    body { 
+        font-family: 'Roboto', Arial, sans-serif; 
+        background-color: #f8f9fa;
+    }
+    h1, h2, h3, h4, h5, h6 { 
+        font-family: 'Roboto', Arial, sans-serif; 
+        font-weight: 700; 
+        color: #004a8e; 
+    }
+    label.form-label { 
+        font-weight: 600; 
+        color: #374151; 
+    }
+    .card { 
+        border: 1px solid #dfe3e8; 
+        border-radius: 12px; 
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .card-header { 
+        background-color: #004a8e; 
+        color: #fff; 
+        border: none; 
+        border-top-left-radius: 12px; 
+        border-top-right-radius: 12px; 
+        font-weight: 600;
+    }
+    .card-header.bg-primary {
+        background-color: #004a8e !important;
+    }
+    .table thead th { 
+        background: #004a8e; 
+        color: #fff; 
+        border: none; 
+        font-weight: 600;
+    }
+    .table tbody tr:nth-child(even) { 
+        background: #f8f9fb; 
+    }
+    .table tbody tr:hover {
+        background: #e9ecef;
+    }
+    .btn-primary {
+        background-color: #004a8e;
+        border-color: #004a8e;
+    }
+    .btn-primary:hover {
+        background-color: #003a6e;
+        border-color: #003a6e;
+    }
+    .form-control:focus {
+        border-color: #004a8e;
+        box-shadow: 0 0 0 0.2rem rgba(0, 74, 142, 0.25);
+    }
+    .card.border-info {
+        border-color: #004a8e !important;
+    }
+    .card-header.bg-info {
+        background-color: #004a8e !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="row">
     <div class="col-12">
@@ -47,6 +112,7 @@
     </div>
 </div>
 {% endblock %}
+
 
 
 
