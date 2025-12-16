@@ -106,6 +106,93 @@
                         {% endfor %}
                     </div>
                 </div>
+
+                {# Sección para Ventas Internacionales (USD) - Solo visible cuando tipo_viaje == 'INT' #}
+                {% with valor_tipo=form.initial.tipo_viaje|default:form.instance.tipo_viaje|default:"" %}
+                <div id="seccionVentaInternacional" style="{% if valor_tipo == 'INT' %}display: block;{% else %}display: none;{% endif %}" class="card p-4 shadow-sm border-primary mb-4">
+                {% endwith %}
+                    <h5 class="text-primary fw-bold mb-3">
+                        <i class="fas fa-globe-americas me-2"></i>Información de Venta Internacional (USD)
+                    </h5>
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label for="{{ form.tarifa_base_usd.id_for_label }}" class="form-label fw-bold text-secondary">
+                                {{ form.tarifa_base_usd.label }}<span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">USD $</span>
+                                {{ form.tarifa_base_usd|add_class:"form-control" }}
+                            </div>
+                            {% for error in form.tarifa_base_usd.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label for="{{ form.impuestos_usd.id_for_label }}" class="form-label fw-bold text-secondary">
+                                {{ form.impuestos_usd.label }}<span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">USD $</span>
+                                {{ form.impuestos_usd|add_class:"form-control" }}
+                            </div>
+                            {% for error in form.impuestos_usd.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label for="{{ form.suplementos_usd.id_for_label }}" class="form-label fw-bold text-secondary">
+                                {{ form.suplementos_usd.label }}<span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">USD $</span>
+                                {{ form.suplementos_usd|add_class:"form-control" }}
+                            </div>
+                            {% for error in form.suplementos_usd.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label for="{{ form.tours_usd.id_for_label }}" class="form-label fw-bold text-secondary">
+                                {{ form.tours_usd.label }}<span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">USD $</span>
+                                {{ form.tours_usd|add_class:"form-control" }}
+                            </div>
+                            {% for error in form.tours_usd.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.tipo_cambio.id_for_label }}" class="form-label fw-bold text-secondary">
+                                {{ form.tipo_cambio.label }}<span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">1 USD =</span>
+                                {{ form.tipo_cambio|add_class:"form-control" }}
+                                <span class="input-group-text">MXN</span>
+                            </div>
+                            <div class="form-text text-muted">Tipo de cambio del día para convertir dólares a pesos mexicanos.</div>
+                            {% for error in form.tipo_cambio.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold text-secondary">Total en USD</label>
+                            <div class="input-group">
+                                <span class="input-group-text">USD $</span>
+                                <input type="text" class="form-control" id="totalUsdCalculado" readonly value="0.00">
+                            </div>
+                            <div class="form-text text-muted">Total calculado automáticamente (Tarifa Base + Impuestos + Suplementos + Tours)</div>
+                        </div>
+                    </div>
+                    <div class="alert alert-info mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Nota:</strong> Los valores se convertirán automáticamente a pesos mexicanos (MXN) al guardar usando el tipo de cambio especificado.
+                    </div>
+                </div>
                 
                 {# Pasajeros (Campo nuevo - Textarea) #}
                 <div class="mb-4">
@@ -281,11 +368,14 @@
                     </div>
                     <div class="col-md-4 mb-3">
                         {# Cantidad de Apertura/Anticipo #}
-                        <label for="{{ form.cantidad_apertura.id_for_label }}" class="form-label fw-bold text-secondary">{{ form.cantidad_apertura.label }}</label>
+                        <label for="{{ form.cantidad_apertura.id_for_label }}" class="form-label fw-bold text-secondary">
+                            <span id="labelCantidadApertura">{{ form.cantidad_apertura.label }}</span>
+                        </label>
                         <div class="input-group">
-                            <span class="input-group-text">$</span>
+                            <span class="input-group-text" id="simboloMonedaApertura">$</span>
                             {{ form.cantidad_apertura|add_class:"form-control" }}
                         </div>
+                        <div class="form-text text-muted" id="helpTextApertura">Cantidad de apertura o anticipo</div>
                         {% for error in form.cantidad_apertura.errors %}
                             <div class="text-danger small">{{ error }}</div>
                         {% endfor %}
@@ -303,15 +393,24 @@
                     </div>
                     <div class="col-md-4 mb-3">
                         {# Costo Neto (Costo Agencia) #}
-                        <label for="{{ form.costo_neto.id_for_label }}" class="form-label fw-bold text-secondary">{{ form.costo_neto.label }}<span class="text-danger">*</span></label>
+                        <label for="{{ form.costo_neto.id_for_label }}" class="form-label fw-bold text-secondary">
+                            <span id="labelCostoNeto">{{ form.costo_neto.label }}</span><span class="text-danger">*</span>
+                        </label>
                         <div class="input-group">
-                            <span class="input-group-text">$</span>
+                            <span class="input-group-text" id="simboloMonedaCostoNeto">$</span>
                             {{ form.costo_neto|add_class:"form-control" }}
                         </div>
-                        <div class="form-text text-muted">{{ form.costo_neto.help_text }}</div>
+                        <div class="form-text text-muted" id="helpTextCostoNeto">{{ form.costo_neto.help_text }}</div>
                     </div>
                 </div>
 
+                <div id="promoPreviewContainer">
+                  {% if form.promos_calculadas %}
+                      {% include 'ventas/partials/promo_preview.html' with promos=form.promos_calculadas total_desc=form.total_descuento_promos %}
+                  {% endif %}
+                </div>
+
+                {# Sección de Kilómetros Movums - Ocultar para ventas internacionales #}
                 <div class="card p-3 shadow-sm border-success-subtle mb-4" id="descuentoKilometrosCard">
                     <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between">
                         <div class="form-check form-switch mb-2 mb-md-0">
@@ -321,7 +420,7 @@
                             </label>
                         </div>
                         <p class="text-muted small mb-0">
-                            Disponible como beneficio de fidelidad. El descuento se calcula sobre el total de la venta.
+                            Disponible como beneficio de fidelidad. El descuento se calcula sobre el costo neto de la venta (10% del costo neto).
                         </p>
                     </div>
                     {% for error in form.aplica_descuento_kilometros.errors %}
@@ -382,9 +481,14 @@
                     <label for="{{ form.documentos_cliente.id_for_label }}" class="form-label fw-bold text-secondary">
                         {{ form.documentos_cliente.label }}
                     </label>
-                    {# El widget ya es ClearableFileInput y tiene la clase form-control desde forms.py #}
+                    {# El widget MultipleFileInput permite seleccionar múltiples archivos #}
                     {{ form.documentos_cliente }} 
-                    <div class="form-text text-muted">{{ form.documentos_cliente.help_text }}</div>
+                    {% if form.documentos_cliente.help_text %}
+                    <div class="form-text text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        {{ form.documentos_cliente.help_text }}
+                    </div>
+                    {% endif %}
                     {% for error in form.documentos_cliente.errors %}
                         <div class="invalid-feedback d-block"><i class="fas fa-exclamation-circle me-1"></i> {{ error }}</div>
                     {% endfor %}
@@ -457,6 +561,59 @@
     
     {# Carga de Select2 para mejorar la interfaz de selección de cliente y servicios #}
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <style>
+        /* Estilos minimalistas y modernos para Select2 */
+        .select2-container {
+            width: 100% !important;
+        }
+        .select2-container--default .select2-selection--single {
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            height: 38px;
+            transition: all 0.2s ease;
+        }
+        
+        .select2-container--default .select2-selection--single:hover {
+            border-color: #86b7fe;
+        }
+        
+        .select2-container--default.select2-container--focus .select2-selection--single {
+            border-color: #86b7fe;
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.1);
+        }
+        
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: 36px;
+            padding-left: 12px;
+            color: #212529;
+            font-size: 1em;
+        }
+        
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 36px;
+            right: 10px;
+        }
+        
+        .select2-dropdown {
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            margin-top: 4px;
+        }
+        
+        .select2-results__option--highlighted[aria-selected] {
+            background-color: #f8f9fa;
+            color: #212529;
+        }
+        
+        .select2-results__option[aria-selected=true] {
+            background-color: #e7f1ff;
+            color: #0d6efd;
+        }
+        .select2-results__option {
+            font-size: 1em;
+        }
+    </style>
 {% endblock %}
 
 {% block extra_js %}
@@ -465,9 +622,144 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
         $(document).ready(function() {
-            $('#id_cliente').select2({
+            const clienteSelect = $('#id_cliente');
+            
+            // Inicializar Select2 con estilo minimalista
+            clienteSelect.select2({
                 placeholder: "Selecciona un cliente",
-                allowClear: true
+                allowClear: true,
+                width: '100%',
+                templateResult: function(data) {
+                    if (!data.id) {
+                        return data.text;
+                    }
+                    const $result = $('<span></span>');
+                    $result.text(data.text);
+                    // Fuente al mismo tamaño que el resto del formulario
+                    $result.css({
+                        'font-size': '1em',
+                        'line-height': '1.5'
+                    });
+                    return $result;
+                },
+                templateSelection: function(data) {
+                    if (!data.id) {
+                        return data.text;
+                    }
+                    const $selection = $('<span></span>');
+                    $selection.text(data.text);
+                    $selection.css({
+                        'font-size': '1em'
+                    });
+                    return $selection;
+                }
+            });
+            
+            // Aplicar estilos minimalistas cuando se abre el dropdown
+            clienteSelect.on('select2:open', function() {
+                setTimeout(function() {
+                    // Estilizar los grupos (optgroups) de forma minimalista
+                    $('.select2-results__group').each(function() {
+                        const $group = $(this);
+                        $group.css({
+                            'font-weight': '600',
+                            'font-size': '0.95em',
+                            'text-transform': 'uppercase',
+                            'letter-spacing': '0.5px',
+                            'color': '#6c757d',
+                            'padding': '6px 12px',
+                            'background-color': 'transparent',
+                            'border-bottom': 'none',
+                            'margin-top': '8px',
+                            'margin-bottom': '4px'
+                        });
+                    });
+                    
+                    // Estilizar las opciones individuales de forma minimalista
+                    $('.select2-results__option').each(function() {
+                        const $option = $(this);
+                        const text = $option.text();
+                        
+                        // Ignorar los grupos y la opción vacía
+                        if ($option.hasClass('select2-results__group') || text === '---------') {
+                            return;
+                        }
+                        
+                        // Estilo base minimalista para todas las opciones
+                        $option.css({
+                            'padding': '8px 12px',
+                            'font-size': '1em',
+                            'transition': 'all 0.2s ease',
+                            'border-radius': '4px',
+                            'margin': '2px 8px'
+                        });
+                        
+                        // Colores sutiles basados en el tipo
+                        if (text.includes('🏢')) {
+                            // Empresa - color azul sutil
+                            $option.css({
+                                'color': '#495057',
+                                'background-color': 'transparent'
+                            });
+                            
+                            // Hover sutil para empresas
+                            $option.hover(
+                                function() {
+                                    $(this).css({
+                                        'background-color': '#f0f7ff',
+                                        'color': '#0d6efd'
+                                    });
+                                },
+                                function() {
+                                    $(this).css({
+                                        'background-color': 'transparent',
+                                        'color': '#495057'
+                                    });
+                                }
+                            );
+                        } else if (text.includes('👤')) {
+                            // Particular - color verde sutil
+                            $option.css({
+                                'color': '#495057',
+                                'background-color': 'transparent'
+                            });
+                            
+                            // Hover sutil para particulares
+                            $option.hover(
+                                function() {
+                                    $(this).css({
+                                        'background-color': '#f0fdf4',
+                                        'color': '#16a34a'
+                                    });
+                                },
+                                function() {
+                                    $(this).css({
+                                        'background-color': 'transparent',
+                                        'color': '#495057'
+                                    });
+                                }
+                            );
+                        }
+                    });
+                }, 10);
+            });
+
+            // Permitir scroll dentro de la lista Select2 sin mover la página
+            $(document).on('wheel', '.select2-results__options', function(e) {
+                const deltaY = e.originalEvent.deltaY;
+                const maxScroll = this.scrollHeight - this.clientHeight;
+                const current = this.scrollTop;
+                e.preventDefault();
+                e.stopPropagation();
+                this.scrollTop = Math.min(maxScroll, Math.max(0, current + deltaY));
+            });
+            
+            // Aplicar estilos al contenedor de Select2 para un look más moderno
+            clienteSelect.on('select2:select', function() {
+                $('.select2-selection__rendered').css({
+                    'font-size': '0.95em',
+                    'color': '#212529'
+                });
             });
 
                     const currencyFormatter = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2 });
@@ -755,6 +1047,8 @@
                 actualizarProveedores();
             }, 100);
 
+            // Cambiar: usar costo_neto en lugar de costo_venta_final para calcular el descuento
+            const costoNetoInput = document.getElementById('id_costo_neto');
             const costoVentaInput = document.getElementById('id_costo_venta_final');
             const descuentoCheckbox = document.getElementById('id_aplica_descuento_kilometros');
             const descuentoHidden = document.getElementById('id_descuento_kilometros_mxn');
@@ -763,10 +1057,12 @@
             const totalLabel = document.getElementById('totalConDescuento');
 
             function recalculateDescuento() {
-                if (!costoVentaInput) { return; }
-                const costo = toNumber(costoVentaInput.value);
-                const aplica = descuentoCheckbox && descuentoCheckbox.checked && costo > 0;
-                const maxPorRegla = Math.round(costo * 10) / 100;
+                // Usar costo_neto para calcular el descuento (10% sobre costo neto, no sobre total)
+                const costoNeto = costoNetoInput ? toNumber(costoNetoInput.value) : 0;
+                const costoVenta = costoVentaInput ? toNumber(costoVentaInput.value) : 0;
+                const aplica = descuentoCheckbox && descuentoCheckbox.checked && costoNeto > 0;
+                // Calcular el 10% sobre el costo NETO
+                const maxPorRegla = Math.round(costoNeto * 10) / 100;
                 const maxPorCredito = Math.max(0, kmCreditoDisponible || 0);
                 const descuentoAplicable = Math.min(maxPorRegla, maxPorCredito);
                 const descuento = aplica ? descuentoAplicable : 0;
@@ -775,7 +1071,7 @@
                     descuentoHidden.value = descuento.toFixed(2);
                 }
                 if (subtotalLabel) {
-                    subtotalLabel.textContent = `${currencyFormatter.format(costo)} MXN`;
+                    subtotalLabel.textContent = `${currencyFormatter.format(costoVenta)} MXN`;
                 }
                 if (descuentoLabel) {
                     const formatted = currencyFormatter.format(descuento);
@@ -786,18 +1082,341 @@
                     }
                 }
                 if (totalLabel) {
-                    const total = Math.max(0, costo - descuento);
+                    const total = Math.max(0, costoVenta - descuento);
                     totalLabel.textContent = `${currencyFormatter.format(total)} MXN`;
                 }
             }
 
+            // Escuchar cambios en costo_neto (para calcular descuento) y costo_venta_final (para mostrar total)
+            if (costoNetoInput) {
+                costoNetoInput.addEventListener('input', recalculateDescuento);
+            }
             if (costoVentaInput) {
                 costoVentaInput.addEventListener('input', recalculateDescuento);
+            }
+
+            // ========== LÓGICA PARA VENTAS INTERNACIONALES (USD) ==========
+            const tipoViajeSelect = document.getElementById('id_tipo_viaje');
+            const seccionVentaInternacional = document.getElementById('seccionVentaInternacional');
+            const tarifaBaseUsdInput = document.getElementById('id_tarifa_base_usd');
+            const impuestosUsdInput = document.getElementById('id_impuestos_usd');
+            const suplementosUsdInput = document.getElementById('id_suplementos_usd');
+            const toursUsdInput = document.getElementById('id_tours_usd');
+            const tipoCambioInput = document.getElementById('id_tipo_cambio');
+            const totalUsdCalculado = document.getElementById('totalUsdCalculado');
+            const costoNetoLabel = costoNetoInput ? costoNetoInput.closest('.mb-3').querySelector('label') : null;
+            const costoVentaLabel = costoVentaInput ? costoVentaInput.closest('.mb-3').querySelector('label') : null;
+
+            function toggleSeccionInternacional() {
+                const esInternacional = tipoViajeSelect && tipoViajeSelect.value === 'INT';
+                if (seccionVentaInternacional) {
+                    seccionVentaInternacional.style.display = esInternacional ? 'block' : 'none';
+                }
+                // Ocultar/mostrar sección de Kilómetros Movums
+                const descuentoKilometrosCard = document.getElementById('descuentoKilometrosCard');
+                if (descuentoKilometrosCard) {
+                    descuentoKilometrosCard.style.display = esInternacional ? 'none' : 'block';
+                }
+                // Cambiar labels y símbolos de moneda cuando es internacional
+                const cantidadAperturaInput = document.getElementById('id_cantidad_apertura');
+                const simboloMonedaApertura = document.getElementById('simboloMonedaApertura');
+                const labelCantidadApertura = document.getElementById('labelCantidadApertura');
+                const helpTextApertura = document.getElementById('helpTextApertura');
+                
+                const simboloMonedaCostoNeto = document.getElementById('simboloMonedaCostoNeto');
+                const labelCostoNeto = document.getElementById('labelCostoNeto');
+                const helpTextCostoNeto = document.getElementById('helpTextCostoNeto');
+                
+                if (esInternacional) {
+                    if (costoVentaLabel) {
+                        const originalText = costoVentaLabel.textContent.replace(' *', '').replace(' (MXN - Calculado desde USD)', '');
+                        costoVentaLabel.innerHTML = originalText + ' (MXN - Calculado desde USD)<span class="text-danger">*</span>';
+                    }
+                    // Costo Neto: se ingresa en USD, se convertirá a MXN al guardar
+                    if (labelCostoNeto) {
+                        labelCostoNeto.innerHTML = 'Costo Neto (USD)';
+                    }
+                    if (helpTextCostoNeto) {
+                        helpTextCostoNeto.textContent = 'Ingresa el costo neto en dólares americanos (USD). Se convertirá automáticamente a MXN al guardar.';
+                    }
+                    // Cambiar símbolo de moneda en costo_neto a USD
+                    if (simboloMonedaCostoNeto) {
+                        simboloMonedaCostoNeto.textContent = 'USD $';
+                    }
+                    if (costoVentaInput) {
+                        const inputGroup = costoVentaInput.closest('.input-group');
+                        if (inputGroup) {
+                            const span = inputGroup.querySelector('.input-group-text');
+                            if (span) span.textContent = 'MXN $';
+                        }
+                    }
+                    // Cambiar cantidad de apertura a USD
+                    if (simboloMonedaApertura) {
+                        simboloMonedaApertura.textContent = 'USD $';
+                    }
+                    if (labelCantidadApertura) {
+                        labelCantidadApertura.innerHTML = 'Cantidad de Apertura (USD)';
+                    }
+                    if (helpTextApertura) {
+                        helpTextApertura.textContent = 'Cantidad de apertura en dólares americanos (se convertirá a MXN al guardar)';
+                    }
+                } else {
+                    // Mostrar sección de Kilómetros Movums para ventas nacionales
+                    if (descuentoKilometrosCard) {
+                        descuentoKilometrosCard.style.display = 'block';
+                    }
+                    
+                    if (costoVentaLabel) {
+                        costoVentaLabel.innerHTML = costoVentaLabel.textContent.replace(' (MXN - Calculado desde USD)', '');
+                    }
+                    // Restaurar label de costo neto
+                    if (labelCostoNeto) {
+                        labelCostoNeto.innerHTML = 'Costo Neto';
+                    }
+                    if (helpTextCostoNeto) {
+                        helpTextCostoNeto.textContent = 'Costo real del viaje para la agencia.';
+                    }
+                    // Restaurar símbolo de moneda
+                    if (simboloMonedaCostoNeto) {
+                        simboloMonedaCostoNeto.textContent = '$';
+                    }
+                    if (costoVentaInput) {
+                        const inputGroup = costoVentaInput.closest('.input-group');
+                        if (inputGroup) {
+                            const span = inputGroup.querySelector('.input-group-text');
+                            if (span) span.textContent = '$';
+                        }
+                    }
+                    // Restaurar cantidad de apertura a MXN
+                    if (simboloMonedaApertura) {
+                        simboloMonedaApertura.textContent = '$';
+                    }
+                    if (labelCantidadApertura) {
+                        labelCantidadApertura.innerHTML = 'Cantidad de Apertura/Anticipo';
+                    }
+                    if (helpTextApertura) {
+                        helpTextApertura.textContent = 'Cantidad de apertura o anticipo';
+                    }
+                }
+            }
+
+            function calcularTotalUsd() {
+                if (!totalUsdCalculado) return;
+                const tarifaBase = toNumber(tarifaBaseUsdInput ? tarifaBaseUsdInput.value : 0);
+                const impuestos = toNumber(impuestosUsdInput ? impuestosUsdInput.value : 0);
+                const suplementos = toNumber(suplementosUsdInput ? suplementosUsdInput.value : 0);
+                const tours = toNumber(toursUsdInput ? toursUsdInput.value : 0);
+                const totalUsd = tarifaBase + impuestos + suplementos + tours;
+                totalUsdCalculado.value = totalUsd.toFixed(2);
+            }
+
+            function convertirUsdAMxn() {
+                if (!tipoViajeSelect || tipoViajeSelect.value !== 'INT') return;
+                const tipoCambio = toNumber(tipoCambioInput ? tipoCambioInput.value : 0);
+                if (tipoCambio <= 0) return;
+                
+                const tarifaBase = toNumber(tarifaBaseUsdInput ? tarifaBaseUsdInput.value : 0);
+                const impuestos = toNumber(impuestosUsdInput ? impuestosUsdInput.value : 0);
+                const suplementos = toNumber(suplementosUsdInput ? suplementosUsdInput.value : 0);
+                const tours = toNumber(toursUsdInput ? toursUsdInput.value : 0);
+                const totalUsd = tarifaBase + impuestos + suplementos + tours;
+                const totalMxn = totalUsd * tipoCambio;
+                
+                // Actualizar solo costo_venta_final en MXN (costo_neto se llena manualmente)
+                if (costoVentaInput && costoVentaInput.value == 0) {
+                    costoVentaInput.value = totalMxn.toFixed(2);
+                }
+                // NO actualizar costo_neto automáticamente - el vendedor lo llena manualmente
+                
+                // Recalcular descuento si aplica
+                recalculateDescuento();
+            }
+
+            // Event listeners
+            if (tipoViajeSelect) {
+                tipoViajeSelect.addEventListener('change', function() {
+                    toggleSeccionInternacional();
+                    if (this.value !== 'INT') {
+                        // Limpiar campos USD cuando no es internacional
+                        if (tarifaBaseUsdInput) tarifaBaseUsdInput.value = '';
+                        if (impuestosUsdInput) impuestosUsdInput.value = '';
+                        if (suplementosUsdInput) suplementosUsdInput.value = '';
+                        if (toursUsdInput) toursUsdInput.value = '';
+                        if (tipoCambioInput) tipoCambioInput.value = '';
+                        if (totalUsdCalculado) totalUsdCalculado.value = '0.00';
+                    }
+                });
+                // Inicializar al cargar
+                toggleSeccionInternacional();
+            }
+
+            // Calcular total USD cuando cambien los campos
+            [tarifaBaseUsdInput, impuestosUsdInput, suplementosUsdInput, toursUsdInput].forEach(input => {
+                if (input) {
+                    input.addEventListener('input', function() {
+                        calcularTotalUsd();
+                        convertirUsdAMxn();
+                    });
+                }
+            });
+
+            // Convertir a MXN cuando cambie el tipo de cambio
+            if (tipoCambioInput) {
+                tipoCambioInput.addEventListener('input', function() {
+                    convertirUsdAMxn();
+                });
             }
             if (descuentoCheckbox) {
                 descuentoCheckbox.addEventListener('change', recalculateDescuento);
             }
             recalculateDescuento();
+            
+            // Agregar separador en las opciones originales del select
+            function agregarSeparadorSelect() {
+                const selectCliente = document.getElementById('id_cliente');
+                if (!selectCliente) return;
+                
+                // Remover separadores existentes para evitar duplicados
+                Array.from(selectCliente.options).forEach(function(option) {
+                    if (option.textContent && option.textContent.includes('─────────── EMPRESAS ───────────')) {
+                        option.remove();
+                    }
+                });
+                
+                // Buscar la primera empresa
+                let encontradoEmpresa = false;
+                let primeraEmpresa = null;
+                
+                Array.from(selectCliente.options).forEach(function(option) {
+                    if (option.value && option.textContent && option.textContent.trim() !== '' && !option.disabled) {
+                        const texto = option.textContent.trim();
+                        const esEmpresa = texto.includes('🏢');
+                        
+                        if (esEmpresa && !encontradoEmpresa) {
+                            encontradoEmpresa = true;
+                            primeraEmpresa = option;
+                        }
+                    }
+                });
+                
+                // Agregar separador antes de la primera empresa
+                if (encontradoEmpresa && primeraEmpresa) {
+                    const separador = document.createElement('option');
+                    separador.value = '';
+                    separador.disabled = true;
+                    separador.textContent = '─────────── EMPRESAS ───────────';
+                    selectCliente.insertBefore(separador, primeraEmpresa);
+                }
+            }
+            
+            // Ejecutar después de que Select2 se inicialice
+            setTimeout(agregarSeparadorSelect, 100);
+
+            // ===================== PREVIEW PROMOS EN TIEMPO REAL =====================
+            const promoContainer = document.getElementById('promoPreviewContainer');
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+            const clienteSelectEl = document.getElementById('id_cliente');
+            const tipoViajeSelectEl = document.getElementById('id_tipo_viaje');
+            const costoVentaInputEl = document.getElementById('id_costo_venta_final');
+            const costoModInputEl = document.getElementById('id_costo_modificacion');
+
+            async function fetchPromosPreview() {
+                if (!promoContainer) return;
+                const clienteId = clienteSelectEl?.value;
+                const tipoViaje = tipoViajeSelectEl?.value;
+                const costo = costoVentaInputEl?.value || 0;
+                const costoMod = costoModInputEl?.value || 0;
+                if (!clienteId || !tipoViaje) {
+                    promoContainer.innerHTML = '';
+                    return;
+                }
+                const formData = new FormData();
+                formData.append('cliente_id', clienteId);
+                formData.append('tipo_viaje', tipoViaje);
+                formData.append('costo_venta_final', costo || '0');
+                formData.append('costo_modificacion', costoMod || '0');
+                try {
+                    const resp = await fetch("{% url 'preview_promociones' %}", {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': csrfToken || '',
+                        },
+                        body: formData
+                    });
+                    if (!resp.ok) {
+                        promoContainer.innerHTML = '';
+                        return;
+                    }
+                    const data = await resp.json();
+                    if (!data.ok) {
+                        promoContainer.innerHTML = '';
+                        return;
+                    }
+                    if (!data.promos || data.promos.length === 0) {
+                        promoContainer.innerHTML = '';
+                        return;
+                    }
+                    let totalDesc = 0;
+                    const baseTotal = parseFloat(costo || '0') + parseFloat(costoMod || '0');
+                    let html = `
+                      <div class="card p-3 shadow-sm border-primary-subtle mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                          <div>
+                            <h6 class="mb-0">Promociones aplicables</h6>
+                            <small class="text-muted">Aplican sobre el total de la venta. Si hay más de una, se acumulan.</small>
+                          </div>
+                          <div class="text-end">`;
+                    data.promos.forEach(p => { totalDesc += parseFloat(p.monto_descuento || '0'); });
+                    const totalConDesc = Math.max(0, baseTotal - (totalDesc || 0));
+                    html += `<div class="mb-1"><span class="badge bg-primary">Total descuento: $${(totalDesc || 0).toFixed(2)}</span></div>`;
+                    html += `<div><span class="badge bg-info text-dark">Total estimado: $${totalConDesc.toFixed(2)}</span></div>`;
+                    if (data.promos.length > 1) {
+                      html += `<div class="small text-warning">Hay más de una promoción aplicable.</div>`;
+                    }
+                    html += `</div></div><div class="list-group">`;
+                    data.promos.forEach(p => {
+                      const isDesc = p.tipo === 'DESCUENTO';
+                      html += `<div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                          <div class="fw-semibold">${p.nombre}</div>
+                          <div class="small text-muted">`;
+                      if (isDesc) {
+                        html += `${parseFloat(p.porcentaje || '0').toFixed(2)}% (-$${parseFloat(p.monto_descuento || '0').toFixed(2)})`;
+                      } else {
+                        html += `+${parseFloat(p.km_bono || '0').toFixed(0)} km Movums`;
+                      }
+                      html += ` • Condición: ${p.condicion}</div></div><div>`;
+                      if (p.requiere_confirmacion) {
+                        html += `<div class="form-check">
+                          <input class="form-check-input" type="checkbox" name="aplicar_promo_${p.id}" id="aplicar_promo_${p.id}" checked>
+                          <label class="form-check-label small" for="aplicar_promo_${p.id}">Aplicar</label>
+                        </div>`;
+                      } else {
+                        html += `<span class="badge bg-success">Automática</span>`;
+                      }
+                      html += `</div></div>`;
+                    });
+                    html += `</div></div>`;
+                    promoContainer.innerHTML = html;
+                } catch (e) {
+                    promoContainer.innerHTML = '';
+                }
+            }
+
+            function debounce(fn, delay) {
+              let t;
+              return function(...args) {
+                clearTimeout(t);
+                t = setTimeout(() => fn.apply(this, args), delay);
+              };
+            }
+
+            const debouncedFetch = debounce(fetchPromosPreview, 400);
+            clienteSelectEl?.addEventListener('change', fetchPromosPreview);
+            tipoViajeSelectEl?.addEventListener('change', fetchPromosPreview);
+            costoVentaInputEl?.addEventListener('input', debouncedFetch);
+            costoModInputEl?.addEventListener('input', debouncedFetch);
+            fetchPromosPreview();
         });
     </script>
 {% endblock %}

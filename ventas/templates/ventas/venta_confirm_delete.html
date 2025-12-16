@@ -15,6 +15,13 @@
                     
                     <p class="lead">
                         Estás a punto de eliminar la venta del cliente: 
+                        {% if object.cliente.tipo_cliente == 'EMPRESA' %}
+                            <i class="fas fa-building text-info"></i>
+                            <span class="badge bg-info text-white me-1">Empresa</span>
+                        {% else %}
+                            <i class="fas fa-user text-success"></i>
+                            <span class="badge bg-success text-white me-1">Particular</span>
+                        {% endif %}
                         <strong class="text-primary">{{ object.cliente.nombre_completo_display }}</strong>.
                     </p>
                     

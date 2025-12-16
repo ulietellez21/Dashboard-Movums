@@ -254,10 +254,10 @@
                                 {% endif %}
                                 {% if not notificacion.vista %}
                                     <button class="btn btn-sm btn-outline-secondary marcar-vista-btn" 
-                                            data-notificacion-id="{{ notificacion.pk }}" 
+                                        data-notificacion-id="{{ notificacion.pk }}" 
                                             title="Marcar como vista">
                                         <i class="fas fa-check"></i> Marcar vista
-                                    </button>
+                                </button>
                                 {% endif %}
                             </div>
                         </div>
@@ -581,12 +581,12 @@
                     fechaDesdeInput.value = fechaDesde;
                     fechaHastaInput.value = fechaHasta;
                     flatpickrInstance.setDate([fechaDesde, fechaHasta]);
-                }
+            }
             } else if (fechaFiltro) {
                 if (fechaInput) {
                     fechaInput.value = fechaFiltro;
                     flatpickrInstance.setDate(fechaFiltro);
-                }
+            }
             }
         }
     });
@@ -713,22 +713,22 @@
 
     // Funcionalidad de Notificaciones (para JEFE, CONTADOR y VENDEDOR)
     if (tienePermisoNotificaciones) {
-        // Función para obtener el CSRF token
-        function getCookie(name) {
-            let cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                const cookies = document.cookie.split(';');
-                for (let i = 0; i < cookies.length; i++) {
-                    const cookie = cookies[i].trim();
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
-                    }
+    // Función para obtener el CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
                 }
             }
-            return cookieValue;
         }
-        
+        return cookieValue;
+    }
+    
         // Obtener CSRF token de múltiples fuentes
         function getCSRFToken() {
             // 1. Intentar desde cookie (método más confiable)
@@ -745,7 +745,7 @@
         
         // Obtener token CSRF cuando el DOM esté listo
         let csrftoken = null;
-        $(document).ready(function() {
+    $(document).ready(function() {
             csrftoken = getCSRFToken();
             if (!csrftoken) {
                 console.error('No se pudo obtener el token CSRF. Por favor, recarga la página.');
@@ -756,15 +756,15 @@
                 csrftoken = getCSRFToken();
             }
             
-            // Marcar notificación como vista (solo para JEFE y VENDEDOR)
+        // Marcar notificación como vista (solo para JEFE y VENDEDOR)
             if (puedeMarcarVista) {
-                $(document).on('click', '.marcar-vista-btn', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
+        $(document).on('click', '.marcar-vista-btn', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
                     // Usar attr() en lugar de data() para evitar problemas de conversión
                     const notificacionId = $(this).attr('data-notificacion-id') || $(this).data('notificacion-id') || $(this).data('notificacionId');
-                    const notificacionItem = $(this).closest('.notificacion-item');
-                    const btn = $(this);
+            const notificacionItem = $(this).closest('.notificacion-item');
+            const btn = $(this);
                     
                     // Validar que el ID existe
                     if (!notificacionId) {
@@ -786,9 +786,9 @@
                     }
                     
                     console.log('Intentando marcar notificación como vista. ID:', notificacionIdNum, '(original:', notificacionId + ')');
-                    
-                    // Deshabilitar botón mientras se procesa
-                    btn.prop('disabled', true);
+            
+            // Deshabilitar botón mientras se procesa
+            btn.prop('disabled', true);
                     btn.html('<i class="fas fa-spinner fa-spin"></i> Procesando...');
                     
                     // Obtener token CSRF justo antes de usarlo (por si no estaba disponible antes)
@@ -802,47 +802,47 @@
                     
                     const url = '/ventas/notificaciones/' + notificacionIdNum + '/marcar-vista/';
                     console.log('URL de la petición:', url);
-                    
-                    $.ajax({
+            
+            $.ajax({
                         url: url,
-                        method: 'POST',
-                        beforeSend: function(xhr) {
+                method: 'POST',
+                beforeSend: function(xhr) {
                             xhr.setRequestHeader('X-CSRFToken', currentToken);
-                        },
-                        success: function(response) {
-                            if (response.success) {
+                },
+                success: function(response) {
+                    if (response.success) {
                                 // Guardar referencias antes de modificar el elemento
-                                const cardContainer = notificacionItem.closest('.card');
+                        const cardContainer = notificacionItem.closest('.card');
                                 const cardHeader = cardContainer.find('.card-header');
-                                const rowContainer = notificacionItem.closest('.row');
+                        const rowContainer = notificacionItem.closest('.row');
                                 const badge = cardHeader.find('.badge.bg-warning, .badge.bg-danger');
-                                
+                        
                                 // Para VENDEDOR: eliminar la notificación del DOM completamente
                                 if (userRol === 'VENDEDOR') {
                                     // Remover la notificación con animación
-                                    notificacionItem.fadeOut(300, function() {
-                                        $(this).remove();
-                                        
+                        notificacionItem.fadeOut(300, function() {
+                            $(this).remove();
+                            
                                         // Actualizar contador en el header
-                                        if (badge.length > 0) {
-                                            const count = parseInt(badge.text()) - 1;
-                                            if (count > 0) {
-                                                badge.text(count);
-                                            } else {
-                                                badge.remove();
-                                            }
-                                        }
-                                        
-                                        // Verificar si quedan notificaciones en el contenedor
-                                        const notificacionesRestantes = cardContainer.find('.notificacion-item').length;
-                                        if (notificacionesRestantes === 0) {
-                                            // Si no quedan notificaciones, ocultar toda la sección
-                                            rowContainer.fadeOut(300, function() {
-                                                $(this).remove();
-                                            });
-                                        }
-                                    });
+                            if (badge.length > 0) {
+                                const count = parseInt(badge.text()) - 1;
+                                if (count > 0) {
+                                    badge.text(count);
                                 } else {
+                                    badge.remove();
+                                }
+                            }
+                            
+                            // Verificar si quedan notificaciones en el contenedor
+                            const notificacionesRestantes = cardContainer.find('.notificacion-item').length;
+                            if (notificacionesRestantes === 0) {
+                                            // Si no quedan notificaciones, ocultar toda la sección
+                                rowContainer.fadeOut(300, function() {
+                                    $(this).remove();
+                                });
+                            }
+                        });
+                    } else {
                                     // Para JEFE: eliminar la notificación del DOM completamente
                                     // Ya que el backend solo muestra notificaciones con vista=False
                                     if (userRol === 'JEFE') {
@@ -895,11 +895,11 @@
                                 }
                             } else {
                                 console.error('Error al marcar notificación:', response.message);
-                                alert('Error: ' + (response.message || 'No se pudo marcar como vista'));
-                                btn.prop('disabled', false);
+                        alert('Error: ' + (response.message || 'No se pudo marcar como vista'));
+                        btn.prop('disabled', false);
                                 btn.html('<i class="fas fa-check"></i> Marcar Vista');
-                            }
-                        },
+                    }
+                },
                         error: function(xhr, status, error) {
                             console.error('Error AJAX al marcar notificación:', {
                                 status: xhr.status,
@@ -922,17 +922,17 @@
                             }
                             
                             alert(errorMessage);
-                            btn.prop('disabled', false);
+                    btn.prop('disabled', false);
                             btn.html('<i class="fas fa-check"></i> Marcar Vista');
-                        }
-                    });
-                });
-                
+                }
+            });
+        });
+        
                 // Marcar notificación como vista al hacer click en "Ver Venta"
                 $(document).on('click', '.ver-venta-btn', function(e) {
                     // Usar attr() en lugar de data() para evitar problemas de conversión
                     const notificacionId = $(this).attr('data-notificacion-id') || $(this).data('notificacion-id') || $(this).data('notificacionId');
-                    const notificacionItem = $(this).closest('.notificacion-item');
+            const notificacionItem = $(this).closest('.notificacion-item');
                     const link = $(this);
                     
                     // Solo marcar como vista si no está ya vista
@@ -949,15 +949,15 @@
                             const cardHeader = cardContainer.find('.card-header');
                             const rowContainer = notificacionItem.closest('.row');
                             const badge = cardHeader.find('.badge.bg-warning, .badge.bg-danger');
-                            
-                            $.ajax({
+                
+                $.ajax({
                                 url: '/ventas/notificaciones/' + notificacionIdNum + '/marcar-vista/',
-                                method: 'POST',
-                                beforeSend: function(xhr) {
+                    method: 'POST',
+                    beforeSend: function(xhr) {
                                     xhr.setRequestHeader('X-CSRFToken', currentToken);
-                                },
-                                success: function(response) {
-                                    if (response.success) {
+                    },
+                    success: function(response) {
+                        if (response.success) {
                                         // Para VENDEDOR: eliminar la notificación del DOM completamente
                                         if (userRol === 'VENDEDOR') {
                                             // Remover la notificación con animación
@@ -988,29 +988,29 @@
                                             // Ya que el backend solo muestra notificaciones con vista=False
                                             if (userRol === 'JEFE') {
                                                 // Remover la notificación con animación
-                                                notificacionItem.fadeOut(300, function() {
-                                                    $(this).remove();
-                                                    
+                            notificacionItem.fadeOut(300, function() {
+                                $(this).remove();
+                                
                                                     // Actualizar contador en el header
-                                                    if (badge.length > 0) {
-                                                        const count = parseInt(badge.text()) - 1;
-                                                        if (count > 0) {
-                                                            badge.text(count);
-                                                        } else {
-                                                            badge.remove();
-                                                        }
-                                                    }
-                                                    
-                                                    // Verificar si quedan notificaciones en el contenedor
-                                                    const notificacionesRestantes = cardContainer.find('.notificacion-item').length;
-                                                    if (notificacionesRestantes === 0) {
+                                if (badge.length > 0) {
+                                    const count = parseInt(badge.text()) - 1;
+                                    if (count > 0) {
+                                        badge.text(count);
+                                    } else {
+                                        badge.remove();
+                                    }
+                                }
+                                
+                                // Verificar si quedan notificaciones en el contenedor
+                                const notificacionesRestantes = cardContainer.find('.notificacion-item').length;
+                                if (notificacionesRestantes === 0) {
                                                         // Si no quedan notificaciones, ocultar toda la sección
-                                                        rowContainer.fadeOut(300, function() {
-                                                            $(this).remove();
-                                                        });
-                                                    }
-                                                });
-                                            } else {
+                                    rowContainer.fadeOut(300, function() {
+                                        $(this).remove();
+                                    });
+                                }
+                            });
+                        } else {
                                                 // Para otros roles: solo quitar el badge y el botón, mantener la notificación visible
                                                 // Remover badge "Nueva" si existe
                                                 notificacionItem.find('.badge.bg-danger').remove();
@@ -1032,17 +1032,17 @@
                                                 }
                                             }
                                         }
-                                    }
-                                },
+                        }
+                    },
                                 error: function(xhr, status, error) {
                                     console.error('Error al marcar notificación al ver venta:', error);
                                     // Continuar con la navegación aunque falle el AJAX
-                                }
-                            });
-                        }
+                    }
+                });
+            }
                     }
                     // Permitir que el link funcione normalmente
-                });
+        });
             }
         }); // Cierre del $(document).ready
     } // Cierre del if (tienePermisoNotificaciones)

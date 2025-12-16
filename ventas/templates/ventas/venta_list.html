@@ -118,7 +118,14 @@ Mis Ventas 💼
 <td>{{ venta.id }}</td>
 <td>
 <a href="{% url 'detalle_cliente' pk=venta.cliente.pk %}">
-<i class="fas fa-user-circle"></i> {{ venta.cliente.nombre_completo_display }}
+    {% if venta.cliente.tipo_cliente == 'EMPRESA' %}
+        <i class="fas fa-building text-info"></i>
+        <span class="badge bg-info text-white me-1">Empresa</span>
+    {% else %}
+        <i class="fas fa-user text-success"></i>
+        <span class="badge bg-success text-white me-1">Particular</span>
+    {% endif %}
+    {{ venta.cliente.nombre_completo_display }}
 </a>
 </td>
 {% if user_rol == 'JEFE' or user_rol == 'CONTADOR' %}
@@ -154,10 +161,10 @@ Mis Ventas 💼
                         {% if user_rol == 'CONTADOR' %}
                             <br><small class="text-warning"><i class="fas fa-exclamation-triangle"></i> Requiere acción</small>
                         {% endif %}
-                    {% elif venta.estado_confirmacion == 'COMPLETADO' %}
-                        <span class="badge bg-success">Completado</span>
-                    {% else %}
+                    {% elif venta.saldo_restante > 0 %}
                         <span class="badge bg-info">Pendiente</span>
+                    {% else %}
+                        <span class="badge bg-success">Completado</span>
                     {% endif %}
                 </td>
                 <td>
@@ -209,7 +216,14 @@ Mis Ventas 💼
 <td>{{ venta.id }}</td>
 <td>
 <a href="{% url 'detalle_cliente' pk=venta.cliente.pk %}">
-<i class="fas fa-user-circle"></i> {{ venta.cliente.nombre_completo_display }}
+    {% if venta.cliente.tipo_cliente == 'EMPRESA' %}
+        <i class="fas fa-building text-info"></i>
+        <span class="badge bg-info text-white me-1">Empresa</span>
+    {% else %}
+        <i class="fas fa-user text-success"></i>
+        <span class="badge bg-success text-white me-1">Particular</span>
+    {% endif %}
+    {{ venta.cliente.nombre_completo_display }}
 </a>
 </td>
 {% if user.perfil.rol == 'JEFE' or user.perfil.rol == 'CONTADOR' %}
@@ -271,17 +285,19 @@ Mis Ventas 💼
                     <hr class="my-4">
 
                     <div class="row g-3">
-                        <div class="col-md-4">
+                        <div class="col-md-8">
                             <label class="form-label fw-bold">Tipo de cotización</label>
-                            <div class="btn-group w-100" role="group">
-                                <input type="radio" class="btn-check" name="tipo_cotizacion" id="cotTipoVuelos" value="vuelos" checked>
-                                <label class="btn btn-outline-primary" for="cotTipoVuelos"><i class="fas fa-plane"></i> Vuelos</label>
-                                <input type="radio" class="btn-check" name="tipo_cotizacion" id="cotTipoHospedaje" value="hospedaje">
-                                <label class="btn btn-outline-primary" for="cotTipoHospedaje"><i class="fas fa-hotel"></i> Hospedaje</label>
-                                <input type="radio" class="btn-check" name="tipo_cotizacion" id="cotTipoPaquete" value="paquete">
-                                <label class="btn btn-outline-primary" for="cotTipoPaquete"><i class="fas fa-suitcase-rolling"></i> Paquete</label>
-                            </div>
+                            <select class="form-select form-select-lg" name="tipo_cotizacion" id="tipoCotizacionSelect">
+                                <option value="vuelos" selected>✈️ Vuelos</option>
+                                <option value="hospedaje">🏨 Hospedaje</option>
+                                <option value="paquete">🧳 Paquete</option>
+                                <option value="tours">🗺️ Tours</option>
+                                <option value="generica">📄 Plantilla Genérica</option>
+                            </select>
                         </div>
+                    </div>
+                    
+                    <div class="row g-3 mt-2">
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Fecha de cotización</label>
                             <input type="date" class="form-control" name="fecha_cotizacion" value="{{ cotizacion_fecha_hoy }}">
@@ -350,9 +366,13 @@ Mis Ventas 💼
                                         <label class="form-label small fw-semibold">Incluye</label>
                                         <textarea class="form-control form-control-sm" rows="2" name="vuelo_incluye_{{ forloop.counter }}" placeholder="Equipaje, tiempos, etc."></textarea>
                                     </div>
-                                    <div>
+                                    <div class="mb-2">
                                         <label class="form-label small fw-semibold">Total MXN</label>
                                         <input type="text" class="form-control form-control-sm" name="vuelo_total_{{ forloop.counter }}" placeholder="24,909.00">
+                                    </div>
+                                    <div>
+                                        <label class="form-label small fw-semibold">Forma de pago <span class="text-muted">(Opcional)</span></label>
+                                        <input type="text" class="form-control form-control-sm" name="vuelo_forma_pago_{{ forloop.counter }}" placeholder="Ej: 50% anticipo, 50% al confirmar">
                                     </div>
                                 </div>
                             </div>
@@ -383,9 +403,13 @@ Mis Ventas 💼
                                         <label class="form-label small fw-semibold">Plan de alimentos</label>
                                         <input type="text" class="form-control form-control-sm" name="hotel_plan_{{ forloop.counter }}" placeholder="Desayuno buffet">
                                     </div>
-                                    <div>
+                                    <div class="mb-2">
                                         <label class="form-label small fw-semibold">Total MXN</label>
                                         <input type="text" class="form-control form-control-sm" name="hotel_total_{{ forloop.counter }}" placeholder="28,349.00">
+                                    </div>
+                                    <div>
+                                        <label class="form-label small fw-semibold">Forma de pago <span class="text-muted">(Opcional)</span></label>
+                                        <input type="text" class="form-control form-control-sm" name="hotel_forma_pago_{{ forloop.counter }}" placeholder="Ej: 50% anticipo, 50% al confirmar">
                                     </div>
                                 </div>
                             </div>
@@ -432,12 +456,52 @@ Mis Ventas 💼
                                         <label class="form-label small fw-semibold">Notas</label>
                                         <textarea class="form-control form-control-sm" rows="2" name="paquete_hotel_notas" placeholder="Incluye traslado redondo"></textarea>
                                     </div>
-                                    <div>
+                                    <div class="mb-2">
                                         <label class="form-label small fw-semibold">Total MXN</label>
                                         <input type="text" class="form-control form-control-sm" name="paquete_total" placeholder="37,199.00">
                                     </div>
+                                    <div>
+                                        <label class="form-label small fw-semibold">Forma de pago <span class="text-muted">(Opcional)</span></label>
+                                        <input type="text" class="form-control form-control-sm" name="paquete_forma_pago" placeholder="Ej: 50% anticipo, 50% al confirmar">
+                                    </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <div class="cotizacion-section d-none" data-section="tours">
+                        <h5 class="text-primary fw-bold mb-3"><i class="fas fa-map-marked-alt"></i> Información de Tours</h5>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Número de Reserva</label>
+                                <input type="text" class="form-control" name="tour_numero_reserva" placeholder="Ej: TOUR-2025-001">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Nombre del Tour</label>
+                                <input type="text" class="form-control" name="tour_nombre" placeholder="Ej: Tour Chichen Itzá + Cenote">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Especificaciones</label>
+                                <textarea class="form-control" rows="6" name="tour_especificaciones" placeholder="Detalles del tour, itinerario, horarios, incluye, no incluye, etc."></textarea>
+                                <small class="text-muted">Incluye toda la información relevante del tour: itinerario, horarios, qué incluye, qué no incluye, recomendaciones, etc.</small>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Forma de pago <span class="text-muted">(Opcional)</span></label>
+                                <input type="text" class="form-control" name="tour_forma_pago" placeholder="Ej: 50% anticipo, 50% al confirmar">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="cotizacion-section d-none" data-section="generica">
+                        <h5 class="text-primary fw-bold mb-3"><i class="fas fa-file-alt"></i> Plantilla Genérica</h5>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Utiliza esta plantilla para incluir cualquier información personalizada en tu cotización.
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Contenido de la Cotización</label>
+                            <textarea class="form-control" name="generica_contenido" rows="15" placeholder="Ingresa aquí toda la información que deseas incluir en la cotización. Puedes incluir texto, detalles de servicios, precios, condiciones, etc."></textarea>
+                            <small class="form-text text-muted">Este contenido se incluirá tal cual en la cotización generada.</small>
                         </div>
                     </div>
                 </form>
@@ -532,7 +596,7 @@ crossorigin="anonymous" referrerpolicy="no-referrer" />
             return;
         }
 
-        const tipoRadios = document.querySelectorAll('input[name="tipo_cotizacion"]');
+        const tipoSelect = document.getElementById('tipoCotizacionSelect');
         const sections = cotizacionForm.querySelectorAll('.cotizacion-section');
         const limpiarBtn = document.getElementById('limpiarCotizacionBtn');
         const generarBtn = document.getElementById('generarCotizacionBtn');
@@ -588,8 +652,8 @@ crossorigin="anonymous" referrerpolicy="no-referrer" />
             fillForm(selectedVenta);
         });
 
-        tipoRadios.forEach(radio => {
-            radio.addEventListener('change', () => toggleSection(radio.value));
+        tipoSelect?.addEventListener('change', function() {
+            toggleSection(this.value);
         });
 
         const defaults = {
@@ -608,8 +672,8 @@ crossorigin="anonymous" referrerpolicy="no-referrer" />
                 }
             });
             fillForm(selectedVenta);
-            const checked = document.querySelector('input[name="tipo_cotizacion"]:checked');
-            toggleSection(checked ? checked.value : 'vuelos');
+            const tipoSeleccionado = tipoSelect?.value || 'vuelos';
+            toggleSection(tipoSeleccionado);
         });
 
         generarBtn?.addEventListener('click', function() {
@@ -636,7 +700,8 @@ crossorigin="anonymous" referrerpolicy="no-referrer" />
                 salida: (data[`vuelo_salida_${idx}`] || '').trim(),
                 regreso: (data[`vuelo_regreso_${idx}`] || '').trim(),
                 incluye: (data[`vuelo_incluye_${idx}`] || '').trim(),
-                total: (data[`vuelo_total_${idx}`] || '').trim()
+                total: (data[`vuelo_total_${idx}`] || '').trim(),
+                forma_pago: (data[`vuelo_forma_pago_${idx}`] || '').trim()
             })).filter(item => Object.values(item).some(value => value));
 
             const propuestasHotel = [1, 2, 3].map(idx => ({
@@ -644,7 +709,8 @@ crossorigin="anonymous" referrerpolicy="no-referrer" />
                 habitacion: (data[`hotel_habitacion_${idx}`] || '').trim(),
                 direccion: (data[`hotel_direccion_${idx}`] || '').trim(),
                 plan: (data[`hotel_plan_${idx}`] || '').trim(),
-                total: (data[`hotel_total_${idx}`] || '').trim()
+                total: (data[`hotel_total_${idx}`] || '').trim(),
+                forma_pago: (data[`hotel_forma_pago_${idx}`] || '').trim()
             })).filter(item => Object.values(item).some(value => value));
 
             if (tipo === 'vuelos' && propuestasVuelo.length === 0) {
@@ -657,6 +723,14 @@ crossorigin="anonymous" referrerpolicy="no-referrer" />
             }
             if (tipo === 'paquete' && !(data.paquete_total || '').trim()) {
                 alert('Agrega la información del paquete (total, vuelo u hotel).');
+                return;
+            }
+            if (tipo === 'generica' && !(data.generica_contenido || '').trim()) {
+                alert('Agrega el contenido para la cotización genérica.');
+                return;
+            }
+            if (tipo === 'tours' && !(data.tour_nombre || '').trim()) {
+                alert('Agrega el nombre del tour.');
                 return;
             }
 
@@ -689,7 +763,17 @@ crossorigin="anonymous" referrerpolicy="no-referrer" />
                         habitacion: (data.paquete_hotel_habitacion || '').trim(),
                         notas: (data.paquete_hotel_notas || '').trim(),
                     },
-                    total: (data.paquete_total || '').trim()
+                    total: (data.paquete_total || '').trim(),
+                    forma_pago: (data.paquete_forma_pago || '').trim()
+                },
+                tours: {
+                    numero_reserva: (data.tour_numero_reserva || '').trim(),
+                    nombre: (data.tour_nombre || '').trim(),
+                    especificaciones: (data.tour_especificaciones || '').trim(),
+                    forma_pago: (data.tour_forma_pago || '').trim()
+                },
+                generica: {
+                    contenido: (data.generica_contenido || '').trim()
                 }
             };
 
@@ -727,7 +811,12 @@ crossorigin="anonymous" referrerpolicy="no-referrer" />
             });
         });
 
-        toggleSection('vuelos');
+        // Inicializar con la sección de vuelos
+        if (tipoSelect) {
+            toggleSection(tipoSelect.value);
+        } else {
+            toggleSection('vuelos');
+        }
 
         function getCookie(name) {
             let cookieValue = null;

@@ -63,6 +63,7 @@
                                     <th scope="col">Link</th>
                                     <th scope="col">Factura</th>
                                     <th scope="col">Actualizado</th>
+                                    <th scope="col" class="text-end">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -91,6 +92,31 @@
                                             {{ proveedor.fecha_actualizacion|date:"d/m/Y" }}
                                             <small class="text-muted d-block">{{ proveedor.fecha_actualizacion|date:"H:i" }}</small>
                                         </td>
+                                        <td class="text-end">
+                                            <div class="btn-group" role="group">
+                                                <button type="button" class="btn btn-sm btn-outline-primary editar-proveedor" 
+                                                        data-proveedor-id="{{ proveedor.pk }}"
+                                                        data-proveedor-nombre="{{ proveedor.nombre }}"
+                                                        data-proveedor-telefono="{{ proveedor.telefono|default:'' }}"
+                                                        data-proveedor-ejecutivo="{{ proveedor.ejecutivo|default:'' }}"
+                                                        data-proveedor-link="{{ proveedor.link|default:'' }}"
+                                                        data-proveedor-servicio="{{ proveedor.servicio }}"
+                                                        data-proveedor-genera-factura="{{ proveedor.genera_factura|yesno:'true,false' }}"
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#modalProveedor"
+                                                        title="Editar proveedor">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                {% if user.perfil.rol == 'JEFE' or user.is_superuser %}
+                                                <a href="{% url 'eliminar_proveedor' proveedor.pk %}" 
+                                                   class="btn btn-sm btn-outline-danger"
+                                                   onclick="return confirm('¿Estás seguro de que deseas eliminar a {{ proveedor.nombre }}? Esta acción no se puede deshacer.');"
+                                                   title="Eliminar proveedor">
+                                                    <i class="fas fa-trash"></i>
+                                                </a>
+                                                {% endif %}
+                                            </div>
+                                        </td>
                                     </tr>
                                 {% endfor %}
                             </tbody>
@@ -115,11 +141,15 @@
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title fw-bold" id="modalProveedorLabel"><i class="fas fa-user-plus me-2"></i>Agregar nuevo proveedor</h5>
+                <h5 class="modal-title fw-bold" id="modalProveedorLabel">
+                    <i class="fas fa-user-plus me-2" id="modalIcon"></i>
+                    <span id="modalTitle">Agregar nuevo proveedor</span>
+                </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" novalidate>
+            <form method="post" novalidate id="formProveedor" action="{% url 'proveedores' %}">
                 {% csrf_token %}
+                <input type="hidden" name="proveedor_id" id="proveedor_id" value="">
                 <div class="modal-body p-4">
                     <div class="row g-3">
                         <div class="col-md-6">
@@ -186,7 +216,7 @@
                 <div class="modal-footer bg-light border-0">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
                     <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save me-2"></i>Guardar proveedor
+                        <i class="fas fa-save me-2"></i><span id="btnSubmitText">Guardar proveedor</span>
                     </button>
                 </div>
             </form>
@@ -261,11 +291,44 @@
             var form = modalProveedor.querySelector('form');
             if (form) {
                 form.reset();
+                form.action = '{% url "proveedores" %}';
+                document.getElementById('proveedor_id').value = '';
+                document.getElementById('modalTitle').textContent = 'Agregar nuevo proveedor';
+                document.getElementById('modalIcon').className = 'fas fa-user-plus me-2';
+                document.getElementById('btnSubmitText').textContent = 'Guardar proveedor';
                 var errorInputs = form.querySelectorAll('.is-invalid');
                 errorInputs.forEach(function(input) {
                     input.classList.remove('is-invalid');
                 });
             }
+        });
+        
+        // Manejar botones de editar
+        document.querySelectorAll('.editar-proveedor').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var proveedorId = this.getAttribute('data-proveedor-id');
+                var proveedorNombre = this.getAttribute('data-proveedor-nombre');
+                var proveedorTelefono = this.getAttribute('data-proveedor-telefono');
+                var proveedorEjecutivo = this.getAttribute('data-proveedor-ejecutivo');
+                var proveedorLink = this.getAttribute('data-proveedor-link');
+                var proveedorServicio = this.getAttribute('data-proveedor-servicio');
+                var proveedorGeneraFactura = this.getAttribute('data-proveedor-genera-factura') === 'true';
+                
+                // Actualizar formulario
+                document.getElementById('proveedor_id').value = proveedorId;
+                document.getElementById('id_nombre').value = proveedorNombre;
+                document.getElementById('id_telefono').value = proveedorTelefono;
+                document.getElementById('id_ejecutivo').value = proveedorEjecutivo;
+                document.getElementById('id_link').value = proveedorLink;
+                document.getElementById('id_servicio').value = proveedorServicio;
+                document.getElementById('id_genera_factura').checked = proveedorGeneraFactura;
+                
+                // Actualizar modal
+                document.getElementById('modalTitle').textContent = 'Editar proveedor';
+                document.getElementById('modalIcon').className = 'fas fa-edit me-2';
+                document.getElementById('btnSubmitText').textContent = 'Actualizar proveedor';
+                document.getElementById('formProveedor').action = '{% url "editar_proveedor" 0 %}'.replace('0', proveedorId);
+            });
         });
         
         console.log('[MODAL PROVEEDOR DEBUG] Inicialización completa');

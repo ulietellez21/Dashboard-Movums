@@ -29,12 +29,12 @@
             background-size: cover;
         }
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Roboto', Arial, sans-serif;
             font-size: 12pt;
-            line-height: 1.5;
-            color: #333333;
+            line-height: 1.6;
+            color: #2f2f2f;
             margin: 0;
-            padding: 180px 30px 50px 30px;
+            padding: 150px 30px 60px 30px;
             background-image: url("{% static 'img/image1.png' %}");
             background-repeat: no-repeat;
             background-position: top center;
@@ -45,139 +45,471 @@
             padding: 0;
             margin-top: 0;
         }
-        /* Título principal centrado (tamaño 18) */
+        /* Título principal */
         .titulo-principal {
             text-align: center;
-            font-family: Arial, sans-serif;
+            font-family: 'Roboto', Arial, sans-serif;
             font-size: 18pt;
             font-weight: bold;
             color: #004a8e;
-            margin: 20px 0 15px 0;
+            margin: 10px 0 20px 0;
             padding: 0;
         }
-        /* Información de cliente y fecha en la misma línea */
-        .info-venta {
-            text-align: center;
-            font-family: Arial, sans-serif;
-            font-size: 12pt;
-            margin: 0 0 25px 0;
-            padding: 0;
+        /* Secciones numeradas */
+        .seccion {
+            margin: 20px 0;
+            page-break-inside: avoid;
         }
-        .info-venta strong {
-            font-weight: bold;
-        }
-        .recibo-title {
+        .seccion-titulo {
             font-size: 14pt;
             font-weight: bold;
-            text-align: center;
-            margin: 25px 0 20px 0;
             color: #004a8e;
-            font-family: Arial, sans-serif;
+            margin: 15px 0 10px 0;
+            font-family: 'Roboto', Arial, sans-serif;
         }
-        .recibo-content {
-            text-align: justify;
-            line-height: 1.8;
+        .campo-linea {
+            margin: 8px 0;
             font-size: 12pt;
-            font-family: Arial, sans-serif;
+            font-family: 'Roboto', Arial, sans-serif;
         }
-        .recibo-content p {
-            margin: 12px 0;
-        }
-        .monto-destacado {
+        .campo-linea strong {
             font-weight: bold;
-            font-size: 12pt;
-            font-family: Arial, sans-serif;
         }
-        .line-break {
+        .linea-blanca {
+            border-bottom: 1px solid #333;
+            min-height: 20px;
+            margin: 5px 0;
+            display: inline-block;
+            width: 100%;
+        }
+        .linea-blanca-corta {
+            border-bottom: 1px solid #333;
+            min-height: 20px;
+            margin: 5px 0;
+            display: inline-block;
+            width: 60%;
+        }
+        .linea-blanca-muy-corta {
+            border-bottom: 1px solid #333;
+            min-height: 20px;
+            margin: 5px 0;
+            display: inline-block;
+            width: 30%;
+        }
+        .checkbox {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 1.5px solid #333;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        .checkbox-circulo {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 1.5px solid #333;
+            border-radius: 50%;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        .lista-viñeta {
+            margin: 8px 0;
+            padding-left: 20px;
+        }
+        .lista-viñeta li {
+            margin: 5px 0;
+            font-size: 12pt;
+        }
+        .lista-viñeta-sub {
+            padding-left: 30px;
+            margin: 3px 0;
+        }
+        .texto-legal {
+            text-align: justify;
+            font-size: 11pt;
+            line-height: 1.6;
             margin: 15px 0;
         }
-        .info-line {
-            margin: 10px 0;
-            font-family: Arial, sans-serif;
-            font-size: 12pt;
+        .firmas {
+            margin-top: 40px;
+            page-break-inside: avoid;
         }
-        .info-line strong {
+        .firma-seccion {
+            margin: 30px 0;
+        }
+        .firma-titulo {
             font-weight: bold;
+            font-size: 12pt;
+            margin-bottom: 10px;
+        }
+        .firma-linea {
+            border-bottom: 1px solid #333;
+            min-height: 40px;
+            margin: 10px 0;
+        }
+        .nota-italica {
+            font-style: italic;
+            font-size: 11pt;
+            color: #666;
+            margin: 5px 0;
+        }
+        .dos-columnas {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+        }
+        .columna {
+            width: 48%;
         }
     </style>
 </head>
 <body>
 <div class="container">
-    <!-- Título principal centrado -->
-    <h1 class="titulo-principal">CONTRATO SERVICIOS TURÍSTICOS</h1>
+    <!-- Título principal -->
+    <h1 class="titulo-principal">CONTRATO DE SERVICIOS TURÍSTICOS</h1>
     
-    <!-- Información de cliente y fecha en la misma línea -->
-    <div class="info-venta">
-        <strong>Cliente:</strong> {{ venta.cliente.nombre_completo_display }} | <strong>Fecha de Generación:</strong> {{ fecha_generacion }}
+    <!-- Sección 1: DATOS GENERALES DEL CLIENTE -->
+    <div class="seccion">
+        <div class="seccion-titulo">1. DATOS GENERALES DEL CLIENTE</div>
+        
+        <div class="campo-linea">
+            <strong>Nombre completo:</strong> 
+            {% if cliente.nombre_completo_display %}
+                {{ cliente.nombre_completo_display }}
+            {% else %}
+                <span class="linea-blanca"></span>
+            {% endif %}
+        </div>
+        
+        <div class="campo-linea">
+            <strong>Teléfono:</strong> 
+            {% if cliente.telefono %}
+                {{ cliente.telefono }}
+            {% else %}
+                <span class="linea-blanca-corta"></span>
+            {% endif %}
+        </div>
+        
+        <div class="campo-linea">
+            <strong>Correo electrónico:</strong> 
+            {% if cliente.email %}
+                {{ cliente.email }}
+            {% else %}
+                <span class="linea-blanca"></span>
+            {% endif %}
+        </div>
+        
+        <div class="campo-linea">
+            <strong>Identificación oficial:</strong> 
+            {% if cliente.documento_identificacion %}
+                {{ cliente.documento_identificacion }}
+            {% else %}
+                <span class="linea-blanca-corta"></span>
+            {% endif %}
+            <span style="margin-left: 20px;">INE / Pasaporte / Otro:</span> <span class="linea-blanca-muy-corta"></span>
+        </div>
+        
+        <div class="campo-linea">
+            <strong>Acompañantes:</strong>
+            <ul class="lista-viñeta">
+                <li>
+                    <strong>Nombre(s) y edad(es):</strong> 
+                    {% if venta.pasajeros %}
+                        {{ venta.pasajeros|linebreaksbr }}
+                    {% else %}
+                        <span class="linea-blanca"></span>
+                    {% endif %}
+                </li>
+                <li><strong>Nombre(s) y edad(es):</strong> <span class="linea-blanca"></span></li>
+                <li><strong>Nombre(s) y edad(es):</strong> <span class="linea-blanca"></span></li>
+            </ul>
+        </div>
     </div>
-
-    <!-- Cuerpo del Recibo -->
-    <div class="recibo-content">
-        <div class="recibo-title">RECIBO DE DINERO</div>
+    
+    <!-- Sección 2: DATOS DEL SERVICIO TURÍSTICO CONTRATADO -->
+    <div class="seccion">
+        <div class="seccion-titulo">2. DATOS DEL SERVICIO TURÍSTICO CONTRATADO</div>
         
-        <p>
-            Movums The Travel Store, con domicilio en Plaza Mora, Juárez Sur 321 Local 18 CP. 56100 Texcoco Estado de México, recibo de: <strong>{{ cliente.nombre_completo_display }}</strong> la cantidad de:
-        </p>
-        
-        <div class="line-break"></div>
-        
-        <p class="monto-destacado">
-            ${{ venta.cantidad_apertura|floatformat:2|intcomma }} ({{ monto_apertura_texto }})
-        </p>
-        
-        <p>por concepto de:</p>
-        
-        <div class="line-break"></div>
-        <div class="line-break"></div>
-        <div class="line-break"></div>
-        <div class="line-break"></div>
-        <div class="line-break"></div>
-        
-        <div class="info-line">
-            <strong>FECHA DE IDA:</strong> {{ venta.fecha_inicio_viaje|date:"j \d\e F \d\e Y" }}
+        <div class="campo-linea">
+            <strong>Nombre del Paquete:</strong> <span class="linea-blanca"></span>
         </div>
         
-        <div class="line-break"></div>
-        
-        {% if venta.fecha_fin_viaje %}
-        <div class="info-line">
-            <strong>FECHA DE REGRESO:</strong> {{ venta.fecha_fin_viaje|date:"j \d\e F \d\e Y" }}
+        <div class="campo-linea">
+            <strong>Destino(s):</strong> <span class="linea-blanca"></span>
         </div>
-        {% else %}
-        <div class="info-line">
-            <strong>FECHA DE REGRESO:</strong> No especificada
-        </div>
-        {% endif %}
         
-        <div class="line-break"></div>
-        
-        <div class="info-line">
-            <strong>PASAJEROS:</strong>
-            {% if venta.pasajeros %}
-                {{ venta.pasajeros|linebreaksbr }}
+        <div class="campo-linea">
+            <strong>Fecha de inicio:</strong> 
+            {% if venta.fecha_inicio_viaje %}
+                <span class="linea-blanca-muy-corta"></span> {{ venta.fecha_inicio_viaje|date:"d/m/Y" }}
             {% else %}
-                No especificado
+                <span class="linea-blanca-muy-corta"></span> //2025
             {% endif %}
         </div>
         
-        <div class="line-break"></div>
-        
-        <div class="info-line">
-            <strong>SERVICIOS INCLUIDOS:</strong>
-            {% if venta.servicios_seleccionados %}
-                {{ venta.servicios_seleccionados_display|default:venta.servicios_seleccionados }}
+        <div class="campo-linea">
+            <strong>Fecha de término:</strong> 
+            {% if venta.fecha_fin_viaje %}
+                <span class="linea-blanca-muy-corta"></span> {{ venta.fecha_fin_viaje|date:"d/m/Y" }}
             {% else %}
-                No especificado
+                <span class="linea-blanca-muy-corta"></span> //2025
             {% endif %}
         </div>
         
-        <div class="line-break"></div>
-        <div class="line-break"></div>
-        <div class="line-break"></div>
+        <div class="campo-linea">
+            <strong>Número total de viajeros:</strong> <span class="linea-blanca-muy-corta"></span>
+        </div>
+    </div>
+    
+    <!-- Sección 3: TRANSPORTE -->
+    <div class="seccion">
+        <div class="seccion-titulo">3. TRANSPORTE</div>
         
-        <p>
-            Con un costo total de <strong>${{ venta.costo_total_con_modificacion|floatformat:2|intcomma }}</strong>{% if venta.costo_modificacion and venta.costo_modificacion > 0 %} (incluyendo costo de modificación de ${{ venta.costo_modificacion|floatformat:2|intcomma }}){% endif %}. Restando la cantidad de <strong>${{ saldo_pendiente|floatformat:2|intcomma }}</strong> el cual deberá estar cubierto a más tardar el día <strong>{% if venta.fecha_vencimiento_pago %}{{ venta.fecha_vencimiento_pago|date:"j \d\e F \d\e Y" }}{% else %}No especificada{% endif %}</strong>.
-        </p>
+        <div class="campo-linea">
+            <strong>Tipo de transporte:</strong> 
+            <span class="linea-blanca-corta"></span>
+            <span style="margin-left: 10px;">Avión / Autobús / Transporte terrestre privado / Otro</span>
+        </div>
+        
+        <div class="campo-linea">
+            <strong>Proveedor:</strong> 
+            {% if venta.proveedor %}
+                {{ venta.proveedor.nombre }}
+            {% else %}
+                <span class="linea-blanca"></span>
+            {% endif %}
+        </div>
+        
+        <div class="campo-linea">
+            <strong>Número de viaje o clave de reservación:</strong> <span class="linea-blanca"></span>
+        </div>
+        
+        <div class="campo-linea">
+            <strong>Incluye equipaje?:</strong> 
+            <span class="linea-blanca-corta"></span>
+            <span style="margin-left: 10px;">Sí / No / Detallar:</span> <span class="linea-blanca-corta"></span>
+        </div>
+        
+        <div class="nota-italica">
+            (La AGENCIA no garantiza horarios o cambios operados por el transportista.)
+        </div>
+    </div>
+    
+    <!-- Sección 4: HOSPEDAJE -->
+    <div class="seccion">
+        <div class="seccion-titulo">4. HOSPEDAJE</div>
+        
+        <div class="campo-linea">
+            <strong>Hotel:</strong> <span class="linea-blanca"></span>
+        </div>
+        
+        <div class="campo-linea">
+            <strong>Categoría:</strong> <span class="linea-blanca-corta"></span>
+        </div>
+        
+        <div class="campo-linea">
+            <strong>Dirección:</strong> <span class="linea-blanca"></span>
+        </div>
+        
+        <div class="campo-linea">
+            <strong>Noches incluidas:</strong> <span class="linea-blanca-muy-corta"></span>
+        </div>
+        
+        <div class="campo-linea">
+            <strong>Tipo de habitación:</strong> <span class="linea-blanca"></span>
+        </div>
+        
+        <div class="campo-linea">
+            <strong>Plan de alimentos:</strong>
+            <ul class="lista-viñeta">
+                <li><span class="checkbox-circulo"></span> Sólo hospedaje</li>
+                <li><span class="checkbox-circulo"></span> Desayuno</li>
+                <li><span class="checkbox-circulo"></span> Media pensión</li>
+                <li><span class="checkbox-circulo"></span> Todo incluido</li>
+                <li><span class="checkbox-circulo"></span> Otro: <span class="linea-blanca-corta"></span></li>
+            </ul>
+        </div>
+    </div>
+    
+    <!-- Sección 5: SERVICIOS ADICIONALES INCLUIDOS -->
+    <div class="seccion">
+        <div class="seccion-titulo">5. SERVICIOS ADICIONALES INCLUIDOS</div>
+        <div class="nota-italica">(Marca los que apliquen)</div>
+        
+        <ul class="lista-viñeta">
+            <li><span class="checkbox"></span> Traslado aeropuerto-hotel-aeropuerto</li>
+            <li>
+                <span class="checkbox"></span> Tours o excursiones (describir): 
+                <span class="linea-blanca"></span>
+            </li>
+            <li><span class="checkbox"></span> Coordinador o guía turístico</li>
+            <li><span class="checkbox"></span> Entradas o accesos</li>
+            <li><span class="checkbox"></span> Seguro de viajero nacional (si aplica)</li>
+            <li>
+                <span class="checkbox"></span> Otros servicios incluidos: 
+                <span class="linea-blanca"></span>
+            </li>
+        </ul>
+    </div>
+    
+    <!-- Sección 6: SERVICIOS NO INCLUIDOS -->
+    <div class="seccion">
+        <div class="seccion-titulo">6. SERVICIOS NO INCLUIDOS</div>
+        <div class="nota-italica">(Para evitar reclamaciones)</div>
+        
+        <ul class="lista-viñeta">
+            <li>Impuestos locales, resort fees o cuotas gubernamentales</li>
+            <li>Propinas</li>
+            <li>Servicios no listados como incluidos</li>
+            <li>Actividades opcionales</li>
+            <li>Gastos personales</li>
+            <li>Sobrepeso de equipaje</li>
+            <li>Comidas no contempladas</li>
+        </ul>
+    </div>
+    
+    <!-- Sección 7: PRECIO Y CONDICIONES ECONÓMICAS -->
+    <div class="seccion">
+        <div class="seccion-titulo">7. PRECIO Y CONDICIONES ECONÓMICAS</div>
+        
+        <ul class="lista-viñeta">
+            <li>
+                <strong>Precio total del paquete:</strong> 
+                {% if venta.tipo_viaje == 'INT' %}
+                    USD $<span class="linea-blanca-corta"></span> 
+                    {% if venta.costo_total_con_modificacion_usd %}
+                        ({{ venta.costo_total_con_modificacion_usd|floatformat:2|intcomma }})
+                    {% endif %}
+                {% else %}
+                    $<span class="linea-blanca-corta"></span> MXN
+                    {% if venta.costo_total_con_modificacion %}
+                        ({{ venta.costo_total_con_modificacion|floatformat:2|intcomma }})
+                    {% endif %}
+                {% endif %}
+            </li>
+            <li>
+                <strong>Anticipo recibido:</strong> 
+                {% if venta.tipo_viaje == 'INT' %}
+                    USD $<span class="linea-blanca-corta"></span> MXN
+                    {% if venta.cantidad_apertura_usd %}
+                        ({{ venta.cantidad_apertura_usd|floatformat:2|intcomma }})
+                    {% endif %}
+                {% else %}
+                    $<span class="linea-blanca-corta"></span> MXN
+                    {% if venta.cantidad_apertura %}
+                        ({{ venta.cantidad_apertura|floatformat:2|intcomma }})
+                    {% endif %}
+                {% endif %}
+            </li>
+            <li>
+                <strong>Saldo pendiente:</strong> 
+                {% if venta.tipo_viaje == 'INT' %}
+                    USD $<span class="linea-blanca-corta"></span> MXN
+                    {% if venta.saldo_restante_usd %}
+                        ({{ venta.saldo_restante_usd|floatformat:2|intcomma }})
+                    {% endif %}
+                {% else %}
+                    $<span class="linea-blanca-corta"></span> MXN
+                    {% if saldo_pendiente %}
+                        ({{ saldo_pendiente|floatformat:2|intcomma }})
+                    {% endif %}
+                {% endif %}
+            </li>
+            <li>
+                <strong>Fecha límite de pago total:</strong> 
+                {% if venta.fecha_vencimiento_pago %}
+                    <span class="linea-blanca-muy-corta"></span> {{ venta.fecha_vencimiento_pago|date:"d/m/Y" }}
+                {% else %}
+                    <span class="linea-blanca-muy-corta"></span> //2025
+                {% endif %}
+            </li>
+            <li>
+                <strong>Desglose de pagos (si aplica):</strong>
+                <ul class="lista-viñeta-sub">
+                    <li>
+                        Parcialidad 1: $<span class="linea-blanca-corta"></span> 
+                        Fecha: <span class="linea-blanca-muy-corta"></span> //2025
+                    </li>
+                    <li>
+                        Parcialidad 2: $<span class="linea-blanca-corta"></span> 
+                        Fecha: <span class="linea-blanca-muy-corta"></span> //2025
+                    </li>
+                    <li>
+                        Parcialidad 3: $<span class="linea-blanca-corta"></span> 
+                        Fecha: <span class="linea-blanca-muy-corta"></span> //2025
+                    </li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+    
+    <!-- Sección 8: DOCUMENTACIÓN ENTREGADA AL CLIENTE -->
+    <div class="seccion">
+        <div class="seccion-titulo">8. DOCUMENTACIÓN ENTREGADA AL CLIENTE</div>
+        
+        <ul class="lista-viñeta">
+            <li><span class="checkbox"></span> Contrato firmado</li>
+            <li><span class="checkbox"></span> Copia de esta caratula</li>
+            <li><span class="checkbox"></span> Itinerario preliminar</li>
+            <li><span class="checkbox"></span> Políticas del proveedor</li>
+            <li><span class="checkbox"></span> Comprobantes de pago</li>
+            <li><span class="checkbox"></span> Claves de reservación</li>
+            <li><span class="checkbox"></span> Información de contacto para emergencias</li>
+        </ul>
+    </div>
+    
+    <!-- Sección 9: DECLARACIÓN DEL CLIENTE -->
+    <div class="seccion">
+        <div class="seccion-titulo">9. DECLARACIÓN DEL CLIENTE</div>
+        
+        <div class="texto-legal">
+            <strong>EL CLIENTE declara que:</strong>
+            <ul class="lista-viñeta">
+                <li>Ha revisado y entendido toda la información contenida en este Anexo.</li>
+                <li>Proporcionó datos veraces y completos.</li>
+                <li>Acepta las condiciones del servicio, políticas de proveedores y cláusulas del contrato.</li>
+            </ul>
+        </div>
+    </div>
+    
+    <!-- Sección 10: TEXTO LEGAL ADICIONAL -->
+    <div class="seccion">
+        <div class="seccion-titulo">10. TÉRMINOS Y CONDICIONES</div>
+        
+        <div class="texto-legal">
+            <!-- Aquí se agregará el texto legal que el usuario proporcionará -->
+            <p><em>El texto legal adicional se agregará aquí según lo proporcionado por el cliente.</em></p>
+        </div>
+    </div>
+    
+    <!-- Sección 11: FIRMAS -->
+    <div class="seccion firmas">
+        <div class="seccion-titulo">11. FIRMAS</div>
+        
+        <div class="firma-seccion">
+            <div class="firma-titulo">CLIENTE</div>
+            <div class="campo-linea">
+                <strong>Nombre y firma:</strong>
+            </div>
+            <div class="firma-linea"></div>
+            <div class="campo-linea">
+                <strong>Fecha:</strong> 
+                <span class="linea-blanca-muy-corta"></span> //2025
+            </div>
+        </div>
+        
+        <div class="firma-seccion">
+            <div class="firma-titulo">AGENCIA - Movums The Travel Store</div>
+            <div class="campo-linea">
+                <strong>Nombre y firma del representante:</strong>
+            </div>
+            <div class="firma-linea"></div>
+            <div class="campo-linea">
+                <strong>Fecha:</strong> 
+                <span class="linea-blanca-muy-corta"></span> //2025
+            </div>
+        </div>
     </div>
 </div>
 </body>

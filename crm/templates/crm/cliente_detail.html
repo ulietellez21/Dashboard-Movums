@@ -9,7 +9,14 @@
         <!-- Cambio de text-dark a text-black para mayor contraste -->
         <h1 class="display-5 fw-bold text-black"> 
             <!-- Se mantiene la corrección del nombre -->
-            <i class="fas fa-user-circle"></i> Cliente: {{ cliente }} 
+            {% if cliente.tipo_cliente == 'EMPRESA' %}
+                <i class="fas fa-building text-info"></i>
+                <span class="badge bg-info text-white me-2">Empresa</span>
+            {% else %}
+                <i class="fas fa-user text-success"></i>
+                <span class="badge bg-success text-white me-2">Particular</span>
+            {% endif %}
+            Cliente: {{ cliente }} 
         </h1>
         <div>
             {% with user.perfil.rol|default:""|upper as user_rol %}

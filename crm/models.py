@@ -197,3 +197,62 @@ class HistorialKilometros(models.Model):
 
     def __str__(self):
         return f"{self.tipo_evento} - {self.kilometros} km ({self.cliente})"
+
+
+class PromocionKilometros(models.Model):
+    """
+    Promociones configurables para descuentos o campañas de lealtad.
+    """
+
+    TIPO_CHOICES = [
+        ('DESCUENTO', 'Descuento % sobre total'),
+        ('KM', 'Bonificación de Kilómetros'),
+    ]
+
+    CONDICION_CHOICES = [
+        ('SIEMPRE', 'Siempre'),
+        ('CUMPLE', 'Cumpleaños del cliente'),
+        ('MES', 'Mes específico'),
+        ('RANGO', 'Rango de fechas'),
+    ]
+
+    ALCANCE_CHOICES = [
+        ('TODAS', 'Todas las ventas'),
+        ('NAC', 'Solo ventas nacionales'),
+        ('INT', 'Solo ventas internacionales'),
+    ]
+
+    nombre = models.CharField(max_length=150)
+    descripcion = models.TextField(blank=True, null=True)
+
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default='DESCUENTO')
+    porcentaje_descuento = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal('0.00'))
+    monto_tope_mxn = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+
+    condicion = models.CharField(max_length=20, choices=CONDICION_CHOICES, default='SIEMPRE')
+    valor_condicion = models.CharField(max_length=20, blank=True, null=True, help_text="Ej: mes=2, o día/mes 14-02")
+    alcance = models.CharField(max_length=10, choices=ALCANCE_CHOICES, default='TODAS')
+
+    requiere_confirmacion = models.BooleanField(default=False)
+
+    fecha_inicio = models.DateField(blank=True, null=True)
+    fecha_fin = models.DateField(blank=True, null=True)
+    activa = models.BooleanField(default=True)
+    creada_en = models.DateTimeField(auto_now_add=True)
+    actualizada_en = models.DateTimeField(auto_now=True)
+
+    # Solo para tipo KM: cantidad de kilómetros a bonificar
+    kilometros_bono = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="Solo aplica si el tipo es Bonificación de Kilómetros."
+    )
+
+    class Meta:
+        ordering = ['-creada_en']
+        verbose_name = "Promoción de Kilómetros"
+        verbose_name_plural = "Promociones de Kilómetros"
+
+    def __str__(self):
+        return self.nombre

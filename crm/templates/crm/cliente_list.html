@@ -65,7 +65,13 @@
                             <td>{{ cliente.pk }}</td>
                             <td>
                                 <a href="{% url 'detalle_cliente' pk=cliente.pk %}" class="fw-bold text-primary">
-                                    <i class="fas fa-user-circle"></i> 
+                                    {% if cliente.tipo_cliente == 'EMPRESA' %}
+                                        <i class="fas fa-building text-info"></i>
+                                        <span class="badge bg-info text-white me-2">Empresa</span>
+                                    {% else %}
+                                        <i class="fas fa-user text-success"></i>
+                                        <span class="badge bg-success text-white me-2">Particular</span>
+                                    {% endif %}
                                     {{ cliente.nombre_completo_display }}
                                 </a>
                             </td>
