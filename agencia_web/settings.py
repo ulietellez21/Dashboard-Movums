@@ -23,7 +23,12 @@ SECRET_KEY = os.environ.get('SECRET_KEY', '[REDACTED_SECRET_KEY]')
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'  # Por defecto True para desarrollo
 
 # Hosts permitidos - usar variable de entorno en producción
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',') if os.environ.get('ALLOWED_HOSTS') else ['localhost', '127.0.0.1', '0.0.0.0']
+# Limpiar espacios en blanco y filtrar valores vacíos
+allowed_hosts_str = os.environ.get('ALLOWED_HOSTS', '')
+if allowed_hosts_str:
+    ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_str.split(',') if h.strip()]
+else:
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '206.189.223.176']
 
 
 # Application definition
