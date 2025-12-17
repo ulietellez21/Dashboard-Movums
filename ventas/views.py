@@ -623,53 +623,15 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                 # Procesar según si requiere confirmación o no
                 if requiere_confirmacion:
                     # ⚠️ FLUJO DE APROBACIÓN PARA TRANSFERENCIA/TARJETA/DEPÓSITO
+                    # ✅ NUEVO FLUJO: NO se crean notificaciones automáticas
+                    # Las notificaciones se crearán solo cuando se suba el comprobante
                     
                     # 1. Cambiar estado de venta a "En confirmación"
                     self.object.estado_confirmacion = 'EN_CONFIRMACION'
                     self.object.save(update_fields=['estado_confirmacion'])
                     
-                    # 2. Crear notificaciones para CONTADOR
-                    # Notificacion ya está importada al inicio del archivo
-                    contadores = User.objects.filter(perfil__rol='CONTADOR')
                     forma_pago_display = dict(AbonoPago.FORMA_PAGO_CHOICES).get(forma_pago, forma_pago)
-                    mensaje_contador = f"Abono pendiente de confirmación: ${abono.monto:,.2f} ({forma_pago_display}) - Venta #{self.object.pk} - Cliente: {self.object.cliente.nombre_completo_display}"
-                    
-                    for contador in contadores:
-                        Notificacion.objects.create(
-                            usuario=contador,
-                            tipo='PAGO_PENDIENTE',
-                            mensaje=mensaje_contador,
-                            venta=self.object,
-                            abono=abono,  # Vincular la notificación con el abono específico
-                            confirmado=False
-                        )
-                    
-                    # 3. Crear notificaciones para JEFE también (información)
-                    jefes = User.objects.filter(perfil__rol='JEFE')
-                    mensaje_jefe = f"Abono pendiente de confirmación: ${abono.monto:,.2f} ({forma_pago_display}) - Venta #{self.object.pk} - Cliente: {self.object.cliente.nombre_completo_display}"
-                    for jefe in jefes:
-                        Notificacion.objects.create(
-                            usuario=jefe,
-                            tipo='PAGO_PENDIENTE',
-                            mensaje=mensaje_jefe,
-                            venta=self.object,
-                            abono=abono,
-                            confirmado=False
-                        )
-                    
-                    # 4. Crear notificación para el VENDEDOR de la venta (si existe y no es quien registra el abono)
-                    if self.object.vendedor and self.object.vendedor != request.user:
-                        mensaje_vendedor = f"Abono registrado en tu venta: ${abono.monto:,.2f} ({forma_pago_display}) - Venta #{self.object.pk} - Cliente: {self.object.cliente.nombre_completo_display} - Pendiente de confirmación"
-                        Notificacion.objects.create(
-                            usuario=self.object.vendedor,
-                            tipo='ABONO',
-                            mensaje=mensaje_vendedor,
-                            venta=self.object,
-                            abono=abono,
-                            confirmado=False
-                        )
-                    
-                    messages.success(request, f"Abono de ${abono.monto:,.2f} ({forma_pago_display}) registrado exitosamente. ⏳ Pendiente de confirmación del contador.")
+                    messages.success(request, f"Abono de ${abono.monto:,.2f} ({forma_pago_display}) registrado exitosamente. ⏳ Por favor, sube el comprobante para enviarlo al contador.")
                 else:
                     # ⚠️ FLUJO AUTOMÁTICO SOLO PARA EFECTIVO
                     
@@ -960,49 +922,15 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
             logger.exception("No se pudieron acumular kilómetros para la venta %s", self.object.pk)
     
         # 5.1. Lógica de notificaciones para apertura con Transferencia/Tarjeta
+        # ✅ NUEVO FLUJO: NO se crean notificaciones automáticas
+        # Las notificaciones se crearán solo cuando se suba el comprobante
         modo_pago = form.cleaned_data.get('modo_pago_apertura', 'EFE')
         cantidad_apertura = form.cleaned_data.get('cantidad_apertura', Decimal('0.00'))
         
-        if cantidad_apertura > 0 and modo_pago in ['TRN', 'TAR']:
+        if cantidad_apertura > 0 and modo_pago in ['TRN', 'TAR', 'DEP']:
             # Cambiar estado a "En confirmación"
             self.object.estado_confirmacion = 'EN_CONFIRMACION'
             self.object.save(update_fields=['estado_confirmacion'])
-            
-            # Crear notificación para CONTADOR
-            contadores = User.objects.filter(perfil__rol='CONTADOR')
-            modo_pago_display = dict(VentaViaje.MODO_PAGO_CHOICES).get(modo_pago, modo_pago)
-            mensaje = f"Pago de apertura pendiente de confirmación: ${cantidad_apertura:,.2f} ({modo_pago_display}) - Venta #{self.object.pk} - Cliente: {self.object.cliente}"
-            
-            for contador in contadores:
-                Notificacion.objects.create(
-                    usuario=contador,
-                    tipo='PAGO_PENDIENTE',
-                    mensaje=mensaje,
-                    venta=self.object,
-                    confirmado=False
-                )
-            
-            # Crear notificación para JEFE
-            jefes = User.objects.filter(perfil__rol='JEFE')
-            for jefe in jefes:
-                Notificacion.objects.create(
-                    usuario=jefe,
-                    tipo='APERTURA',
-                    mensaje=f"Pago de apertura pendiente de confirmación: ${cantidad_apertura:,.2f} ({modo_pago_display}) - Venta #{self.object.pk}",
-                    venta=self.object,
-                    confirmado=False
-                )
-            
-            # Crear notificación para el VENDEDOR (si existe)
-            if self.object.vendedor:
-                mensaje_vendedor_apertura = f"Apertura registrada en tu venta #{self.object.pk}: ${cantidad_apertura:,.2f} ({modo_pago_display}) - Cliente: {self.object.cliente.nombre_completo_display} - Pendiente de confirmación del contador"
-                Notificacion.objects.create(
-                    usuario=self.object.vendedor,
-                    tipo='APERTURA',
-                    mensaje=mensaje_vendedor_apertura,
-                    venta=self.object,
-                    confirmado=False
-                )
         elif cantidad_apertura > 0 and modo_pago == 'EFE':
             # Si es efectivo, se marca como completado automáticamente
             self.object.estado_confirmacion = 'COMPLETADO'
@@ -2422,8 +2350,14 @@ class ProveedorListCreateView(LoginRequiredMixin, UserPassesTestMixin, TemplateV
         proveedores = Proveedor.objects.all()
         proveedores_por_servicio = {clave: [] for clave, _ in Proveedor.SERVICIO_CHOICES}
 
+        # ✅ Agrupar proveedores por cada servicio que ofrecen (pueden estar en múltiples grupos)
         for proveedor in proveedores:
-            proveedores_por_servicio.setdefault(proveedor.servicio, []).append(proveedor)
+            if proveedor.servicios:
+                servicios_list = [s.strip() for s in proveedor.servicios.split(',') if s.strip()]
+                for servicio_codigo in servicios_list:
+                    if servicio_codigo in proveedores_por_servicio:
+                        proveedores_por_servicio[servicio_codigo].append(proveedor)
+            # Si no tiene servicios definidos, no se agrupa
 
         grupos_proveedores = [
             {
@@ -2438,7 +2372,7 @@ class ProveedorListCreateView(LoginRequiredMixin, UserPassesTestMixin, TemplateV
         ]
 
         context['grupos_proveedores'] = grupos_proveedores
-        context['total_proveedores'] = sum(len(grupo['proveedores']) for grupo in grupos_proveedores)
+        context['total_proveedores'] = len(proveedores)  # Total único de proveedores
         context['form'] = kwargs.get('form') or ProveedorForm()
         context['servicio_choices'] = Proveedor.SERVICIO_CHOICES
         return context
@@ -2446,10 +2380,12 @@ class ProveedorListCreateView(LoginRequiredMixin, UserPassesTestMixin, TemplateV
     def post(self, request, *args, **kwargs):
         form = ProveedorForm(request.POST)
         if form.is_valid():
-            form.save()
-            messages.success(request, "Proveedor agregado correctamente.")
+            proveedor = form.save()
+            messages.success(request, f"Proveedor '{proveedor.nombre}' agregado correctamente.")
             return redirect('proveedores')
-
+        
+        # Si el formulario no es válido, mostrar errores
+        messages.error(request, "Por favor, corrige los errores en el formulario.")
         context = self.get_context_data(form=form)
         context['form'] = form
         return self.render_to_response(context)
@@ -4678,9 +4614,14 @@ class ProveedorUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         # Incluir el contexto de la vista de lista
         proveedores = Proveedor.objects.all()
         proveedores_por_servicio = {clave: [] for clave, _ in Proveedor.SERVICIO_CHOICES}
-        
+
+        # ✅ Agrupar proveedores por cada servicio que ofrecen (pueden estar en múltiples grupos)
         for proveedor in proveedores:
-            proveedores_por_servicio.setdefault(proveedor.servicio, []).append(proveedor)
+            if proveedor.servicios:
+                servicios_list = [s.strip() for s in proveedor.servicios.split(',') if s.strip()]
+                for servicio_codigo in servicios_list:
+                    if servicio_codigo in proveedores_por_servicio:
+                        proveedores_por_servicio[servicio_codigo].append(proveedor)
         
         grupos_proveedores = [
             {
@@ -4721,3 +4662,476 @@ class ProveedorDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     def get_success_url(self):
         messages.success(self.request, "Proveedor eliminado correctamente.")
         return reverse('proveedores')
+
+
+# ------------------- VISTAS PARA GESTIÓN DE COMPROBANTES Y PAGOS POR CONFIRMAR -------------------
+
+class SubirComprobanteAbonoView(LoginRequiredMixin, View):
+    """Vista para subir el comprobante de un abono."""
+    
+    def post(self, request, pk):
+        abono = get_object_or_404(AbonoPago, pk=pk)
+        
+        # Verificar que el usuario tenga permiso (vendedor de la venta, JEFE o CONTADOR)
+        user_rol = get_user_role(request.user)
+        puede_subir = (
+            user_rol in ['JEFE', 'CONTADOR'] or
+            (abono.venta.vendedor == request.user)
+        )
+        
+        if not puede_subir:
+            messages.error(request, "No tienes permiso para subir comprobantes.")
+            return redirect(reverse('detalle_venta', kwargs={'pk': abono.venta.pk, 'slug': abono.venta.slug_safe}) + '?tab=abonos')
+        
+        # Verificar que el abono requiera comprobante (TRN, TAR, DEP)
+        if abono.forma_pago not in ['TRN', 'TAR', 'DEP']:
+            messages.error(request, "Este tipo de pago no requiere comprobante.")
+            return redirect(reverse('detalle_venta', kwargs={'pk': abono.venta.pk, 'slug': abono.venta.slug_safe}) + '?tab=abonos')
+        
+        # Obtener la imagen del request
+        imagen = request.FILES.get('comprobante_imagen')
+        if not imagen:
+            messages.error(request, "Debes seleccionar una imagen del comprobante.")
+            return redirect(reverse('detalle_venta', kwargs={'pk': abono.venta.pk, 'slug': abono.venta.slug_safe}) + '?tab=abonos')
+        
+        # Guardar el comprobante
+        abono.comprobante_imagen = imagen
+        abono.comprobante_subido = True
+        abono.comprobante_subido_en = timezone.now()
+        abono.comprobante_subido_por = request.user
+        abono.save()
+        
+        # Crear notificaciones para CONTADOR
+        contadores = User.objects.filter(perfil__rol='CONTADOR')
+        forma_pago_display = dict(AbonoPago.FORMA_PAGO_CHOICES).get(abono.forma_pago, abono.forma_pago)
+        mensaje_contador = f"Abono pendiente de confirmación: ${abono.monto:,.2f} ({forma_pago_display}) - Venta #{abono.venta.pk} - Cliente: {abono.venta.cliente.nombre_completo_display}"
+        
+        for contador in contadores:
+            # Eliminar notificaciones previas del mismo abono para evitar duplicados
+            Notificacion.objects.filter(
+                usuario=contador,
+                venta=abono.venta,
+                abono=abono,
+                tipo='PAGO_PENDIENTE',
+                confirmado=False
+            ).delete()
+            
+            Notificacion.objects.create(
+                usuario=contador,
+                tipo='PAGO_PENDIENTE',
+                mensaje=mensaje_contador,
+                venta=abono.venta,
+                abono=abono,
+                confirmado=False
+            )
+        
+        # Crear notificaciones para JEFE (información)
+        jefes = User.objects.filter(perfil__rol='JEFE')
+        mensaje_jefe = f"Abono pendiente de confirmación: ${abono.monto:,.2f} ({forma_pago_display}) - Venta #{abono.venta.pk} - Cliente: {abono.venta.cliente.nombre_completo_display}"
+        for jefe in jefes:
+            # Eliminar notificaciones previas del mismo abono
+            Notificacion.objects.filter(
+                usuario=jefe,
+                venta=abono.venta,
+                abono=abono,
+                tipo='PAGO_PENDIENTE',
+                confirmado=False
+            ).delete()
+            
+            Notificacion.objects.create(
+                usuario=jefe,
+                tipo='PAGO_PENDIENTE',
+                mensaje=mensaje_jefe,
+                venta=abono.venta,
+                abono=abono,
+                confirmado=False
+            )
+        
+        messages.success(request, "Comprobante subido exitosamente. El contador ha sido notificado.")
+        return redirect(reverse('detalle_venta', kwargs={'pk': abono.venta.pk, 'slug': abono.venta.slug_safe}) + '?tab=abonos')
+
+
+class SubirComprobanteAperturaView(LoginRequiredMixin, View):
+    """Vista para subir el comprobante de un pago de apertura."""
+    
+    def post(self, request, pk):
+        venta = get_object_or_404(VentaViaje, pk=pk)
+        
+        # Verificar que el usuario tenga permiso
+        user_rol = get_user_role(request.user)
+        puede_subir = (
+            user_rol in ['JEFE', 'CONTADOR'] or
+            (venta.vendedor == request.user)
+        )
+        
+        if not puede_subir:
+            messages.error(request, "No tienes permiso para subir comprobantes.")
+            return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+        
+        # Verificar que la venta tenga apertura y requiera comprobante
+        if not venta.cantidad_apertura or venta.cantidad_apertura <= 0:
+            messages.error(request, "Esta venta no tiene pago de apertura.")
+            return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+        
+        if venta.modo_pago_apertura not in ['TRN', 'TAR', 'DEP']:
+            messages.error(request, "Este tipo de pago no requiere comprobante.")
+            return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+        
+        # Obtener la imagen del request
+        imagen = request.FILES.get('comprobante_apertura')
+        if not imagen:
+            messages.error(request, "Debes seleccionar una imagen del comprobante.")
+            return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+        
+        # Guardar el comprobante
+        venta.comprobante_apertura = imagen
+        venta.comprobante_apertura_subido = True
+        venta.comprobante_apertura_subido_en = timezone.now()
+        venta.comprobante_apertura_subido_por = request.user
+        venta.save()
+        
+        # Crear notificaciones para CONTADOR
+        contadores = User.objects.filter(perfil__rol='CONTADOR')
+        modo_pago_display = dict(VentaViaje.MODO_PAGO_CHOICES).get(venta.modo_pago_apertura, venta.modo_pago_apertura)
+        mensaje_contador = f"Pago de apertura pendiente de confirmación: ${venta.cantidad_apertura:,.2f} ({modo_pago_display}) - Venta #{venta.pk} - Cliente: {venta.cliente.nombre_completo_display}"
+        
+        for contador in contadores:
+            # Eliminar notificaciones previas de apertura para esta venta
+            Notificacion.objects.filter(
+                usuario=contador,
+                venta=venta,
+                abono__isnull=True,  # Notificaciones sin abono son de apertura
+                tipo='PAGO_PENDIENTE',
+                confirmado=False
+            ).delete()
+            
+            Notificacion.objects.create(
+                usuario=contador,
+                tipo='PAGO_PENDIENTE',
+                mensaje=mensaje_contador,
+                venta=venta,
+                confirmado=False
+            )
+        
+        # Crear notificaciones para JEFE
+        jefes = User.objects.filter(perfil__rol='JEFE')
+        mensaje_jefe = f"Pago de apertura pendiente de confirmación: ${venta.cantidad_apertura:,.2f} ({modo_pago_display}) - Venta #{venta.pk}"
+        for jefe in jefes:
+            # Eliminar notificaciones previas
+            Notificacion.objects.filter(
+                usuario=jefe,
+                venta=venta,
+                abono__isnull=True,
+                tipo='PAGO_PENDIENTE',
+                confirmado=False
+            ).delete()
+            
+            Notificacion.objects.create(
+                usuario=jefe,
+                tipo='APERTURA',
+                mensaje=mensaje_jefe,
+                venta=venta,
+                confirmado=False
+            )
+        
+        messages.success(request, "Comprobante de apertura subido exitosamente. El contador ha sido notificado.")
+        return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+
+
+class PagosPorConfirmarView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    """Vista para que el contador vea todos los pagos pendientes de confirmar."""
+    
+    template_name = 'ventas/pagos_por_confirmar.html'
+    
+    def test_func(self):
+        """Solo CONTADOR puede acceder."""
+        return get_user_role(self.request.user) == 'CONTADOR'
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "Solo el contador puede acceder a esta sección.")
+        return redirect('dashboard')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Obtener pagos pendientes de confirmar
+        # Abonos pendientes con comprobante subido
+        abonos_pendientes = AbonoPago.objects.filter(
+            Q(forma_pago__in=['TRN', 'TAR', 'DEP']) &
+            Q(confirmado=False) &
+            Q(comprobante_subido=True)
+        ).select_related('venta', 'venta__cliente', 'venta__vendedor', 'registrado_por').order_by('-fecha_pago')
+        
+        # Ventas con apertura pendiente y comprobante subido
+        # IMPORTANTE: Solo mostrar las que están en 'EN_CONFIRMACION' (no las confirmadas)
+        ventas_apertura_pendiente = VentaViaje.objects.filter(
+            Q(cantidad_apertura__gt=0) &
+            Q(modo_pago_apertura__in=['TRN', 'TAR', 'DEP']) &
+            Q(estado_confirmacion='EN_CONFIRMACION') &  # Solo las que están en confirmación
+            Q(comprobante_apertura_subido=True)
+        ).exclude(
+            estado_confirmacion='COMPLETADO'  # Excluir explícitamente las ya confirmadas
+        ).select_related('cliente', 'vendedor').order_by('-fecha_creacion')
+        
+        # Crear un objeto simple para el template que tenga los atributos abonos y aperturas
+        class PagosPendientes:
+            def __init__(self, abonos, aperturas):
+                self.abonos = abonos
+                self.aperturas = aperturas
+        
+        context['object'] = PagosPendientes(abonos_pendientes, ventas_apertura_pendiente)
+        context['pagos_pendientes'] = context['object']  # También disponible con este nombre
+        
+        # Obtener pagos confirmados para el historial
+        fecha_filtro = self.request.GET.get('fecha_filtro', 'mes')
+        fecha_desde = self.request.GET.get('fecha_desde')
+        fecha_hasta = self.request.GET.get('fecha_hasta')
+        
+        # Abonos confirmados - Incluir todos los confirmados
+        # Primero aplicar filtros de fecha, luego ordenar
+        abonos_confirmados = AbonoPago.objects.filter(
+            confirmado=True
+        ).select_related('venta', 'venta__cliente', 'confirmado_por')
+        
+        # Ventas con apertura confirmada - SOLO las que tienen modo_pago que requiere confirmación
+        # y que fueron confirmadas (estado_confirmacion='COMPLETADO' y tienen comprobante subido)
+        ventas_apertura_confirmada = VentaViaje.objects.filter(
+            Q(cantidad_apertura__gt=0) &
+            Q(modo_pago_apertura__in=['TRN', 'TAR', 'DEP']) &
+            Q(estado_confirmacion='COMPLETADO') &
+            Q(comprobante_apertura_subido=True)  # Asegurar que fue confirmada
+        ).select_related('cliente', 'vendedor')
+        
+        # Aplicar filtros de fecha a abonos confirmados
+        # IMPORTANTE: Solo usar fecha_desde y fecha_hasta si fecha_filtro es 'personalizado'
+        if fecha_filtro == 'personalizado' and fecha_desde and fecha_hasta:
+            try:
+                fecha_desde_obj = datetime.datetime.strptime(fecha_desde, '%Y-%m-%d').date()
+                fecha_hasta_obj = datetime.datetime.strptime(fecha_hasta, '%Y-%m-%d').date()
+                # Filtrar por confirmado_en si existe, sino por fecha_pago
+                abonos_confirmados = abonos_confirmados.filter(
+                    Q(confirmado_en__date__range=[fecha_desde_obj, fecha_hasta_obj]) |
+                    Q(confirmado_en__isnull=True, fecha_pago__date__range=[fecha_desde_obj, fecha_hasta_obj])
+                )
+                # También aplicar filtro a aperturas confirmadas por fecha de creación
+                ventas_apertura_confirmada = ventas_apertura_confirmada.filter(
+                    fecha_creacion__date__range=[fecha_desde_obj, fecha_hasta_obj]
+                )
+            except ValueError:
+                pass
+        elif fecha_filtro == 'dia':
+            # Filtrar solo los de hoy
+            # Usar localdate() para obtener la fecha local de México, no UTC
+            hoy = timezone.localdate()
+            # Buscar por confirmado_en si existe, sino por fecha_pago
+            # IMPORTANTE: Usar Q objects para que funcione correctamente con OR
+            abonos_confirmados = abonos_confirmados.filter(
+                Q(confirmado_en__date=hoy) | 
+                Q(confirmado_en__isnull=True, fecha_pago__date=hoy)
+            )
+            # Para aperturas, usar fecha_creacion
+            ventas_apertura_confirmada = ventas_apertura_confirmada.filter(fecha_creacion__date=hoy)
+        elif fecha_filtro == 'semana':
+            # Usar localdate() para obtener la fecha local de México, no UTC
+            semana_pasada = timezone.localdate() - timedelta(days=7)
+            abonos_confirmados = abonos_confirmados.filter(
+                Q(confirmado_en__date__gte=semana_pasada) | Q(confirmado_en__isnull=True, fecha_pago__date__gte=semana_pasada)
+            )
+            ventas_apertura_confirmada = ventas_apertura_confirmada.filter(fecha_creacion__date__gte=semana_pasada)
+        elif fecha_filtro == 'mes':
+            # Usar localdate() para obtener la fecha local de México, no UTC
+            mes_pasado = timezone.localdate() - timedelta(days=30)
+            abonos_confirmados = abonos_confirmados.filter(
+                Q(confirmado_en__date__gte=mes_pasado) | Q(confirmado_en__isnull=True, fecha_pago__date__gte=mes_pasado)
+            )
+            ventas_apertura_confirmada = ventas_apertura_confirmada.filter(fecha_creacion__date__gte=mes_pasado)
+        
+        # Ordenar abonos confirmados por confirmado_en si existe, sino por fecha_pago
+        from django.db.models import Case, When, F, DateTimeField
+        abonos_confirmados = abonos_confirmados.annotate(
+            fecha_orden=Case(
+                When(confirmado_en__isnull=False, then=F('confirmado_en')),
+                default=F('fecha_pago'),
+                output_field=DateTimeField()
+            )
+        ).order_by('-fecha_orden')
+        
+        # Ordenar aperturas confirmadas por fecha de creación
+        ventas_apertura_confirmada = ventas_apertura_confirmada.order_by('-fecha_creacion')
+        
+        context['abonos_confirmados'] = abonos_confirmados[:100]  # Limitar a 100 para rendimiento
+        context['ventas_apertura_confirmada'] = ventas_apertura_confirmada[:100]
+        context['fecha_filtro'] = fecha_filtro
+        # Solo pasar fecha_desde y fecha_hasta al contexto si es personalizado
+        if fecha_filtro == 'personalizado':
+            context['fecha_desde'] = fecha_desde
+            context['fecha_hasta'] = fecha_hasta
+        else:
+            context['fecha_desde'] = None
+            context['fecha_hasta'] = None
+        
+        return context
+
+
+class ConfirmarPagoDesdeListaView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Vista para confirmar un pago desde la lista de pagos por confirmar."""
+    
+    def test_func(self):
+        """Solo CONTADOR puede confirmar pagos."""
+        return get_user_role(self.request.user) == 'CONTADOR'
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "Solo el contador puede confirmar pagos.")
+        return redirect('dashboard')
+    
+    def post(self, request, tipo, pk):
+        """
+        Confirma un pago. Tipo puede ser 'abono' o 'apertura'.
+        """
+        if tipo == 'abono':
+            abono = get_object_or_404(AbonoPago, pk=pk)
+            
+            # Verificar que tenga comprobante subido
+            if not abono.comprobante_subido:
+                messages.error(request, "Este abono no tiene comprobante subido.")
+                return redirect('pagos_por_confirmar')
+            
+            # Confirmar el abono
+            abono.confirmado = True
+            abono.confirmado_por = request.user
+            abono.confirmado_en = timezone.now()
+            abono.save()
+            
+            venta = abono.venta
+            
+            # Actualizar estado de la venta
+            # El método actualizar_estado_financiero() ahora maneja correctamente
+            # las aperturas confirmadas y no las cambia de estado
+            venta.actualizar_estado_financiero()
+            
+            # Eliminar notificaciones pendientes del CONTADOR
+            Notificacion.objects.filter(
+                usuario=request.user,
+                venta=venta,
+                abono=abono,
+                tipo='PAGO_PENDIENTE',
+                confirmado=False
+            ).delete()
+            
+            # Crear notificaciones para VENDEDOR y JEFE
+            if venta.vendedor and venta.vendedor != request.user:
+                vendedor_es_jefe = venta.vendedor.perfil.rol == 'JEFE' if hasattr(venta.vendedor, 'perfil') else False
+                if not vendedor_es_jefe:
+                    Notificacion.objects.create(
+                        usuario=venta.vendedor,
+                        tipo='PAGO_CONFIRMADO',
+                        mensaje=f"✅ Tu pago ha sido confirmado por el contador. Puedes proceder con la venta #{venta.pk}",
+                        venta=venta,
+                        abono=abono,
+                        confirmado=True
+                    )
+            
+            # Actualizar notificaciones del JEFE
+            jefes = User.objects.filter(perfil__rol='JEFE')
+            forma_pago_display = dict(AbonoPago.FORMA_PAGO_CHOICES).get(abono.forma_pago, abono.forma_pago)
+            mensaje_jefe = f"✅ Pago confirmado por el contador: ${abono.monto:,.2f} ({forma_pago_display}) - Venta #{venta.pk}"
+            
+            for jefe in jefes:
+                # Actualizar notificaciones pendientes
+                notificaciones_jefe = Notificacion.objects.filter(
+                    usuario=jefe,
+                    venta=venta,
+                    abono=abono,
+                    tipo='PAGO_PENDIENTE',
+                    confirmado=False
+                )
+                if notificaciones_jefe.exists():
+                    notificaciones_jefe.update(
+                        tipo='PAGO_CONFIRMADO',
+                        mensaje=mensaje_jefe,
+                        confirmado=True,
+                        confirmado_por=request.user,
+                        confirmado_en=timezone.now()
+                    )
+                else:
+                    Notificacion.objects.create(
+                        usuario=jefe,
+                        tipo='PAGO_CONFIRMADO',
+                        mensaje=mensaje_jefe,
+                        venta=venta,
+                        abono=abono,
+                        confirmado=True
+                    )
+            
+            messages.success(request, f"Abono de ${abono.monto:,.2f} confirmado exitosamente.")
+            
+        elif tipo == 'apertura':
+            venta = get_object_or_404(VentaViaje, pk=pk)
+            
+            # Verificar que tenga comprobante subido
+            if not venta.comprobante_apertura_subido:
+                messages.error(request, "Este pago de apertura no tiene comprobante subido.")
+                return redirect('pagos_por_confirmar')
+            
+            # Confirmar la apertura (cambiar estado de la venta)
+            venta.estado_confirmacion = 'COMPLETADO'
+            venta.save(update_fields=['estado_confirmacion'])
+            
+            # Eliminar notificaciones pendientes del CONTADOR
+            Notificacion.objects.filter(
+                usuario=request.user,
+                venta=venta,
+                abono__isnull=True,  # Notificaciones sin abono son de apertura
+                tipo='PAGO_PENDIENTE',
+                confirmado=False
+            ).delete()
+            
+            # Crear notificaciones para VENDEDOR y JEFE
+            if venta.vendedor and venta.vendedor != request.user:
+                vendedor_es_jefe = venta.vendedor.perfil.rol == 'JEFE' if hasattr(venta.vendedor, 'perfil') else False
+                if not vendedor_es_jefe:
+                    Notificacion.objects.create(
+                        usuario=venta.vendedor,
+                        tipo='PAGO_CONFIRMADO',
+                        mensaje=f"✅ Tu pago de apertura ha sido confirmado por el contador. Puedes proceder con la venta #{venta.pk}",
+                        venta=venta,
+                        confirmado=True
+                    )
+            
+            # Actualizar notificaciones del JEFE
+            jefes = User.objects.filter(perfil__rol='JEFE')
+            modo_pago_display = dict(VentaViaje.MODO_PAGO_CHOICES).get(venta.modo_pago_apertura, venta.modo_pago_apertura)
+            mensaje_jefe = f"✅ Pago de apertura confirmado por el contador: ${venta.cantidad_apertura:,.2f} ({modo_pago_display}) - Venta #{venta.pk}"
+            
+            for jefe in jefes:
+                # Actualizar notificaciones pendientes
+                notificaciones_jefe = Notificacion.objects.filter(
+                    usuario=jefe,
+                    venta=venta,
+                    abono__isnull=True,
+                    tipo='PAGO_PENDIENTE',
+                    confirmado=False
+                )
+                if notificaciones_jefe.exists():
+                    notificaciones_jefe.update(
+                        tipo='PAGO_CONFIRMADO',
+                        mensaje=mensaje_jefe,
+                        confirmado=True,
+                        confirmado_por=request.user,
+                        confirmado_en=timezone.now()
+                    )
+                else:
+                    Notificacion.objects.create(
+                        usuario=jefe,
+                        tipo='PAGO_CONFIRMADO',
+                        mensaje=mensaje_jefe,
+                        venta=venta,
+                        confirmado=True
+                    )
+            
+            messages.success(request, f"Pago de apertura de ${venta.cantidad_apertura:,.2f} confirmado exitosamente.")
+        else:
+            messages.error(request, "Tipo de pago inválido.")
+            return redirect('pagos_por_confirmar')
+        
+        return redirect('pagos_por_confirmar')

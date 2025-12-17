@@ -3,7 +3,7 @@ import json
 
 from django.db import models
 from django.db.models import Sum, Q
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.contrib.auth.models import User
 from django.urls import reverse
@@ -12,6 +12,10 @@ from decimal import Decimal
 from datetime import date, datetime # Se asegura la importación de datetime
 from django.utils.text import slugify 
 from django.core.validators import FileExtensionValidator
+from PIL import Image
+from io import BytesIO
+from django.core.files.uploadedfile import InMemoryUploadedFile
+import sys
 
 # ------------------- MODELO CENTRAL: VentaViaje -------------------
 
@@ -118,6 +122,33 @@ class VentaViaje(models.Model):
         default='EFE',
         verbose_name="Modo de Pago de Apertura",
         help_text="Modo de pago del anticipo/apertura"
+    )
+    
+    # ✅ Campos para comprobante de pago de apertura (obligatorio para TRN/TAR/DEP)
+    comprobante_apertura = models.ImageField(
+        upload_to='comprobantes_apertura/%Y/%m/%d/',
+        blank=True,
+        null=True,
+        verbose_name="Comprobante de Apertura (Imagen)",
+        help_text="Imagen del comprobante del pago de apertura. Obligatorio para Transferencia, Tarjeta y Depósito."
+    )
+    comprobante_apertura_subido = models.BooleanField(
+        default=False,
+        verbose_name="Comprobante Apertura Subido",
+        help_text="Indica si el comprobante de apertura ya fue subido al servidor."
+    )
+    comprobante_apertura_subido_en = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Fecha de Subida del Comprobante de Apertura"
+    )
+    comprobante_apertura_subido_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='comprobantes_apertura_subidos',
+        verbose_name="Comprobante Apertura Subido Por"
     )
     
     # Estado de confirmación del pago
@@ -506,17 +537,47 @@ class VentaViaje(models.Model):
     def actualizar_estado_financiero(self, guardar=True):
         """
         Actualiza el estado de confirmación según lo pagado vs. el costo total.
+        IMPORTANTE: No cambia el estado si hay pagos confirmados (apertura o abonos),
+        para evitar que pagos ya confirmados regresen a pendientes.
         """
         nuevo_total = self.total_pagado
-        estado = self.estado_confirmacion
+        estado_actual = self.estado_confirmacion
+        nuevo_estado = estado_actual
 
-        if nuevo_total >= self.costo_total_con_modificacion:
-            estado = 'COMPLETADO'
-        elif self.estado_confirmacion == 'COMPLETADO':
-            estado = 'PENDIENTE'
+        # Verificar si hay pagos confirmados (abonos o apertura)
+        # Abonos confirmados: tienen confirmado=True y confirmado_en no es None
+        tiene_abonos_confirmados = self.abonos.filter(confirmado=True, confirmado_en__isnull=False).exists()
+        
+        # Apertura confirmada: tiene comprobante subido y modo de pago que requiere confirmación
+        # IMPORTANTE: No depender del estado actual, solo verificar si la apertura fue confirmada
+        apertura_confirmada = (self.cantidad_apertura > 0 and 
+                              self.modo_pago_apertura in ['TRN', 'TAR', 'DEP'] and
+                              self.comprobante_apertura_subido)
+        
+        # Si hay una apertura confirmada, el estado debe ser COMPLETADO (fue confirmada por el contador)
+        # y NO debe cambiar, independientemente del total pagado
+        if apertura_confirmada:
+            # La apertura fue confirmada por el contador, mantener COMPLETADO
+            nuevo_estado = 'COMPLETADO'
+        elif nuevo_total >= self.costo_total_con_modificacion:
+            # Si el total pagado alcanza el costo total, marcar como completado
+            nuevo_estado = 'COMPLETADO'
+        elif estado_actual == 'EN_CONFIRMACION':
+            # Si está en confirmación, mantener EN_CONFIRMACION hasta que se confirme o complete
+            nuevo_estado = 'EN_CONFIRMACION'
+        elif estado_actual == 'COMPLETADO' and tiene_abonos_confirmados:
+            # Si está completado y hay abonos confirmados, mantener COMPLETADO
+            nuevo_estado = 'COMPLETADO'
+        elif estado_actual == 'COMPLETADO' and not tiene_abonos_confirmados and not apertura_confirmada:
+            # Solo cambiar a PENDIENTE si estaba completado pero NO hay pagos confirmados
+            nuevo_estado = 'PENDIENTE'
+        else:
+            # Para otros casos, mantener el estado actual o poner PENDIENTE
+            if estado_actual not in ['EN_CONFIRMACION', 'COMPLETADO']:
+                nuevo_estado = 'PENDIENTE'
 
-        if estado != self.estado_confirmacion:
-            self.estado_confirmacion = estado
+        if nuevo_estado != estado_actual:
+            self.estado_confirmacion = nuevo_estado
             if guardar:
                 self.save(update_fields=['estado_confirmacion'])
 
@@ -597,6 +658,71 @@ class AbonoPago(models.Model):
         limit_choices_to={'perfil__rol': 'CONTADOR'}
     )
     confirmado_en = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de Confirmación")
+    
+    # ✅ Campos para comprobante de pago (obligatorio para TRN/TAR/DEP)
+    comprobante_imagen = models.ImageField(
+        upload_to='comprobantes_pagos/%Y/%m/%d/',
+        blank=True,
+        null=True,
+        verbose_name="Comprobante de Pago (Imagen)",
+        help_text="Imagen del comprobante (recibo, screenshot, ticket). Obligatorio para Transferencia, Tarjeta y Depósito."
+    )
+    comprobante_subido = models.BooleanField(
+        default=False,
+        verbose_name="Comprobante Subido",
+        help_text="Indica si el comprobante ya fue subido al servidor."
+    )
+    comprobante_subido_en = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Fecha de Subida del Comprobante"
+    )
+    comprobante_subido_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='comprobantes_subidos',
+        verbose_name="Comprobante Subido Por"
+    )
+    
+    def comprimir_comprobante(self):
+        """Comprime la imagen del comprobante para optimizar espacio."""
+        if self.comprobante_imagen and self.comprobante_imagen.name:
+            try:
+                # Abrir la imagen
+                img = Image.open(self.comprobante_imagen)
+                
+                # Convertir a RGB si es necesario (para PNG con transparencia)
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    background = Image.new('RGB', img.size, (255, 255, 255))
+                    if img.mode == 'P':
+                        img = img.convert('RGBA')
+                    background.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+                    img = background
+                
+                # Redimensionar si es muy grande (máximo 1920px de ancho)
+                if img.width > 1920:
+                    ratio = 1920 / img.width
+                    new_size = (1920, int(img.height * ratio))
+                    img = img.resize(new_size, Image.Resampling.LANCZOS)
+                
+                # Comprimir con calidad 85%
+                output = BytesIO()
+                img.save(output, format='JPEG', quality=85, optimize=True)
+                output.seek(0)
+                
+                # Crear nuevo archivo en memoria
+                filename = os.path.basename(self.comprobante_imagen.name)
+                if not filename.endswith('.jpg') and not filename.endswith('.jpeg'):
+                    filename = os.path.splitext(filename)[0] + '.jpg'
+                
+                self.comprobante_imagen = InMemoryUploadedFile(
+                    output, 'ImageField', filename, 'image/jpeg', sys.getsizeof(output), None
+                )
+            except Exception as e:
+                # Si falla la compresión, mantener la imagen original
+                pass
 
     def __str__(self):
         return f"Abono de ${self.monto} ({self.get_forma_pago_display()}) para Venta {self.venta.pk}"
@@ -809,13 +935,26 @@ class Proveedor(models.Model):
         ('VUELOS', 'Vuelos'),
         ('HOTELES', 'Hoteles'),
         ('TOURS', 'Tours'),
+        ('CRUCERO', 'Crucero'),
+        ('TRASLADOS', 'Traslados'),
+        ('TRAMITE_VISAS', 'Trámite de Visas'),
+        ('SEGUROS_VIAJE', 'Seguros de Viaje'),
+        ('RENTA_AUTOS', 'Renta de Autos'),
         ('TODO', 'Todo'),
     ]
 
     nombre = models.CharField(max_length=255, verbose_name="Nombre del Proveedor")
     telefono = models.CharField(max_length=30, blank=True, verbose_name="Teléfono")
     ejecutivo = models.CharField(max_length=255, blank=True, verbose_name="Ejecutivo a Cargo")
-    servicio = models.CharField(max_length=10, choices=SERVICIO_CHOICES, verbose_name="Servicio que Ofrece")
+    # ✅ Campos de contacto del ejecutivo
+    telefono_ejecutivo = models.CharField(max_length=30, blank=True, verbose_name="Contacto del Ejecutivo")
+    email_ejecutivo = models.EmailField(blank=True, verbose_name="Email del Ejecutivo")
+    # ✅ Cambiado a TextField para almacenar múltiples servicios separados por comas
+    servicios = models.TextField(
+        blank=True,
+        verbose_name="Servicios que Ofrece (Selección Múltiple)",
+        help_text="Códigos de servicios seleccionados separados por coma (ej. VUELOS,HOTELES,TOURS)."
+    )
     link = models.URLField(blank=True, verbose_name="Link del Proveedor")
     genera_factura = models.BooleanField(default=False, verbose_name="Genera Factura Automática")
     fecha_creacion = models.DateTimeField(auto_now_add=True)
@@ -827,7 +966,29 @@ class Proveedor(models.Model):
         ordering = ["nombre"]
 
     def __str__(self):
-        return f"{self.nombre} ({self.get_servicio_display()})"
+        if self.servicios:
+            servicios_display = ', '.join([
+                dict(self.SERVICIO_CHOICES).get(s.strip(), s.strip())
+                for s in self.servicios.split(',') if s.strip()
+            ])
+            return f"{self.nombre} ({servicios_display})"
+        return f"{self.nombre}"
+
+    def get_servicios_display(self):
+        """Retorna una lista de los nombres de servicios seleccionados."""
+        if not self.servicios:
+            return []
+        servicios_dict = dict(self.SERVICIO_CHOICES)
+        return [
+            servicios_dict.get(s.strip(), s.strip())
+            for s in self.servicios.split(',') if s.strip()
+        ]
+
+    def tiene_servicio(self, codigo_servicio):
+        """Verifica si el proveedor ofrece un servicio específico."""
+        if not self.servicios:
+            return False
+        return codigo_servicio.strip() in [s.strip() for s in self.servicios.split(',')]
 
 
 class ConfirmacionVenta(models.Model):

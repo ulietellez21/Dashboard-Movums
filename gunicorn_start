@@ -1,0 +1,9 @@
+#!/bin/bash
+set -a
+source /home/tellez/sitios/agencia/.env
+set +a
+
+cd /home/tellez/sitios/agencia || exit 1
+source /home/tellez/agencia-env/bin/activate
+mkdir -p /home/tellez/sitios/agencia/run
+exec /home/tellez/agencia-env/bin/gunicorn agencia_web.wsgi:application   --workers 3   --bind unix:/home/tellez/sitios/agencia/run/gunicorn.sock   --log-level info   --log-file /home/tellez/sitios/agencia/logs/gunicorn-error.log

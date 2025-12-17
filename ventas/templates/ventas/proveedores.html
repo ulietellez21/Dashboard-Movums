@@ -13,6 +13,24 @@
     </button>
 </div>
 
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm border-0 rounded-4" role="alert">
+            {% if message.tags == 'success' %}
+                <i class="fas fa-check-circle me-2"></i>
+            {% elif message.tags == 'error' %}
+                <i class="fas fa-exclamation-circle me-2"></i>
+            {% elif message.tags == 'warning' %}
+                <i class="fas fa-exclamation-triangle me-2"></i>
+            {% else %}
+                <i class="fas fa-info-circle me-2"></i>
+            {% endif %}
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endfor %}
+{% endif %}
+
 {% if form.non_field_errors %}
     <div class="alert alert-danger">
         {% for error in form.non_field_errors %}
@@ -28,10 +46,67 @@
     </div>
 {% endif %}
 
+<!-- Panel de Control: Filtros y Búsqueda -->
+<div class="card shadow-sm border-0 rounded-4 mb-4">
+    <div class="card-header bg-light border-0">
+        <h5 class="mb-0 fw-bold"><i class="fas fa-filter me-2"></i>Filtros y Búsqueda</h5>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <!-- Búsqueda de Proveedores -->
+            <div class="col-md-6">
+                <label for="buscarProveedor" class="form-label fw-semibold">
+                    <i class="fas fa-search me-2"></i>Buscar Proveedor
+                </label>
+                <div class="input-group">
+                    <input type="text" 
+                           class="form-control" 
+                           id="buscarProveedor" 
+                           placeholder="Buscar por nombre (no distingue mayúsculas/minúsculas)..."
+                           autocomplete="off">
+                    <button class="btn btn-outline-secondary" type="button" id="limpiarBusqueda">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <small class="text-muted">La búsqueda filtra proveedores en todas las tablas visibles</small>
+            </div>
+            <!-- Selector de Grupos -->
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">
+                    <i class="fas fa-list-check me-2"></i>Mostrar Grupos de Servicios
+                </label>
+                <div class="row g-2">
+                    {% for grupo in grupos_proveedores %}
+                        <div class="col-md-6 col-lg-4">
+                            <div class="form-check">
+                                <input class="form-check-input grupo-checkbox" 
+                                       type="checkbox" 
+                                       value="{{ grupo.clave }}" 
+                                       id="grupo_{{ grupo.clave }}">
+                                <label class="form-check-label" for="grupo_{{ grupo.clave }}">
+                                    {{ grupo.label }} ({{ grupo.proveedores|length }})
+                                </label>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="seleccionarTodos">
+                        <i class="fas fa-check-double me-1"></i>Seleccionar Todos
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="deseleccionarTodos">
+                        <i class="fas fa-times me-1"></i>Deseleccionar Todos
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="card shadow-sm border-0 rounded-4">
     <div class="card-body p-4">
         {% for grupo in grupos_proveedores %}
-            <div class="mb-5">
+            <div class="grupo-proveedores mb-5" data-grupo-clave="{{ grupo.clave }}" id="grupo_{{ grupo.clave }}_container" style="display: none;">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div class="d-flex align-items-center gap-2">
                         {% if grupo.clave == 'VUELOS' %}
@@ -40,8 +115,18 @@
                             <span class="badge rounded-circle bg-success-subtle text-success p-3"><i class="fas fa-hotel"></i></span>
                         {% elif grupo.clave == 'TOURS' %}
                             <span class="badge rounded-circle bg-warning-subtle text-warning p-3"><i class="fas fa-route"></i></span>
+                        {% elif grupo.clave == 'CRUCERO' %}
+                            <span class="badge rounded-circle bg-info-subtle text-info p-3"><i class="fas fa-ship"></i></span>
+                        {% elif grupo.clave == 'TRASLADOS' %}
+                            <span class="badge rounded-circle bg-purple-subtle text-purple p-3"><i class="fas fa-car-side"></i></span>
+                        {% elif grupo.clave == 'TRAMITE_VISAS' %}
+                            <span class="badge rounded-circle bg-indigo-subtle text-indigo p-3"><i class="fas fa-passport"></i></span>
+                        {% elif grupo.clave == 'SEGUROS_VIAJE' %}
+                            <span class="badge rounded-circle bg-teal-subtle text-teal p-3"><i class="fas fa-shield-alt"></i></span>
+                        {% elif grupo.clave == 'RENTA_AUTOS' %}
+                            <span class="badge rounded-circle bg-orange-subtle text-orange p-3"><i class="fas fa-car"></i></span>
                         {% else %}
-                            <span class="badge rounded-circle bg-info-subtle text-info p-3"><i class="fas fa-layer-group"></i></span>
+                            <span class="badge rounded-circle bg-secondary-subtle text-secondary p-3"><i class="fas fa-layer-group"></i></span>
                         {% endif %}
                         <div>
                             <h4 class="fw-bold mb-0">{{ grupo.label }}</h4>
@@ -60,6 +145,7 @@
                                     <th scope="col">Proveedor</th>
                                     <th scope="col">Teléfono</th>
                                     <th scope="col">Ejecutivo</th>
+                                    <th scope="col">Contacto Ejecutivo</th>
                                     <th scope="col">Link</th>
                                     <th scope="col">Factura</th>
                                     <th scope="col">Actualizado</th>
@@ -68,10 +154,17 @@
                             </thead>
                             <tbody>
                                 {% for proveedor in grupo.proveedores %}
-                                    <tr>
+                                    <tr class="fila-proveedor" data-proveedor-nombre="{{ proveedor.nombre|lower }}">
                                         <td class="fw-semibold">{{ proveedor.nombre }}</td>
                                         <td>{{ proveedor.telefono|default:"—" }}</td>
                                         <td>{{ proveedor.ejecutivo|default:"—" }}</td>
+                                        <td>
+                                            {% if proveedor.telefono_ejecutivo %}
+                                                <i class="fas fa-phone me-1"></i>{{ proveedor.telefono_ejecutivo }}
+                                            {% else %}
+                                                <span class="text-muted">—</span>
+                                            {% endif %}
+                                        </td>
                                         <td>
                                             {% if proveedor.link %}
                                                 <a href="{{ proveedor.link }}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">
@@ -99,8 +192,10 @@
                                                         data-proveedor-nombre="{{ proveedor.nombre }}"
                                                         data-proveedor-telefono="{{ proveedor.telefono|default:'' }}"
                                                         data-proveedor-ejecutivo="{{ proveedor.ejecutivo|default:'' }}"
+                                                        data-proveedor-telefono-ejecutivo="{{ proveedor.telefono_ejecutivo|default:'' }}"
+                                                        data-proveedor-email-ejecutivo="{{ proveedor.email_ejecutivo|default:'' }}"
                                                         data-proveedor-link="{{ proveedor.link|default:'' }}"
-                                                        data-proveedor-servicio="{{ proveedor.servicio }}"
+                                                        data-proveedor-servicios="{{ proveedor.servicios|default:'' }}"
                                                         data-proveedor-genera-factura="{{ proveedor.genera_factura|yesno:'true,false' }}"
                                                         data-bs-toggle="modal" 
                                                         data-bs-target="#modalProveedor"
@@ -129,9 +224,6 @@
                     </div>
                 {% endif %}
             </div>
-            {% if not forloop.last %}
-                <hr class="my-4">
-            {% endif %}
         {% endfor %}
     </div>
 </div>
@@ -180,6 +272,24 @@
                             {% endif %}
                         </div>
                         <div class="col-md-6">
+                            <label for="id_telefono_ejecutivo" class="form-label fw-semibold">Contacto del Ejecutivo</label>
+                            <input type="text" name="telefono_ejecutivo" id="id_telefono_ejecutivo" class="form-control {% if form.telefono_ejecutivo.errors %}is-invalid{% endif %}" value="{{ form.telefono_ejecutivo.value|default_if_none:'' }}" placeholder="Ej. +52 55 1234 5678">
+                            {% if form.telefono_ejecutivo.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.telefono_ejecutivo.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="id_email_ejecutivo" class="form-label fw-semibold">Email del Ejecutivo</label>
+                            <input type="email" name="email_ejecutivo" id="id_email_ejecutivo" class="form-control {% if form.email_ejecutivo.errors %}is-invalid{% endif %}" value="{{ form.email_ejecutivo.value|default_if_none:'' }}" placeholder="ejecutivo@proveedor.com">
+                            {% if form.email_ejecutivo.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.email_ejecutivo.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
                             <label for="id_link" class="form-label fw-semibold">Link</label>
                             <input type="url" name="link" id="id_link" class="form-control {% if form.link.errors %}is-invalid{% endif %}" value="{{ form.link.value|default_if_none:'' }}">
                             {% if form.link.errors %}
@@ -188,13 +298,27 @@
                                 </div>
                             {% endif %}
                         </div>
-                        <div class="col-md-6">
-                            <label for="id_servicio" class="form-label fw-semibold">Servicio que ofrece</label>
-                            {{ form.servicio }}
-                            {% if form.servicio.errors %}
-                                <div class="text-danger small mt-1">
-                                    {% for error in form.servicio.errors %}{{ error }}{% endfor %}
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Servicios que ofrece</label>
+                            <div class="row g-3">
+                                {% for checkbox in form.servicios %}
+                                    <div class="col-md-4 col-lg-3">
+                                        <div class="form-check">
+                                            {{ checkbox.tag }}
+                                            <label class="form-check-label" for="{{ checkbox.id_for_label }}">
+                                                {{ checkbox.choice_label }}
+                                            </label>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            {% if form.servicios.errors %}
+                                <div class="text-danger small mt-2">
+                                    {% for error in form.servicios.errors %}{{ error }}{% endfor %}
                                 </div>
+                            {% endif %}
+                            {% if form.servicios.help_text %}
+                                <small class="form-text text-muted mt-2">{{ form.servicios.help_text }}</small>
                             {% endif %}
                         </div>
                         <div class="col-12">
@@ -285,6 +409,15 @@
             }, false);
         }
         
+        // ✅ Manejar el envío del formulario
+        var formProveedor = document.getElementById('formProveedor');
+        if (formProveedor) {
+            formProveedor.addEventListener('submit', function(e) {
+                console.log('[MODAL PROVEEDOR DEBUG] Formulario enviado');
+                // El formulario se enviará normalmente, el redirect de Django manejará el cierre del modal
+            });
+        }
+
         // Limpiar el formulario al cerrar
         modalProveedor.addEventListener('hidden.bs.modal', function() {
             console.log('[MODAL PROVEEDOR DEBUG] Modal cerrado');
@@ -296,6 +429,10 @@
                 document.getElementById('modalTitle').textContent = 'Agregar nuevo proveedor';
                 document.getElementById('modalIcon').className = 'fas fa-user-plus me-2';
                 document.getElementById('btnSubmitText').textContent = 'Guardar proveedor';
+                // ✅ Limpiar checkboxes de servicios
+                document.querySelectorAll('input[name="servicios"]').forEach(function(checkbox) {
+                    checkbox.checked = false;
+                });
                 var errorInputs = form.querySelectorAll('.is-invalid');
                 errorInputs.forEach(function(input) {
                     input.classList.remove('is-invalid');
@@ -310,8 +447,10 @@
                 var proveedorNombre = this.getAttribute('data-proveedor-nombre');
                 var proveedorTelefono = this.getAttribute('data-proveedor-telefono');
                 var proveedorEjecutivo = this.getAttribute('data-proveedor-ejecutivo');
+                var proveedorTelefonoEjecutivo = this.getAttribute('data-proveedor-telefono-ejecutivo') || '';
+                var proveedorEmailEjecutivo = this.getAttribute('data-proveedor-email-ejecutivo') || '';
                 var proveedorLink = this.getAttribute('data-proveedor-link');
-                var proveedorServicio = this.getAttribute('data-proveedor-servicio');
+                var proveedorServicios = this.getAttribute('data-proveedor-servicios') || '';
                 var proveedorGeneraFactura = this.getAttribute('data-proveedor-genera-factura') === 'true';
                 
                 // Actualizar formulario
@@ -319,9 +458,27 @@
                 document.getElementById('id_nombre').value = proveedorNombre;
                 document.getElementById('id_telefono').value = proveedorTelefono;
                 document.getElementById('id_ejecutivo').value = proveedorEjecutivo;
+                document.getElementById('id_telefono_ejecutivo').value = proveedorTelefonoEjecutivo;
+                document.getElementById('id_email_ejecutivo').value = proveedorEmailEjecutivo;
                 document.getElementById('id_link').value = proveedorLink;
-                document.getElementById('id_servicio').value = proveedorServicio;
                 document.getElementById('id_genera_factura').checked = proveedorGeneraFactura;
+                
+                // ✅ Actualizar checkboxes de servicios (selección múltiple)
+                // Desmarcar todos primero
+                document.querySelectorAll('input[name="servicios"]').forEach(function(checkbox) {
+                    checkbox.checked = false;
+                });
+                // Marcar los servicios del proveedor
+                if (proveedorServicios) {
+                    var serviciosArray = proveedorServicios.split(',');
+                    serviciosArray.forEach(function(servicio) {
+                        var servicioTrimmed = servicio.trim();
+                        var checkbox = document.querySelector('input[name="servicios"][value="' + servicioTrimmed + '"]');
+                        if (checkbox) {
+                            checkbox.checked = true;
+                        }
+                    });
+                }
                 
                 // Actualizar modal
                 document.getElementById('modalTitle').textContent = 'Editar proveedor';
@@ -351,6 +508,193 @@
             console.error('[MODAL PROVEEDOR DEBUG] Modal NO encontrado en verificación tardía');
         }
     }, 2000);
+})();
+
+// ✅ Funcionalidad de Filtros y Búsqueda
+(function() {
+    'use strict';
+    
+    // Variable para rastrear si hay una búsqueda activa
+    var busquedaActiva = false;
+    
+    // Función para mostrar/ocultar grupos según checkboxes
+    function toggleGrupos() {
+        // Solo aplicar si no hay búsqueda activa
+        if (busquedaActiva) {
+            return;
+        }
+        
+        var checkboxes = document.querySelectorAll('.grupo-checkbox');
+        checkboxes.forEach(function(checkbox) {
+            var grupoClave = checkbox.value;
+            var containerId = 'grupo_' + grupoClave + '_container';
+            var container = document.getElementById(containerId);
+            
+            if (container) {
+                if (checkbox.checked) {
+                    container.style.display = 'block';
+                } else {
+                    container.style.display = 'none';
+                }
+            }
+        });
+    }
+    
+    // Función auxiliar para verificar si una fila está visible
+    function esFilaVisible(fila) {
+        var style = fila.style.display || window.getComputedStyle(fila).display;
+        return style !== 'none';
+    }
+    
+    // Función para filtrar proveedores por nombre (case-insensitive)
+    function filtrarProveedores(termino) {
+        var terminoLower = termino.toLowerCase().trim();
+        busquedaActiva = terminoLower !== '';
+        
+        var filas = document.querySelectorAll('.fila-proveedor');
+        var gruposConResultados = new Set();
+        
+        // Primero, mostrar todas las filas para poder filtrarlas correctamente
+        filas.forEach(function(fila) {
+            var nombreProveedor = fila.getAttribute('data-proveedor-nombre') || '';
+            var grupoContainer = fila.closest('.grupo-proveedores');
+            
+            if (terminoLower === '' || nombreProveedor.includes(terminoLower)) {
+                fila.style.display = '';
+                // Si hay término de búsqueda y hay coincidencia, marcar el grupo
+                if (terminoLower !== '' && grupoContainer) {
+                    gruposConResultados.add(grupoContainer);
+                }
+            } else {
+                fila.style.display = 'none';
+            }
+        });
+        
+        // Procesar todos los grupos
+        var grupos = document.querySelectorAll('.grupo-proveedores');
+        grupos.forEach(function(grupo) {
+            var grupoClave = grupo.getAttribute('data-grupo-clave');
+            var checkbox = document.getElementById('grupo_' + grupoClave);
+            var tabla = grupo.querySelector('table');
+            var mensajeVacio = grupo.querySelector('.alert-light');
+            
+            // Contar filas visibles en este grupo
+            var filasEnGrupo = grupo.querySelectorAll('.fila-proveedor');
+            var filasVisibles = 0;
+            filasEnGrupo.forEach(function(fila) {
+                if (esFilaVisible(fila)) {
+                    filasVisibles++;
+                }
+            });
+            
+            if (busquedaActiva) {
+                // Modo búsqueda: mostrar grupos con resultados
+                if (gruposConResultados.has(grupo) && filasVisibles > 0) {
+                    grupo.style.display = 'block';
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                    if (mensajeVacio && mensajeVacio.textContent.includes('coincidan con la búsqueda')) {
+                        mensajeVacio.remove();
+                    }
+                    if (tabla) {
+                        tabla.style.display = '';
+                    }
+                } else {
+                    grupo.style.display = 'none';
+                    if (checkbox) {
+                        checkbox.checked = false;
+                    }
+                    // Mostrar mensaje si el grupo está visible pero sin resultados
+                    if (filasVisibles === 0 && tabla) {
+                        if (!mensajeVacio || !mensajeVacio.textContent.includes('coincidan con la búsqueda')) {
+                            if (mensajeVacio) {
+                                mensajeVacio.remove();
+                            }
+                            var nuevoMensaje = document.createElement('div');
+                            nuevoMensaje.className = 'alert alert-light border rounded-3 mb-0';
+                            nuevoMensaje.innerHTML = '<i class="fas fa-clipboard-list me-2"></i>No hay proveedores que coincidan con la búsqueda.';
+                            grupo.appendChild(nuevoMensaje);
+                        }
+                        tabla.style.display = 'none';
+                    }
+                }
+            } else {
+                // Modo normal: restaurar estado inicial (todos desmarcados)
+                grupo.style.display = 'none';
+                if (checkbox) {
+                    checkbox.checked = false;
+                }
+                // Limpiar mensajes de búsqueda
+                if (mensajeVacio && mensajeVacio.textContent.includes('coincidan con la búsqueda')) {
+                    mensajeVacio.remove();
+                }
+                if (tabla) {
+                    tabla.style.display = '';
+                }
+            }
+        });
+    }
+    
+    // Event listeners
+    var buscarInput = document.getElementById('buscarProveedor');
+    if (buscarInput) {
+        buscarInput.addEventListener('input', function(e) {
+            filtrarProveedores(e.target.value);
+        });
+    }
+    
+    var limpiarBusqueda = document.getElementById('limpiarBusqueda');
+    if (limpiarBusqueda) {
+        limpiarBusqueda.addEventListener('click', function() {
+            if (buscarInput) {
+                buscarInput.value = '';
+                filtrarProveedores('');
+            }
+        });
+    }
+    
+    var checkboxes = document.querySelectorAll('.grupo-checkbox');
+    checkboxes.forEach(function(checkbox) {
+        checkbox.addEventListener('change', function() {
+            // Si hay búsqueda activa, no permitir cambios manuales
+            if (!busquedaActiva) {
+                toggleGrupos();
+            }
+        });
+    });
+    
+    var seleccionarTodos = document.getElementById('seleccionarTodos');
+    if (seleccionarTodos) {
+        seleccionarTodos.addEventListener('click', function() {
+            checkboxes.forEach(function(cb) {
+                cb.checked = true;
+            });
+            toggleGrupos();
+        });
+    }
+    
+    var deseleccionarTodos = document.getElementById('deseleccionarTodos');
+    if (deseleccionarTodos) {
+        deseleccionarTodos.addEventListener('click', function() {
+            checkboxes.forEach(function(cb) {
+                cb.checked = false;
+            });
+            toggleGrupos();
+        });
+    }
+    
+    // Inicializar: todos los grupos ocultos por defecto (ya están ocultos con style="display: none;")
+    // No llamar toggleGrupos() aquí porque queremos que todos estén ocultos inicialmente
+    
+    // Asegurar que el código se ejecute después de que el DOM esté completamente cargado
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM cargado, inicializando filtros de proveedores');
+        });
+    } else {
+        console.log('DOM ya cargado, inicializando filtros de proveedores');
+    }
 })();
 </script>
 {% endblock %}

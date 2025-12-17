@@ -10,6 +10,9 @@ from .views import (
     eliminar_cliente,
     KilometrosDashboardView,
     PromocionKilometrosUpdateView,
+    PromocionKilometrosActivarView,
+    PromocionKilometrosDesactivarView,
+    PromocionKilometrosDeleteView,
 )
 
 urlpatterns = [
@@ -32,4 +35,7 @@ urlpatterns = [
     # Programa Kilómetros Movums
     path('kilometros/', KilometrosDashboardView.as_view(), name='kilometros_dashboard'),
     path('kilometros/promociones/<int:pk>/editar/', PromocionKilometrosUpdateView.as_view(), name='editar_promocion_km'),
+    path('kilometros/promociones/<int:pk>/activar/', PromocionKilometrosActivarView.as_view(), name='activar_promocion_km'),
+    path('kilometros/promociones/<int:pk>/desactivar/', PromocionKilometrosDesactivarView.as_view(), name='desactivar_promocion_km'),
+    path('kilometros/promociones/<int:pk>/eliminar/', PromocionKilometrosDeleteView.as_view(), name='eliminar_promocion_km'),
 ]

@@ -1,0 +1,57 @@
+#!/usr/bin/expect -f
+set timeout 30
+set server "tellez@206.189.223.176"
+set password "EdgarTellez73!"
+
+# Leer la clave pública
+set f [open "$env(HOME)/.ssh/id_ed25519.pub"]
+set public_key [read $f]
+close $f
+set public_key [string trim $public_key]
+
+puts "📤 Copiando clave SSH al servidor..."
+
+spawn ssh-copy-id -o StrictHostKeyChecking=no $server
+
+expect {
+    "password:" {
+        send "$password\r"
+        exp_continue
+    }
+    "Password:" {
+        send "$password\r"
+        exp_continue
+    }
+    "Are you sure you want to continue connecting" {
+        send "yes\r"
+        exp_continue
+    }
+    "Number of key(s) added:" {
+        puts "✅ Clave copiada exitosamente"
+        expect eof
+        exit 0
+    }
+    "already installed" {
+        puts "✅ La clave ya estaba instalada"
+        expect eof
+        exit 0
+    }
+    "Permission denied" {
+        puts "❌ Permiso denegado. El servidor no acepta autenticación por contraseña."
+        puts ""
+        puts "📋 Copia manualmente la clave pública:"
+        puts "$public_key"
+        puts ""
+        puts "O ejecuta en el servidor:"
+        puts "echo '$public_key' >> ~/.ssh/authorized_keys"
+        exit 1
+    }
+    timeout {
+        puts "❌ Timeout"
+        exit 1
+    }
+    eof {
+        puts "✅ Proceso completado"
+    }
+}
+

@@ -197,13 +197,24 @@ SERVICIO_MAP_REVERSE.update({
 # ------------------- ProveedorForm -------------------
 
 class ProveedorForm(forms.ModelForm):
+    # ✅ Campo personalizado para selección múltiple de servicios
+    servicios = forms.MultipleChoiceField(
+        choices=Proveedor.SERVICIO_CHOICES,
+        required=False,
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
+        label="Servicios que Ofrece",
+        help_text="Selecciona uno o más servicios que ofrece este proveedor."
+    )
+
     class Meta:
         model = Proveedor
         fields = [
             'nombre',
             'telefono',
             'ejecutivo',
-            'servicio',
+            'telefono_ejecutivo',
+            'email_ejecutivo',
+            'servicios',
             'link',
             'genera_factura',
         ]
@@ -211,13 +222,36 @@ class ProveedorForm(forms.ModelForm):
             'nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. Aeroméxico'}),
             'telefono': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. +52 55 1234 5678'}),
             'ejecutivo': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre del ejecutivo'}),
-            'servicio': forms.Select(attrs={'class': 'form-select'}),
+            'telefono_ejecutivo': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. +52 55 1234 5678'}),
+            'email_ejecutivo': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'ejecutivo@proveedor.com'}),
             'link': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://www.proveedor.com'}),
             'genera_factura': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
         help_texts = {
             'genera_factura': 'Marca esta casilla si el proveedor emite factura automáticamente.',
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Si hay una instancia (edición), cargar los servicios seleccionados
+        if self.instance and self.instance.pk and self.instance.servicios:
+            self.fields['servicios'].initial = [
+                s.strip() for s in self.instance.servicios.split(',') if s.strip()
+            ]
+
+    def clean_servicios(self):
+        servicios = self.cleaned_data.get('servicios', [])
+        # Retornar la lista tal cual (MultipleChoiceField espera una lista)
+        return servicios if servicios else []
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        # Guardar servicios como string separado por comas
+        servicios = self.cleaned_data.get('servicios', [])
+        instance.servicios = ','.join(servicios) if servicios else ''
+        if commit:
+            instance.save()
+        return instance
 
 
 class EjecutivoForm(forms.ModelForm):
@@ -656,18 +690,23 @@ class VentaViajeForm(forms.ModelForm):
         for servicio_nombre, servicio_codigo in SERVICIO_PROVEEDOR_MAP.items():
             field_name = f'proveedor_{servicio_nombre.lower().replace(" ", "_")}'
             if field_name not in self.fields:
+                # ✅ Filtrar proveedores que ofrecen este servicio o "TODO"
+                # El campo 'servicios' es un TextField que almacena códigos separados por comas
+                from django.db.models import Q
+                queryset = Proveedor.objects.filter(
+                    Q(servicios__icontains=servicio_codigo) | Q(servicios__icontains='TODO')
+                ).order_by('nombre')
+                
                 self.fields[field_name] = forms.ModelChoiceField(
-                    queryset=Proveedor.objects.filter(
-                        servicio__in=[servicio_codigo, 'TODO']
-                    ).order_by('nombre'),
+                    queryset=queryset,
                     required=False,
                     widget=forms.Select(attrs={
                         'class': 'form-select proveedor-select',
                         'data-servicio': servicio_nombre
                     }),
-                label=f"Proveedor de {servicio_nombre}",
-                empty_label="Selecciona un proveedor"
-            )
+                    label=f"Proveedor de {servicio_nombre}",
+                    empty_label="Selecciona un proveedor"
+                )
         
         # Crear campos de texto para otros servicios
         otros_servicios = ['Traslado', 'Circuito Int', 'Renta Auto', 'Paquete Todo Incluido', 

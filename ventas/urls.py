@@ -43,6 +43,12 @@ from .views import (
     CrearGenericaView,
     GenerarDocumentoConfirmacionView,
     preview_promociones,
+    
+    # Gestión de Comprobantes y Pagos por Confirmar
+    SubirComprobanteAbonoView,
+    SubirComprobanteAperturaView,
+    PagosPorConfirmarView,
+    ConfirmarPagoDesdeListaView,
 )
 
 # app_name = 'ventas' 
@@ -67,6 +73,12 @@ urlpatterns = [
     path('notificaciones/<int:pk>/eliminar/', EliminarNotificacionView.as_view(), name='eliminar_notificacion'),
     path('notificaciones/<int:notificacion_id>/confirmar-pago/', ConfirmarPagoView.as_view(), name='confirmar_pago'),
     path('abonos/<int:abono_id>/confirmar/', ConfirmarAbonoView.as_view(), name='confirmar_abono'),
+    
+    # 2.2 Gestión de Comprobantes y Pagos por Confirmar
+    path('pagos-por-confirmar/', PagosPorConfirmarView.as_view(), name='pagos_por_confirmar'),
+    path('abonos/<int:pk>/subir-comprobante/', SubirComprobanteAbonoView.as_view(), name='subir_comprobante_abono'),
+    path('ventas/<int:pk>/subir-comprobante-apertura/', SubirComprobanteAperturaView.as_view(), name='subir_comprobante_apertura'),
+    path('pagos/<str:tipo>/<int:pk>/confirmar/', ConfirmarPagoDesdeListaView.as_view(), name='confirmar_pago_desde_lista'),
     
     # 2.2 Confirmaciones de Venta
     path('confirmaciones/<int:pk>/eliminar/', EliminarConfirmacionView.as_view(), name='eliminar_confirmacion'),
