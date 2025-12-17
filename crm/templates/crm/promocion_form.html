@@ -6,7 +6,7 @@
     <div class="col-12 col-lg-8 col-xl-6">
       <div class="card shadow-sm">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <strong>Editar promoción</strong>
+          <strong>Editar promoción: {{ promocion.nombre }}</strong>
           <a class="btn btn-outline-secondary btn-sm" href="{% url 'kilometros_dashboard' %}">Volver</a>
         </div>
         <div class="card-body">
@@ -25,9 +25,9 @@
             </div>
             <div class="row">
               <div class="col-6 mb-3">
-                <label class="form-label">Factor</label>
-                {{ form.factor_multiplicador }}
-                {{ form.factor_multiplicador.errors }}
+                <label class="form-label">Tipo</label>
+                {{ form.tipo }}
+                {{ form.tipo.errors }}
               </div>
               <div class="col-6 mb-3 d-flex align-items-end">
                 <div class="form-check">
@@ -35,21 +35,90 @@
                 </div>
               </div>
             </div>
+            
+            <!-- Campos condicionales según tipo -->
+            <div class="row" id="campos-descuento">
+              <div class="col-6 mb-3">
+                <label class="form-label">% Descuento</label>
+                {{ form.porcentaje_descuento }}
+                {{ form.porcentaje_descuento.errors }}
+              </div>
+              <div class="col-6 mb-3">
+                <label class="form-label">Tope MXN</label>
+                {{ form.monto_tope_mxn }}
+                {{ form.monto_tope_mxn.errors }}
+              </div>
+            </div>
+            
+            <div class="row d-none" id="campos-km">
+              <div class="col-12 mb-3">
+                <label class="form-label">Km a bonificar</label>
+                {{ form.kilometros_bono }}
+                {{ form.kilometros_bono.errors }}
+              </div>
+            </div>
+            
             <div class="row">
               <div class="col-6 mb-3">
-                <label class="form-label">Inicio</label>
+                <label class="form-label">Condición</label>
+                {{ form.condicion }}
+                {{ form.condicion.errors }}
+              </div>
+              <div class="col-6 mb-3" id="campo-valor-condicion">
+                <label class="form-label">Valor condición</label>
+                {{ form.valor_condicion }}
+                {{ form.valor_condicion.errors }}
+              </div>
+            </div>
+            
+            <div class="row">
+              <div class="col-6 mb-3">
+                <label class="form-label">Alcance</label>
+                {{ form.alcance }}
+                {{ form.alcance.errors }}
+              </div>
+              <div class="col-6 mb-3 d-flex align-items-end">
+                <div class="form-check">
+                  {{ form.requiere_confirmacion }} <label class="form-check-label">Requiere confirmación</label>
+                </div>
+              </div>
+            </div>
+            
+            <div class="row">
+              <div class="col-6 mb-3">
+                <label class="form-label">Fecha inicio</label>
                 {{ form.fecha_inicio }}
                 {{ form.fecha_inicio.errors }}
               </div>
               <div class="col-6 mb-3">
-                <label class="form-label">Fin</label>
+                <label class="form-label">Fecha fin</label>
                 {{ form.fecha_fin }}
                 {{ form.fecha_fin.errors }}
               </div>
             </div>
-            <div class="d-flex justify-content-end gap-2">
-              <a class="btn btn-outline-secondary" href="{% url 'kilometros_dashboard' %}">Cancelar</a>
-              <button class="btn btn-primary" type="submit">Guardar</button>
+            
+            <hr class="my-4">
+            
+            <!-- Botones de acción -->
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="d-flex gap-2">
+                <a class="btn btn-outline-secondary" href="{% url 'kilometros_dashboard' %}">Cancelar</a>
+                {% if promocion.activa %}
+                  <a href="{% url 'desactivar_promocion_km' promocion.pk %}" class="btn btn-outline-warning" onclick="return confirm('¿Estás seguro de que deseas desactivar esta promoción?');">
+                    <i class="fas fa-pause me-1"></i>Desactivar
+                  </a>
+                {% else %}
+                  <a href="{% url 'activar_promocion_km' promocion.pk %}" class="btn btn-outline-success" onclick="return confirm('¿Estás seguro de que deseas activar esta promoción?');">
+                    <i class="fas fa-play me-1"></i>Activar
+                  </a>
+                {% endif %}
+                <a href="{% url 'eliminar_promocion_km' promocion.pk %}" class="btn btn-outline-danger" onclick="return confirm('¿Estás seguro de que deseas ELIMINAR esta promoción? Esta acción no se puede deshacer.');">
+                  <i class="fas fa-trash me-1"></i>Eliminar
+                </a>
+              </div>
+              <button class="btn btn-primary" type="submit">
+                <i class="fas fa-save me-1"></i>Guardar cambios
+              </button>
             </div>
           </form>
         </div>
@@ -57,5 +126,46 @@
     </div>
   </div>
 </div>
-{% endblock %}
 
+<script>
+(function() {
+  const tipoSelect = document.getElementById("id_tipo");
+  const condicionSelect = document.getElementById("id_condicion");
+  const camposDescuento = document.getElementById("campos-descuento");
+  const camposKm = document.getElementById("campos-km");
+  const campoValorCond = document.getElementById("campo-valor-condicion");
+
+  function toggleTipo() {
+    const tipo = tipoSelect?.value;
+    if (tipo === 'KM') {
+      camposKm?.classList.remove('d-none');
+      camposDescuento?.classList.add('d-none');
+    } else {
+      camposKm?.classList.add('d-none');
+      camposDescuento?.classList.remove('d-none');
+    }
+  }
+
+  function toggleCondicion() {
+    const cond = condicionSelect?.value;
+    if (!campoValorCond) return;
+    if (cond === 'MES' || cond === 'RANGO' || cond === 'CUMPLE') {
+      campoValorCond.classList.remove('d-none');
+      const label = campoValorCond.querySelector('.form-label');
+      if (label) {
+        if (cond === 'MES') label.textContent = "Mes (1-12)";
+        else if (cond === 'RANGO') label.textContent = "Rango (dd-mm a dd-mm)";
+        else if (cond === 'CUMPLE') label.textContent = "Día/Mes (dd-mm)";
+      }
+    } else {
+      campoValorCond.classList.add('d-none');
+    }
+  }
+
+  tipoSelect?.addEventListener('change', toggleTipo);
+  condicionSelect?.addEventListener('change', toggleCondicion);
+  toggleTipo();
+  toggleCondicion();
+})();
+</script>
+{% endblock %}

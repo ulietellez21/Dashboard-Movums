@@ -163,12 +163,21 @@
                             </div>
                             <div class="ms-3 d-flex flex-column gap-2">
                                 {% if notificacion.venta %}
-                                    <a href="{% url 'detalle_venta' slug=notificacion.venta.slug_safe pk=notificacion.venta.pk %}" 
-                                       class="btn btn-sm btn-outline-primary ver-venta-btn" 
-                                       data-notificacion-id="{{ notificacion.pk }}"
-                                       title="Ver detalles de la venta">
-                                        <i class="fas fa-eye"></i> Ver Venta
-                                    </a>
+                                    {% if notificacion.tipo == 'PAGO_PENDIENTE' and user.perfil.rol == 'CONTADOR' %}
+                                        <a href="{% url 'pagos_por_confirmar' %}" 
+                                           class="btn btn-sm btn-outline-warning ver-venta-btn" 
+                                           data-notificacion-id="{{ notificacion.pk }}"
+                                           title="Ver pagos por confirmar">
+                                            <i class="fas fa-clock"></i> Ver Pagos
+                                        </a>
+                                    {% else %}
+                                        <a href="{% url 'detalle_venta' slug=notificacion.venta.slug_safe pk=notificacion.venta.pk %}" 
+                                           class="btn btn-sm btn-outline-primary ver-venta-btn" 
+                                           data-notificacion-id="{{ notificacion.pk }}"
+                                           title="Ver detalles de la venta">
+                                            <i class="fas fa-eye"></i> Ver Venta
+                                        </a>
+                                    {% endif %}
                                 {% endif %}
                                 {% if not notificacion.vista %}
                                     <button class="btn btn-sm btn-outline-success marcar-vista-btn" 
@@ -303,15 +312,9 @@
                             </div>
                             <div class="ms-3 d-flex flex-column gap-2">
                                 {% if notificacion.venta %}
-                                    <form method="post" action="{% url 'confirmar_pago' notificacion_id=notificacion.pk %}" class="d-inline">
-                                        {% csrf_token %}
-                                        <button type="submit" class="btn btn-sm btn-success" title="Confirmar este pago de apertura" onclick="return confirm('¿Estás seguro de confirmar este pago de apertura?');">
-                                            <i class="fas fa-check"></i> Confirmar
-                                        </button>
-                                    </form>
-                                    <a href="{% url 'detalle_venta' slug=notificacion.venta.slug_safe pk=notificacion.venta.pk %}?tab=abonos" 
-                                       class="btn btn-sm btn-outline-primary">
-                                        <i class="fas fa-eye"></i> Ver Venta
+                                    <a href="{% url 'pagos_por_confirmar' %}" 
+                                       class="btn btn-sm btn-outline-warning">
+                                        <i class="fas fa-clock"></i> Ver Pagos por Confirmar
                                     </a>
                                 {% endif %}
                             </div>
@@ -361,16 +364,10 @@
                                 </p>
                             </div>
                             <div class="ms-3 d-flex flex-column gap-2">
-                                <form method="post" action="{% url 'confirmar_abono' abono_id=abono.pk %}" class="d-inline">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-success" title="Confirmar este abono" onclick="return confirm('¿Estás seguro de confirmar este abono de ${{ abono.monto|floatformat:2|intcomma }}?');">
-                                        <i class="fas fa-check"></i> Confirmar
-                                    </button>
-                                </form>
                                 {% if abono.venta %}
-                                    <a href="{% url 'detalle_venta' slug=abono.venta.slug_safe pk=abono.venta.pk %}?tab=abonos" 
-                                       class="btn btn-sm btn-outline-primary">
-                                        <i class="fas fa-eye"></i> Ver Venta
+                                    <a href="{% url 'pagos_por_confirmar' %}" 
+                                       class="btn btn-sm btn-outline-warning">
+                                        <i class="fas fa-clock"></i> Ver Pagos por Confirmar
                                     </a>
                                 {% endif %}
                             </div>

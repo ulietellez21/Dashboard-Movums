@@ -98,33 +98,34 @@
         pointer-events: all;
         visibility: visible;
         display: flex !important;
+        z-index: 1030 !important; /* Más bajo que modal backdrop (1050) */
     }
     
-    /* DESACTIVAR TRANSICIÓN SI HAY UN MODAL - MÁXIMA PRIORIDAD CSS */
+    /* CRÍTICO: El overlay NUNCA debe estar activo cuando hay un modal - MÁXIMA PRIORIDAD */
     body.modal-open .page-transition-overlay.active,
-    .modal.show ~ .page-transition-overlay.active,
-    .modal.in ~ .page-transition-overlay.active,
-    .modal.show + .page-transition-overlay.active,
-    .modal.in + .page-transition-overlay.active {
+    body.modal-open .page-transition-overlay,
+    body.modal-open #pageTransitionOverlay,
+    .modal.show ~ .page-transition-overlay,
+    .modal.show ~ #pageTransitionOverlay,
+    .modal.show .page-transition-overlay,
+    .modal.show #pageTransitionOverlay,
+    .modal.show + .page-transition-overlay,
+    .modal.show + #pageTransitionOverlay,
+    .modal.in ~ .page-transition-overlay,
+    .modal.in ~ #pageTransitionOverlay,
+    .modal.in .page-transition-overlay,
+    .modal.in #pageTransitionOverlay,
+    .modal[class*="show"] ~ .page-transition-overlay,
+    .modal[class*="show"] ~ #pageTransitionOverlay {
         display: none !important;
         opacity: 0 !important;
         visibility: hidden !important;
         pointer-events: none !important;
-        z-index: -1 !important;
+        z-index: -9999 !important;
+        position: fixed !important;
     }
     
-    /* DESACTIVAR TRANSICIÓN SI HAY UN MODAL - MÁXIMA PRIORIDAD */
-    body.modal-open .page-transition-overlay.active,
-    .modal.show ~ .page-transition-overlay.active,
-    .modal.in ~ .page-transition-overlay.active,
-    .modal.show + .page-transition-overlay.active,
-    .modal.in + .page-transition-overlay.active {
-        display: none !important;
-        opacity: 0 !important;
-        visibility: hidden !important;
-        pointer-events: none !important;
-        z-index: -1 !important;
-    }
+    /* REGLAS CONSOLIDADAS: El overlay NUNCA debe estar activo cuando hay un modal */
     
     /* Asegurar que los modales y su backdrop estén SIEMPRE por encima del overlay */
     .modal {
@@ -142,11 +143,52 @@
     .modal.show .modal-dialog,
     .modal.show .modal-content {
         pointer-events: auto !important;
+        z-index: 1056 !important;
     }
     
     .modal-backdrop {
         z-index: 1050 !important;
         pointer-events: auto !important; /* Permitir clicks en backdrop para cerrar */
+    }
+    
+    /* FORZAR que el overlay se oculte cuando hay un modal abierto */
+    body.modal-open .page-transition-overlay,
+    body.modal-open #pageTransitionOverlay {
+        display: none !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        z-index: -9999 !important;
+    }
+    
+    /* Asegurar que los inputs dentro del modal sean interactivos */
+    .modal input,
+    .modal select,
+    .modal textarea,
+    .modal button,
+    .modal label,
+    .modal .form-control,
+    .modal .form-select {
+        pointer-events: auto !important;
+        z-index: 1057 !important;
+        position: relative;
+    }
+    
+    /* Asegurar que el modal-dialog y modal-content sean completamente interactivos */
+    .modal.show .modal-dialog {
+        pointer-events: auto !important;
+        z-index: 1056 !important;
+    }
+    
+    .modal.show .modal-content {
+        pointer-events: auto !important;
+        z-index: 1057 !important;
+    }
+    
+    /* Asegurar que el modal-body sea interactivo */
+    .modal.show .modal-body {
+        pointer-events: auto !important;
+        z-index: 1058 !important;
     }
     
     /* CRÍTICO: Asegurar que el contenido del modal esté por encima del backdrop */
@@ -203,6 +245,11 @@
         pointer-events: auto !important; /* Permitir clicks en backdrop para cerrar */
     }
     
+    /* CRÍTICO: Asegurar que el backdrop no bloquee el contenido del modal */
+    .modal-backdrop.show {
+        z-index: 1050 !important;
+    }
+    
     /* El fondo del body se mantiene normal, solo el overlay cambia */
     
     /* Spinner de carga */
@@ -224,6 +271,13 @@
         opacity: 0;
         position: relative;
         /* z-index removido para evitar conflictos de stacking context con modales */
+        pointer-events: auto !important; /* Asegurar que siempre sea interactivo */
+    }
+    
+    /* CRÍTICO: Cuando hay un modal abierto, asegurar que main-content no bloquee */
+    body.modal-open #main-content {
+        pointer-events: auto !important;
+        opacity: 1 !important;
     }
     
     /* Contenedor principal con animación de entrada */
@@ -506,6 +560,13 @@
                     <a href="{% url 'proveedores' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-handshake-angle fa-fw me-2"></i> Proveedores</a>
                 {% endif %}
                 
+                {# ACCESO A PAGOS POR CONFIRMAR: Solo CONTADOR #}
+                {% if "CONTADOR" in user_full_rol_upper %}
+                <a href="{% url 'pagos_por_confirmar' %}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-clock me-2"></i> Pagos por Confirmar
+                </a>
+                {% endif %}
+                
                 {# ACCESO A REPORTE FINANCIERO: JEFE, CONTADOR #}
                 {% if "JEFE" in user_full_rol_upper or "CONTADOR" in user_full_rol_upper %}
                     <a href="{% url 'reporte_financiero' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-file-invoice-dollar fa-fw me-2"></i> Reporte Financiero</a>
@@ -553,7 +614,7 @@
             </div>
         </nav>
         
-        <div class="container-fluid py-4" id="main-content" style="opacity: 0;">
+        <div class="container-fluid py-4" id="main-content" style="opacity: 0; pointer-events: auto !important;">
             {# Área de Mensajes (Flash Messages) - NO mostrar aquí si el bloque content también los muestra #}
             {# Los mensajes se mostrarán en el bloque content de cada template para evitar duplicados #}
             
@@ -652,7 +713,15 @@
                 mainContent.classList.remove('loaded');
                 mainContent.style.opacity = '0';
             }
-            // Mostrar overlay
+            // CRÍTICO: Verificar UNA VEZ MÁS antes de activar el overlay
+            // NO activar si hay modal, se está abriendo, o si _modalIsOpening está activo
+            if (hasOpenModal() || document.body.classList.contains('modal-open') || window._modalIsOpening) {
+                forceHideOverlay();
+                isTransitioning = false;
+                return;
+            }
+            
+            // Solo mostrar overlay si TODAS las condiciones están bien
             overlay.style.zIndex = '1030';
             overlay.classList.add('active');
         }
@@ -703,23 +772,64 @@
         isTransitioning = false;
     }
     
-    // SOLUCIÓN #3: Listeners de modal - REMOVER overlay del DOM cuando se abre un modal
+    // SOLUCIÓN MEJORADA: Listeners de modal - FORZAR ocultamiento del overlay
     document.addEventListener('show.bs.modal', function(event) {
         isTransitioning = false;
         window._modalIsOpening = true;
+        
+        // FORZAR ocultamiento del overlay de todas las formas posibles
         const overlay = document.getElementById('pageTransitionOverlay');
         if (overlay) {
-            // Remover completamente del DOM para asegurar que no bloquee
-            overlay.remove();
+            overlay.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -9999 !important; position: fixed !important;';
+            overlay.classList.remove('active');
+            // Remover del DOM completamente
+            try {
+                overlay.remove();
+            } catch(e) {
+                // Si falla, forzar ocultamiento
+                overlay.style.display = 'none';
+            }
         }
-    }, false); // Bubble phase - NO capture
+        
+        // También buscar por clase
+        const overlaysByClass = document.querySelectorAll('.page-transition-overlay');
+        overlaysByClass.forEach(function(ov) {
+            ov.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -9999 !important;';
+            ov.classList.remove('active');
+            try {
+                ov.remove();
+            } catch(e) {
+                ov.style.display = 'none';
+            }
+        });
+        
+    }, false);
     
     document.addEventListener('shown.bs.modal', function(event) {
-        // El overlay ya fue removido en show.bs.modal
+        // Asegurar que el overlay esté completamente oculto
         const overlay = document.getElementById('pageTransitionOverlay');
         if (overlay) {
-            overlay.remove(); // Asegurar que esté removido
+            overlay.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -9999 !important;';
+            overlay.classList.remove('active');
+            try {
+                overlay.remove();
+            } catch(e) {
+                overlay.style.display = 'none';
+            }
         }
+        
+        // También buscar por clase
+        const overlaysByClass = document.querySelectorAll('.page-transition-overlay');
+        overlaysByClass.forEach(function(ov) {
+            ov.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -9999 !important;';
+            ov.classList.remove('active');
+            try {
+                ov.remove();
+            } catch(e) {
+                ov.style.display = 'none';
+            }
+        });
+        
         // Reactivar transición después de 2 segundos
         setTimeout(function() {
             window._modalIsOpening = false;
@@ -833,17 +943,28 @@
                 if (!href) return;
                 
                 // Excluir enlaces especiales y externos, modales, y elementos interactivos
+                // CRÍTICO: Excluir también botones que abren modales
+                const isModalButton = (link.hasAttribute('data-bs-toggle') && link.getAttribute('data-bs-toggle') === 'modal') ||
+                                     (link.hasAttribute('data-bs-target') && link.getAttribute('data-bs-target') && link.getAttribute('data-bs-target').startsWith('#'));
+                
                 if (href.startsWith('http://') || href.startsWith('https://') || 
                     href.startsWith('mailto:') || href.startsWith('tel:') ||
                     link.getAttribute('target') === '_blank' ||
                     href.startsWith('#') ||
-                    link.hasAttribute('data-bs-toggle') || 
+                    isModalButton ||
                     link.hasAttribute('data-toggle') ||
-                    link.hasAttribute('data-bs-target') ||
                     link.hasAttribute('data-target') ||
                     link.closest('.modal') || // Si está dentro de un modal
                     link.querySelector('form') ||
                     link.closest('form')) { // Si está dentro de un formulario
+                    // Si es un botón de modal, asegurar que el overlay esté oculto
+                    if (isModalButton) {
+                        link.addEventListener('click', function(e) {
+                            forceHideOverlay();
+                            isTransitioning = false;
+                            window._modalIsOpening = true;
+                        }, true); // Capture phase para ejecutar ANTES
+                    }
                     return;
                 }
                 
@@ -854,50 +975,153 @@
                         if (this.getAttribute('onclick') && this.getAttribute('onclick').includes('window.location')) {
                             return;
                         }
-                        // NO interceptar si está relacionado con Bootstrap modals
-                        if (this.hasAttribute('data-bs-toggle') || 
-                            this.hasAttribute('data-bs-target') ||
-                            this.closest('.modal') ||
-                            this.closest('[data-bs-toggle="modal"]')) {
-                            // Asegurar que el overlay esté oculto
+                        // NO interceptar si está relacionado con Bootstrap modals - VERIFICACIÓN MEJORADA
+                        const isModalLink = (this.hasAttribute('data-bs-toggle') && this.getAttribute('data-bs-toggle') === 'modal') ||
+                                           (this.hasAttribute('data-bs-target') && this.getAttribute('data-bs-target') && this.getAttribute('data-bs-target').startsWith('#')) ||
+                                           this.closest('.modal') ||
+                                           this.closest('[data-bs-toggle="modal"]');
+                        
+                        if (isModalLink) {
+                            // FORZAR ocultamiento del overlay
                             forceHideOverlay();
+                            isTransitioning = false;
+                            window._modalIsOpening = true;
                             return;
                         }
                         // Verificar nuevamente antes de mostrar transición
-                        // NO mostrar transición si hay un modal
+                        // NO mostrar transición si hay un modal o se está abriendo
                         if (!document.body.classList.contains('modal-open') && 
                             !document.querySelector('.modal.show') &&
-                            !document.querySelector('.modal.in')) {
-                        const url = this.getAttribute('href') || '';
-                        const isDownload = /\.(docx|pdf|xlsx?|pptx?|zip)$/i.test(url);
-                        const skipTransition = this.getAttribute('data-no-transition') === 'true';
-                        if (isDownload || skipTransition) {
-                            forceHideOverlay();
-                        } else {
-                            showPageTransition();
-                        }
+                            !document.querySelector('.modal.in') &&
+                            !window._modalIsOpening) {
+                            const url = this.getAttribute('href') || '';
+                            const isDownload = /\.(docx|pdf|xlsx?|pptx?|zip)$/i.test(url);
+                            const skipTransition = this.getAttribute('data-no-transition') === 'true';
+                            if (isDownload || skipTransition) {
+                                forceHideOverlay();
+                            } else {
+                                showPageTransition();
+                            }
                         } else {
                             // Si hay un modal, asegurar que el overlay esté oculto
                             forceHideOverlay();
+                            isTransitioning = false;
                         }
                     }, false); // Bubble phase
                 }
             });
             
-        // SOLUCIÓN #2: Listener global SIMPLIFICADO - solo ocultar overlay, NO interferir con eventos
-        // Ejecutar en bubble phase (false) para NO interferir con Bootstrap
-            document.addEventListener('click', function(e) {
-            // Solo verificar si es un botón de modal y ocultar overlay
-            if (isModalButton(e.target)) {
-                    isTransitioning = false;
+        // SOLUCIÓN CRÍTICA: Listener global en CAPTURE phase - ejecutar ANTES de cualquier otra cosa
+        // Este listener se ejecuta PRIMERO para detectar clicks en botones de modal y ocultar el overlay
+        document.addEventListener('click', function(e) {
+            // Buscar el botón de modal - buscar en el target y todos sus padres
+            let element = e.target;
+            let isModalTrigger = false;
+            
+            // Buscar hasta encontrar un elemento con data-bs-toggle="modal" o data-bs-target que empiece con #
+            for (let i = 0; i < 10 && element && element !== document; i++) {
+                if (element.nodeType === 1) { // Element node
+                    // Verificar si tiene data-bs-toggle="modal"
+                    if (element.hasAttribute('data-bs-toggle') && element.getAttribute('data-bs-toggle') === 'modal') {
+                        isModalTrigger = true;
+                        break;
+                    }
+                    // Verificar si tiene data-bs-target que empiece con #
+                    const dataTarget = element.getAttribute('data-bs-target');
+                    if (dataTarget && dataTarget.startsWith('#')) {
+                        isModalTrigger = true;
+                        break;
+                    }
+                }
+                element = element.parentElement;
+            }
+            
+            if (isModalTrigger) {
+                // FORZAR ocultamiento del overlay INMEDIATAMENTE - ANTES de cualquier otra cosa
+                isTransitioning = false;
+                window._modalIsOpening = true;
+                
+                // Función para ocultar overlay completamente
+                function forceHide() {
                     const overlay = document.getElementById('pageTransitionOverlay');
                     if (overlay) {
-                    overlay.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -9999 !important;';
+                        overlay.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -9999 !important; position: fixed !important;';
                         overlay.classList.remove('active');
+                        try {
+                            overlay.remove();
+                        } catch(err) {
+                            overlay.style.display = 'none';
+                        }
                     }
-                // NO hacer nada más - dejar que Bootstrap maneje todo
+                    document.querySelectorAll('.page-transition-overlay').forEach(function(ov) {
+                        ov.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -9999 !important;';
+                        ov.classList.remove('active');
+                        try {
+                            ov.remove();
+                        } catch(err) {
+                            ov.style.display = 'none';
+                        }
+                    });
+                }
+                
+                // Ejecutar inmediatamente y varias veces para asegurar
+                forceHide();
+                setTimeout(forceHide, 0);
+                setTimeout(forceHide, 10);
+                setTimeout(forceHide, 50);
+                
+                // NO prevenir el evento - dejar que Bootstrap lo maneje normalmente
             }
-        }, false); // Bubble phase - NO capture phase para no interferir
+        }, true); // CAPTURE phase - se ejecuta ANTES que cualquier otro listener (incluyendo Bootstrap)
+        
+        // ADICIONAL: Listener específico para eventos de modal de Bootstrap
+        document.addEventListener('show.bs.modal', function(e) {
+            // Cuando Bootstrap detecta que se va a abrir un modal, ocultar overlay inmediatamente
+            isTransitioning = false;
+            window._modalIsOpening = true;
+            const overlay = document.getElementById('pageTransitionOverlay');
+            if (overlay) {
+                overlay.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -9999 !important; position: fixed !important;';
+                overlay.classList.remove('active');
+                try {
+                    overlay.remove();
+                } catch(err) {
+                    overlay.style.display = 'none';
+                }
+            }
+            document.querySelectorAll('.page-transition-overlay').forEach(function(ov) {
+                ov.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -9999 !important;';
+                ov.classList.remove('active');
+                try {
+                    ov.remove();
+                } catch(err) {
+                    ov.style.display = 'none';
+                }
+            });
+        }, false);
+        
+        document.addEventListener('shown.bs.modal', function(e) {
+            // Asegurar que el overlay esté oculto cuando el modal ya está visible
+            const overlay = document.getElementById('pageTransitionOverlay');
+            if (overlay) {
+                overlay.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -9999 !important; position: fixed !important;';
+                overlay.classList.remove('active');
+                try {
+                    overlay.remove();
+                } catch(err) {
+                    overlay.style.display = 'none';
+                }
+            }
+            document.querySelectorAll('.page-transition-overlay').forEach(function(ov) {
+                ov.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -9999 !important;';
+                ov.classList.remove('active');
+                try {
+                    ov.remove();
+                } catch(err) {
+                    ov.style.display = 'none';
+                }
+            });
+        }, false);
     });
     
     // Animación suave para scroll

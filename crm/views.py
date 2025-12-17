@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse_lazy, reverse
-from django.views.generic import ListView, DetailView, CreateView, UpdateView
+from django.views.generic import ListView, DetailView, CreateView, UpdateView, View
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib import messages
 from django.db.models import Q, Max 
@@ -276,3 +276,74 @@ class PromocionKilometrosUpdateView(LoginRequiredMixin, UserPassesTestMixin, Upd
     def get_success_url(self):
         messages.success(self.request, "Promoción actualizada correctamente.")
         return reverse_lazy('kilometros_dashboard')
+
+
+# ------------------- VISTAS PARA ACTIVAR/DESACTIVAR/ELIMINAR PROMOCIONES -------------------
+
+class PromocionKilometrosActivarView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Vista para activar una promoción."""
+    
+    def test_func(self):
+        user_rol = getattr(getattr(self.request.user, 'perfil', None), 'rol', 'INVITADO')
+        return user_rol == 'JEFE'
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "Solo el rol JEFE puede activar promociones.")
+        return redirect('kilometros_dashboard')
+    
+    def post(self, request, *args, **kwargs):
+        promocion = get_object_or_404(PromocionKilometros, pk=kwargs['pk'])
+        promocion.activa = True
+        promocion.save()
+        messages.success(request, f"Promoción '{promocion.nombre}' activada correctamente.")
+        return redirect('kilometros_dashboard')
+    
+    def get(self, request, *args, **kwargs):
+        # Permitir GET también para facilitar el uso desde enlaces
+        return self.post(request, *args, **kwargs)
+
+
+class PromocionKilometrosDesactivarView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Vista para desactivar una promoción."""
+    
+    def test_func(self):
+        user_rol = getattr(getattr(self.request.user, 'perfil', None), 'rol', 'INVITADO')
+        return user_rol == 'JEFE'
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "Solo el rol JEFE puede desactivar promociones.")
+        return redirect('kilometros_dashboard')
+    
+    def post(self, request, *args, **kwargs):
+        promocion = get_object_or_404(PromocionKilometros, pk=kwargs['pk'])
+        promocion.activa = False
+        promocion.save()
+        messages.success(request, f"Promoción '{promocion.nombre}' desactivada correctamente.")
+        return redirect('kilometros_dashboard')
+    
+    def get(self, request, *args, **kwargs):
+        # Permitir GET también para facilitar el uso desde enlaces
+        return self.post(request, *args, **kwargs)
+
+
+class PromocionKilometrosDeleteView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Vista para eliminar una promoción."""
+    
+    def test_func(self):
+        user_rol = getattr(getattr(self.request.user, 'perfil', None), 'rol', 'INVITADO')
+        return user_rol == 'JEFE'
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "Solo el rol JEFE puede eliminar promociones.")
+        return redirect('kilometros_dashboard')
+    
+    def post(self, request, *args, **kwargs):
+        promocion = get_object_or_404(PromocionKilometros, pk=kwargs['pk'])
+        nombre_promocion = promocion.nombre
+        promocion.delete()
+        messages.success(request, f"Promoción '{nombre_promocion}' eliminada correctamente.")
+        return redirect('kilometros_dashboard')
+    
+    def get(self, request, *args, **kwargs):
+        # Permitir GET también para facilitar el uso desde enlaces
+        return self.post(request, *args, **kwargs)

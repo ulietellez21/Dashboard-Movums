@@ -195,10 +195,25 @@ class ContratoGeneradoAdmin(admin.ModelAdmin):
 
 @admin.register(Proveedor)
 class ProveedorAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'servicio', 'telefono', 'ejecutivo', 'genera_factura', 'link_externo', 'fecha_actualizacion')
-    list_filter = ('servicio', 'genera_factura')
-    search_fields = ('nombre', 'telefono', 'ejecutivo')
+    list_display = ('nombre', 'servicios_display', 'telefono', 'ejecutivo', 'genera_factura', 'link_externo', 'fecha_actualizacion')
+    list_filter = ('genera_factura',)
+    search_fields = ('nombre', 'telefono', 'ejecutivo', 'telefono_ejecutivo', 'email_ejecutivo')
     ordering = ('nombre',)
+
+    def servicios_display(self, obj):
+        """Muestra los servicios del proveedor como badges."""
+        if not obj.servicios:
+            return '—'
+        servicios_list = obj.get_servicios_display()
+        if not servicios_list:
+            return '—'
+        badges = []
+        for servicio in servicios_list[:3]:  # Mostrar máximo 3
+            badges.append(f'<span class="badge bg-primary">{servicio}</span>')
+        if len(servicios_list) > 3:
+            badges.append(f'<span class="badge bg-secondary">+{len(servicios_list) - 3}</span>')
+        return format_html(' '.join(badges))
+    servicios_display.short_description = "Servicios"
 
     def link_externo(self, obj):
         if obj.link:

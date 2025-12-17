@@ -2,10 +2,11 @@
 Señales de Django para crear notificaciones automáticamente
 cuando ocurren eventos importantes en el sistema.
 """
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.contrib.auth.models import User
 from django.utils import timezone
+import os
 from .models import AbonoPago, VentaViaje, Logistica, Notificacion
 
 
@@ -136,5 +137,56 @@ def notificar_cambio_logistica(sender, instance, created, **kwargs):
                         mensaje=mensaje,
                         venta=instance.venta
                     )
+
+
+@receiver(pre_save, sender=AbonoPago)
+def comprimir_comprobante_abono(sender, instance, **kwargs):
+    """Comprime automáticamente el comprobante cuando se sube."""
+    if instance.comprobante_imagen and instance.comprobante_imagen.name:
+        # Solo comprimir si es una nueva imagen o si cambió
+        if instance.pk:
+            try:
+                abono_anterior = AbonoPago.objects.get(pk=instance.pk)
+                if abono_anterior.comprobante_imagen != instance.comprobante_imagen:
+                    instance.comprimir_comprobante()
+            except AbonoPago.DoesNotExist:
+                instance.comprimir_comprobante()
+        else:
+            instance.comprimir_comprobante()
+
+
+@receiver(post_save, sender=VentaViaje)
+def eliminar_comprobantes_venta_liquidada(sender, instance, **kwargs):
+    """
+    Elimina los comprobantes de pagos cuando la venta se liquida completamente
+    para ahorrar espacio en el servidor.
+    """
+    if not kwargs.get('created'):  # Solo para actualizaciones
+        try:
+            # Verificar si la venta está completamente liquidada
+            if instance.esta_pagada:
+                # Eliminar comprobantes de abonos
+                for abono in instance.abonos.all():
+                    if abono.comprobante_imagen and abono.comprobante_imagen.name:
+                        try:
+                            if os.path.isfile(abono.comprobante_imagen.path):
+                                os.remove(abono.comprobante_imagen.path)
+                            abono.comprobante_imagen = None
+                            abono.save(update_fields=['comprobante_imagen'])
+                        except Exception:
+                            pass
+                
+                # Eliminar comprobante de apertura
+                if instance.comprobante_apertura and instance.comprobante_apertura.name:
+                    try:
+                        if os.path.isfile(instance.comprobante_apertura.path):
+                            os.remove(instance.comprobante_apertura.path)
+                        instance.comprobante_apertura = None
+                        instance.save(update_fields=['comprobante_apertura'])
+                    except Exception:
+                        pass
+        except Exception:
+            # Si hay algún error, no hacer nada
+            pass
 
 

@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Pagos por Confirmar{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">
+                <i class="fas fa-clock text-warning"></i> Pagos por Confirmar
+            </h1>
+            
+            {% if messages %}
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% endfor %}
+            {% endif %}
+            
+            <!-- Pestañas para Pendientes y Historial -->
+            <ul class="nav nav-tabs mb-4" id="pagosTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if not request.GET.tab or request.GET.tab != 'historial' %}active{% endif %}" id="pendientes-tab" data-bs-toggle="tab" data-bs-target="#pendientes" type="button" role="tab">
+                        <i class="fas fa-exclamation-circle"></i> Pendientes 
+                        <span class="badge bg-warning text-dark ms-1">
+                            {{ object.abonos|length|add:object.aperturas|length }}
+                        </span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if request.GET.tab == 'historial' %}active{% endif %}" id="historial-tab" data-bs-toggle="tab" data-bs-target="#historial" type="button" role="tab">
+                        <i class="fas fa-history"></i> Historial
+                    </button>
+                </li>
+            </ul>
+            
+            <div class="tab-content" id="pagosTabsContent">
+                <!-- Tab Pendientes -->
+                <div class="tab-pane fade {% if not request.GET.tab or request.GET.tab != 'historial' %}show active{% endif %}" id="pendientes" role="tabpanel">
+                    <!-- Abonos Pendientes -->
+                    <div class="card mb-4 shadow-sm">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-money-bill-wave"></i> Abonos Pendientes 
+                                <span class="badge bg-light text-dark ms-2">{{ object.abonos|length }}</span>
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if object.abonos %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Fecha</th>
+                                                <th>Venta</th>
+                                                <th>Cliente</th>
+                                                <th>Monto</th>
+                                                <th>Forma de Pago</th>
+                                                <th>Comprobante</th>
+                                                <th>Registrado por</th>
+                                                <th>Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for abono in object.abonos %}
+                                            <tr class="{% if not abono.confirmado %}table-warning{% endif %}">
+                                                <td>{{ abono.fecha_pago|date:"d/M/y H:i" }}</td>
+                                                <td>
+                                                    <a href="{% url 'detalle_venta' pk=abono.venta.pk slug=abono.venta.slug_safe %}" class="text-decoration-none">
+                                                        #{{ abono.venta.pk }}
+                                                    </a>
+                                                </td>
+                                                <td>{{ abono.venta.cliente.nombre_completo_display }}</td>
+                                                <td><strong>${{ abono.monto|floatformat:2|intcomma }}</strong></td>
+                                                <td>
+                                                    <span class="badge {% if abono.forma_pago == 'TRN' %}bg-primary{% elif abono.forma_pago == 'TAR' %}bg-info{% elif abono.forma_pago == 'DEP' %}bg-secondary{% elif abono.forma_pago == 'EFE' %}bg-success{% else %}bg-secondary{% endif %}">
+                                                        {{ abono.get_forma_pago_display }}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    {% if abono.comprobante_imagen %}
+                                                        <a href="{{ abono.comprobante_imagen.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                            <i class="fas fa-image"></i> Ver
+                                                        </a>
+                                                    {% else %}
+                                                        <span class="text-muted">Sin comprobante</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ abono.registrado_por.username|default:"-" }}</td>
+                                                <td>
+                                                    {% if abono.comprobante_subido %}
+                                                        <form method="post" action="{% url 'confirmar_pago_desde_lista' tipo='abono' pk=abono.pk %}" class="d-inline">
+                                                            {% csrf_token %}
+                                                            <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('¿Confirmar este pago?')">
+                                                                <i class="fas fa-check"></i> Confirmar
+                                                            </button>
+                                                        </form>
+                                                        <a href="{% url 'detalle_venta' pk=abono.venta.pk slug=abono.venta.slug_safe %}?tab=abonos" class="btn btn-sm btn-outline-info">
+                                                            <i class="fas fa-eye"></i> Ver Venta
+                                                        </a>
+                                                    {% else %}
+                                                        <span class="text-muted small">Esperando comprobante</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i> No hay abonos pendientes de confirmar.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Aperturas Pendientes -->
+                    <div class="card mb-4 shadow-sm">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-hand-holding-usd"></i> Pagos de Apertura Pendientes 
+                                <span class="badge bg-light text-dark ms-2">{{ object.aperturas|length }}</span>
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if object.aperturas %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Fecha</th>
+                                                <th>Venta</th>
+                                                <th>Cliente</th>
+                                                <th>Monto</th>
+                                                <th>Forma de Pago</th>
+                                                <th>Comprobante</th>
+                                                <th>Vendedor</th>
+                                                <th>Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for venta in object.aperturas %}
+                                            <tr class="table-warning">
+                                                <td>{{ venta.fecha_creacion|date:"d/M/y H:i" }}</td>
+                                                <td>
+                                                    <a href="{% url 'detalle_venta' pk=venta.pk slug=venta.slug_safe %}" class="text-decoration-none">
+                                                        #{{ venta.pk }}
+                                                    </a>
+                                                </td>
+                                                <td>{{ venta.cliente.nombre_completo_display }}</td>
+                                                <td><strong>${{ venta.cantidad_apertura|floatformat:2|intcomma }}</strong></td>
+                                                <td>
+                                                    <span class="badge {% if venta.modo_pago_apertura == 'TRN' %}bg-primary{% elif venta.modo_pago_apertura == 'TAR' %}bg-info{% elif venta.modo_pago_apertura == 'DEP' %}bg-secondary{% elif venta.modo_pago_apertura == 'EFE' %}bg-success{% else %}bg-secondary{% endif %}">
+                                                        {{ venta.get_modo_pago_apertura_display }}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    {% if venta.comprobante_apertura %}
+                                                        <a href="{{ venta.comprobante_apertura.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                            <i class="fas fa-image"></i> Ver
+                                                        </a>
+                                                    {% else %}
+                                                        <span class="text-muted">Sin comprobante</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ venta.vendedor.username|default:"-" }}</td>
+                                                <td>
+                                                    {% if venta.comprobante_apertura_subido %}
+                                                        <form method="post" action="{% url 'confirmar_pago_desde_lista' tipo='apertura' pk=venta.pk %}" class="d-inline">
+                                                            {% csrf_token %}
+                                                            <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('¿Confirmar este pago de apertura?')">
+                                                                <i class="fas fa-check"></i> Confirmar
+                                                            </button>
+                                                        </form>
+                                                        <a href="{% url 'detalle_venta' pk=venta.pk slug=venta.slug_safe %}?tab=abonos" class="btn btn-sm btn-outline-info">
+                                                            <i class="fas fa-eye"></i> Ver Venta
+                                                        </a>
+                                                    {% else %}
+                                                        <span class="text-muted small">Esperando comprobante</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i> No hay pagos de apertura pendientes de confirmar.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tab Historial -->
+                <div class="tab-pane fade {% if request.GET.tab == 'historial' %}show active{% endif %}" id="historial" role="tabpanel">
+                    <!-- Filtros de fecha -->
+                    <div class="card mb-4 shadow-sm">
+                        <div class="card-header bg-secondary text-white">
+                            <h5 class="mb-0"><i class="fas fa-filter"></i> Filtros</h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="get" class="row g-3" id="filtroHistorialForm">
+                                <!-- Campo oculto para mantener la pestaña activa -->
+                                <input type="hidden" name="tab" value="historial">
+                                <div class="col-md-3">
+                                    <label class="form-label">Período</label>
+                                    <select name="fecha_filtro" id="fecha_filtro_select" class="form-select">
+                                        <option value="dia" {% if fecha_filtro == 'dia' %}selected{% endif %}>Hoy</option>
+                                        <option value="semana" {% if fecha_filtro == 'semana' %}selected{% endif %}>Última semana</option>
+                                        <option value="mes" {% if fecha_filtro == 'mes' %}selected{% endif %}>Último mes</option>
+                                        <option value="personalizado" {% if fecha_filtro == 'personalizado' %}selected{% endif %}>Personalizado</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Desde</label>
+                                    <input type="date" name="fecha_desde" id="fecha_desde_input" class="form-control" value="{% if fecha_filtro == 'personalizado' %}{{ fecha_desde }}{% endif %}">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Hasta</label>
+                                    <input type="date" name="fecha_hasta" id="fecha_hasta_input" class="form-control" value="{% if fecha_filtro == 'personalizado' %}{{ fecha_hasta }}{% endif %}">
+                                </div>
+                                <div class="col-md-3 d-flex align-items-end">
+                                    <button type="submit" class="btn btn-primary w-100">
+                                        <i class="fas fa-search"></i> Filtrar
+                                    </button>
+                                </div>
+                            </form>
+                            <script>
+                                // Solución mejorada: usar disabled en lugar de removeAttribute
+                                const fechaFiltroSelect = document.getElementById('fecha_filtro_select');
+                                const fechaDesdeInput = document.getElementById('fecha_desde_input');
+                                const fechaHastaInput = document.getElementById('fecha_hasta_input');
+                                
+                                function toggleInputs() {
+                                    const isPersonalizado = fechaFiltroSelect.value === 'personalizado';
+                                    fechaDesdeInput.disabled = !isPersonalizado;
+                                    fechaHastaInput.disabled = !isPersonalizado;
+                                    if (!isPersonalizado) {
+                                        fechaDesdeInput.value = '';
+                                        fechaHastaInput.value = '';
+                                    }
+                                }
+                                
+                                fechaFiltroSelect.addEventListener('change', toggleInputs);
+                                toggleInputs(); // Ejecutar al inicio para establecer el estado correcto
+                            </script>
+                        </div>
+                    </div>
+                    
+                    <!-- Abonos Confirmados -->
+                    <div class="card mb-4 shadow-sm">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-check-circle"></i> Abonos Confirmados 
+                                <span class="badge bg-light text-dark ms-2">{{ abonos_confirmados|length }}</span>
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if abonos_confirmados %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Fecha Confirmación</th>
+                                                <th>Venta</th>
+                                                <th>Cliente</th>
+                                                <th>Monto</th>
+                                                <th>Forma de Pago</th>
+                                                <th>Confirmado por</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for abono in abonos_confirmados %}
+                                            <tr>
+                                                <td>{{ abono.confirmado_en|date:"d/M/y H:i" }}</td>
+                                                <td>
+                                                    <a href="{% url 'detalle_venta' pk=abono.venta.pk slug=abono.venta.slug_safe %}" class="text-decoration-none">
+                                                        #{{ abono.venta.pk }}
+                                                    </a>
+                                                </td>
+                                                <td>{{ abono.venta.cliente.nombre_completo_display }}</td>
+                                                <td><strong>${{ abono.monto|floatformat:2|intcomma }}</strong></td>
+                                                <td>
+                                                    <span class="badge {% if abono.forma_pago == 'TRN' %}bg-primary{% elif abono.forma_pago == 'TAR' %}bg-info{% elif abono.forma_pago == 'DEP' %}bg-secondary{% elif abono.forma_pago == 'EFE' %}bg-success{% else %}bg-secondary{% endif %}">
+                                                        {{ abono.get_forma_pago_display }}
+                                                    </span>
+                                                </td>
+                                                <td>{{ abono.confirmado_por.username|default:"-" }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i> No hay abonos confirmados en el período seleccionado.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Aperturas Confirmadas -->
+                    <div class="card mb-4 shadow-sm">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-check-circle"></i> Aperturas Confirmadas 
+                                <span class="badge bg-light text-dark ms-2">{{ ventas_apertura_confirmada|length }}</span>
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if ventas_apertura_confirmada %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Fecha Venta</th>
+                                                <th>Venta</th>
+                                                <th>Cliente</th>
+                                                <th>Monto</th>
+                                                <th>Forma de Pago</th>
+                                                <th>Vendedor</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for venta in ventas_apertura_confirmada %}
+                                            <tr>
+                                                <td>{{ venta.fecha_creacion|date:"d/M/y H:i" }}</td>
+                                                <td>
+                                                    <a href="{% url 'detalle_venta' pk=venta.pk slug=venta.slug_safe %}" class="text-decoration-none">
+                                                        #{{ venta.pk }}
+                                                    </a>
+                                                </td>
+                                                <td>{{ venta.cliente.nombre_completo_display }}</td>
+                                                <td><strong>${{ venta.cantidad_apertura|floatformat:2|intcomma }}</strong></td>
+                                                <td>
+                                                    <span class="badge {% if venta.modo_pago_apertura == 'TRN' %}bg-primary{% elif venta.modo_pago_apertura == 'TAR' %}bg-info{% elif venta.modo_pago_apertura == 'DEP' %}bg-secondary{% elif venta.modo_pago_apertura == 'EFE' %}bg-success{% else %}bg-secondary{% endif %}">
+                                                        {{ venta.get_modo_pago_apertura_display }}
+                                                    </span>
+                                                </td>
+                                                <td>{{ venta.vendedor.username|default:"-" }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i> No hay aperturas confirmadas en el período seleccionado.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Activar la pestaña correcta según el parámetro de URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const activeTab = urlParams.get('tab');
+        
+        if (activeTab === 'historial') {
+            // Activar la pestaña de historial
+            const historialTab = document.getElementById('historial-tab');
+            const historialPane = document.getElementById('historial');
+            
+            if (historialTab && historialPane) {
+                // Remover active de pendientes
+                const pendientesTab = document.getElementById('pendientes-tab');
+                const pendientesPane = document.getElementById('pendientes');
+                if (pendientesTab) pendientesTab.classList.remove('active');
+                if (pendientesPane) pendientesPane.classList.remove('show', 'active');
+                
+                // Agregar active a historial
+                historialTab.classList.add('active');
+                historialPane.classList.add('show', 'active');
+            }
+        }
+    });
+</script>
+{% endblock %}
+
