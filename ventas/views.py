@@ -176,7 +176,10 @@ class DashboardView(LoginRequiredMixin, ListView):
             context['saldo_total_pendiente'] = total_vendido - total_pagado
 
             # KPI 2: Servicios Pendientes (Logística)
+            # Filtrar solo ventas que tienen logística asociada
             context['alertas_logistica_count'] = VentaViaje.objects.filter(
+                logistica__isnull=False
+            ).filter(
                 Q(logistica__vuelo_confirmado=False) |
                 Q(logistica__hospedaje_reservado=False) |
                 Q(logistica__traslado_confirmado=False) |
@@ -208,7 +211,7 @@ class DashboardView(LoginRequiredMixin, ListView):
                 notificaciones_contador = Notificacion.objects.filter(
                     usuario=user,
                     vista=False  # Solo mostrar notificaciones no vistas
-                ).select_related('venta', 'venta__cliente', 'abono', 'abono__confirmado_por').order_by('-fecha_creacion')
+                ).select_related('venta', 'venta__cliente', 'abono').prefetch_related('abono__confirmado_por').order_by('-fecha_creacion')
                 
                 # Convertir a lista para asegurar que se evalúe el QuerySet
                 notificaciones_list = list(notificaciones_contador[:20])
