@@ -293,6 +293,12 @@ class DashboardView(LoginRequiredMixin, ListView):
         context['fecha_desde'] = self.request.GET.get('fecha_desde', '')
         context['fecha_hasta'] = self.request.GET.get('fecha_hasta', '')
         
+        # Variables del template que pueden no estar definidas
+        context.setdefault('total_ingresos_mtd', Decimal('0.00'))
+        context.setdefault('total_ventas', 0)
+        context.setdefault('nuevos_clientes_mtd', 0)
+        context.setdefault('envios_pendientes', context.get('alertas_logistica_count', 0))
+        
         # Preparar lista de ventas individuales para las cards (solo si hay filtro)
         if context['fecha_filtro'] or (context['fecha_desde'] and context['fecha_hasta']):
             context['ventas_filtradas'] = list(context['ventas'])[:50]  # Limitar a 50 para rendimiento
