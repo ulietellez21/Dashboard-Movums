@@ -35,26 +35,57 @@ Mis Ventas 💼
 {% endwith %}
 </div>
 
-<!-- Formulario Compacto de Filtros por Fecha -->
+<!-- Formulario de Búsqueda Avanzada -->
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-header bg-light py-2">
         <div class="d-flex justify-content-between align-items-center">
             <h6 class="mb-0 fw-bold">
-                <i class="fas fa-search me-2"></i> Filtrar por Fecha de Viaje
+                <i class="fas fa-search me-2"></i> Búsqueda Avanzada
             </h6>
-            {% if fecha_filtro %}
+            {% if fecha_filtro or busqueda_folio or busqueda_servicio %}
             <a href="{% url 'lista_ventas' %}" class="btn btn-sm btn-outline-secondary">
-                <i class="fas fa-times"></i> Limpiar
+                <i class="fas fa-times"></i> Limpiar Filtros
             </a>
             {% endif %}
         </div>
     </div>
     <div class="card-body py-3">
         <form method="get" action="{% url 'lista_ventas' %}" class="row g-2 mb-2">
+            <!-- Búsqueda por Folio/ID -->
+            <div class="col-md-3">
+                <label for="busqueda_folio" class="form-label small mb-1">
+                    <strong><i class="fas fa-hashtag me-1"></i> Folio / ID</strong>
+                </label>
+                <input type="text" class="form-control form-control-sm" id="busqueda_folio" name="busqueda_folio" 
+                       value="{{ busqueda_folio|default:'' }}" 
+                       placeholder="Ej: VUE-20251217-01">
+            </div>
+            <!-- Filtro por Servicio -->
+            <div class="col-md-2">
+                <label for="busqueda_servicio" class="form-label small mb-1">
+                    <strong><i class="fas fa-concierge-bell me-1"></i> Servicio</strong>
+                </label>
+                <select class="form-select form-select-sm" id="busqueda_servicio" name="busqueda_servicio">
+                    <option value="">Todos</option>
+                    <option value="VUE" {% if busqueda_servicio == 'VUE' %}selected{% endif %}>Vuelo</option>
+                    <option value="HOS" {% if busqueda_servicio == 'HOS' %}selected{% endif %}>Hospedaje</option>
+                    <option value="ALO" {% if busqueda_servicio == 'ALO' %}selected{% endif %}>Alojamiento Alterno</option>
+                    <option value="TRA" {% if busqueda_servicio == 'TRA' %}selected{% endif %}>Traslado</option>
+                    <option value="TOU" {% if busqueda_servicio == 'TOU' %}selected{% endif %}>Tour y Actividades</option>
+                    <option value="CIR" {% if busqueda_servicio == 'CIR' %}selected{% endif %}>Circuito Internacional</option>
+                    <option value="REN" {% if busqueda_servicio == 'REN' %}selected{% endif %}>Renta de Auto</option>
+                    <option value="PAQ" {% if busqueda_servicio == 'PAQ' %}selected{% endif %}>Paquete</option>
+                    <option value="CRU" {% if busqueda_servicio == 'CRU' %}selected{% endif %}>Crucero</option>
+                    <option value="SEG" {% if busqueda_servicio == 'SEG' %}selected{% endif %}>Seguro de Viaje</option>
+                    <option value="DOC" {% if busqueda_servicio == 'DOC' %}selected{% endif %}>Trámites de Documentación</option>
+                    <option value="VAR" {% if busqueda_servicio == 'VAR' %}selected{% endif %}>Varios (múltiples)</option>
+                </select>
+            </div>
+            <!-- Filtro por Fecha -->
             <div class="col-md-4">
                 <label for="fecha_filtro" class="form-label small mb-1">
-                    <strong>Fecha de Viaje</strong>
-                    <small class="text-muted d-block">Presiona Shift para seleccionar rango</small>
+                    <strong><i class="fas fa-calendar me-1"></i> Fecha de Viaje</strong>
+                    <small class="text-muted">(Shift para rango)</small>
                 </label>
                 <input type="text" class="form-control form-control-sm" id="fecha_filtro" name="fecha_filtro" 
                        value="{% if fecha_filtro %}{{ fecha_filtro }}{% elif fecha_desde and fecha_hasta %}{{ fecha_desde }} a {{ fecha_hasta }}{% endif %}" 
@@ -62,19 +93,29 @@ Mis Ventas 💼
                 <input type="hidden" id="fecha_desde" name="fecha_desde" value="{{ fecha_desde }}">
                 <input type="hidden" id="fecha_hasta" name="fecha_hasta" value="{{ fecha_hasta }}">
             </div>
-            <div class="col-md-2 d-flex align-items-end">
+            <div class="col-md-3 d-flex align-items-end">
                 <button type="submit" class="btn btn-primary btn-sm w-100">
                     <i class="fas fa-search me-1"></i> Buscar
                 </button>
             </div>
         </form>
         {% if fecha_desde and fecha_hasta %}
-        <div class="alert alert-info py-2 mb-0">
+        <div class="alert alert-info py-2 mb-0 mt-2">
             <small><i class="fas fa-info-circle me-1"></i> Mostrando ventas desde <strong>{{ fecha_desde }}</strong> hasta <strong>{{ fecha_hasta }}</strong></small>
         </div>
         {% elif fecha_filtro %}
-        <div class="alert alert-info py-2 mb-0">
+        <div class="alert alert-info py-2 mb-0 mt-2">
             <small><i class="fas fa-info-circle me-1"></i> Mostrando ventas del <strong>{{ fecha_filtro }}</strong></small>
+        </div>
+        {% endif %}
+        {% if busqueda_folio %}
+        <div class="alert alert-info py-2 mb-0 mt-2">
+            <small><i class="fas fa-info-circle me-1"></i> Buscando folio/ID: <strong>{{ busqueda_folio }}</strong></small>
+        </div>
+        {% endif %}
+        {% if busqueda_servicio %}
+        <div class="alert alert-info py-2 mb-0 mt-2">
+            <small><i class="fas fa-info-circle me-1"></i> Filtrando por servicio: <strong>{{ busqueda_servicio }}</strong></small>
         </div>
         {% endif %}
     </div>
@@ -98,10 +139,10 @@ Mis Ventas 💼
 <table class="table table-striped table-hover align-middle shadow-sm">
 <thead class="table-dark bg-warning">
 <tr>
-<th>ID</th>
+<th>Folio</th>
 <th>Cliente</th>
 {% if user.perfil.rol == 'JEFE' or user.perfil.rol == 'CONTADOR' %}
-<th>Vendedor</th>
+<th>Asesor</th>
 {% endif %}
 <th>Fecha Viaje</th>
 <th class="text-end">Costo Final</th>
@@ -115,7 +156,7 @@ Mis Ventas 💼
 {% for venta in ventas_activas %}
 {% with user.perfil.rol|default:""|upper as user_rol %}
 <tr {% if venta.estado_confirmacion == 'EN_CONFIRMACION' %}class="table-warning"{% endif %}>
-<td>{{ venta.id }}</td>
+<td><span class="badge bg-secondary">{{ venta.folio|default:venta.id }}</span></td>
 <td>
 <a href="{% url 'detalle_cliente' pk=venta.cliente.pk %}">
     {% if venta.cliente.tipo_cliente == 'EMPRESA' %}
@@ -198,10 +239,10 @@ Mis Ventas 💼
 <table class="table table-striped table-hover align-middle shadow-sm">
 <thead class="table-dark bg-success">
 <tr>
-<th>ID</th>
+<th>Folio</th>
 <th>Cliente</th>
 {% if user.perfil.rol == 'JEFE' or user.perfil.rol == 'CONTADOR' %}
-<th>Vendedor</th>
+<th>Asesor</th>
 {% endif %}
 <th>Fecha Viaje</th>
 <th class="text-end">Costo Final</th>
@@ -213,7 +254,7 @@ Mis Ventas 💼
 <tbody>
 {% for venta in ventas_cerradas %}
 <tr>
-<td>{{ venta.id }}</td>
+<td><span class="badge bg-secondary">{{ venta.folio|default:venta.id }}</span></td>
 <td>
 <a href="{% url 'detalle_cliente' pk=venta.cliente.pk %}">
     {% if venta.cliente.tipo_cliente == 'EMPRESA' %}

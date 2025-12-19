@@ -13,19 +13,23 @@ class Perfil(models.Model):
     # ------------------- Roles de Acceso -------------------
     ROL_CHOICES = [
         ('JEFE', 'Jefe (Acceso Total)'),
+        ('DIRECTOR_GENERAL', 'Director General'),
+        ('DIRECTOR_VENTAS', 'Director de Ventas'),
+        ('DIRECTOR_ADMINISTRATIVO', 'Director Administrativo'),
+        ('GERENTE', 'Gerente'),
         ('CONTADOR', 'Contador (Solo Pagos/Reportes)'),
-        ('VENDEDOR', 'Vendedor (Ventas/Clientes)'),
+        ('VENDEDOR', 'Asesor (Ventas/Clientes)'),  # Mantenemos VENDEDOR internamente, display como "Asesor"
     ]
-    rol = models.CharField(max_length=10, choices=ROL_CHOICES, default='VENDEDOR')
+    rol = models.CharField(max_length=25, choices=ROL_CHOICES, default='VENDEDOR')
 
     # ------------------- Esquema de Comisiones (Futuro) -------------------
     TIPO_VENDEDOR_CHOICES = [
-        ('OFICINA', 'Oficina'),
-        ('ISLA', 'Isla de Venta'),
-        ('CAMPO', 'Campo / Externo'),
+        ('MOSTRADOR', 'Asesor de Mostrador'),
+        ('CAMPO', 'Asesor de Campo'),
+        ('ISLA', 'Asesor de Isla'),
     ]
-    tipo_vendedor = models.CharField(max_length=10, choices=TIPO_VENDEDOR_CHOICES, default='OFICINA',
-                                     help_text="Usado para calcular el esquema de comisiones.")
+    tipo_vendedor = models.CharField(max_length=10, choices=TIPO_VENDEDOR_CHOICES, default='MOSTRADOR',
+                                     help_text="Usado para calcular el esquema de comisiones. Solo aplica para usuarios con rol Asesor.")
 
     def __str__(self):
         return f'{self.user.username} - {self.get_rol_display()}'

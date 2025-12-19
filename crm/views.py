@@ -174,12 +174,12 @@ def eliminar_cliente(request, pk):
     """
     Vista que maneja la eliminación de un cliente específico.
     Solo accesible mediante método POST (formulario).
-    Solo JEFE y VENDEDOR pueden eliminar. CONTADOR solo lectura.
+    Solo JEFE puede eliminar.
     """
-    # Verificar permisos
+    # Verificar permisos - SOLO JEFE
     user_rol = request.user.perfil.rol if hasattr(request.user, 'perfil') else 'INVITADO'
-    if user_rol not in ['JEFE', 'VENDEDOR']:
-        messages.error(request, "No tienes permiso para eliminar clientes. Solo puedes visualizarlos.")
+    if user_rol != 'JEFE':
+        messages.error(request, "No tienes permiso para eliminar clientes. Solo el JEFE puede realizar esta acción.")
         return redirect('detalle_cliente', pk=pk)
     
     try:

@@ -190,6 +190,9 @@
                                                 <button type="button" class="btn btn-sm btn-outline-primary editar-proveedor" 
                                                         data-proveedor-id="{{ proveedor.pk }}"
                                                         data-proveedor-nombre="{{ proveedor.nombre }}"
+                                                        data-proveedor-razon-social="{{ proveedor.razon_social|default:'' }}"
+                                                        data-proveedor-rfc="{{ proveedor.rfc|default:'' }}"
+                                                        data-proveedor-condiciones-comerciales="{{ proveedor.condiciones_comerciales|default:'' }}"
                                                         data-proveedor-telefono="{{ proveedor.telefono|default:'' }}"
                                                         data-proveedor-ejecutivo="{{ proveedor.ejecutivo|default:'' }}"
                                                         data-proveedor-telefono-ejecutivo="{{ proveedor.telefono_ejecutivo|default:'' }}"
@@ -254,6 +257,24 @@
                             {% endif %}
                         </div>
                         <div class="col-md-6">
+                            <label for="id_razon_social" class="form-label fw-semibold">Razón Social</label>
+                            <input type="text" name="razon_social" id="id_razon_social" class="form-control {% if form.razon_social.errors %}is-invalid{% endif %}" value="{{ form.razon_social.value|default_if_none:'' }}" placeholder="Ej. Aeroméxico, S.A. de C.V.">
+                            {% if form.razon_social.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.razon_social.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="id_rfc" class="form-label fw-semibold">RFC</label>
+                            <input type="text" name="rfc" id="id_rfc" class="form-control {% if form.rfc.errors %}is-invalid{% endif %}" value="{{ form.rfc.value|default_if_none:'' }}" placeholder="Ej. AMX123456789">
+                            {% if form.rfc.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.rfc.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
                             <label for="id_telefono" class="form-label fw-semibold">Teléfono</label>
                             <input type="text" name="telefono" id="id_telefono" class="form-control {% if form.telefono.errors %}is-invalid{% endif %}" value="{{ form.telefono.value|default_if_none:'' }}">
                             {% if form.telefono.errors %}
@@ -297,6 +318,16 @@
                                     {% for error in form.link.errors %}{{ error }}{% endfor %}
                                 </div>
                             {% endif %}
+                        </div>
+                        <div class="col-12">
+                            <label for="id_condiciones_comerciales" class="form-label fw-semibold">Condiciones Comerciales</label>
+                            <textarea name="condiciones_comerciales" id="id_condiciones_comerciales" class="form-control {% if form.condiciones_comerciales.errors %}is-invalid{% endif %}" rows="4" placeholder="Términos, condiciones y acuerdos comerciales...">{{ form.condiciones_comerciales.value|default_if_none:'' }}</textarea>
+                            {% if form.condiciones_comerciales.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.condiciones_comerciales.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                            <small class="form-text text-muted">Términos, condiciones y acuerdos comerciales con el proveedor</small>
                         </div>
                         <div class="col-12">
                             <label class="form-label fw-semibold">Servicios que ofrece</label>
@@ -445,6 +476,9 @@
             btn.addEventListener('click', function() {
                 var proveedorId = this.getAttribute('data-proveedor-id');
                 var proveedorNombre = this.getAttribute('data-proveedor-nombre');
+                var proveedorRazonSocial = this.getAttribute('data-proveedor-razon-social') || '';
+                var proveedorRfc = this.getAttribute('data-proveedor-rfc') || '';
+                var proveedorCondicionesComerciales = this.getAttribute('data-proveedor-condiciones-comerciales') || '';
                 var proveedorTelefono = this.getAttribute('data-proveedor-telefono');
                 var proveedorEjecutivo = this.getAttribute('data-proveedor-ejecutivo');
                 var proveedorTelefonoEjecutivo = this.getAttribute('data-proveedor-telefono-ejecutivo') || '';
@@ -456,6 +490,9 @@
                 // Actualizar formulario
                 document.getElementById('proveedor_id').value = proveedorId;
                 document.getElementById('id_nombre').value = proveedorNombre;
+                document.getElementById('id_razon_social').value = proveedorRazonSocial;
+                document.getElementById('id_rfc').value = proveedorRfc;
+                document.getElementById('id_condiciones_comerciales').value = proveedorCondicionesComerciales;
                 document.getElementById('id_telefono').value = proveedorTelefono;
                 document.getElementById('id_ejecutivo').value = proveedorEjecutivo;
                 document.getElementById('id_telefono_ejecutivo').value = proveedorTelefonoEjecutivo;

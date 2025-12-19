@@ -73,7 +73,7 @@
                             {{ card.venta.cliente.nombre_completo_display }}
                         </h5>
                         <small class="text-muted">
-                            Vendedor: {{ card.venta.vendedor.username|default:"Sin asignar" }} · Viaje: {{ card.venta.fecha_inicio_viaje|date:"d M Y" }}
+                            Asesor: {{ card.venta.vendedor.username|default:"Sin asignar" }} · Viaje: {{ card.venta.fecha_inicio_viaje|date:"d M Y" }}
                             {% if card.dias_restantes is not None %}
                                 ({{ card.dias_restantes }} días)
                             {% endif %}

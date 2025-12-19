@@ -19,6 +19,12 @@ class Cliente(models.Model):
         ('OTR', 'Otro'),
     ]
     
+    GENERO_CHOICES = [
+        ('M', 'Masculino'),
+        ('F', 'Femenino'),
+        ('NS', 'Sin Especificar'),
+    ]
+    
     # ------------------- Tipo de Cliente -------------------
     tipo_cliente = models.CharField(
         max_length=10, 
@@ -30,6 +36,13 @@ class Cliente(models.Model):
     # ------------------- Información del Particular (Opcional) -------------------
     nombre = models.CharField(max_length=150, blank=True, null=True)
     apellido = models.CharField(max_length=100, blank=True, null=True)
+    genero = models.CharField(
+        max_length=2,
+        choices=GENERO_CHOICES,
+        default='NS',
+        verbose_name="Género"
+    )
+    nacionalidad = models.CharField(max_length=100, blank=True, null=True, verbose_name="Nacionalidad")
     
     # ------------------- Información de la Empresa (Opcional) -------------------
     nombre_empresa = models.CharField(
@@ -50,14 +63,52 @@ class Cliente(models.Model):
         null=True, 
         verbose_name="Dirección Fiscal para Facturación"
     )
+    industria = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True,
+        verbose_name="Industria"
+    )
+    politicas_viaje_internas = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Políticas de Viaje Internas",
+        help_text="Políticas y restricciones de viaje de la empresa"
+    )
+    responsable_administrativo = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True,
+        verbose_name="Responsable Administrativo"
+    )
+    credito = models.BooleanField(
+        default=False,
+        verbose_name="Crédito (si aplica)",
+        help_text="Indica si la empresa tiene línea de crédito"
+    )
+    monto_credito = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        verbose_name="Monto de Crédito Asignado",
+        help_text="Monto de crédito asignado a la empresa (si aplica)"
+    )
     
     # ------------------- Campos Comunes -------------------
     telefono = models.CharField(
         max_length=20, 
         unique=True, 
-        help_text="Necesario para el envío de WhatsApp."
+        help_text="Necesario para el envío de WhatsApp.",
+        verbose_name="Teléfono Móvil"
     )
-    email = models.EmailField(blank=True, null=True)
+    telefono_adicional = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        verbose_name="Teléfono Adicional"
+    )
+    email = models.EmailField(blank=True, null=True, verbose_name="Correo Electrónico")
     
     fuente_contacto = models.CharField(max_length=3, choices=FUENTE_CHOICES, default='OTR')
     
@@ -65,8 +116,38 @@ class Cliente(models.Model):
     
     # ------------------- Datos Adicionales del Particular -------------------
     fecha_nacimiento = models.DateField(blank=True, null=True)
+    
+    # INE
+    ine_imagen = models.ImageField(
+        upload_to='clientes/ine/',
+        blank=True,
+        null=True,
+        verbose_name="Imagen INE"
+    )
+    
+    # Visa (opcional)
+    visa_numero = models.CharField(max_length=50, blank=True, null=True, verbose_name="Número de Visa")
+    visa_vigencia = models.DateField(blank=True, null=True, verbose_name="Vigencia de Visa")
+    
+    # Pasaporte (opcional)
+    pasaporte_numero = models.CharField(max_length=50, blank=True, null=True, verbose_name="Número de Pasaporte")
+    pasaporte_vigencia = models.DateField(blank=True, null=True, verbose_name="Vigencia de Pasaporte")
+    
+    # Campo legacy - mantener por compatibilidad
     documento_identificacion = models.CharField(max_length=50, unique=True, blank=True, null=True,
                                                    help_text="Pasaporte, INE u otra identificación.")
+    
+    # Empresa asociada (para particulares que pertenecen a una empresa)
+    empresa_asociada = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='empleados',
+        limit_choices_to={'tipo_cliente': 'EMPRESA'},
+        verbose_name="Empresa Asociada"
+    )
+    
     preferencias_viaje = models.TextField(blank=True, help_text="Notas sobre sus gustos de viaje (Playa, Aventura...).")
     
     # ------------------- Fechas de Control -------------------

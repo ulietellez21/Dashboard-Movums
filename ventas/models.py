@@ -28,13 +28,15 @@ class VentaViaje(models.Model):
     SERVICIOS_CHOICES = [
         ('VUE', 'Vuelo'),
         ('HOS', 'Hospedaje'),
-        ('TRA', 'Traslado (Transporte terrestre)'),
-        ('TOU', 'Tour/Excursión'),
+        ('ALO', 'Alojamiento Alterno'),
+        ('TRA', 'Traslado'),
+        ('TOU', 'Tour y Actividades'),
         ('CIR', 'Circuito Internacional'),
         ('REN', 'Renta de Auto'),
-        ('PAQ', 'Paquete Todo Incluido'),
+        ('PAQ', 'Paquete'),
         ('CRU', 'Crucero'),
         ('SEG', 'Seguro de Viaje'),
+        ('DOC', 'Trámites de Documentación'),
         ('OTR', 'Otros Servicios'),
     ]
     
@@ -302,6 +304,16 @@ class VentaViaje(models.Model):
         blank=True, 
         help_text="Slug único para la URL del viaje."
     )
+    
+    # ------------------- FOLIO DE VENTA -------------------
+    folio = models.CharField(
+        max_length=20,
+        unique=True,
+        blank=True,
+        null=True,
+        verbose_name="Folio de Venta",
+        help_text="Identificador único de la venta. Formato: SERVICIO-AAAAMMDD-XX"
+    )
 
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     
@@ -309,7 +321,7 @@ class VentaViaje(models.Model):
     
     def save(self, *args, **kwargs):
         """
-        Sobrescrive save(). Genera el slug único ANTES de guardar.
+        Sobrescrive save(). Genera el slug único y folio ANTES de guardar.
         Se hace más robusta la lógica del slug.
         """
         is_new = self.pk is None
@@ -344,11 +356,15 @@ class VentaViaje(models.Model):
                 num += 1
                 
             self.slug = unique_slug
+        
+        # 2. LÓGICA DEL FOLIO: Generar si no existe (solo para nuevas ventas)
+        if not self.folio:
+            self.folio = self._generar_folio()
             
-        # 2. Primera y Única llamada a save() para asignar el self.pk.
+        # 3. Primera y Única llamada a save() para asignar el self.pk.
         super().save(*args, **kwargs) 
         
-        # 3. Generar o actualizar el Contrato solo después de que el objeto tiene PK
+        # 4. Generar o actualizar el Contrato solo después de que el objeto tiene PK
         if self.pk:
             try:
                 # Importación local para evitar bucles de importación
@@ -358,6 +374,48 @@ class VentaViaje(models.Model):
             except Exception as e:
                 # Se mantiene la impresión de advertencia
                 print(f"Advertencia: Falló la generación del contrato para Venta {self.pk}: {e}")
+    
+    def _generar_folio(self):
+        """
+        Genera un folio único para la venta.
+        Formato: SERVICIO-AAAAMMDD-XX
+        Donde SERVICIO es el código del servicio (VUE, HOS, etc.) o VAR si hay múltiples.
+        XX es el consecutivo global del día.
+        """
+        from django.utils import timezone
+        
+        # Determinar el prefijo basado en los servicios seleccionados
+        if self.servicios_seleccionados:
+            servicios = [s.strip() for s in self.servicios_seleccionados.split(',') if s.strip()]
+            if len(servicios) == 1:
+                prefijo = servicios[0]  # Un solo servicio: usar su código
+            else:
+                prefijo = 'VAR'  # Múltiples servicios: usar VAR
+        else:
+            prefijo = 'VAR'  # Sin servicios definidos: usar VAR
+        
+        # Obtener fecha actual
+        hoy = timezone.localdate()
+        fecha_str = hoy.strftime('%Y%m%d')
+        
+        # Contar ventas del día actual para obtener el consecutivo
+        from django.db.models import Q
+        ventas_hoy = VentaViaje.objects.filter(
+            fecha_creacion__date=hoy
+        ).exclude(folio__isnull=True).exclude(folio='')
+        
+        # El consecutivo es el número de ventas de hoy + 1
+        consecutivo = ventas_hoy.count() + 1
+        
+        # Generar folio: SERVICIO-AAAAMMDD-XX
+        folio = f"{prefijo}-{fecha_str}-{consecutivo:02d}"
+        
+        # Verificar unicidad y ajustar si es necesario
+        while VentaViaje.objects.filter(folio=folio).exists():
+            consecutivo += 1
+            folio = f"{prefijo}-{fecha_str}-{consecutivo:02d}"
+        
+        return folio
 
     def get_slug_or_generate(self):
         """Retorna el slug si existe, o genera uno nuevo si está vacío."""
@@ -934,16 +992,37 @@ class Proveedor(models.Model):
     SERVICIO_CHOICES = [
         ('VUELOS', 'Vuelos'),
         ('HOTELES', 'Hoteles'),
-        ('TOURS', 'Tours'),
+        ('ALOJAMIENTO_ALTERNO', 'Alojamiento Alterno'),
+        ('TOURS', 'Tours y Actividades'),
         ('CRUCERO', 'Crucero'),
         ('TRASLADOS', 'Traslados'),
-        ('TRAMITE_VISAS', 'Trámite de Visas'),
+        ('CIRCUITOS', 'Circuitos Internacionales'),
+        ('PAQUETES', 'Paquetes'),
+        ('TRAMITE_DOCS', 'Trámites de Documentación'),
         ('SEGUROS_VIAJE', 'Seguros de Viaje'),
         ('RENTA_AUTOS', 'Renta de Autos'),
         ('TODO', 'Todo'),
     ]
 
     nombre = models.CharField(max_length=255, verbose_name="Nombre del Proveedor")
+    razon_social = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name="Razón Social"
+    )
+    rfc = models.CharField(
+        max_length=13,
+        blank=True,
+        null=True,
+        verbose_name="RFC"
+    )
+    condiciones_comerciales = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Condiciones Comerciales",
+        help_text="Términos, condiciones y acuerdos comerciales con el proveedor"
+    )
     telefono = models.CharField(max_length=30, blank=True, verbose_name="Teléfono")
     ejecutivo = models.CharField(max_length=255, blank=True, verbose_name="Ejecutivo a Cargo")
     # ✅ Campos de contacto del ejecutivo
@@ -1057,8 +1136,9 @@ class Ejecutivo(models.Model):
     Representa a los ejecutivos/vendedores gestionados por el usuario Jefe.
     """
     TIPO_VENDEDOR_CHOICES = [
-        ('OFICINA', 'Ejecutivo de Ventas Internas'),
-        ('CALLE', 'Ejecutivo de Ventas de Campo'),
+        ('MOSTRADOR', 'Asesor de Mostrador'),
+        ('CAMPO', 'Asesor de Campo'),
+        ('ISLA', 'Asesor de Isla'),
     ]
     
     nombre_completo = models.CharField(max_length=255, verbose_name="Nombre Completo")
@@ -1071,13 +1151,13 @@ class Ejecutivo(models.Model):
         null=True,
         help_text="Será usado para crear sus credenciales."
     )
-    ubicacion_asignada = models.CharField(max_length=150, verbose_name="Ubicación Asignada")
+    oficina = models.CharField(max_length=150, verbose_name="Oficina", blank=True, null=True)
     tipo_vendedor = models.CharField(
         max_length=10,
         choices=TIPO_VENDEDOR_CHOICES,
-        default='OFICINA',
-        verbose_name="Tipo de Vendedor",
-        help_text="Determina el sistema de comisiones: Ventas Internas (escalonado) o Ventas de Campo (4% fijo)"
+        default='MOSTRADOR',
+        verbose_name="Tipo de Asesor",
+        help_text="Determina el sistema de comisiones: Asesor de Mostrador, Campo o Isla"
     )
     sueldo_base = models.DecimalField(
         max_digits=10,
@@ -1085,12 +1165,41 @@ class Ejecutivo(models.Model):
         default=Decimal('10000.00'),
         verbose_name="Sueldo Base"
     )
-    documento_pdf = models.FileField(
-        upload_to='ejecutivos/%Y/%m/%d/',
+    fecha_ingreso = models.DateField(
+        verbose_name="Fecha de Ingreso",
+        help_text="Fecha en que el ejecutivo ingresó a la empresa",
+        blank=True,
+        null=True
+    )
+    fecha_nacimiento = models.DateField(
+        verbose_name="Fecha de Nacimiento",
+        help_text="Fecha de nacimiento del ejecutivo",
+        blank=True,
+        null=True
+    )
+    acta_nacimiento = models.FileField(
+        upload_to='ejecutivos/documentos/%Y/%m/%d/',
         blank=True,
         null=True,
-        validators=[FileExtensionValidator(allowed_extensions=['pdf'])],
-        verbose_name="Documentos Personales (PDF)"
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png'])],
+        verbose_name="Acta de Nacimiento",
+        help_text="Sube el acta de nacimiento en formato PDF o imagen (JPG, PNG)"
+    )
+    ine_imagen = models.FileField(
+        upload_to='ejecutivos/documentos/%Y/%m/%d/',
+        blank=True,
+        null=True,
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png'])],
+        verbose_name="INE",
+        help_text="Sube la identificación oficial (INE) en formato PDF o imagen (JPG, PNG)"
+    )
+    comprobante_domicilio = models.FileField(
+        upload_to='ejecutivos/documentos/%Y/%m/%d/',
+        blank=True,
+        null=True,
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png'])],
+        verbose_name="Comprobante de Domicilio",
+        help_text="Sube el comprobante de domicilio en formato PDF o imagen (JPG, PNG)"
     )
     usuario = models.OneToOneField(
         User,
