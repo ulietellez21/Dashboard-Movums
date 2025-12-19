@@ -19,6 +19,7 @@ class ClienteForm(forms.ModelForm):
             'fecha_ultimo_bono_cumple',  # Campo automático
             'fecha_registro',  # Campo automático
             'fecha_actualizacion',  # Campo automático
+            'documento_identificacion',  # Campo legacy
         ]
         
         # Widgets para aplicar clases de Bootstrap para estilizado
@@ -26,15 +27,28 @@ class ClienteForm(forms.ModelForm):
             'tipo_cliente': forms.Select(attrs={'class': 'form-select rounded-3'}),
             'nombre': forms.TextInput(attrs={'class': 'form-control rounded-3', 'placeholder': 'Ej: Juan'}),
             'apellido': forms.TextInput(attrs={'class': 'form-control rounded-3', 'placeholder': 'Ej: Pérez'}),
+            'genero': forms.Select(attrs={'class': 'form-select rounded-3'}),
+            'nacionalidad': forms.TextInput(attrs={'class': 'form-control rounded-3', 'placeholder': 'Ej: Mexicana'}),
             'nombre_empresa': forms.TextInput(attrs={'class': 'form-control rounded-3', 'placeholder': 'Ej: Movums S.A. de C.V.'}),
             'rfc': forms.TextInput(attrs={'class': 'form-control rounded-3', 'placeholder': 'Ej: RFC123456789'}),
             'direccion_fiscal': forms.Textarea(attrs={'class': 'form-control rounded-3', 'rows': 3, 'placeholder': 'Calle, número, colonia...'}),
+            'industria': forms.TextInput(attrs={'class': 'form-control rounded-3', 'placeholder': 'Ej: Tecnología, Manufactura, Servicios...'}),
+            'politicas_viaje_internas': forms.Textarea(attrs={'class': 'form-control rounded-3', 'rows': 4, 'placeholder': 'Políticas y restricciones de viaje de la empresa'}),
+            'responsable_administrativo': forms.TextInput(attrs={'class': 'form-control rounded-3', 'placeholder': 'Nombre del responsable'}),
+            'credito': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'monto_credito': forms.NumberInput(attrs={'class': 'form-control rounded-3', 'step': '0.01', 'min': '0', 'placeholder': '0.00'}),
             'telefono': forms.TextInput(attrs={'class': 'form-control rounded-3', 'placeholder': 'Ej: 5512345678'}),
+            'telefono_adicional': forms.TextInput(attrs={'class': 'form-control rounded-3', 'placeholder': 'Ej: 5587654321'}),
             'email': forms.EmailInput(attrs={'class': 'form-control rounded-3', 'placeholder': 'contacto@ejemplo.com'}),
             'fuente_contacto': forms.Select(attrs={'class': 'form-select rounded-3'}),
             'notas': forms.Textarea(attrs={'class': 'form-control rounded-3', 'rows': 3}),
             'fecha_nacimiento': forms.DateInput(attrs={'class': 'form-control rounded-3', 'type': 'date'}),
-            'documento_identificacion': forms.TextInput(attrs={'class': 'form-control rounded-3'}),
+            'ine_imagen': forms.ClearableFileInput(attrs={'class': 'form-control rounded-3', 'accept': 'image/*'}),
+            'visa_numero': forms.TextInput(attrs={'class': 'form-control rounded-3', 'placeholder': 'Número de visa'}),
+            'visa_vigencia': forms.DateInput(attrs={'class': 'form-control rounded-3', 'type': 'date'}),
+            'pasaporte_numero': forms.TextInput(attrs={'class': 'form-control rounded-3', 'placeholder': 'Número de pasaporte'}),
+            'pasaporte_vigencia': forms.DateInput(attrs={'class': 'form-control rounded-3', 'type': 'date'}),
+            'empresa_asociada': forms.Select(attrs={'class': 'form-select rounded-3'}),
             'preferencias_viaje': forms.Textarea(attrs={'class': 'form-control rounded-3', 'rows': 3}),
         }
         
@@ -59,8 +73,15 @@ class ClienteForm(forms.ModelForm):
             # Esto evita guardar datos irrelevantes en la BD
             cleaned_data['nombre'] = None
             cleaned_data['apellido'] = None
+            cleaned_data['genero'] = 'NS'
+            cleaned_data['nacionalidad'] = None
             cleaned_data['fecha_nacimiento'] = None
-            cleaned_data['documento_identificacion'] = None
+            cleaned_data['ine_imagen'] = None
+            cleaned_data['visa_numero'] = None
+            cleaned_data['visa_vigencia'] = None
+            cleaned_data['pasaporte_numero'] = None
+            cleaned_data['pasaporte_vigencia'] = None
+            cleaned_data['empresa_asociada'] = None
 
 
         elif tipo == 'PARTICULAR':
@@ -74,6 +95,11 @@ class ClienteForm(forms.ModelForm):
             cleaned_data['nombre_empresa'] = None
             cleaned_data['rfc'] = None
             cleaned_data['direccion_fiscal'] = None
+            cleaned_data['industria'] = None
+            cleaned_data['politicas_viaje_internas'] = None
+            cleaned_data['responsable_administrativo'] = None
+            cleaned_data['credito'] = False
+            cleaned_data['monto_credito'] = None
             
         # Validación común: Teléfono y Email (si aplica)
         if not cleaned_data.get('telefono'):

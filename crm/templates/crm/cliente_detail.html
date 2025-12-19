@@ -30,8 +30,10 @@
                     <a href="{% url 'crear_venta' %}?cliente_pk={{ cliente.pk }}" class="btn btn-success me-2 shadow-sm">
                         <i class="fas fa-plane"></i> Abrir Nueva Venta
                     </a>
-                    
-                    <!-- Botón para Abrir Modal de Eliminación (NUEVO) -->
+                {% endif %}
+                
+                <!-- Botón para Abrir Modal de Eliminación (SOLO JEFE) -->
+                {% if user_rol == "JEFE" %}
                     <button type="button" class="btn btn-danger shadow-sm" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal">
                         <i class="fas fa-trash-alt"></i> Eliminar Cliente
                     </button>
@@ -209,7 +211,7 @@
                 <thead class="table-dark">
                     <tr>
                         <th style="width: 10%;">ID Venta</th>
-                        <th style="width: 15%;">Vendedor</th>
+                        <th style="width: 15%;">Asesor</th>
                         <th style="width: 15%;">Fecha Viaje</th>
                         <th style="width: 15%;">Costo Final</th>
                         <th style="width: 15%;">Saldo Pendiente</th>
@@ -257,18 +259,23 @@
 
     <p class="mt-5 text-black"><a href="{% url 'lista_clientes' %}" class="text-black text-decoration-none"><i class="fas fa-arrow-left"></i> Volver al Listado de Clientes</a></p>
 
-    <!-- Modal de Confirmación de Eliminación (NUEVO) -->
+{% endblock %}
+
+{% block modals %}
+    <!-- Modal de Confirmación de Eliminación (SOLO JEFE) -->
+    {% with user.perfil.rol|default:""|upper as user_rol %}
+        {% if user_rol == "JEFE" %}
     <div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header bg-danger text-white">
                     <h5 class="modal-title" id="confirmDeleteModalLabel"><i class="fas fa-exclamation-triangle"></i> Confirmar Eliminación</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                 </div>
                 <div class="modal-body text-black">
                     <p><strong>¿Estás absolutamente seguro de que deseas eliminar al cliente "{{ cliente }}"?</strong></p>
                     <p class="text-danger">
-                        Esta acción es **irreversible**. Se eliminará toda la información de este cliente, incluyendo sus datos de contacto y su historial de ventas asociado.
+                        Esta acción es <strong>irreversible</strong>. Se eliminará toda la información de este cliente, incluyendo sus datos de contacto y su historial de ventas asociado.
                     </p>
                 </div>
                 <div class="modal-footer">
@@ -284,10 +291,54 @@
         </div>
     </div>
     <!-- Fin Modal de Confirmación -->
-
+        {% endif %}
+    {% endwith %}
 {% endblock %}
 
 {% block extra_head %}
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" 
           crossorigin="anonymous" referrerpolicy="no-referrer" />
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    'use strict';
+    
+    // Función FUERTE para matar el overlay
+    function killOverlay() {
+        // Seleccionar por ID y por clase para no fallar
+        const overlays = document.querySelectorAll('#pageTransitionOverlay, .page-transition-overlay');
+        overlays.forEach(function(el) {
+            // Forzar ocultamiento con estilos inline de máxima prioridad
+            el.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; z-index: -9999 !important; pointer-events: none !important;';
+            el.classList.remove('active');
+        });
+        document.body.classList.remove('no-animations');
+    }
+    
+    // 1. Ejecutar inmediatamente al detectar el click en el botón de eliminar
+    document.addEventListener('mousedown', function(e) {
+        // Buscar si el clic fue en un botón de modal de eliminar
+        const btn = e.target.closest('[data-bs-target="#confirmDeleteModal"]');
+        if (btn) {
+            killOverlay();
+            // Reintentar varias veces por si el sistema intenta reactivarlo
+            setTimeout(killOverlay, 10);
+            setTimeout(killOverlay, 50);
+            setTimeout(killOverlay, 200);
+        }
+    }, true); // Fase de captura para ganar prioridad
+    
+    // 2. Ejecutar cuando el modal intenta abrirse
+    document.addEventListener('show.bs.modal', function(e) {
+        if (e.target.id === 'confirmDeleteModal') {
+            killOverlay();
+        }
+    }, true);
+    
+    // 3. Limpieza inicial por si acaso
+    killOverlay();
+})();
+</script>
 {% endblock %}

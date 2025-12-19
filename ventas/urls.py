@@ -12,6 +12,8 @@ from .views import (
     ComisionesVendedoresView,
     DetalleComisionesView,
     ExportarComisionesExcelView,
+    GestionRolesView,
+    EjecutivoDetailView,
     ProveedorListCreateView,
     ProveedorUpdateView,
     ProveedorDeleteView,
@@ -41,6 +43,7 @@ from .views import (
     CrearHospedajeView,
     CrearTrasladoView,
     CrearGenericaView,
+    EliminarPlantillaConfirmacionView,
     GenerarDocumentoConfirmacionView,
     preview_promociones,
     
@@ -63,6 +66,8 @@ urlpatterns = [
     path('comisiones/', ComisionesVendedoresView.as_view(), name='reporte_comisiones'),
     path('comisiones/<int:pk>/detalle/', DetalleComisionesView.as_view(), name='detalle_comisiones'),
     path('comisiones/<int:pk>/exportar-excel/', ExportarComisionesExcelView.as_view(), name='exportar_comisiones_excel'),
+    path('gestion-roles/', GestionRolesView.as_view(), name='gestion_roles'),
+    path('gestion-roles/ejecutivo/<int:pk>/', EjecutivoDetailView.as_view(), name='ejecutivo_detail'),
     path('promociones/preview/', preview_promociones, name='preview_promociones'),
     path('proveedores/', ProveedorListCreateView.as_view(), name='proveedores'),
     path('proveedores/<int:pk>/editar/', ProveedorUpdateView.as_view(), name='editar_proveedor'),
@@ -158,6 +163,11 @@ urlpatterns = [
         '<slug:slug>-<int:pk>/confirmaciones/generica/',
         CrearGenericaView.as_view(),
         name='crear_generica'
+    ),
+    path(
+        '<slug:slug>-<int:pk>/confirmaciones/<int:plantilla_pk>/eliminar/',
+        EliminarPlantillaConfirmacionView.as_view(),
+        name='eliminar_plantilla_confirmacion'
     ),
     path(
         '<slug:slug>-<int:pk>/confirmaciones/generar-documento/',

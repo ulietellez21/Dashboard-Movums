@@ -1,0 +1,366 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Detalle del Ejecutivo{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="text-primary">
+            <i class="fas fa-user-tie"></i> Detalle del Ejecutivo
+        </h1>
+    </div>
+    <div>
+        <a href="{% url 'gestion_roles' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Volver a Gestión de Roles
+        </a>
+    </div>
+</div>
+
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endfor %}
+{% endif %}
+
+<div class="row">
+    {# Información Personal #}
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-user me-2"></i>Información Personal
+                </h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <th style="width: 40%;">Nombre Completo:</th>
+                        <td><strong>{{ ejecutivo.nombre_completo }}</strong></td>
+                    </tr>
+                    <tr>
+                        <th>Teléfono:</th>
+                        <td>{{ ejecutivo.telefono }}</td>
+                    </tr>
+                    <tr>
+                        <th>Correo Electrónico:</th>
+                        <td>
+                            {% if ejecutivo.email %}
+                                <a href="mailto:{{ ejecutivo.email }}">{{ ejecutivo.email }}</a>
+                            {% else %}
+                                <span class="text-muted">No registrado</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Dirección:</th>
+                        <td>{{ ejecutivo.direccion|linebreaksbr }}</td>
+                    </tr>
+                    <tr>
+                        <th>Fecha de Nacimiento:</th>
+                        <td>
+                            {% if ejecutivo.fecha_nacimiento %}
+                                {{ ejecutivo.fecha_nacimiento|date:"d/m/Y" }}
+                            {% else %}
+                                <span class="text-muted">No registrada</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Fecha de Ingreso:</th>
+                        <td>
+                            {% if ejecutivo.fecha_ingreso %}
+                                {{ ejecutivo.fecha_ingreso|date:"d/m/Y" }}
+                            {% else %}
+                                <span class="text-muted">No registrada</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {# Información Laboral #}
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-briefcase me-2"></i>Información Laboral
+                </h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <th style="width: 40%;">Oficina:</th>
+                        <td>{{ ejecutivo.oficina|default:"No asignada" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Tipo de Usuario:</th>
+                        <td>
+                            {% with ejecutivo.usuario.perfil.rol|default:""|upper as rol_ej %}
+                                {% if rol_ej == 'JEFE' %}
+                                    <span class="badge bg-danger text-white">Jefe</span>
+                                {% elif rol_ej == 'DIRECTOR_GENERAL' %}
+                                    <span class="badge bg-primary text-white">Director General</span>
+                                {% elif rol_ej == 'DIRECTOR_VENTAS' %}
+                                    <span class="badge bg-primary text-white">Director de Ventas</span>
+                                {% elif rol_ej == 'DIRECTOR_ADMINISTRATIVO' %}
+                                    <span class="badge bg-primary text-white">Director Administrativo</span>
+                                {% elif rol_ej == 'GERENTE' %}
+                                    <span class="badge bg-info text-white">Gerente</span>
+                                {% elif rol_ej == 'CONTADOR' %}
+                                    <span class="badge bg-secondary text-white">Contador</span>
+                                {% elif rol_ej == 'VENDEDOR' %}
+                                    {% if ejecutivo.tipo_vendedor == 'MOSTRADOR' %}
+                                        <span class="badge bg-info text-white">Asesor de Mostrador</span>
+                                    {% elif ejecutivo.tipo_vendedor == 'CAMPO' %}
+                                        <span class="badge bg-warning text-dark">Asesor de Campo</span>
+                                    {% elif ejecutivo.tipo_vendedor == 'ISLA' %}
+                                        <span class="badge bg-success text-white">Asesor de Isla</span>
+                                    {% else %}
+                                        <span class="badge bg-success text-white">Asesor</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ ejecutivo.usuario.perfil.get_rol_display|default:"N/A" }}</span>
+                                {% endif %}
+                            {% endwith %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Información de Usuario del Sistema #}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-user-cog me-2"></i>Información de Usuario del Sistema
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-semibold text-muted">Usuario:</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-user"></i></span>
+                            <input type="text" class="form-control" value="{% if ejecutivo.usuario %}{{ ejecutivo.usuario.username }}{% else %}Pendiente de creación{% endif %}" readonly>
+                        </div>
+                    </div>
+                    <div class="col-md-8 mb-3">
+                        <label class="form-label fw-semibold text-muted">Contraseña:</label>
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                            <input type="text" class="form-control form-control-lg" id="contrasenaDisplay" value="{% if ejecutivo.ultima_contrasena %}{{ ejecutivo.ultima_contrasena }}{% else %}No disponible{% endif %}" readonly style="font-size: 0.95rem;">
+                            <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copiarContrasena()" title="Copiar contraseña">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#editarContrasenaModal" title="Editar contraseña">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </div>
+                        <small class="text-muted">Última contraseña generada</small>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-semibold text-muted">Estado:</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-check-circle"></i></span>
+                            <input type="text" class="form-control" value="{% if ejecutivo.usuario %}Usuario Activo{% else %}Usuario Pendiente{% endif %}" readonly>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Documentos Digitales #}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-file-alt me-2"></i>Documentos Digitales
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-semibold">Acta de Nacimiento:</label>
+                        {% if ejecutivo.acta_nacimiento %}
+                            <div>
+                                <a href="{{ ejecutivo.acta_nacimiento.url }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-file-pdf me-2"></i>Ver Documento
+                                </a>
+                            </div>
+                        {% else %}
+                            <span class="text-muted">No disponible</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-semibold">INE:</label>
+                        {% if ejecutivo.ine_imagen %}
+                            <div>
+                                <a href="{{ ejecutivo.ine_imagen.url }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-file-pdf me-2"></i>Ver Documento
+                                </a>
+                            </div>
+                        {% else %}
+                            <span class="text-muted">No disponible</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-semibold">Comprobante de Domicilio:</label>
+                        {% if ejecutivo.comprobante_domicilio %}
+                            <div>
+                                <a href="{{ ejecutivo.comprobante_domicilio.url }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-file-pdf me-2"></i>Ver Documento
+                                </a>
+                            </div>
+                        {% else %}
+                            <span class="text-muted">No disponible</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Acciones #}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <a href="{% url 'gestion_roles' %}?editar={{ ejecutivo.id }}" class="btn btn-primary">
+                            <i class="fas fa-edit me-2"></i>Editar Ejecutivo Completo
+                        </a>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal">
+                            <i class="fas fa-user-minus me-2"></i>Eliminar Ejecutivo
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block modals %}
+<!-- Modal para Editar Contraseña -->
+<div class="modal fade" id="editarContrasenaModal" tabindex="-1" aria-labelledby="editarContrasenaModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editarContrasenaModalLabel">
+                    <i class="fas fa-lock me-2"></i>Editar Contraseña
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <form method="post" action="{% url 'ejecutivo_detail' ejecutivo.pk %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="cambiar_contrasena">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="nuevaContrasenaInput" class="form-label">Nueva Contraseña</label>
+                        <input type="text" class="form-control" id="nuevaContrasenaInput" name="nueva_contrasena" required placeholder="Ingresa la nueva contraseña">
+                        <div class="form-text">La contraseña será actualizada inmediatamente.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Guardar Contraseña
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmación de Eliminación -->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="confirmDeleteModalLabel">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Confirmar Eliminación
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p>¿Estás seguro de que deseas eliminar al ejecutivo <strong>{{ ejecutivo.nombre_completo }}</strong>?</p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Advertencia:</strong> Esta acción también eliminará el usuario del sistema asociado y no se puede deshacer.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form method="post" action="{% url 'ejecutivo_detail' ejecutivo.pk %}" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-user-minus me-2"></i>Sí, Eliminar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copiarContrasena() {
+    var contrasenaInput = document.getElementById('contrasenaDisplay');
+    if (contrasenaInput && contrasenaInput.value && contrasenaInput.value !== 'No disponible') {
+        contrasenaInput.select();
+        contrasenaInput.setSelectionRange(0, 99999); // Para móviles
+        document.execCommand('copy');
+        
+        // Mostrar feedback visual
+        var btn = event.target.closest('button');
+        var originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check"></i> Copiado';
+        btn.classList.remove('btn-outline-secondary');
+        btn.classList.add('btn-success');
+        
+        setTimeout(function() {
+            btn.innerHTML = originalHTML;
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-outline-secondary');
+        }, 2000);
+    }
+}
+
+// Actualizar valores después de cerrar los modales de edición
+document.addEventListener('DOMContentLoaded', function() {
+    // Escuchar cuando se cierra el modal de editar contraseña después de un submit exitoso
+    var editarContrasenaModal = document.getElementById('editarContrasenaModal');
+    if (editarContrasenaModal) {
+        editarContrasenaModal.addEventListener('hidden.bs.modal', function() {
+            // Recargar la página para mostrar la nueva contraseña
+            if (window.location.search.includes('contrasena_actualizada')) {
+                window.location.reload();
+            }
+        });
+    }
+    
+});
+</script>
+{% endblock %}
+

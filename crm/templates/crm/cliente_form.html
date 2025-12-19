@@ -5,10 +5,43 @@
     {% if cliente %}Editar Cliente: {{ cliente.nombre_completo_display }}{% else %}Registrar Nuevo Cliente{% endif %}
 {% endblock %}
 
+{% block extra_head %}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" 
+          crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        .field-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .field-section h5 {
+            color: #0d6efd;
+            border-bottom: 2px solid #0d6efd;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+        }
+        .optional-badge {
+            font-size: 0.7rem;
+            background: #6c757d;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 5px;
+        }
+        .campos-particular, .campos-empresa {
+            display: none;
+        }
+        .campos-particular.show, .campos-empresa.show {
+            display: block;
+        }
+    </style>
+{% endblock %}
+
 {% block content %}
     
     <div class="row justify-content-center">
-        <div class="col-lg-8 col-xl-7">
+        <div class="col-lg-10 col-xl-9">
             <div class="card shadow-lg mt-4">
                 
                 <div class="card-header bg-primary text-white text-center rounded-top py-3">
@@ -25,8 +58,194 @@
                     <form method="post" enctype="multipart/form-data">
                         {% csrf_token %}
                         
-                        {# Uso de crispy_forms_tags para renderizado automático y elegante #}
-                        {{ form|crispy }}
+                        <!-- Tipo de Cliente -->
+                        <div class="field-section">
+                            <h5><i class="fas fa-user-tag"></i> Tipo de Cliente</h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label class="form-label">Tipo de Cliente *</label>
+                                    {{ form.tipo_cliente }}
+                                    {% if form.tipo_cliente.errors %}
+                                        <div class="text-danger small">{{ form.tipo_cliente.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Fuente de Contacto</label>
+                                    {{ form.fuente_contacto }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Campos para PARTICULAR -->
+                        <div class="campos-particular">
+                            <div class="field-section">
+                                <h5><i class="fas fa-id-card"></i> Información Personal</h5>
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Nombre *</label>
+                                        {{ form.nombre }}
+                                        {% if form.nombre.errors %}
+                                            <div class="text-danger small">{{ form.nombre.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Apellido *</label>
+                                        {{ form.apellido }}
+                                        {% if form.apellido.errors %}
+                                            <div class="text-danger small">{{ form.apellido.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Género</label>
+                                        {{ form.genero }}
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Nacionalidad</label>
+                                        {{ form.nacionalidad }}
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Fecha de Nacimiento</label>
+                                        {{ form.fecha_nacimiento }}
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Empresa Asociada <span class="optional-badge">Opcional</span></label>
+                                        {{ form.empresa_asociada }}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="field-section">
+                                <h5><i class="fas fa-passport"></i> Documentos de Identificación</h5>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">INE (Imagen) <span class="optional-badge">Opcional</span></label>
+                                        {{ form.ine_imagen }}
+                                        {% if cliente and cliente.ine_imagen %}
+                                            <div class="mt-2">
+                                                <a href="{{ cliente.ine_imagen.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-eye"></i> Ver INE actual
+                                                </a>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <hr>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Número de Visa <span class="optional-badge">Opcional</span></label>
+                                        {{ form.visa_numero }}
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Vigencia de Visa</label>
+                                        {{ form.visa_vigencia }}
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Número de Pasaporte <span class="optional-badge">Opcional</span></label>
+                                        {{ form.pasaporte_numero }}
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Vigencia de Pasaporte</label>
+                                        {{ form.pasaporte_vigencia }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Campos para EMPRESA -->
+                        <div class="campos-empresa">
+                            <div class="field-section">
+                                <h5><i class="fas fa-building"></i> Información de la Empresa</h5>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Razón Social / Nombre de la Empresa *</label>
+                                        {{ form.nombre_empresa }}
+                                        {% if form.nombre_empresa.errors %}
+                                            <div class="text-danger small">{{ form.nombre_empresa.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">RFC / ID Fiscal *</label>
+                                        {{ form.rfc }}
+                                        {% if form.rfc.errors %}
+                                            <div class="text-danger small">{{ form.rfc.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-12 mb-3">
+                                        <label class="form-label">Dirección Fiscal *</label>
+                                        {{ form.direccion_fiscal }}
+                                        {% if form.direccion_fiscal.errors %}
+                                            <div class="text-danger small">{{ form.direccion_fiscal.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Campos Comunes - Contacto -->
+                        <div class="field-section">
+                            <h5><i class="fas fa-phone"></i> Información de Contacto</h5>
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">Teléfono Móvil *</label>
+                                    {{ form.telefono }}
+                                    {% if form.telefono.errors %}
+                                        <div class="text-danger small">{{ form.telefono.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">Teléfono Adicional <span class="optional-badge">Opcional</span></label>
+                                    {{ form.telefono_adicional }}
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">Correo Electrónico</label>
+                                    {{ form.email }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Campos Comunes - Preferencias y Notas -->
+                        <div class="field-section">
+                            <h5><i class="fas fa-plane"></i> Preferencias y Notas</h5>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Preferencias de Viaje</label>
+                                    {{ form.preferencias_viaje }}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Notas Internas</label>
+                                    {{ form.notas }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Programa de Lealtad -->
+                        <div class="field-section">
+                            <h5><i class="fas fa-award"></i> Programa Kilómetros Movums</h5>
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <div class="form-check">
+                                        {{ form.participa_kilometros }}
+                                        <label class="form-check-label" for="{{ form.participa_kilometros.id_for_label }}">
+                                            Participa en Kilómetros Movums
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">Referencia del Programa</label>
+                                    {{ form.referencia_programa }}
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">Referido Por</label>
+                                    {{ form.referido_por }}
+                                </div>
+                            </div>
+                        </div>
                         
                         <hr>
                         
@@ -57,7 +276,26 @@
     
 {% endblock %}
 
-{% block extra_head %}
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" 
-          crossorigin="anonymous" referrerpolicy="no-referrer" />
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const tipoCliente = document.getElementById('id_tipo_cliente');
+    const camposParticular = document.querySelector('.campos-particular');
+    const camposEmpresa = document.querySelector('.campos-empresa');
+    
+    function toggleCampos() {
+        const tipo = tipoCliente.value;
+        if (tipo === 'PARTICULAR') {
+            camposParticular.classList.add('show');
+            camposEmpresa.classList.remove('show');
+        } else if (tipo === 'EMPRESA') {
+            camposParticular.classList.remove('show');
+            camposEmpresa.classList.add('show');
+        }
+    }
+    
+    tipoCliente.addEventListener('change', toggleCampos);
+    toggleCampos(); // Ejecutar al cargar
+});
+</script>
 {% endblock %}

@@ -7,7 +7,7 @@
 {% block content %}
 <div class="container my-5">
     <div class="row justify-content-center">
-        <div class="col-lg-10 col-xl-8">
+        <div class="col-lg-10 col-xl-9">
             <div class="card shadow-lg rounded-4 border-0">
                 <div class="card-header bg-primary text-white rounded-top-4 p-4">
                     <h2 class="h3 mb-0">
@@ -25,7 +25,7 @@
                         {% endfor %}
                     {% endif %}
                     
-                    <form method="post" id="clienteForm" class="needs-validation" novalidate>
+                    <form method="post" id="clienteForm" enctype="multipart/form-data" class="needs-validation" novalidate>
                         {% csrf_token %}
 
                         <!-- Mensajes de error globales del formulario -->
@@ -40,32 +40,181 @@
                             </div>
                         {% endif %}
 
-                        <!-- SECCIÓN 1: TIPO DE CLIENTE (CONTROL DINÁMICO) -->
-                        <h4 class="mb-3 text-primary border-bottom pb-2">Tipo y Contacto</h4>
+                        <!-- SECCIÓN 1: TIPO DE CLIENTE -->
+                        <h4 class="mb-3 text-primary border-bottom pb-2"><i class="fas fa-user-tag me-2"></i>Tipo de Cliente</h4>
                         
                         <div class="row g-3 mb-4">
-                            <!-- Campo tipo_cliente: CLAVE PARA EL JS -->
                             <div class="col-md-6">
-                                <label for="{{ form.tipo_cliente.id_for_label }}" class="form-label">Tipo de Cliente</label>
+                                <label for="{{ form.tipo_cliente.id_for_label }}" class="form-label">Tipo de Cliente <span class="text-danger">*</span></label>
                                 {{ form.tipo_cliente }}
                                 {% for error in form.tipo_cliente.errors %}
                                     <div class="invalid-feedback d-block">{{ error }}</div>
                                 {% endfor %}
                             </div>
-
-                            <!-- Teléfono (Campo Común y Obligatorio) -->
                             <div class="col-md-6">
-                                <label for="{{ form.telefono.id_for_label }}" class="form-label">Teléfono <span class="text-danger">*</span></label>
+                                <label for="{{ form.fuente_contacto.id_for_label }}" class="form-label">Fuente de Contacto</label>
+                                {{ form.fuente_contacto }}
+                            </div>
+                        </div>
+
+                        <!-- ================================================== -->
+                        <!-- CAMPOS DE EMPRESA -->
+                        <!-- ================================================== -->
+                        <div id="empresa_fields" style="display: none;">
+                            <h4 class="mb-3 text-primary border-bottom pb-2"><i class="fas fa-building me-2"></i>Datos de la Empresa</h4>
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-7">
+                                    <label for="{{ form.nombre_empresa.id_for_label }}" class="form-label">Razón Social / Nombre <span class="text-danger">*</span></label>
+                                    {{ form.nombre_empresa }}
+                                    {% for error in form.nombre_empresa.errors %}
+                                        <div class="invalid-feedback d-block">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                                <div class="col-md-5">
+                                    <label for="{{ form.rfc.id_for_label }}" class="form-label">RFC / ID Fiscal <span class="text-danger">*</span></label>
+                                    {{ form.rfc }}
+                                    {% for error in form.rfc.errors %}
+                                        <div class="invalid-feedback d-block">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                                <div class="col-12">
+                                    <label for="{{ form.direccion_fiscal.id_for_label }}" class="form-label">Dirección Fiscal <span class="text-danger">*</span></label>
+                                    {{ form.direccion_fiscal }}
+                                    {% for error in form.direccion_fiscal.errors %}
+                                        <div class="invalid-feedback d-block">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.industria.id_for_label }}" class="form-label">Industria</label>
+                                    {{ form.industria }}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.responsable_administrativo.id_for_label }}" class="form-label">Responsable Administrativo</label>
+                                    {{ form.responsable_administrativo }}
+                                </div>
+                                <div class="col-12">
+                                    <label for="{{ form.politicas_viaje_internas.id_for_label }}" class="form-label">Políticas de Viaje Internas</label>
+                                    {{ form.politicas_viaje_internas }}
+                                    <small class="form-text text-muted">Políticas y restricciones de viaje de la empresa</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check mt-4">
+                                        {{ form.credito }}
+                                        <label class="form-check-label" for="{{ form.credito.id_for_label }}">
+                                            Crédito (si aplica)
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6" id="monto_credito_field" style="display: none;">
+                                    <label for="{{ form.monto_credito.id_for_label }}" class="form-label">Monto de Crédito Asignado</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">$</span>
+                                        {{ form.monto_credito }}
+                                    </div>
+                                    <small class="form-text text-muted">Monto de crédito asignado a la empresa</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ================================================== -->
+                        <!-- CAMPOS DE PARTICULAR -->
+                        <!-- ================================================== -->
+                        <div id="particular_fields" style="display: none;">
+                            <!-- Información Personal -->
+                            <h4 class="mb-3 text-primary border-bottom pb-2"><i class="fas fa-id-card me-2"></i>Información Personal</h4>
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-4">
+                                    <label for="{{ form.nombre.id_for_label }}" class="form-label">Nombre <span class="text-danger">*</span></label>
+                                    {{ form.nombre }}
+                                    {% for error in form.nombre.errors %}
+                                        <div class="invalid-feedback d-block">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="{{ form.apellido.id_for_label }}" class="form-label">Apellido <span class="text-danger">*</span></label>
+                                    {{ form.apellido }}
+                                    {% for error in form.apellido.errors %}
+                                        <div class="invalid-feedback d-block">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="{{ form.genero.id_for_label }}" class="form-label">Género</label>
+                                    {{ form.genero }}
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="{{ form.nacionalidad.id_for_label }}" class="form-label">Nacionalidad</label>
+                                    {{ form.nacionalidad }}
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="{{ form.fecha_nacimiento.id_for_label }}" class="form-label">Fecha de Nacimiento</label>
+                                    {{ form.fecha_nacimiento }}
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="{{ form.empresa_asociada.id_for_label }}" class="form-label">Empresa Asociada <span class="badge bg-secondary">Opcional</span></label>
+                                    {{ form.empresa_asociada }}
+                                    <small class="form-text text-muted">Si pertenece a una empresa registrada</small>
+                                </div>
+                            </div>
+
+                            <!-- Documentos de Identificación -->
+                            <h4 class="mb-3 text-primary border-bottom pb-2"><i class="fas fa-passport me-2"></i>Documentos de Identificación</h4>
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-6">
+                                    <label for="{{ form.ine_imagen.id_for_label }}" class="form-label">INE (Imagen) <span class="badge bg-secondary">Opcional</span></label>
+                                    {{ form.ine_imagen }}
+                                    <small class="form-text text-muted">Sube una imagen de la credencial INE</small>
+                                </div>
+                            </div>
+                            
+                            <div class="row g-3 mb-4">
+                                <div class="col-12">
+                                    <h6 class="text-muted"><i class="fas fa-id-badge me-1"></i> Visa <span class="badge bg-secondary">Opcional</span></h6>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.visa_numero.id_for_label }}" class="form-label">Número de Visa</label>
+                                    {{ form.visa_numero }}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.visa_vigencia.id_for_label }}" class="form-label">Vigencia de Visa</label>
+                                    {{ form.visa_vigencia }}
+                                </div>
+                            </div>
+
+                            <div class="row g-3 mb-4">
+                                <div class="col-12">
+                                    <h6 class="text-muted"><i class="fas fa-passport me-1"></i> Pasaporte <span class="badge bg-secondary">Opcional</span></h6>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.pasaporte_numero.id_for_label }}" class="form-label">Número de Pasaporte</label>
+                                    {{ form.pasaporte_numero }}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ form.pasaporte_vigencia.id_for_label }}" class="form-label">Vigencia de Pasaporte</label>
+                                    {{ form.pasaporte_vigencia }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ================================================== -->
+                        <!-- CAMPOS COMUNES - CONTACTO -->
+                        <!-- ================================================== -->
+                        <h4 class="mb-3 text-primary border-bottom pb-2"><i class="fas fa-phone me-2"></i>Información de Contacto</h4>
+                        
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-4">
+                                <label for="{{ form.telefono.id_for_label }}" class="form-label">Teléfono Móvil <span class="text-danger">*</span></label>
                                 {{ form.telefono }}
                                 {% for error in form.telefono.errors %}
                                     <div class="invalid-feedback d-block">{{ error }}</div>
                                 {% endfor %}
-                                <small class="form-text text-muted">{{ form.telefono.help_text }}</small>
+                                <small class="form-text text-muted">Para envío de WhatsApp</small>
                             </div>
-
-                            <!-- Email (Campo Común) -->
-                            <div class="col-12">
-                                <label for="{{ form.email.id_for_label }}" class="form-label">Email</label>
+                            <div class="col-md-4">
+                                <label for="{{ form.telefono_adicional.id_for_label }}" class="form-label">Teléfono Adicional <span class="badge bg-secondary">Opcional</span></label>
+                                {{ form.telefono_adicional }}
+                            </div>
+                            <div class="col-md-4">
+                                <label for="{{ form.email.id_for_label }}" class="form-label">Correo Electrónico</label>
                                 {{ form.email }}
                                 {% for error in form.email.errors %}
                                     <div class="invalid-feedback d-block">{{ error }}</div>
@@ -73,125 +222,57 @@
                             </div>
                         </div>
 
-                        <!-- SECCIÓN 2: CAMPOS ESPECÍFICOS -->
-
-                        <!-- ---------------------------------------------------- -->
-                        <!-- CONTENEDOR DE CAMPOS DE EMPRESA -->
-                        <!-- ---------------------------------------------------- -->
-                        <div id="empresa_fields" style="display: none;">
-                            <h4 class="mb-3 text-primary border-bottom pb-2">Datos de la Empresa</h4>
-                            <div class="row g-3 mb-4">
-                                <!-- Nombre Empresa (Razón Social) -->
-                                <div class="col-md-7">
-                                    <label for="{{ form.nombre_empresa.id_for_label }}" class="form-label">{{ form.nombre_empresa.label }} <span class="text-danger">*</span></label>
-                                    {{ form.nombre_empresa }}
-                                    {% for error in form.nombre_empresa.errors %}
-                                        <div class="invalid-feedback d-block">{{ error }}</div>
-                                    {% endfor %}
-                                </div>
-                                <!-- RFC -->
-                                <div class="col-md-5">
-                                    <label for="{{ form.rfc.id_for_label }}" class="form-label">{{ form.rfc.label }} <span class="text-danger">*</span></label>
-                                    {{ form.rfc }}
-                                    {% for error in form.rfc.errors %}
-                                        <div class="invalid-feedback d-block">{{ error }}</div>
-                                    {% endfor %}
-                                </div>
-                                <!-- Dirección Fiscal -->
-                                <div class="col-12">
-                                    <label for="{{ form.direccion_fiscal.id_for_label }}" class="form-label">{{ form.direccion_fiscal.label }} <span class="text-danger">*</span></label>
-                                    {{ form.direccion_fiscal }}
-                                    {% for error in form.direccion_fiscal.errors %}
-                                        <div class="invalid-feedback d-block">{{ error }}</div>
-                                    {% endfor %}
-                                </div>
-                            </div>
-                        </div>
-
-
-                        <!-- ---------------------------------------------------- -->
-                        <!-- CONTENEDOR DE CAMPOS DE PARTICULAR -->
-                        <!-- ---------------------------------------------------- -->
-                        <div id="particular_fields" style="display: none;">
-                            <h4 class="mb-3 text-primary border-bottom pb-2">Datos Personales</h4>
-                            <div class="row g-3 mb-4">
-                                <!-- Nombre -->
-                                <div class="col-md-6">
-                                    <label for="{{ form.nombre.id_for_label }}" class="form-label">{{ form.nombre.label }} <span class="text-danger">*</span></label>
-                                    {{ form.nombre }}
-                                    {% for error in form.nombre.errors %}
-                                        <div class="invalid-feedback d-block">{{ error }}</div>
-                                    {% endfor %}
-                                </div>
-                                <!-- Apellido -->
-                                <div class="col-md-6">
-                                    <label for="{{ form.apellido.id_for_label }}" class="form-label">{{ form.apellido.label }} <span class="text-danger">*</span></label>
-                                    {{ form.apellido }}
-                                    {% for error in form.apellido.errors %}
-                                        <div class="invalid-feedback d-block">{{ error }}</div>
-                                    {% endfor %}
-                                </div>
-                                <!-- Fecha Nacimiento -->
-                                <div class="col-md-6">
-                                    <label for="{{ form.fecha_nacimiento.id_for_label }}" class="form-label">{{ form.fecha_nacimiento.label }}</label>
-                                    {{ form.fecha_nacimiento }}
-                                    {% for error in form.fecha_nacimiento.errors %}
-                                        <div class="invalid-feedback d-block">{{ error }}</div>
-                                    {% endfor %}
-                                </div>
-                                <!-- Documento Identificación -->
-                                <div class="col-md-6">
-                                    <label for="{{ form.documento_identificacion.id_for_label }}" class="form-label">{{ form.documento_identificacion.label }}</label>
-                                    {{ form.documento_identificacion }}
-                                    {% for error in form.documento_identificacion.errors %}
-                                        <div class="invalid-feedback d-block">{{ error }}</div>
-                                    {% endfor %}
-                                    <small class="form-text text-muted">{{ form.documento_identificacion.help_text }}</small>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- SECCIÓN 3: CAMPOS ADICIONALES COMUNES -->
-                        <h4 class="mb-3 text-primary border-bottom pb-2">Preferencias y Origen</h4>
+                        <!-- ================================================== -->
+                        <!-- PREFERENCIAS DE VIAJE -->
+                        <!-- ================================================== -->
+                        <h4 class="mb-3 text-primary border-bottom pb-2"><i class="fas fa-plane me-2"></i>Preferencias de Viaje</h4>
                         
                         <div class="row g-3 mb-4">
-                            <!-- Fuente de Contacto -->
-                            <div class="col-md-6">
-                                <label for="{{ form.fuente_contacto.id_for_label }}" class="form-label">{{ form.fuente_contacto.label }}</label>
-                                {{ form.fuente_contacto }}
-                                {% for error in form.fuente_contacto.errors %}
-                                    <div class="invalid-feedback d-block">{{ error }}</div>
-                                {% endfor %}
-                            </div>
-
-                            <!-- Notas -->
                             <div class="col-12">
-                                <label for="{{ form.notas.id_for_label }}" class="form-label">{{ form.notas.label }}</label>
-                                {{ form.notas }}
-                                {% for error in form.notas.errors %}
-                                    <div class="invalid-feedback d-block">{{ error }}</div>
-                                {% endfor %}
-                            </div>
-
-                            <!-- Preferencias de Viaje -->
-                            <div class="col-12">
-                                <label for="{{ form.preferencias_viaje.id_for_label }}" class="form-label">{{ form.preferencias_viaje.label }}</label>
+                                <label for="{{ form.preferencias_viaje.id_for_label }}" class="form-label">Preferencias de Viaje</label>
                                 {{ form.preferencias_viaje }}
-                                {% for error in form.preferencias_viaje.errors %}
-                                    <div class="invalid-feedback d-block">{{ error }}</div>
-                                {% endfor %}
-                                <small class="form-text text-muted">{{ form.preferencias_viaje.help_text }}</small>
+                                <small class="form-text text-muted">Notas sobre gustos de viaje (Playa, Aventura, etc.)</small>
                             </div>
                         </div>
 
+                        <!-- ================================================== -->
+                        <!-- PROGRAMA KILÓMETROS -->
+                        <!-- ================================================== -->
+                        <h4 class="mb-3 text-primary border-bottom pb-2"><i class="fas fa-award me-2"></i>Programa Kilómetros Movums</h4>
+                        
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <div class="form-check mt-4">
+                                    {{ form.participa_kilometros }}
+                                    <label class="form-check-label" for="{{ form.participa_kilometros.id_for_label }}">
+                                        Participa en Kilómetros Movums
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="{{ form.referido_por.id_for_label }}" class="form-label">Referido Por <span class="badge bg-secondary">Opcional</span></label>
+                                {{ form.referido_por }}
+                            </div>
+                        </div>
 
                         <!-- Botones -->
                         <div class="d-flex justify-content-between mt-4">
-                            <a href="{% url 'lista_clientes' %}" class="btn btn-outline-secondary rounded-pill px-4">
-                                <i class="fas fa-arrow-left me-2"></i> Cancelar
-                            </a>
+                            <div>
+                                <a href="{% url 'lista_clientes' %}" class="btn btn-outline-secondary rounded-pill px-4">
+                                    <i class="fas fa-arrow-left me-2"></i> Cancelar
+                                </a>
+                                {% if object and object.pk %}
+                                    {% with user.perfil.rol|default:""|upper as user_rol %}
+                                        {% if user_rol == "JEFE" %}
+                                            <button type="button" class="btn btn-danger rounded-pill px-4 ms-2" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal">
+                                                <i class="fas fa-trash-alt me-2"></i> Eliminar Cliente
+                                            </button>
+                                        {% endif %}
+                                    {% endwith %}
+                                {% endif %}
+                            </div>
                             <button type="submit" class="btn btn-success rounded-pill px-4 shadow-sm">
-                                <i class="fas fa-save me-2"></i> Guardar Cliente
+                                <i class="fas fa-save me-2"></i> {% if object and object.pk %}Actualizar{% else %}Guardar{% endif %} Cliente
                             </button>
                         </div>
                     </form>
@@ -206,125 +287,113 @@
         const tipoClienteSelect = document.getElementById('id_tipo_cliente');
         const particularFields = document.getElementById('particular_fields');
         const empresaFields = document.getElementById('empresa_fields');
-        const clienteForm = document.getElementById('clienteForm');
+        const creditoCheckbox = document.getElementById('id_credito');
+        const montoCreditoField = document.getElementById('monto_credito_field');
 
         function toggleFields() {
             const selectedValue = tipoClienteSelect.value;
             
-            // Ocultar todos los campos específicos primero
             particularFields.style.display = 'none';
             empresaFields.style.display = 'none';
 
-            // Mostrar el conjunto de campos correspondiente al tipo seleccionado
             if (selectedValue === 'PARTICULAR') {
                 particularFields.style.display = 'block';
             } else if (selectedValue === 'EMPRESA') {
                 empresaFields.style.display = 'block';
             }
+            
+            // Actualizar visibilidad del monto de crédito
+            toggleMontoCredito();
+        }
+        
+        function toggleMontoCredito() {
+            if (creditoCheckbox && montoCreditoField) {
+                if (creditoCheckbox.checked && tipoClienteSelect.value === 'EMPRESA') {
+                    montoCreditoField.style.display = 'block';
+                } else {
+                    montoCreditoField.style.display = 'none';
+                }
+            }
         }
 
-        // 1. Ejecutar al cargar la página (útil para edición o si hay errores de validación)
         toggleFields(); 
-        
-        // 2. Escuchar el cambio en el selector
         tipoClienteSelect.addEventListener('change', toggleFields);
         
-        // 3. Validación del lado del cliente y manejo del submit
-        if (clienteForm) {
-            clienteForm.addEventListener('submit', function(e) {
-                // Asegurar que el overlay de transición no interfiera
-                if (window.forceHideOverlay) {
-                    window.forceHideOverlay();
-                }
-                
-                // Validación básica del lado del cliente
-                const tipoCliente = tipoClienteSelect.value;
-                let isValid = true;
-                
-                // Validar teléfono (obligatorio siempre)
-                const telefono = document.getElementById('id_telefono');
-                if (!telefono.value.trim()) {
-                    telefono.classList.add('is-invalid');
-                    isValid = false;
-                } else {
-                    telefono.classList.remove('is-invalid');
-                }
-                
-                // Validar según el tipo de cliente
-                if (tipoCliente === 'PARTICULAR') {
-                    const nombre = document.getElementById('id_nombre');
-                    const apellido = document.getElementById('id_apellido');
-                    
-                    if (!nombre.value.trim()) {
-                        nombre.classList.add('is-invalid');
-                        isValid = false;
-                    } else {
-                        nombre.classList.remove('is-invalid');
-                    }
-                    
-                    if (!apellido.value.trim()) {
-                        apellido.classList.add('is-invalid');
-                        isValid = false;
-                    } else {
-                        apellido.classList.remove('is-invalid');
-                    }
-                } else if (tipoCliente === 'EMPRESA') {
-                    const nombreEmpresa = document.getElementById('id_nombre_empresa');
-                    const rfc = document.getElementById('id_rfc');
-                    const direccionFiscal = document.getElementById('id_direccion_fiscal');
-                    
-                    if (!nombreEmpresa.value.trim()) {
-                        nombreEmpresa.classList.add('is-invalid');
-                        isValid = false;
-                    } else {
-                        nombreEmpresa.classList.remove('is-invalid');
-                    }
-                    
-                    if (!rfc.value.trim()) {
-                        rfc.classList.add('is-invalid');
-                        isValid = false;
-                    } else {
-                        rfc.classList.remove('is-invalid');
-                    }
-                    
-                    if (!direccionFiscal.value.trim()) {
-                        direccionFiscal.classList.add('is-invalid');
-                        isValid = false;
-                    } else {
-                        direccionFiscal.classList.remove('is-invalid');
-                    }
-                }
-                
-                // Si hay errores, prevenir el envío
-                if (!isValid) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    // Mostrar mensaje de error
-                    let errorMsg = document.getElementById('form-validation-error');
-                    if (!errorMsg) {
-                        errorMsg = document.createElement('div');
-                        errorMsg.id = 'form-validation-error';
-                        errorMsg.className = 'alert alert-danger rounded-3 mt-3';
-                        errorMsg.innerHTML = '<strong>Error:</strong> Por favor, completa todos los campos obligatorios marcados con <span class="text-danger">*</span>.';
-                        clienteForm.insertBefore(errorMsg, clienteForm.firstChild);
-                    }
-                    
-                    // Scroll al primer error
-                    const firstInvalid = clienteForm.querySelector('.is-invalid');
-                    if (firstInvalid) {
-                        firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        firstInvalid.focus();
-                    }
-                    
-                    return false;
-                }
-                
-                // Si todo está bien, permitir el envío
-                return true;
-            });
+        if (creditoCheckbox) {
+            creditoCheckbox.addEventListener('change', toggleMontoCredito);
         }
     });
+    
+    // Script mejorado para eliminar overlay - Versión FUERTE
+    (function() {
+        'use strict';
+        
+        // Función FUERTE para matar el overlay
+        function killOverlay() {
+            // Seleccionar por ID y por clase para no fallar
+            const overlays = document.querySelectorAll('#pageTransitionOverlay, .page-transition-overlay');
+            overlays.forEach(function(el) {
+                // Forzar ocultamiento con estilos inline de máxima prioridad
+                el.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; z-index: -9999 !important; pointer-events: none !important;';
+                el.classList.remove('active');
+            });
+            document.body.classList.remove('no-animations');
+        }
+        
+        // 1. Ejecutar inmediatamente al detectar el click en el botón de eliminar
+        document.addEventListener('mousedown', function(e) {
+            // Buscar si el clic fue en un botón de modal de eliminar
+            const btn = e.target.closest('[data-bs-target="#confirmDeleteModal"]');
+            if (btn) {
+                killOverlay();
+                // Reintentar varias veces por si el sistema intenta reactivarlo
+                setTimeout(killOverlay, 10);
+                setTimeout(killOverlay, 50);
+                setTimeout(killOverlay, 200);
+            }
+        }, true); // Fase de captura para ganar prioridad
+        
+        // 2. Ejecutar cuando el modal intenta abrirse
+        document.addEventListener('show.bs.modal', function(e) {
+            if (e.target.id === 'confirmDeleteModal') {
+                killOverlay();
+            }
+        }, true);
+        
+        // 3. Limpieza inicial por si acaso
+        killOverlay();
+    })();
 </script>
 
 {% endblock content %}
+
+{% block modals %}
+{% if object and object.pk %}
+    <!-- Modal de Confirmación de Eliminación -->
+    <div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="confirmDeleteModalLabel"><i class="fas fa-exclamation-triangle"></i> Confirmar Eliminación</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body text-black">
+                    <p><strong>¿Estás absolutamente seguro de que deseas eliminar al cliente "{{ object }}"?</strong></p>
+                    <p class="text-danger">
+                        Esta acción es <strong>irreversible</strong>. Se eliminará toda la información de este cliente, incluyendo sus datos de contacto y su historial de ventas asociado.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    
+                    <!-- Formulario de Eliminación (solo se activa con POST) -->
+                    <form method="POST" action="{% url 'eliminar_cliente' pk=object.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger"><i class="fas fa-trash-alt"></i> Eliminar Definitivamente</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}

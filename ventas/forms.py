@@ -151,30 +151,31 @@ class MultipleFileField(forms.FileField):
 SERVICIO_CHOICES = [
     ('Vuelo', 'Vuelo'),
     ('Hospedaje', 'Hospedaje'),
-    ('Traslado', 'Traslado (Transporte terrestre)'),
-    ('Tour', 'Tour/Excursión'),
-    ('Circuito Int', 'Circuito Internacional'),
-    ('Renta Auto', 'Renta de Auto'),
-    ('Paquete Todo Incluido', 'Paquete Todo Incluido'),
+    ('Alojamiento Alterno', 'Alojamiento Alterno'),
+    ('Traslado', 'Traslado'),
+    ('Tour y Actividades', 'Tour y Actividades'),
+    ('Circuito Internacional', 'Circuito Internacional'),
+    ('Renta de Auto', 'Renta de Auto'),
+    ('Paquete', 'Paquete'),
     ('Crucero', 'Crucero'),
     ('Seguro de Viaje', 'Seguro de Viaje'),
-    ('Trámite de Visa', 'Trámite de Visa'),
-    ('Trámite de Pasaporte', 'Trámite de Pasaporte'),
+    ('Trámites de Documentación', 'Trámites de Documentación'),
 ]
 
 # Diccionario de mapeo: nombres del formulario -> códigos del modelo
 SERVICIO_MAP = {
     'Vuelo': 'VUE',
     'Hospedaje': 'HOS',
+    'Alojamiento Alterno': 'ALO',
     'Traslado': 'TRA',
-    'Tour': 'TOU',
-    'Circuito Int': 'CIR',
-    'Renta Auto': 'REN',
-    'Paquete Todo Incluido': 'PAQ',
+    'Tour y Actividades': 'TOU',
+    'Circuito Internacional': 'CIR',
+    'Renta de Auto': 'REN',
+    'Paquete': 'PAQ',
     'Crucero': 'CRU',
     'Seguro de Viaje': 'SEG',
-    'Trámite de Visa': 'OTR',  # Mapeado a "Otros Servicios"
-    'Trámite de Pasaporte': 'OTR',  # Mapeado a "Otros Servicios"
+    'Trámites de Documentación': 'DOC',
+    'Otros Servicios': 'OTR',
 }
 
 # Diccionario inverso: códigos del modelo -> nombres del formulario
@@ -183,14 +184,16 @@ SERVICIO_MAP_REVERSE = {v: k for k, v in SERVICIO_MAP.items()}
 SERVICIO_MAP_REVERSE.update({
     'VUE': 'Vuelo',
     'HOS': 'Hospedaje',
+    'ALO': 'Alojamiento Alterno',
     'TRA': 'Traslado',
-    'TOU': 'Tour',
-    'CIR': 'Circuito Int',
-    'REN': 'Renta Auto',
-    'PAQ': 'Paquete Todo Incluido',
+    'TOU': 'Tour y Actividades',
+    'CIR': 'Circuito Internacional',
+    'REN': 'Renta de Auto',
+    'PAQ': 'Paquete',
     'CRU': 'Crucero',
     'SEG': 'Seguro de Viaje',
-    'OTR': 'Trámite de Visa',  # Por defecto, mapear OTR a Trámite de Visa
+    'DOC': 'Trámites de Documentación',
+    'OTR': 'Otros Servicios',
 })
 
 
@@ -210,6 +213,9 @@ class ProveedorForm(forms.ModelForm):
         model = Proveedor
         fields = [
             'nombre',
+            'razon_social',
+            'rfc',
+            'condiciones_comerciales',
             'telefono',
             'ejecutivo',
             'telefono_ejecutivo',
@@ -220,6 +226,9 @@ class ProveedorForm(forms.ModelForm):
         ]
         widgets = {
             'nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. Aeroméxico'}),
+            'razon_social': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. Aeroméxico, S.A. de C.V.'}),
+            'rfc': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. AMX123456789'}),
+            'condiciones_comerciales': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'Términos, condiciones y acuerdos comerciales...'}),
             'telefono': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. +52 55 1234 5678'}),
             'ejecutivo': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre del ejecutivo'}),
             'telefono_ejecutivo': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. +52 55 1234 5678'}),
@@ -258,8 +267,12 @@ class EjecutivoForm(forms.ModelForm):
     # Campo adicional para seleccionar el tipo de usuario/rol
     tipo_usuario = forms.ChoiceField(
         choices=[
-            ('VENDEDOR', 'Vendedor'),
+            ('DIRECTOR_GENERAL', 'Director General'),
+            ('DIRECTOR_VENTAS', 'Director de Ventas'),
+            ('DIRECTOR_ADMINISTRATIVO', 'Director Administrativo'),
+            ('GERENTE', 'Gerente'),
             ('CONTADOR', 'Contador'),
+            ('VENDEDOR', 'Asesor'),
         ],
         initial='VENDEDOR',
         widget=forms.Select(attrs={'class': 'form-select'}),
@@ -274,23 +287,33 @@ class EjecutivoForm(forms.ModelForm):
             'direccion',
             'telefono',
             'email',
-            'ubicacion_asignada',
+            'oficina',
             'tipo_vendedor',
             'sueldo_base',
-            'documento_pdf',
+            'fecha_ingreso',
+            'fecha_nacimiento',
+            'acta_nacimiento',
+            'ine_imagen',
+            'comprobante_domicilio',
         ]
         widgets = {
             'nombre_completo': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre y apellidos'}),
             'direccion': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Calle, número, ciudad, estado'}),
             'telefono': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '+52 55 1234 5678'}),
             'email': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'ejecutivo@agencia.com'}),
-            'ubicacion_asignada': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. Aeropuerto CDMX'}),
+            'oficina': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. Oficina Central, Sucursal Norte'}),
             'tipo_vendedor': forms.Select(attrs={'class': 'form-select'}),
             'sueldo_base': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'Ej. 12000.00'}),
-            'documento_pdf': forms.ClearableFileInput(attrs={'class': 'form-control'}),
+            'fecha_ingreso': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha_nacimiento': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'acta_nacimiento': forms.ClearableFileInput(attrs={'class': 'form-control', 'accept': '.pdf,.jpg,.jpeg,.png'}),
+            'ine_imagen': forms.ClearableFileInput(attrs={'class': 'form-control', 'accept': '.pdf,.jpg,.jpeg,.png'}),
+            'comprobante_domicilio': forms.ClearableFileInput(attrs={'class': 'form-control', 'accept': '.pdf,.jpg,.jpeg,.png'}),
         }
         help_texts = {
-            'documento_pdf': 'Opcional. Solo se permiten archivos PDF.',
+            'acta_nacimiento': 'Opcional. Sube el acta de nacimiento en formato PDF o imagen (JPG, PNG).',
+            'ine_imagen': 'Opcional. Sube la identificación oficial (INE) en formato PDF o imagen (JPG, PNG).',
+            'comprobante_domicilio': 'Opcional. Sube el comprobante de domicilio en formato PDF o imagen (JPG, PNG).',
         }
 
     def __init__(self, *args, **kwargs):
@@ -298,13 +321,45 @@ class EjecutivoForm(forms.ModelForm):
         # Si estamos editando un ejecutivo existente, precargar el tipo_usuario desde el perfil del usuario
         if self.instance and self.instance.pk and self.instance.usuario:
             perfil = getattr(self.instance.usuario, 'perfil', None)
-            if perfil and perfil.rol in ['VENDEDOR', 'CONTADOR']:
+            if perfil and perfil.rol in ['JEFE', 'DIRECTOR_GENERAL', 'DIRECTOR_VENTAS', 'DIRECTOR_ADMINISTRATIVO', 'GERENTE', 'CONTADOR', 'VENDEDOR']:
                 self.fields['tipo_usuario'].initial = perfil.rol
+        
+        # Hacer el campo tipo_vendedor opcional inicialmente
+        # La validación condicional se hará en clean()
+        self.fields['tipo_vendedor'].required = False
+
+    def clean(self):
+        """Validación condicional: tipo_vendedor solo es requerido si tipo_usuario es VENDEDOR."""
+        cleaned_data = super().clean()
+        tipo_usuario = cleaned_data.get('tipo_usuario')
+        tipo_vendedor = cleaned_data.get('tipo_vendedor')
+        
+        # Si el tipo de usuario es VENDEDOR, entonces tipo_vendedor es obligatorio
+        if tipo_usuario == 'VENDEDOR':
+            if not tipo_vendedor:
+                self.add_error('tipo_vendedor', 'Este campo es obligatorio cuando el tipo de usuario es Asesor.')
+        else:
+            # Si el tipo de usuario NO es VENDEDOR, establecer tipo_vendedor al valor por defecto del modelo
+            # para evitar errores de validación, pero no es relevante para estos roles
+            # Esto asegura que el campo tenga un valor válido aunque no se use
+            cleaned_data['tipo_vendedor'] = 'MOSTRADOR'  # Valor por defecto del modelo
+        
+        return cleaned_data
 
     def clean_email(self):
         email = self.cleaned_data.get('email')
         if not email:
             raise forms.ValidationError("El correo electrónico es obligatorio para generar las credenciales.")
+        
+        # Verificar que el email no esté en uso por otro ejecutivo
+        if email:
+            from .models import Ejecutivo
+            ejecutivos_con_email = Ejecutivo.objects.filter(email=email)
+            if self.instance and self.instance.pk:
+                ejecutivos_con_email = ejecutivos_con_email.exclude(pk=self.instance.pk)
+            if ejecutivos_con_email.exists():
+                raise forms.ValidationError("Este correo electrónico ya está registrado para otro ejecutivo.")
+        
         return email
 
     def clean_sueldo_base(self):
@@ -528,7 +583,15 @@ class VentaViajeForm(forms.ModelForm):
         SERVICIO_PROVEEDOR_MAP = {
             'Vuelo': 'VUELOS',
             'Hospedaje': 'HOTELES',
-            'Tour': 'TOURS',
+            'Alojamiento Alterno': 'ALOJAMIENTO_ALTERNO',
+            'Traslado': 'TRASLADOS',
+            'Tour y Actividades': 'TOURS',
+            'Circuito Internacional': 'CIRCUITOS',
+            'Renta de Auto': 'RENTA_AUTOS',
+            'Paquete': 'PAQUETES',
+            'Crucero': 'CRUCERO',
+            'Seguro de Viaje': 'SEGUROS_VIAJE',
+            'Trámites de Documentación': 'TRAMITE_DOCS',
         }
         
         # Preparar valores iniciales - IMPORTANTE: NO interferir con la carga automática de Django
@@ -992,7 +1055,15 @@ class VentaViajeForm(forms.ModelForm):
         SERVICIO_PROVEEDOR_MAP = {
             'Vuelo': 'VUELOS',
             'Hospedaje': 'HOTELES',
-            'Tour': 'TOURS',
+            'Alojamiento Alterno': 'ALOJAMIENTO_ALTERNO',
+            'Traslado': 'TRASLADOS',
+            'Tour y Actividades': 'TOURS',
+            'Circuito Internacional': 'CIRCUITOS',
+            'Renta de Auto': 'RENTA_AUTOS',
+            'Paquete': 'PAQUETES',
+            'Crucero': 'CRUCERO',
+            'Seguro de Viaje': 'SEGUROS_VIAJE',
+            'Trámites de Documentación': 'TRAMITE_DOCS',
         }
         
         for nombre in servicios_nombres:

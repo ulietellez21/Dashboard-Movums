@@ -20,7 +20,7 @@ from datetime import timedelta
 from collections import Counter
 import math, re, logging, secrets, json, io, os
 import datetime # Necesario para el contexto del PDF (campo now)
-from decimal import Decimal # Importar Decimal para asegurar precisión en cálculos financieros
+from decimal import Decimal, InvalidOperation # Importar Decimal para asegurar precisión en cálculos financieros
 
 # Intento cargar WeasyPrint; si falla (por dependencias GTK), defino placeholders.
 try:
@@ -49,6 +49,7 @@ from .models import (
 )
 from crm.models import Cliente
 from crm.services import KilometrosService
+from usuarios.models import Perfil
 from .forms import (
     VentaViajeForm,
     LogisticaForm,
@@ -325,7 +326,29 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
         else:
             base_query = self.model.objects.none()
 
-        # 2. Aplicar filtro por fecha de viaje si se proporciona (soporta fecha única o rango)
+        # 2. Aplicar filtro por folio/ID
+        busqueda_folio = self.request.GET.get('busqueda_folio', '').strip()
+        if busqueda_folio:
+            # Buscar por folio o por ID numérico
+            if busqueda_folio.isdigit():
+                base_query = base_query.filter(Q(folio__icontains=busqueda_folio) | Q(pk=int(busqueda_folio)))
+            else:
+                base_query = base_query.filter(folio__icontains=busqueda_folio)
+        
+        # 3. Aplicar filtro por servicio
+        busqueda_servicio = self.request.GET.get('busqueda_servicio', '').strip()
+        if busqueda_servicio:
+            if busqueda_servicio == 'VAR':
+                # Buscar ventas con múltiples servicios (folio empieza con VAR)
+                base_query = base_query.filter(folio__startswith='VAR-')
+            else:
+                # Buscar ventas que contengan este servicio
+                base_query = base_query.filter(
+                    Q(servicios_seleccionados__icontains=busqueda_servicio) | 
+                    Q(folio__startswith=f'{busqueda_servicio}-')
+                )
+        
+        # 4. Aplicar filtro por fecha de viaje si se proporciona (soporta fecha única o rango)
         fecha_filtro = self.request.GET.get('fecha_filtro')
         fecha_desde = self.request.GET.get('fecha_desde')
         fecha_hasta = self.request.GET.get('fecha_hasta')
@@ -387,10 +410,12 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
         context['user_rol'] = get_user_role(self.request.user)
         context['ventas_para_cotizacion'] = ventas_list
         
-        # Agregar filtros de fecha al contexto para mantenerlos en el formulario
+        # Agregar filtros al contexto para mantenerlos en el formulario
         context['fecha_filtro'] = self.request.GET.get('fecha_filtro', '')
         context['fecha_desde'] = self.request.GET.get('fecha_desde', '')
         context['fecha_hasta'] = self.request.GET.get('fecha_hasta', '')
+        context['busqueda_folio'] = self.request.GET.get('busqueda_folio', '')
+        context['busqueda_servicio'] = self.request.GET.get('busqueda_servicio', '')
         
         # Para CONTADOR: agregar ventas con pagos pendientes de confirmación
         if context['user_rol'] == 'CONTADOR':
@@ -2219,9 +2244,6 @@ class ComisionesVendedoresView(LoginRequiredMixin, TemplateView):
         context['lista_comisiones'] = lista_comisiones
         context['titulo_reporte'] = "Reporte de Comisiones de Ventas"
         context['user_rol'] = user_rol
-        context['ejecutivos'] = Ejecutivo.objects.all()
-        context['ejecutivo_form'] = kwargs.get('ejecutivo_form') or EjecutivoForm()
-        context['mostrar_modal_ejecutivo'] = kwargs.get('mostrar_modal_ejecutivo', False)
         
         return context
 
@@ -2285,61 +2307,236 @@ class ComisionesVendedoresView(LoginRequiredMixin, TemplateView):
 
         return user, password_plano
 
-    def post(self, request, *args, **kwargs):
-        user_rol = get_user_role(request.user)
-        if user_rol != 'JEFE':
-            messages.error(request, "Solo el rol JEFE puede gestionar ejecutivos.")
-            return redirect('reporte_comisiones')
 
+
+class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    """
+    Vista para gestionar roles y usuarios del sistema.
+    Solo accesible para JEFE.
+    Migrada desde ComisionesVendedoresView - Sección de Equipo de Ejecutivos.
+    """
+    template_name = 'ventas/gestion_roles.html'
+    
+    def test_func(self):
+        """Solo JEFE puede gestionar roles."""
+        user_rol = get_user_role(self.request.user)
+        return user_rol == 'JEFE'
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "No tienes permiso para acceder a la gestión de roles. Solo el JEFE puede acceder.")
+        return redirect('dashboard')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['ejecutivos'] = Ejecutivo.objects.all().select_related('usuario', 'usuario__perfil')
+        context['ejecutivo_form'] = kwargs.get('ejecutivo_form') or EjecutivoForm()
+        context['mostrar_modal_ejecutivo'] = kwargs.get('mostrar_modal_ejecutivo', False)
+        return context
+    
+    def _generar_username_unico(self, nombre_base):
+        """Genera un username único basado en el nombre."""
+        base_slug = slugify(nombre_base).replace('-', '')
+        base_slug = base_slug or 'ejecutivo'
+        base_slug = base_slug[:20]
+        username = base_slug
+        contador = 1
+        while User.objects.filter(username=username).exists():
+            sufijo = str(contador)
+            username = f"{base_slug[:20-len(sufijo)]}{sufijo}"
+            contador += 1
+        return username
+    
+    def _split_nombre(self, nombre):
+        """Divide el nombre completo en first_name y last_name."""
+        partes = (nombre or '').strip().split()
+        if not partes:
+            return '', ''
+        first = partes[0]
+        last = ' '.join(partes[1:]) if len(partes) > 1 else ''
+        return first, last
+    
+    def _crear_o_actualizar_usuario(self, ejecutivo, tipo_usuario='VENDEDOR', forzar_password=False, nueva_password=None):
+        """Crea o actualiza el usuario asociado al ejecutivo."""
+        password_plano = None
+        first_name, last_name = self._split_nombre(ejecutivo.nombre_completo)
+        
+        if not ejecutivo.usuario:
+            username = self._generar_username_unico(ejecutivo.nombre_completo)
+            password_plano = secrets.token_urlsafe(10)
+            user = User.objects.create_user(
+                username=username,
+                password=password_plano,
+                email=ejecutivo.email or '',
+                first_name=first_name,
+                last_name=last_name
+            )
+            # Refrescar el usuario desde la base de datos para asegurar que la señal se haya ejecutado
+            user.refresh_from_db()
+            ejecutivo.usuario = user
+            ejecutivo.ultima_contrasena = password_plano
+            ejecutivo.save(update_fields=['usuario', 'ultima_contrasena'])
+        else:
+            user = ejecutivo.usuario
+            user.email = ejecutivo.email or ''
+            user.first_name = first_name
+            user.last_name = last_name
+            if forzar_password:
+                # Si se proporciona una nueva contraseña, usarla; si no, generar una aleatoria
+                password_plano = nueva_password if nueva_password else secrets.token_urlsafe(10)
+                user.set_password(password_plano)
+            user.save()
+            if password_plano:
+                Ejecutivo.objects.filter(pk=ejecutivo.pk).update(ultima_contrasena=password_plano)
+        
+        # Asegurar que el Perfil exista (puede no haberse creado por la señal si hubo algún problema)
+        try:
+            perfil = user.perfil
+        except Perfil.DoesNotExist:
+            # Si no existe, crearlo manualmente
+            perfil = Perfil.objects.create(user=user, rol='VENDEDOR')
+        
+        # Asegurar el rol seleccionado
+        roles_validos = ['JEFE', 'DIRECTOR_GENERAL', 'DIRECTOR_VENTAS', 'DIRECTOR_ADMINISTRATIVO', 'GERENTE', 'CONTADOR', 'VENDEDOR']
+        rol_final = tipo_usuario if tipo_usuario in roles_validos else 'VENDEDOR'
+        if perfil.rol != rol_final:
+            perfil.rol = rol_final
+            perfil.save(update_fields=['rol'])
+        
+        return user, password_plano
+    
+    def post(self, request, *args, **kwargs):
+        """Maneja las acciones de crear, editar y eliminar ejecutivos."""
         action = request.POST.get('ejecutivo_action', 'crear')
         ejecutivo_id = request.POST.get('ejecutivo_id')
-
+        
         if action == 'eliminar':
             if not ejecutivo_id:
                 messages.error(request, "No se pudo identificar al ejecutivo a eliminar.")
-                return redirect('reporte_comisiones')
+                return redirect('gestion_roles')
             ejecutivo = get_object_or_404(Ejecutivo, pk=ejecutivo_id)
             usuario_rel = ejecutivo.usuario
             nombre = ejecutivo.nombre_completo
             ejecutivo.delete()
             if usuario_rel:
                 usuario_rel.delete()
-            messages.success(request, f"Ejecutivo '{ejecutivo.nombre_completo}' eliminado correctamente.")
-            return redirect('reporte_comisiones')
-
+            messages.success(request, f"Ejecutivo '{nombre}' eliminado correctamente.")
+            return redirect('gestion_roles')
+        
         instance = None
         if action == 'editar':
             if not ejecutivo_id:
                 messages.error(request, "No se pudo identificar al ejecutivo a editar.")
-                return redirect('reporte_comisiones')
+                return redirect('gestion_roles')
             instance = get_object_or_404(Ejecutivo, pk=ejecutivo_id)
-
+        
         form = EjecutivoForm(request.POST, request.FILES, instance=instance)
         if form.is_valid():
-            ejecutivo = form.save()
-            # Obtener el tipo de usuario seleccionado del formulario
-            tipo_usuario = form.cleaned_data.get('tipo_usuario', 'VENDEDOR')
-            regenerar_password = (action != 'editar')
-            user, password = self._crear_o_actualizar_usuario(
-                ejecutivo,
-                tipo_usuario=tipo_usuario,
-                forzar_password=regenerar_password and ejecutivo.usuario is not None
-            )
-
-            if password:
-                messages.success(
-                    request,
-                    (
-                        f"Ejecutivo '{ejecutivo.nombre_completo}' agregado. "
-                        f"Credenciales -> Usuario: {user.username} / Contraseña: {password}"
-                    )
+            try:
+                ejecutivo = form.save()
+                tipo_usuario = form.cleaned_data.get('tipo_usuario', 'VENDEDOR')
+                
+                # Manejar cambio de contraseña
+                nueva_contrasena = request.POST.get('nueva_contrasena', '').strip()
+                regenerar_password = False
+                if action == 'editar':
+                    # En edición, solo regenerar si se proporciona una nueva contraseña
+                    regenerar_password = bool(nueva_contrasena)
+                else:
+                    # En creación, siempre generar nueva contraseña
+                    regenerar_password = True
+                
+                user, password = self._crear_o_actualizar_usuario(
+                    ejecutivo,
+                    tipo_usuario=tipo_usuario,
+                    forzar_password=regenerar_password,
+                    nueva_password=nueva_contrasena if nueva_contrasena else None
                 )
-            else:
-                messages.success(request, f"Ejecutivo '{ejecutivo.nombre_completo}' actualizado correctamente.")
-            return redirect('reporte_comisiones')
-
+                
+                if password:
+                    if action == 'editar':
+                        messages.success(
+                            request,
+                            (
+                                f"Ejecutivo '{ejecutivo.nombre_completo}' actualizado correctamente. "
+                                f"Nueva contraseña: {password}"
+                            )
+                        )
+                    else:
+                        messages.success(
+                            request,
+                            (
+                                f"Ejecutivo '{ejecutivo.nombre_completo}' agregado. "
+                                f"Credenciales -> Usuario: {user.username} / Contraseña: {password}"
+                            )
+                        )
+                else:
+                    messages.success(request, f"Ejecutivo '{ejecutivo.nombre_completo}' actualizado correctamente.")
+                return redirect('gestion_roles')
+            except Exception as e:
+                # Si hay un error al crear el usuario o perfil, agregarlo al formulario
+                messages.error(request, f"Error al guardar el ejecutivo: {str(e)}")
+                import traceback
+                logging.error(f"Error al crear ejecutivo: {traceback.format_exc()}")
+        else:
+            # Si el formulario no es válido, mostrar los errores
+            error_messages = []
+            for field, errors in form.errors.items():
+                for error in errors:
+                    error_messages.append(f"{field}: {error}")
+            if error_messages:
+                messages.error(request, "Por favor, corrige los siguientes errores: " + " | ".join(error_messages))
+        
         context = self.get_context_data(ejecutivo_form=form, mostrar_modal_ejecutivo=True)
         return self.render_to_response(context)
+
+
+class EjecutivoDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
+    """
+    Vista para ver los detalles completos de un ejecutivo.
+    Solo accesible para JEFE.
+    """
+    model = Ejecutivo
+    template_name = 'ventas/ejecutivo_detail.html'
+    context_object_name = 'ejecutivo'
+    
+    def test_func(self):
+        """Solo JEFE puede ver detalles de ejecutivos."""
+        user_rol = get_user_role(self.request.user)
+        return user_rol == 'JEFE'
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "No tienes permiso para ver los detalles del ejecutivo. Solo el JEFE puede acceder.")
+        return redirect('gestion_roles')
+    
+    def post(self, request, *args, **kwargs):
+        """Maneja las acciones desde la vista de detalle: eliminar, cambiar contraseña, cambiar sueldo."""
+        ejecutivo = self.get_object()
+        action = request.POST.get('action')
+        
+        if action == 'cambiar_contrasena':
+            nueva_contrasena = request.POST.get('nueva_contrasena', '').strip()
+            if nueva_contrasena and ejecutivo.usuario:
+                ejecutivo.usuario.set_password(nueva_contrasena)
+                ejecutivo.usuario.save()
+                ejecutivo.ultima_contrasena = nueva_contrasena
+                ejecutivo.save(update_fields=['ultima_contrasena'])
+                messages.success(request, f"Contraseña actualizada correctamente. Nueva contraseña: {nueva_contrasena}")
+                return redirect(reverse('ejecutivo_detail', kwargs={'pk': ejecutivo.pk}) + '?contrasena_actualizada=1')
+            else:
+                messages.error(request, "No se pudo actualizar la contraseña. Verifica que el ejecutivo tenga un usuario asociado.")
+            return redirect('ejecutivo_detail', pk=ejecutivo.pk)
+        
+        elif action == 'eliminar' or not action:
+            # Eliminación del ejecutivo
+            usuario_rel = ejecutivo.usuario
+            nombre = ejecutivo.nombre_completo
+            ejecutivo.delete()
+            if usuario_rel:
+                usuario_rel.delete()
+            messages.success(request, f"Ejecutivo '{nombre}' eliminado correctamente.")
+            return redirect('gestion_roles')
+        
+        return redirect('ejecutivo_detail', pk=ejecutivo.pk)
 
 
 class ProveedorListCreateView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
@@ -3291,6 +3488,17 @@ class CrearPlantillaConfirmacionView(LoginRequiredMixin, View):
                 # Si no hay traslados, crear uno con datos por defecto
                 traslados_json = json.dumps([self.get_datos_default().get('TRASLADO', {})])
         
+        # Para vuelo redondo, preparar escalas de ida y regreso
+        escalas_ida_json = "[]"
+        escalas_regreso_json = "[]"
+        if self.tipo_plantilla == 'VUELO_REDONDO':
+            if 'escalas_ida' not in datos:
+                datos['escalas_ida'] = []
+            if 'escalas_regreso' not in datos:
+                datos['escalas_regreso'] = []
+            escalas_ida_json = json.dumps(datos.get('escalas_ida', []))
+            escalas_regreso_json = json.dumps(datos.get('escalas_regreso', []))
+        
         context = {
             'venta': venta,
             'tipo_plantilla': self.tipo_plantilla,
@@ -3298,6 +3506,8 @@ class CrearPlantillaConfirmacionView(LoginRequiredMixin, View):
             'plantilla': plantilla,
             'escalas_json': escalas_json,
             'traslados_json': traslados_json,
+            'escalas_ida_json': escalas_ida_json,
+            'escalas_regreso_json': escalas_regreso_json,
         }
         return render(request, self.template_name, context)
     
@@ -3309,11 +3519,12 @@ class CrearPlantillaConfirmacionView(LoginRequiredMixin, View):
         escalas = []
         
         # Procesar escalas si existen (formato: escalas[0][ciudad], escalas[0][aeropuerto], etc.)
+        import re
         escalas_dict = {}
+        
         for key, value in request.POST.items():
-            if key.startswith('escalas['):
-                # Extraer el índice y el campo de la escala
-                import re
+            if key.startswith('escalas[') and not key.startswith('escalas_ida[') and not key.startswith('escalas_regreso['):
+                # Extraer el índice y el campo de la escala (para vuelo único)
                 match = re.match(r'escalas\[(\d+)\]\[(\w+)\]', key)
                 if match:
                     escala_index = int(match.group(1))
@@ -3321,6 +3532,9 @@ class CrearPlantillaConfirmacionView(LoginRequiredMixin, View):
                     if escala_index not in escalas_dict:
                         escalas_dict[escala_index] = {}
                     escalas_dict[escala_index][campo] = value
+            elif key.startswith('escalas_ida[') or key.startswith('escalas_regreso[') or key.startswith('traslados['):
+                # Estos se procesan por separado más abajo
+                continue
             elif key not in ['csrfmiddlewaretoken']:
                 datos[key] = value
         
@@ -3332,9 +3546,50 @@ class CrearPlantillaConfirmacionView(LoginRequiredMixin, View):
         elif self.tipo_plantilla == 'VUELO_UNICO':
             datos['escalas'] = []
         
+        # Procesar escalas de ida y regreso para vuelo redondo
+        if self.tipo_plantilla == 'VUELO_REDONDO':
+            # Escalas de Ida
+            escalas_ida_dict = {}
+            for key, value in request.POST.items():
+                if key.startswith('escalas_ida['):
+                    match = re.match(r'escalas_ida\[(\d+)\]\[(.*?)\]', key)
+                    if match:
+                        idx = int(match.group(1))
+                        campo = match.group(2)
+                        if idx not in escalas_ida_dict:
+                            escalas_ida_dict[idx] = {}
+                        escalas_ida_dict[idx][campo] = value
+            
+            if escalas_ida_dict:
+                escalas_ida = []
+                for i in sorted(escalas_ida_dict.keys()):
+                    escalas_ida.append(escalas_ida_dict[i])
+                datos['escalas_ida'] = escalas_ida
+            else:
+                datos['escalas_ida'] = []
+            
+            # Escalas de Regreso
+            escalas_regreso_dict = {}
+            for key, value in request.POST.items():
+                if key.startswith('escalas_regreso['):
+                    match = re.match(r'escalas_regreso\[(\d+)\]\[(.*?)\]', key)
+                    if match:
+                        idx = int(match.group(1))
+                        campo = match.group(2)
+                        if idx not in escalas_regreso_dict:
+                            escalas_regreso_dict[idx] = {}
+                        escalas_regreso_dict[idx][campo] = value
+            
+            if escalas_regreso_dict:
+                escalas_regreso = []
+                for i in sorted(escalas_regreso_dict.keys()):
+                    escalas_regreso.append(escalas_regreso_dict[i])
+                datos['escalas_regreso'] = escalas_regreso
+            else:
+                datos['escalas_regreso'] = []
+        
         # Procesar múltiples traslados si existe
         if self.tipo_plantilla == 'TRASLADO':
-            import re
             traslados = []
             traslados_count = int(request.POST.get('traslados_count', 0))
             traslados_dict = {}
@@ -3525,6 +3780,20 @@ class CrearTrasladoView(CrearPlantillaConfirmacionView):
 class CrearGenericaView(CrearPlantillaConfirmacionView):
     tipo_plantilla = 'GENERICA'
     template_name = 'ventas/plantillas/generica.html'
+
+
+class EliminarPlantillaConfirmacionView(LoginRequiredMixin, View):
+    """Vista para eliminar una plantilla de confirmación."""
+    
+    def post(self, request, pk, slug, plantilla_pk):
+        venta = get_object_or_404(VentaViaje, pk=pk, slug=slug)
+        plantilla = get_object_or_404(PlantillaConfirmacion, pk=plantilla_pk, venta=venta)
+        
+        tipo_nombre = plantilla.get_tipo_display()
+        plantilla.delete()
+        
+        messages.success(request, f'Plantilla "{tipo_nombre}" eliminada correctamente.')
+        return redirect('listar_confirmaciones', pk=pk, slug=slug)
 
 
 class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
@@ -3858,12 +4127,17 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         elif plantilla.tipo == 'GENERICA':
             self._agregar_generica(doc, datos)
     
-    def _agregar_info_line(self, doc, etiqueta, valor, mostrar_si_vacio=False, es_nombre_propio=False):
+    def _agregar_info_line(self, doc, etiqueta, valor, mostrar_si_vacio=False, es_nombre_propio=False, separar_con_comas=False):
         """Helper para agregar una línea de información formateada (ultra compacta)."""
         from docx.shared import Pt, RGBColor
         
         if not valor and not mostrar_si_vacio:
             return
+        
+        # Si separar_con_comas, convertir saltos de línea en comas
+        if separar_con_comas and valor:
+            # Reemplazar saltos de línea por comas
+            valor = ', '.join([v.strip() for v in str(valor).replace('\r\n', '\n').split('\n') if v.strip()])
         
         # Normalizar el valor
         valor_normalizado = self._normalizar_valor_campo(
@@ -3942,14 +4216,14 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         # Agregar viñeta manualmente (carácter bullet)
         bullet_run = p.add_run('• ')
         bullet_run.font.name = 'Arial'
-        bullet_run.font.size = Pt(14)
+        bullet_run.font.size = Pt(16)
         bullet_run.font.color.rgb = RGBColor(0, 74, 142)
         bullet_run.font.bold = True
         
-        # Agregar texto del subtítulo (tamaño 14 para títulos azules)
+        # Agregar texto del subtítulo (tamaño 16 para títulos azules)
         texto_run = p.add_run(texto)
         texto_run.font.name = 'Arial'
-        texto_run.font.size = Pt(14)
+        texto_run.font.size = Pt(16)
         texto_run.font.color.rgb = RGBColor(0, 74, 142)
         texto_run.font.bold = True
         
@@ -4037,7 +4311,7 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         # Información de Pasajeros (con viñeta)
         self._agregar_subtitulo_con_vineta(doc, 'Información de Pasajeros')
         
-        self._agregar_info_line(doc, 'Pasajeros', datos.get('pasajeros', ''))
+        self._agregar_info_line(doc, 'Pasajeros', datos.get('pasajeros', ''), separar_con_comas=True)
         self._agregar_info_line(doc, 'Equipaje', datos.get('equipaje', ''))
         
         if datos.get('informacion_adicional'):
@@ -4051,13 +4325,26 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
             info_val = info_p.add_run(info_normalizada)
             info_val.font.name = 'Arial'
             info_val.font.size = Pt(12)
+        
+        # Información Completa del Vuelo (campo "vuelo") - en hoja aparte
+        if datos.get('vuelo'):
+            from docx.enum.text import WD_BREAK
+            # Agregar salto de página
+            doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
+            self._agregar_subtitulo_con_vineta(doc, 'Información Completa del Vuelo')
+            vuelo_info = self._normalizar_valor_campo(datos.get('vuelo', ''), limpiar_saltos_linea=False)
+            vuelo_p = doc.add_paragraph()
+            vuelo_p.paragraph_format.space_after = Pt(6)
+            vuelo_val = vuelo_p.add_run(vuelo_info)
+            vuelo_val.font.name = 'Arial'
+            vuelo_val.font.size = Pt(12)
     
     def _agregar_vuelo_redondo(self, doc, datos):
         """Agrega contenido de vuelo redondo al documento con formato compacto."""
-        from docx.shared import Pt
+        from docx.shared import Pt, Inches
+        from docx.shared import RGBColor
         
         # Información de Reserva (con viñeta)
-        from docx.shared import RGBColor
         self._agregar_subtitulo_con_vineta(doc, 'Información de Reserva')
         
         self._agregar_info_line(doc, 'Clave de Reserva', datos.get('clave_reserva', ''))
@@ -4082,9 +4369,57 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
             ('Origen', datos.get('origen_ida', '')),
             ('Destino', datos.get('destino_ida', ''))
         )
+        self._agregar_info_line(doc, 'Tipo de Vuelo', datos.get('tipo_vuelo_ida', ''))
         
-        # Salto de línea entre secciones
-        self._agregar_salto_entre_secciones(doc)
+        # Escalas de Ida si aplica
+        escalas_ida = datos.get('escalas_ida', [])
+        if escalas_ida and isinstance(escalas_ida, list) and len(escalas_ida) > 0:
+                p_titulo = doc.add_paragraph()
+                p_titulo.paragraph_format.space_before = Pt(8)
+                p_titulo.paragraph_format.space_after = Pt(4)
+                titulo_run = p_titulo.add_run('Escalas del Vuelo de Ida:')
+                titulo_run.font.name = 'Arial'
+                titulo_run.font.size = Pt(12)
+                titulo_run.font.bold = True
+                titulo_run.font.color.rgb = RGBColor(0, 74, 142)
+                
+                for i, escala in enumerate(escalas_ida, 1):
+                    escala_p = doc.add_paragraph()
+                    escala_p.paragraph_format.space_after = Pt(4)
+                    escala_p.paragraph_format.left_indent = Inches(0.2)
+                    
+                    escala_run = escala_p.add_run(f'Escala {i}: ')
+                    escala_run.font.name = 'Arial'
+                    escala_run.font.size = Pt(12)
+                    escala_run.bold = True
+                    
+                    ciudad = escala.get('ciudad', '')
+                    aeropuerto = escala.get('aeropuerto', '')
+                    escala_val = escala_p.add_run(f"{ciudad} - {aeropuerto}")
+                    escala_val.font.name = 'Arial'
+                    escala_val.font.size = Pt(12)
+                    
+                    # Detalles de la escala
+                    detalle_p = doc.add_paragraph()
+                    detalle_p.paragraph_format.space_after = Pt(6)
+                    detalle_p.paragraph_format.left_indent = Inches(0.4)
+                    
+                    detalles = []
+                    if escala.get('hora_llegada'):
+                        detalles.append(f"Llegada: {escala.get('hora_llegada')}")
+                    if escala.get('hora_salida'):
+                        detalles.append(f"Salida: {escala.get('hora_salida')}")
+                    if escala.get('numero_vuelo'):
+                        detalles.append(f"Vuelo: {escala.get('numero_vuelo')}")
+                    if escala.get('duracion'):
+                        detalles.append(f"Duración: {escala.get('duracion')}")
+                    
+                    detalle_run = detalle_p.add_run(' | '.join(detalles))
+                    detalle_run.font.name = 'Arial'
+                    detalle_run.font.size = Pt(11)
+        
+        # Salto de página antes del Vuelo de Regreso
+        doc.add_page_break()
         
         # Vuelo de Regreso (con viñeta)
         self._agregar_subtitulo_con_vineta(doc, 'Vuelo de Regreso')
@@ -4103,6 +4438,54 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
             ('Origen', datos.get('origen_regreso', '')),
             ('Destino', datos.get('destino_regreso', ''))
         )
+        self._agregar_info_line(doc, 'Tipo de Vuelo', datos.get('tipo_vuelo_regreso', ''))
+        
+        # Escalas de Regreso si aplica
+        escalas_regreso = datos.get('escalas_regreso', [])
+        if escalas_regreso and isinstance(escalas_regreso, list) and len(escalas_regreso) > 0:
+                p_titulo = doc.add_paragraph()
+                p_titulo.paragraph_format.space_before = Pt(8)
+                p_titulo.paragraph_format.space_after = Pt(4)
+                titulo_run = p_titulo.add_run('Escalas del Vuelo de Regreso:')
+                titulo_run.font.name = 'Arial'
+                titulo_run.font.size = Pt(12)
+                titulo_run.font.bold = True
+                titulo_run.font.color.rgb = RGBColor(0, 74, 142)
+                
+                for i, escala in enumerate(escalas_regreso, 1):
+                    escala_p = doc.add_paragraph()
+                    escala_p.paragraph_format.space_after = Pt(4)
+                    escala_p.paragraph_format.left_indent = Inches(0.2)
+                    
+                    escala_run = escala_p.add_run(f'Escala {i}: ')
+                    escala_run.font.name = 'Arial'
+                    escala_run.font.size = Pt(12)
+                    escala_run.bold = True
+                    
+                    ciudad = escala.get('ciudad', '')
+                    aeropuerto = escala.get('aeropuerto', '')
+                    escala_val = escala_p.add_run(f"{ciudad} - {aeropuerto}")
+                    escala_val.font.name = 'Arial'
+                    escala_val.font.size = Pt(12)
+                    
+                    # Detalles de la escala
+                    detalle_p = doc.add_paragraph()
+                    detalle_p.paragraph_format.space_after = Pt(6)
+                    detalle_p.paragraph_format.left_indent = Inches(0.4)
+                    
+                    detalles = []
+                    if escala.get('hora_llegada'):
+                        detalles.append(f"Llegada: {escala.get('hora_llegada')}")
+                    if escala.get('hora_salida'):
+                        detalles.append(f"Salida: {escala.get('hora_salida')}")
+                    if escala.get('numero_vuelo'):
+                        detalles.append(f"Vuelo: {escala.get('numero_vuelo')}")
+                    if escala.get('duracion'):
+                        detalles.append(f"Duración: {escala.get('duracion')}")
+                    
+                    detalle_run = detalle_p.add_run(' | '.join(detalles))
+                    detalle_run.font.name = 'Arial'
+                    detalle_run.font.size = Pt(11)
         
         # Salto de línea entre secciones
         self._agregar_salto_entre_secciones(doc)
@@ -4110,7 +4493,7 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         # Información General (con viñeta)
         self._agregar_subtitulo_con_vineta(doc, 'Información General')
         
-        self._agregar_info_line(doc, 'Pasajeros', datos.get('pasajeros', ''), es_nombre_propio=True)
+        self._agregar_info_line(doc, 'Pasajeros', datos.get('pasajeros', ''), es_nombre_propio=True, separar_con_comas=True)
         self._agregar_info_line(doc, 'Equipaje', datos.get('equipaje', ''))
         
         if datos.get('informacion_adicional'):
