@@ -554,10 +554,11 @@
                 {# ACCESO A VENTAS: Todos los roles #}
                 <a href="{% url 'lista_ventas' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-handshake fa-fw me-2"></i> Ventas</a>
 
-                {# ACCESO RESTRINGIDO: Logística y Proveedores (Solo JEFE) #}
+                {# ACCESO RESTRINGIDO: Logística, Proveedores y Gestión de Roles (Solo JEFE) #}
                 {% if "JEFE" in user_full_rol_upper %}
                     <a href="{% url 'logistica_pendiente' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-shipping-fast fa-fw me-2"></i> Logística Pendiente</a>
                     <a href="{% url 'proveedores' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-handshake-angle fa-fw me-2"></i> Proveedores</a>
+                    <a href="{% url 'gestion_roles' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-users-cog fa-fw me-2"></i> Gestión de Roles</a>
                 {% endif %}
                 
                 {# ACCESO A PAGOS POR CONFIRMAR: Solo CONTADOR #}
