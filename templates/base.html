@@ -553,6 +553,7 @@
                 
                 {# ACCESO A VENTAS: Todos los roles #}
                 <a href="{% url 'lista_ventas' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-handshake fa-fw me-2"></i> Ventas</a>
+                <a href="{% url 'cotizaciones_lista' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-file-invoice-dollar fa-fw me-2"></i> Cotizaciones</a>
 
                 {# ACCESO RESTRINGIDO: Logística, Proveedores y Gestión de Roles (Solo JEFE) #}
                 {% if "JEFE" in user_full_rol_upper %}
