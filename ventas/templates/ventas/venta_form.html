@@ -4,7 +4,7 @@
 {% load venta_filters %} 
 
 {% block title %}
-    {% if object %}Editar Venta #{{ object.pk }}{% else %}Crear Nueva Venta{% endif %}
+    {% if object %}Editar Venta {{ object.folio|default:object.id }}{% else %}Crear Nueva Venta{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -13,7 +13,7 @@
         
         <h1 class="mb-4 text-primary fw-bold">
             {% if object %}
-                <i class="fas fa-edit"></i> Editar Venta de Viaje #{{ object.pk }}
+                <i class="fas fa-edit"></i> Editar Venta de Viaje <span class="badge bg-primary fs-5">{{ object.folio|default:object.id }}</span>
             {% else %}
                 <i class="fas fa-plane-departure"></i> Registrar Nueva Venta de Viaje
             {% endif %}
@@ -208,21 +208,33 @@
                     {% endfor %}
                 </div>
 
+                {# Menores: nombre y edad #}
+                <div class="mb-4">
+                    <label for="{{ form.edades_menores.id_for_label }}" class="form-label fw-bold text-secondary">
+                        Menores (nombre y edad, si aplica)
+                    </label>
+                    {{ form.edades_menores|add_class:"form-control" }}
+                    <div class="form-text text-muted">Ejemplo: Juan Pérez - 5; Ana López - 8</div>
+                    {% for error in form.edades_menores.errors %}
+                        <div class="invalid-feedback d-block"><i class="fas fa-exclamation-circle me-1"></i> {{ error }}</div>
+                    {% endfor %}
+                </div>
+
                 {# ------------------- Sección 2: Servicios Incluidos ------------------- #}
                 <h4 class="mb-3 mt-4 text-secondary border-bottom pb-2">2. Servicios Contratados</h4>
                 
                 {# Selector de Servicios con Checkboxes Colapsable #}
                 <div class="mb-4">
                     <div class="card border-secondary">
-                        <div class="card-header bg-light p-2" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#serviciosCollapse" aria-expanded="false" aria-controls="serviciosCollapse">
+                        <div class="card-header bg-light p-2" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#serviciosCollapse" aria-expanded="{% if object.cotizacion_origen or cotizacion_origen %}true{% else %}false{% endif %}" aria-controls="serviciosCollapse">
                             <div class="d-flex align-items-center">
                                 <span class="fw-bold text-secondary">
-                                    <i class="fas fa-chevron-down me-2" id="serviciosIcon"></i>
+                                    <i class="fas {% if object.cotizacion_origen or cotizacion_origen %}fa-chevron-up{% else %}fa-chevron-down{% endif %} me-2" id="serviciosIcon"></i>
                                     {{ form.servicios_seleccionados.label }}
                                 </span>
                             </div>
                         </div>
-                        <div class="collapse" id="serviciosCollapse">
+                        <div class="collapse {% if object.cotizacion_origen or cotizacion_origen %}show{% endif %}" id="serviciosCollapse">
                             <div class="card-body">
                                 <div class="row g-3" id="serviciosCheckboxes">
                                     {% for checkbox in form.servicios_seleccionados %}
@@ -1419,5 +1431,49 @@
             costoModInputEl?.addEventListener('input', debouncedFetch);
             fetchPromosPreview();
         });
+
+        // Sincronización de fechas: fecha de regreso no puede ser anterior a fecha de ida
+        const fechaInicioViaje = document.getElementById('id_fecha_inicio_viaje');
+        const fechaFinViaje = document.getElementById('id_fecha_fin_viaje');
+        
+        if (fechaInicioViaje && fechaFinViaje) {
+            // Función para actualizar la fecha mínima de regreso y pre-llenar si está vacía
+            function actualizarFechaMinimaRegreso() {
+                const fechaIda = fechaInicioViaje.value;
+                if (fechaIda) {
+                    // Establecer la fecha mínima de regreso como la fecha de ida
+                    fechaFinViaje.min = fechaIda;
+                    
+                    // Si el campo de regreso está vacío, pre-llenarlo automáticamente con la fecha de ida
+                    if (!fechaFinViaje.value) {
+                        fechaFinViaje.value = fechaIda;
+                    }
+                    // Si la fecha de regreso es anterior a la fecha de ida (en cualquier dirección), actualizarla
+                    else if (fechaFinViaje.value < fechaIda) {
+                        fechaFinViaje.value = fechaIda;
+                    }
+                }
+            }
+            
+            // Pre-llenar fecha de regreso con fecha de ida cuando se hace clic si está vacía
+            function prellenarFechaRegreso() {
+                const fechaIda = fechaInicioViaje.value;
+                // Si el campo de regreso está vacío y hay una fecha de ida, pre-llenarlo
+                if (!fechaFinViaje.value && fechaIda) {
+                    fechaFinViaje.value = fechaIda;
+                    actualizarFechaMinimaRegreso();
+                }
+            }
+            
+            // Usar tanto 'focus' como 'click' para mayor compatibilidad
+            fechaFinViaje.addEventListener('focus', prellenarFechaRegreso);
+            fechaFinViaje.addEventListener('click', prellenarFechaRegreso);
+            
+            // Ejecutar al cargar la página si ya hay una fecha de ida
+            actualizarFechaMinimaRegreso();
+            
+            // Ejecutar cuando cambie la fecha de ida (automáticamente actualiza la fecha de regreso)
+            fechaInicioViaje.addEventListener('change', actualizarFechaMinimaRegreso);
+        }
     </script>
 {% endblock %}

@@ -46,6 +46,7 @@ from .models import (
     ConfirmacionVenta,
     Ejecutivo,
     PlantillaConfirmacion,
+    Cotizacion,
 )
 from crm.models import Cliente
 from crm.services import KilometrosService
@@ -58,6 +59,7 @@ from .forms import (
     ProveedorForm,
     ConfirmacionVentaForm,
     EjecutivoForm,
+    CotizacionForm,
 )
 from .utils import numero_a_texto
 from .services.logistica import (
@@ -525,6 +527,22 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
         context['abono_form'] = AbonoPagoForm(initial={'venta': venta.pk}) 
         # Abonos existentes, ordenados por fecha
         context['abonos'] = venta.abonos.all().order_by('-fecha_pago')
+
+        # Control de habilitación de documentos (contrato y comprobante de abonos)
+        tiene_abono_confirmado = venta.abonos.filter(confirmado=True).exists()
+        
+        # Si el pago de apertura es en efectivo (EFE), está confirmado automáticamente
+        # Si es otro método de pago, necesita confirmación del contador
+        apertura_confirmada = False
+        if venta.cantidad_apertura > 0:
+            if venta.modo_pago_apertura == 'EFE':
+                # Pago en efectivo: confirmado automáticamente
+                apertura_confirmada = True
+            else:
+                # Otros métodos de pago: necesita confirmación del contador
+                apertura_confirmada = venta.estado_confirmacion == 'COMPLETADO'
+        
+        context['puede_generar_documentos'] = tiene_abono_confirmado or apertura_confirmada
         
         # Verificar si hay notificación de apertura pendiente para el CONTADOR
         if user_rol == 'CONTADOR':
@@ -909,6 +927,48 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para crear ventas. Solo puedes visualizarlas.")
         return redirect('lista_ventas')
+    
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request
+        
+        # Pre-llenar valores desde cotización si existe
+        cot_slug = self.request.GET.get('cotizacion')
+        cotizacion_data = self.request.session.get('cotizacion_convertir', {})
+        
+        if cot_slug or cotizacion_data:
+            slug_a_usar = cot_slug or cotizacion_data.get('cotizacion_slug')
+            if slug_a_usar:
+                cot = Cotizacion.objects.filter(slug=slug_a_usar).first()
+                if cot:
+                    # Obtener el total de la sesión si está disponible
+                    total_cotizacion = Decimal('0.00')
+                    if cotizacion_data.get('total_cotizacion'):
+                        try:
+                            total_cotizacion = Decimal(cotizacion_data['total_cotizacion'])
+                        except (ValueError, InvalidOperation):
+                            total_cotizacion = Decimal('0.00')
+                    
+                    # Calcular el costo final
+                    costo_final = total_cotizacion if total_cotizacion > 0 else (cot.total_estimado or Decimal('0.00'))
+                    
+                    # Convertir Decimal a float para NumberInput
+                    if isinstance(costo_final, Decimal):
+                        costo_final_value = float(costo_final)
+                    else:
+                        costo_final_value = float(costo_final) if costo_final else 0.0
+                    
+                    # Establecer valores iniciales antes de inicializar el formulario
+                    if 'initial' not in kwargs:
+                        kwargs['initial'] = {}
+                    kwargs['initial'].update({
+                        'cliente': cot.cliente,
+                        'fecha_inicio_viaje': cot.fecha_inicio,
+                        'fecha_fin_viaje': cot.fecha_fin,
+                        'costo_venta_final': costo_final_value,  # Usar float para NumberInput
+                    })
+        
+        return kwargs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -921,6 +981,56 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
             'km_por_peso': KilometrosService.KM_POR_PESO,
             'max_porcentaje': KilometrosService.MAX_PORCENTAJE_REDENCION * 100,
         }
+        # Prefill desde cotización
+        cot_slug = self.request.GET.get('cotizacion')
+        cotizacion_data = self.request.session.get('cotizacion_convertir', {})
+        
+        if cot_slug or cotizacion_data:
+            # Usar el slug de la URL o de la sesión
+            slug_a_usar = cot_slug or cotizacion_data.get('cotizacion_slug')
+            if slug_a_usar:
+                cot = Cotizacion.objects.filter(slug=slug_a_usar).first()
+                if cot:
+                    form = context.get('form')
+                    if form:
+                        inicial = form.initial.copy()
+                        
+                        # Obtener el total de la sesión si está disponible
+                        total_cotizacion = Decimal('0.00')
+                        if cotizacion_data.get('total_cotizacion'):
+                            try:
+                                total_cotizacion = Decimal(cotizacion_data['total_cotizacion'])
+                            except (ValueError, InvalidOperation):
+                                total_cotizacion = Decimal('0.00')
+                        
+                        # Calcular el total de la cotización
+                        costo_final = total_cotizacion if total_cotizacion > 0 else (cot.total_estimado or Decimal('0.00'))
+                        
+                        # Convertir Decimal a float para NumberInput
+                        if isinstance(costo_final, Decimal):
+                            costo_final_value = float(costo_final)
+                        else:
+                            costo_final_value = float(costo_final) if costo_final else 0.0
+                        
+                        inicial.update({
+                            'cliente': cot.cliente,
+                            'fecha_inicio_viaje': cot.fecha_inicio,
+                            'fecha_fin_viaje': cot.fecha_fin,
+                            'pasajeros': '',  # Campo vacío, se llena manualmente
+                            'edades_menores': '',  # Campo vacío, se llena manualmente
+                            'costo_venta_final': costo_final_value,  # Usar float para NumberInput
+                        })
+                        form.initial = inicial
+                        
+                        # Asegurar que el valor también se establezca en el campo directamente
+                        if 'costo_venta_final' in form.fields:
+                            form.fields['costo_venta_final'].initial = costo_final_value
+                            # También establecer el valor en el widget para asegurar que se muestre
+                            if hasattr(form.fields['costo_venta_final'], 'widget'):
+                                form.fields['costo_venta_final'].widget.attrs['value'] = str(costo_final_value)
+                        
+                        context['form'] = form
+                    context['cotizacion_origen'] = cot
         return context
 
     def _obtener_cliente_contextual(self, form=None):
@@ -942,6 +1052,26 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         
         # 2. Asigna el vendedor (que es el usuario logueado)
         instance.vendedor = self.request.user
+        
+        # Si viene de cotización, enlazar (verificar GET parameter o sesión)
+        cot = None
+        cot_slug = self.request.GET.get('cotizacion')
+        if cot_slug:
+            cot = Cotizacion.objects.filter(slug=cot_slug).first()
+        else:
+            # Verificar si hay datos en la sesión
+            cotizacion_data = self.request.session.get('cotizacion_convertir', {})
+            if cotizacion_data.get('cotizacion_id'):
+                try:
+                    cot = Cotizacion.objects.filter(pk=cotizacion_data['cotizacion_id']).first()
+                    # Limpiar la sesión después de usarla
+                    if 'cotizacion_convertir' in self.request.session:
+                        del self.request.session['cotizacion_convertir']
+                except Exception:
+                    pass
+        
+        if cot:
+            instance.cotizacion_origen = cot
 
         # 3. ¡IMPORTANTE! Eliminamos la lógica manual de generación de slug de aquí.
         # El modelo VentaViaje se encarga de generar y asegurar el slug único 
@@ -1033,6 +1163,11 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
         if user_rol == 'CONTADOR':
             return False
+    
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request
+        return kwargs
         return venta.vendedor == self.request.user or user_rol == 'JEFE'
 
     def handle_no_permission(self):
@@ -5530,3 +5665,610 @@ class ConfirmarPagoDesdeListaView(LoginRequiredMixin, UserPassesTestMixin, View)
             return redirect('pagos_por_confirmar')
         
         return redirect('pagos_por_confirmar')
+
+
+# ------------------- 9. COTIZACIONES -------------------
+class CotizacionListView(LoginRequiredMixin, ListView):
+    model = Cotizacion
+    template_name = 'ventas/cotizacion_list.html'
+    context_object_name = 'cotizaciones'
+
+    def get_queryset(self):
+        qs = super().get_queryset().select_related('cliente', 'vendedor')
+        cliente_id = self.request.GET.get('cliente')
+        estado = self.request.GET.get('estado')
+        if cliente_id:
+            qs = qs.filter(cliente_id=cliente_id)
+        if estado:
+            qs = qs.filter(estado=estado)
+        return qs
+
+    def get_context_data(self, **kwargs):
+        from datetime import timedelta
+        context = super().get_context_data(**kwargs)
+        today = timezone.localdate()
+        start_week = today - timedelta(days=today.weekday())
+        start_month = today.replace(day=1)
+
+        qs_base = Cotizacion.objects.all()
+        user = self.request.user
+        usuario_qs = qs_base.filter(vendedor=user) if user.is_authenticated else Cotizacion.objects.none()
+
+        def rangos(qs):
+            return {
+                'hoy': qs.filter(creada_en__date=today).count(),
+                'semana': qs.filter(creada_en__date__gte=start_week).count(),
+                'mes': qs.filter(creada_en__date__gte=start_month).count(),
+            }
+
+        context['stats_propias'] = rangos(usuario_qs)
+        context['stats_globales'] = rangos(qs_base)
+        return context
+
+
+class CotizacionCreateView(LoginRequiredMixin, CreateView):
+    model = Cotizacion
+    form_class = CotizacionForm
+    template_name = 'ventas/cotizacion_form.html'
+
+    def form_valid(self, form):
+        form.instance.vendedor = self.request.user
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse('cotizacion_detalle', kwargs={'slug': self.object.slug})
+
+
+class CotizacionUpdateView(LoginRequiredMixin, UpdateView):
+    model = Cotizacion
+    form_class = CotizacionForm
+    template_name = 'ventas/cotizacion_form.html'
+    slug_field = 'slug'
+    slug_url_kwarg = 'slug'
+
+    def get_success_url(self):
+        return reverse('cotizacion_detalle', kwargs={'slug': self.object.slug})
+
+
+class CotizacionDetailView(LoginRequiredMixin, DetailView):
+    model = Cotizacion
+    template_name = 'ventas/cotizacion_detail.html'
+    slug_field = 'slug'
+    slug_url_kwarg = 'slug'
+    context_object_name = 'cotizacion'
+
+    def get_object(self, queryset=None):
+        obj = super().get_object(queryset)
+        if not obj.folio:
+            obj.save(update_fields=[])  # trigger folio generation
+        return obj
+
+
+class CotizacionDocxView(LoginRequiredMixin, DetailView):
+    model = Cotizacion
+    slug_field = 'slug'
+    slug_url_kwarg = 'slug'
+
+    def get(self, request, *args, **kwargs):
+        try:
+            cot = self.get_object()
+        except Exception as e:
+            logging.error(f"Error obteniendo cotización: {e}")
+            return HttpResponse(f"Error: No se pudo obtener la cotización. {str(e)}", status=400)
+        
+        template_path = os.path.join(settings.BASE_DIR, 'static', 'docx', 'membrete.docx')
+        if not os.path.exists(template_path):
+            error_msg = f'La plantilla DOCX no fue encontrada en: {template_path}'
+            logging.error(error_msg)
+            return HttpResponse(error_msg, status=404)
+
+        try:
+            from docx import Document
+            from docx.shared import Pt, RGBColor, Inches
+            from docx.oxml.ns import qn
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+        except ImportError as e:
+            error_msg = f'python-docx no está instalado en el entorno: {e}'
+            logging.error(error_msg)
+            return HttpResponse(error_msg, status=500)
+
+        def format_date(value):
+            if not value:
+                return '-'
+            try:
+                if isinstance(value, datetime.date):
+                    parsed = value
+                else:
+                    parsed = datetime.date.fromisoformat(str(value))
+                return parsed.strftime('%d/%m/%Y')
+            except Exception:
+                return str(value)
+
+        def format_currency(value):
+            if value in (None, '', 0):
+                return '0.00'
+            try:
+                number = Decimal(str(value).replace(',', ''))
+            except Exception:
+                return str(value)
+            return f"{number:,.2f}"
+
+        doc = Document(template_path)
+        section = doc.sections[0]
+
+        MOVUMS_BLUE = RGBColor(15, 92, 192)
+        MOVUMS_LIGHT_BLUE = RGBColor(92, 141, 214)
+        TEXT_COLOR = RGBColor(20, 20, 20)
+        MOVUMS_BLUE_CORP = RGBColor(0, 74, 142)
+
+        style = doc.styles['Normal']
+        style.font.name = 'Arial'
+        style.font.size = Pt(12)
+        style._element.rPr.rFonts.set(qn('w:eastAsia'), 'Arial')
+
+        def set_run_font(run, size=12, bold=False, color=TEXT_COLOR):
+            run.font.name = 'Arial'
+            run.font.size = Pt(size)
+            run.bold = bold
+            run.font.color.rgb = color
+
+        def add_paragraph(doc_obj, text='', size=12, bold=False, color=TEXT_COLOR, space_before=0, space_after=0):
+            paragraph = doc_obj.add_paragraph()
+            paragraph.paragraph_format.space_before = Pt(space_before)
+            paragraph.paragraph_format.space_after = Pt(space_after)
+            run = paragraph.add_run(text)
+            set_run_font(run, size=size, bold=bold, color=color)
+            return paragraph
+
+        # Obtener fecha de cotización desde propuestas o usar fecha de creación
+        fecha_cotizacion = None
+        if isinstance(cot.propuestas, dict) and cot.propuestas.get('fecha_cotizacion'):
+            try:
+                fecha_cotizacion = datetime.date.fromisoformat(cot.propuestas['fecha_cotizacion'])
+            except (ValueError, TypeError):
+                fecha_cotizacion = cot.creada_en.date() if cot.creada_en else None
+        else:
+            fecha_cotizacion = cot.creada_en.date() if cot.creada_en else None
+        
+        # Título de la cotización
+        titulo_paragraph = doc.add_paragraph()
+        titulo_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        titulo_paragraph.paragraph_format.space_before = Pt(12)
+        titulo_paragraph.paragraph_format.space_after = Pt(6)
+        titulo_run = titulo_paragraph.add_run(cot.titulo or 'Cotización de Viaje')
+        set_run_font(titulo_run, size=16, bold=True, color=MOVUMS_BLUE_CORP)
+        
+        # Información del cliente
+        cliente_paragraph = doc.add_paragraph()
+        cliente_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        cliente_paragraph.paragraph_format.space_after = Pt(6)
+        cliente_label_run = cliente_paragraph.add_run('Cliente: ')
+        set_run_font(cliente_label_run, size=12, bold=True, color=TEXT_COLOR)
+        cliente_value_run = cliente_paragraph.add_run(cot.cliente.nombre_completo_display)
+        set_run_font(cliente_value_run, size=12, bold=False, color=TEXT_COLOR)
+        
+        # Fecha de cotización
+        fecha_paragraph = doc.add_paragraph()
+        fecha_paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        fecha_paragraph.paragraph_format.space_after = Pt(12)
+        fecha_run = fecha_paragraph.add_run(f"Fecha de Cotización: {format_date(fecha_cotizacion)}")
+        set_run_font(fecha_run, size=14, bold=True, color=MOVUMS_BLUE)
+
+        propuestas = cot.propuestas if isinstance(cot.propuestas, dict) else {}
+        tipo = propuestas.get('tipo', 'vuelos')  # Default a 'vuelos' si no está en propuestas
+        
+        # Determinar si es traslados para ajustar la tabla de información
+        es_traslados = tipo == 'traslados'
+        
+        # Para traslados, usar datos desde propuestas si están disponibles
+        if es_traslados and propuestas.get('traslados'):
+            traslados_data = propuestas.get('traslados', {})
+            origen_val = traslados_data.get('desde') or cot.origen or '-'
+            destino_val = traslados_data.get('hasta') or cot.destino or '-'
+        else:
+            origen_val = cot.origen or '-'
+            destino_val = cot.destino or '-'
+        
+        # Construir datos de la tabla según el tipo
+        if es_traslados:
+            # Para traslados: solo mostrar origen/destino y pasajeros
+            info_data = [
+                ("Desde / Hasta", origen_val, destino_val),
+                ("Pasajeros", str(cot.pasajeros) or '1', f"{cot.adultos or 0} Adultos / {cot.menores or 0} Menores"),
+            ]
+            info_table = doc.add_table(rows=len(info_data), cols=3)
+        else:
+            # Para otros tipos: mostrar toda la información
+            info_data = [
+                ("Origen / Destino", origen_val, destino_val),
+                ("Inicio / Fin", format_date(cot.fecha_inicio), format_date(cot.fecha_fin)),
+                ("Pasajeros", str(cot.pasajeros) or '1', f"{cot.adultos or 0} Adultos / {cot.menores or 0} Menores"),
+                ("Viaje", f"{cot.dias or '-'} días", f"{cot.noches or '-'} noches"),
+            ]
+            info_table = doc.add_table(rows=len(info_data), cols=3)
+        
+        for row_idx, (label, v1, v2) in enumerate(info_data):
+            row = info_table.rows[row_idx].cells
+            label_run = row[0].paragraphs[0].add_run(label)
+            set_run_font(label_run, size=14, bold=True, color=MOVUMS_BLUE)
+            val1_run = row[1].paragraphs[0].add_run(v1)
+            set_run_font(val1_run, size=12)
+            val2_run = row[2].paragraphs[0].add_run(v2)
+            set_run_font(val2_run, size=12)
+
+        add_paragraph(doc, "", space_after=6)
+        spacer = doc.add_paragraph()
+        spacer.paragraph_format.space_after = Pt(6)
+
+        def agregar_subtitulo_con_vineta(texto):
+            p = doc.add_paragraph()
+            p.paragraph_format.space_before = Pt(10)
+            p.paragraph_format.space_after = Pt(4)
+            bullet_run = p.add_run('• ')
+            set_run_font(bullet_run, size=14, bold=True, color=MOVUMS_BLUE_CORP)
+            texto_run = p.add_run(texto)
+            set_run_font(texto_run, size=14, bold=True, color=MOVUMS_BLUE_CORP)
+            spacer = doc.add_paragraph()
+            spacer.paragraph_format.space_after = Pt(2)
+            return p
+
+        def agregar_info_line(etiqueta, valor):
+            if not valor:
+                return
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(4)
+            label_run = p.add_run(f'{etiqueta}: ')
+            set_run_font(label_run, size=12, bold=True)
+            value_run = p.add_run(str(valor))
+            set_run_font(value_run, size=12)
+            return p
+
+        def agregar_info_inline(*pares_etiqueta_valor, separador=' | '):
+            if not pares_etiqueta_valor:
+                return
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(4)
+            for idx, (etiqueta, valor) in enumerate(pares_etiqueta_valor):
+                if not valor:
+                    continue
+                if idx > 0:
+                    sep_run = p.add_run(separador)
+                    set_run_font(sep_run, size=12)
+                label_run = p.add_run(f'{etiqueta}: ')
+                set_run_font(label_run, size=12, bold=True)
+                value_run = p.add_run(str(valor))
+                set_run_font(value_run, size=12)
+            return p
+
+        def agregar_salto_entre_secciones():
+            spacer = doc.add_paragraph()
+            spacer.paragraph_format.space_after = Pt(6)
+            return spacer
+
+        def agregar_titulo_principal(texto):
+            p = doc.add_paragraph()
+            p.paragraph_format.space_before = Pt(12)
+            p.paragraph_format.space_after = Pt(10)
+            run = p.add_run(texto)
+            set_run_font(run, size=18, bold=True, color=MOVUMS_BLUE_CORP)
+            return p
+
+        if tipo == 'vuelos' and propuestas.get('vuelos'):
+            for vuelo in propuestas.get('vuelos', []):
+                agregar_titulo_principal("VUELO")
+                agregar_subtitulo_con_vineta('Información del Vuelo')
+                agregar_info_inline(
+                    ('Aerolínea', vuelo.get('aerolinea') or '-'),
+                    ('Salida', vuelo.get('salida') or '-'),
+                    ('Regreso', vuelo.get('regreso') or '-')
+                )
+                agregar_info_line('Incluye', vuelo.get('incluye') or '-')
+                if vuelo.get('forma_pago'):
+                    agregar_info_line('Forma de Pago', vuelo.get('forma_pago'))
+                total_p = doc.add_paragraph()
+                total_p.paragraph_format.space_before = Pt(0)
+                total_p.paragraph_format.space_after = Pt(6)
+                total_run = total_p.add_run(f"Total MXN {format_currency(vuelo.get('total'))} Pesos")
+                set_run_font(total_run, size=18, bold=True, color=MOVUMS_BLUE_CORP)
+                total_run.font.underline = True
+                agregar_salto_entre_secciones()
+
+        elif tipo == 'hospedaje' and propuestas.get('hoteles'):
+            for hotel in propuestas.get('hoteles', []):
+                agregar_titulo_principal("HOSPEDAJE")
+                agregar_subtitulo_con_vineta('Información del Alojamiento')
+                info_table = doc.add_table(rows=4, cols=2)
+                info_table.autofit = False
+                for col in info_table.columns:
+                    for cell in col.cells:
+                        cell.width = Inches(3.25)
+                nombre_cell = info_table.rows[0].cells[0]
+                nombre_label = nombre_cell.paragraphs[0].add_run('Nombre: ')
+                set_run_font(nombre_label, size=12, bold=True)
+                nombre_val = nombre_cell.paragraphs[0].add_run(hotel.get('nombre') or 'Hotel propuesto')
+                set_run_font(nombre_val, size=12)
+                habitacion_cell = info_table.rows[1].cells[0]
+                habitacion_label = habitacion_cell.paragraphs[0].add_run('Habitación: ')
+                set_run_font(habitacion_label, size=12, bold=True)
+                habitacion_val = habitacion_cell.paragraphs[0].add_run(hotel.get('habitacion') or '-')
+                set_run_font(habitacion_val, size=12)
+                direccion_cell = info_table.rows[2].cells[0]
+                direccion_label = direccion_cell.paragraphs[0].add_run('Dirección: ')
+                set_run_font(direccion_label, size=12, bold=True)
+                direccion_val = direccion_cell.paragraphs[0].add_run(hotel.get('direccion') or '-')
+                set_run_font(direccion_val, size=12)
+                plan_cell = info_table.rows[0].cells[1]
+                plan_label = plan_cell.paragraphs[0].add_run('Plan de Alimentos: ')
+                set_run_font(plan_label, size=12, bold=True)
+                plan_val = plan_cell.paragraphs[0].add_run(hotel.get('plan') or '-')
+                set_run_font(plan_val, size=12)
+                if hotel.get('forma_pago'):
+                    forma_pago_cell = info_table.rows[1].cells[1]
+                    forma_pago_label = forma_pago_cell.paragraphs[0].add_run('Forma de Pago: ')
+                    set_run_font(forma_pago_label, size=12, bold=True)
+                    forma_pago_val = forma_pago_cell.paragraphs[0].add_run(hotel.get('forma_pago'))
+                    set_run_font(forma_pago_val, size=12)
+                total_p = doc.add_paragraph()
+                total_p.paragraph_format.space_before = Pt(0)
+                total_p.paragraph_format.space_after = Pt(6)
+                total_run = total_p.add_run(f"Total MXN {format_currency(hotel.get('total'))} Pesos")
+                set_run_font(total_run, size=18, bold=True, color=MOVUMS_BLUE_CORP)
+                total_run.font.underline = True
+                agregar_salto_entre_secciones()
+
+        elif tipo == 'paquete' and propuestas.get('paquete'):
+            paquete = propuestas.get('paquete', {})
+            vuelo = paquete.get('vuelo') or {}
+            hotel = paquete.get('hotel') or {}
+            agregar_titulo_principal("PAQUETE")
+            agregar_subtitulo_con_vineta('Vuelo')
+            agregar_info_inline(
+                ('Aerolínea', vuelo.get('aerolinea') or '-'),
+                ('Salida', vuelo.get('salida') or '-'),
+                ('Regreso', vuelo.get('regreso') or '-')
+            )
+            agregar_info_line('Incluye', vuelo.get('incluye') or '-')
+            if vuelo.get('forma_pago'):
+                agregar_info_line('Forma de Pago', vuelo.get('forma_pago'))
+            agregar_salto_entre_secciones()
+            agregar_subtitulo_con_vineta('Hospedaje')
+            hospedaje_table = doc.add_table(rows=3, cols=2)
+            hospedaje_table.autofit = False
+            for col in hospedaje_table.columns:
+                for cell in col.cells:
+                    cell.width = Inches(3.25)
+            nombre_cell = hospedaje_table.rows[0].cells[0]
+            nombre_label = nombre_cell.paragraphs[0].add_run('Nombre: ')
+            set_run_font(nombre_label, size=12, bold=True)
+            nombre_val = nombre_cell.paragraphs[0].add_run(hotel.get('nombre') or 'Hotel incluido')
+            set_run_font(nombre_val, size=12)
+            habitacion_cell = hospedaje_table.rows[1].cells[0]
+            habitacion_label = habitacion_cell.paragraphs[0].add_run('Habitación / Plan: ')
+            set_run_font(habitacion_label, size=12, bold=True)
+            habitacion_val = habitacion_cell.paragraphs[0].add_run(hotel.get('habitacion') or '-')
+            set_run_font(habitacion_val, size=12)
+            notas_cell = hospedaje_table.rows[2].cells[0]
+            notas_label = notas_cell.paragraphs[0].add_run('Notas: ')
+            set_run_font(notas_label, size=12, bold=True)
+            notas_val = notas_cell.paragraphs[0].add_run(hotel.get('notas') or '-')
+            set_run_font(notas_val, size=12)
+            if paquete.get('forma_pago'):
+                agregar_info_line('Forma de Pago', paquete.get('forma_pago'))
+            total_p = doc.add_paragraph()
+            total_p.paragraph_format.space_before = Pt(0)
+            total_p.paragraph_format.space_after = Pt(6)
+            total_run = total_p.add_run(f"Total MXN {format_currency(paquete.get('total'))} Pesos")
+            set_run_font(total_run, size=18, bold=True, color=MOVUMS_BLUE_CORP)
+            total_run.font.underline = True
+            agregar_salto_entre_secciones()
+
+        elif tipo == 'tours' and propuestas.get('tours'):
+            tours_data = propuestas.get('tours', {})
+            agregar_titulo_principal("TOUR")
+            agregar_subtitulo_con_vineta('Información del Tour')
+            agregar_info_line('Número de Reserva', tours_data.get('numero_reserva') or '-')
+            agregar_info_line('Nombre del Tour', tours_data.get('nombre') or '-')
+            if tours_data.get('especificaciones'):
+                agregar_salto_entre_secciones()
+                agregar_subtitulo_con_vineta('Especificaciones')
+                especificaciones = tours_data.get('especificaciones', '').strip()
+                if especificaciones:
+                    lineas = especificaciones.split('\n')
+                    for linea in lineas:
+                        if linea.strip():
+                            p = doc.add_paragraph()
+                            p.paragraph_format.space_after = Pt(4)
+                            run = p.add_run(linea.strip())
+                            set_run_font(run, size=12)
+            if tours_data.get('forma_pago'):
+                agregar_salto_entre_secciones()
+                agregar_subtitulo_con_vineta('Forma de Pago')
+                agregar_info_line('Forma de Pago', tours_data.get('forma_pago'))
+            agregar_salto_entre_secciones()
+
+        elif tipo == 'traslados' and propuestas.get('traslados'):
+            traslados_data = propuestas.get('traslados', {})
+            agregar_titulo_principal("TRASLADO")
+            agregar_subtitulo_con_vineta('Información del Traslado')
+            agregar_info_inline(
+                ('Proveedor', traslados_data.get('proveedor') or '-'),
+                ('Tipo', traslados_data.get('tipo') or '-'),
+                ('Modalidad', traslados_data.get('modalidad') or '-')
+            )
+            agregar_info_inline(
+                ('Desde', traslados_data.get('desde') or '-'),
+                ('Hasta', traslados_data.get('hasta') or '-')
+            )
+            # Si es traslado redondo, mostrar fechas y horarios
+            if traslados_data.get('modalidad') == 'REDONDO':
+                if traslados_data.get('fecha_ida') or traslados_data.get('fecha_regreso'):
+                    agregar_info_inline(
+                        ('Fecha de Ida', format_date(traslados_data.get('fecha_ida'))),
+                        ('Fecha de Regreso', format_date(traslados_data.get('fecha_regreso')))
+                    )
+                if traslados_data.get('hora_ida') or traslados_data.get('hora_regreso'):
+                    agregar_info_inline(
+                        ('Hora de Ida', traslados_data.get('hora_ida') or '-'),
+                        ('Hora de Regreso', traslados_data.get('hora_regreso') or '-')
+                    )
+            if traslados_data.get('descripcion'):
+                agregar_salto_entre_secciones()
+                agregar_subtitulo_con_vineta('Descripción')
+                descripcion = traslados_data.get('descripcion', '').strip()
+                if descripcion:
+                    lineas = descripcion.split('\n')
+                    for linea in lineas:
+                        if linea.strip():
+                            p = doc.add_paragraph()
+                            p.paragraph_format.space_after = Pt(4)
+                            run = p.add_run(linea.strip())
+                            set_run_font(run, size=12)
+            if traslados_data.get('forma_pago'):
+                agregar_salto_entre_secciones()
+                agregar_subtitulo_con_vineta('Forma de Pago')
+                agregar_info_line('Forma de Pago', traslados_data.get('forma_pago'))
+            total_p = doc.add_paragraph()
+            total_p.paragraph_format.space_before = Pt(0)
+            total_p.paragraph_format.space_after = Pt(6)
+            total_run = total_p.add_run(f"Total MXN {format_currency(traslados_data.get('total'))} Pesos")
+            set_run_font(total_run, size=18, bold=True, color=MOVUMS_BLUE_CORP)
+            total_run.font.underline = True
+            agregar_salto_entre_secciones()
+
+        elif tipo == 'generica' and propuestas.get('generica'):
+            generica_data = propuestas.get('generica', {})
+            agregar_titulo_principal("COTIZACIÓN GENÉRICA")
+            if generica_data.get('contenido'):
+                contenido = generica_data.get('contenido', '').strip()
+                if contenido:
+                    lineas = contenido.split('\n')
+                    for linea in lineas:
+                        if linea.strip():
+                            p = doc.add_paragraph()
+                            p.paragraph_format.space_after = Pt(4)
+                            run = p.add_run(linea.strip())
+                            set_run_font(run, size=12)
+
+        try:
+            buffer = io.BytesIO()
+            doc.save(buffer)
+            buffer.seek(0)
+            
+            if buffer.getvalue() is None or len(buffer.getvalue()) == 0:
+                error_msg = 'El documento generado está vacío'
+                logging.error(error_msg)
+                return HttpResponse(error_msg, status=500)
+
+            filename = f"cotizacion_{cot.slug}_{timezone.now().strftime('%Y%m%d%H%M%S')}.docx"
+            response = HttpResponse(
+                buffer.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            )
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+        except Exception as e:
+            error_msg = f'Error al generar el documento DOCX: {str(e)}'
+            logging.error(error_msg, exc_info=True)
+            return HttpResponse(error_msg, status=500)
+
+
+class CotizacionConvertirView(LoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        cot = get_object_or_404(Cotizacion, slug=kwargs.get('slug'))
+        
+        # Extraer el total de las propuestas según el tipo de cotización
+        total_cotizacion = Decimal('0.00')
+        propuestas = cot.propuestas if isinstance(cot.propuestas, dict) else {}
+        tipo = propuestas.get('tipo', '')
+        
+        def limpiar_y_convertir_total(valor):
+            """Convierte un string de total (puede tener comas) a Decimal"""
+            if not valor:
+                return Decimal('0.00')
+            try:
+                # Remover comas y espacios, luego convertir a Decimal
+                valor_limpio = str(valor).replace(',', '').replace('$', '').strip()
+                return Decimal(valor_limpio)
+            except (ValueError, InvalidOperation):
+                return Decimal('0.00')
+        
+        # Obtener índices seleccionados del formulario
+        opcion_vuelo_index = request.POST.get('opcion_vuelo_index', '')
+        opcion_hotel_index = request.POST.get('opcion_hotel_index', '')
+        
+        # Guardar los índices en la sesión para que el formulario los use
+        if opcion_vuelo_index:
+            request.session[f'cotizacion_{cot.slug}_opcion_vuelo'] = opcion_vuelo_index
+        if opcion_hotel_index:
+            request.session[f'cotizacion_{cot.slug}_opcion_hotel'] = opcion_hotel_index
+        
+        if tipo == 'vuelos' and propuestas.get('vuelos'):
+            # Para vuelos, usar la opción seleccionada o la primera por defecto
+            vuelos = propuestas.get('vuelos', [])
+            if vuelos and len(vuelos) > 0:
+                # Determinar qué índice usar
+                try:
+                    indice = int(opcion_vuelo_index) if opcion_vuelo_index else 0
+                    if indice < 0 or indice >= len(vuelos):
+                        indice = 0
+                except (ValueError, TypeError):
+                    indice = 0
+                
+                # Tomar el vuelo seleccionado
+                vuelo_seleccionado = vuelos[indice] if isinstance(vuelos, list) else vuelos.get(f'propuesta_{indice + 1}', {})
+                if isinstance(vuelo_seleccionado, dict) and vuelo_seleccionado.get('total'):
+                    total_cotizacion = limpiar_y_convertir_total(vuelo_seleccionado.get('total'))
+        
+        elif tipo == 'hospedaje' and propuestas.get('hoteles'):
+            # Para hospedaje, usar la opción seleccionada o la primera por defecto
+            hoteles = propuestas.get('hoteles', [])
+            if hoteles and len(hoteles) > 0:
+                # Determinar qué índice usar
+                try:
+                    indice = int(opcion_hotel_index) if opcion_hotel_index else 0
+                    if indice < 0 or indice >= len(hoteles):
+                        indice = 0
+                except (ValueError, TypeError):
+                    indice = 0
+                
+                # Tomar el hotel seleccionado
+                hotel_seleccionado = hoteles[indice] if isinstance(hoteles, list) else hoteles.get(f'propuesta_{indice + 1}', {})
+                if isinstance(hotel_seleccionado, dict) and hotel_seleccionado.get('total'):
+                    total_cotizacion = limpiar_y_convertir_total(hotel_seleccionado.get('total'))
+        
+        elif tipo == 'paquete' and propuestas.get('paquete'):
+            # Para paquete, tomar el total del paquete
+            paquete = propuestas.get('paquete', {})
+            if isinstance(paquete, dict) and paquete.get('total'):
+                total_cotizacion = limpiar_y_convertir_total(paquete.get('total'))
+        
+        elif tipo == 'tours' and propuestas.get('tours'):
+            # Para tours, verificar si hay total (puede no estar)
+            tours = propuestas.get('tours', {})
+            if isinstance(tours, dict) and tours.get('total'):
+                total_cotizacion = limpiar_y_convertir_total(tours.get('total'))
+        
+        elif tipo == 'traslados' and propuestas.get('traslados'):
+            # Para traslados, tomar el total
+            traslados = propuestas.get('traslados', {})
+            if isinstance(traslados, dict) and traslados.get('total'):
+                total_cotizacion = limpiar_y_convertir_total(traslados.get('total'))
+        
+        # Si no se encontró total en propuestas, usar total_estimado como fallback
+        if total_cotizacion == Decimal('0.00'):
+            total_cotizacion = cot.total_estimado or Decimal('0.00')
+        
+        # Guardar información de la cotización en la sesión para pre-llenar el formulario
+        request.session['cotizacion_convertir'] = {
+            'cotizacion_id': cot.pk,
+            'cotizacion_slug': cot.slug,
+            'cliente_id': cot.cliente.pk,
+            'fecha_inicio': str(cot.fecha_inicio) if cot.fecha_inicio else None,
+            'fecha_fin': str(cot.fecha_fin) if cot.fecha_fin else None,
+            'total_cotizacion': str(total_cotizacion),
+            'opcion_vuelo_index': opcion_vuelo_index if opcion_vuelo_index else None,
+            'opcion_hotel_index': opcion_hotel_index if opcion_hotel_index else None,
+        }
+        
+        # Redirigir al formulario de nueva venta con parámetros para pre-llenar
+        return redirect(reverse('crear_venta') + f'?cotizacion={cot.slug}')

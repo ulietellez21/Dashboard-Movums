@@ -1,7 +1,8 @@
 from django import forms
 from django.forms import modelformset_factory
+import json
 from django.db.models import Case, When, Value, IntegerField
-from .models import AbonoPago, Logistica, VentaViaje, Proveedor, Ejecutivo, LogisticaServicio # Aseguramos la importación de VentaViaje
+from .models import AbonoPago, Logistica, VentaViaje, Proveedor, Ejecutivo, LogisticaServicio, Cotizacion # Aseguramos la importación de VentaViaje
 from django.contrib.auth.models import User
 from crm.models import Cliente # Importamos Cliente para usarlo en el queryset si es necesario
 from crm.services import KilometrosService
@@ -514,6 +515,7 @@ class VentaViajeForm(forms.ModelForm):
             # 'proveedor',  # ❌ ELIMINADO: Se maneja por servicio individual
             'tipo_viaje', 
             'pasajeros',  # ✅ CAMPO NUEVO
+            'edades_menores',
             'documentos_cliente', 
             
             # Sección Servicios (servicios_seleccionados se añade arriba)
@@ -542,6 +544,7 @@ class VentaViajeForm(forms.ModelForm):
         widgets = {
             # Textareas
             'pasajeros': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+            'edades_menores': forms.Textarea(attrs={'rows': 2, 'class': 'form-control', 'placeholder': 'Ej: 5, 8, 12'}),
 
             # Selecciones
             'tipo_viaje': forms.Select(attrs={'class': 'form-select'}),
@@ -576,6 +579,9 @@ class VentaViajeForm(forms.ModelForm):
         Convierte los códigos del modelo (VUE, HOS, etc.) a nombres del formulario.
         Agrega campos dinámicos de proveedores por servicio.
         """
+        # Extraer request si está presente
+        self.request = kwargs.pop('request', None)
+        
         # Obtener la instancia antes de llamar a super
         instance = kwargs.get('instance', None)
 
@@ -596,8 +602,12 @@ class VentaViajeForm(forms.ModelForm):
         
         # Preparar valores iniciales - IMPORTANTE: NO interferir con la carga automática de Django
         # Solo preparar valores para campos que Django ModelForm no puede cargar automáticamente
+        # Preservar los valores iniciales que puedan venir de la vista (ej: desde cotización)
         existing_initial = kwargs.pop('initial', {}) or {}
         dynamic_initial = {}
+        
+        # Preservar valores iniciales que ya vienen establecidos (ej: desde VentaViajeCreateView)
+        # Estos se combinarán con los valores que establezcamos aquí
         
         # Si estamos editando, preparar valores iniciales
         if instance and instance.pk:
@@ -689,6 +699,205 @@ class VentaViajeForm(forms.ModelForm):
                         # La línea solo tiene el nombre del servicio, sin proveedor
                         # Esto es válido, simplemente no establecemos ningún proveedor
                         pass
+        
+        # 4. Preparar valores para proveedores desde cotización origen (si existe)
+        # Esto se aplica cuando la venta se crea desde una cotización
+        # Primero verificar si hay datos en la sesión (nueva venta desde cotización)
+        cot = None
+        if not instance or not instance.pk:
+            # Si es una nueva venta, verificar si hay datos de cotización en la sesión
+            if self.request and hasattr(self.request, 'session'):
+                cotizacion_data = self.request.session.get('cotizacion_convertir', {})
+                if cotizacion_data.get('cotizacion_id'):
+                    try:
+                        from .models import Cotizacion
+                        cot = Cotizacion.objects.filter(pk=cotizacion_data['cotizacion_id']).first()
+                        # Limpiar la sesión después de usarla
+                        if 'cotizacion_convertir' in self.request.session:
+                            del self.request.session['cotizacion_convertir']
+                    except Exception:
+                        pass
+        
+        # Si hay instancia con cotización origen, usar esa
+        if instance and instance.cotizacion_origen:
+            cot = instance.cotizacion_origen
+        
+        if cot:
+            propuestas = cot.propuestas if isinstance(cot.propuestas, dict) else {}
+            tipo_cotizacion = propuestas.get('tipo', '')
+            
+            # Función auxiliar para buscar proveedor por nombre
+            def buscar_proveedor_por_nombre(nombre_proveedor):
+                if not nombre_proveedor:
+                    return None
+                try:
+                    # Intentar búsqueda exacta primero
+                    return Proveedor.objects.get(nombre=nombre_proveedor)
+                except Proveedor.DoesNotExist:
+                    # Intentar búsqueda parcial
+                    return Proveedor.objects.filter(nombre__icontains=nombre_proveedor).first()
+            
+            # Obtener índices seleccionados de la sesión (si existen)
+            opcion_vuelo_index = None
+            opcion_hotel_index = None
+            
+            if self.request and hasattr(self.request, 'session'):
+                # Intentar obtener los índices de la sesión usando el slug de la cotización
+                session_key = f'cotizacion_{cot.slug}_opcion_vuelo'
+                opcion_vuelo_index = self.request.session.get(session_key)
+                session_key_hotel = f'cotizacion_{cot.slug}_opcion_hotel'
+                opcion_hotel_index = self.request.session.get(session_key_hotel)
+                
+                # Limpiar la sesión después de usarla
+                if session_key in self.request.session:
+                    del self.request.session[session_key]
+                if session_key_hotel in self.request.session:
+                    del self.request.session[session_key_hotel]
+            
+            # Procesar según el tipo de cotización
+            if tipo_cotizacion == 'vuelos' and propuestas.get('vuelos'):
+                # Para vuelos, usar la opción seleccionada o la primera por defecto
+                vuelos = propuestas.get('vuelos', [])
+                if vuelos and len(vuelos) > 0:
+                    # Determinar qué índice usar
+                    try:
+                        indice = int(opcion_vuelo_index) if opcion_vuelo_index is not None else 0
+                        if indice < 0 or indice >= len(vuelos):
+                            indice = 0
+                    except (ValueError, TypeError):
+                        indice = 0
+                    
+                    # Tomar el vuelo seleccionado
+                    vuelo_seleccionado = vuelos[indice] if isinstance(vuelos, list) else vuelos.get(f'propuesta_{indice + 1}', {})
+                    if isinstance(vuelo_seleccionado, dict):
+                        nombre_aerolinea = vuelo_seleccionado.get('aerolinea', '')
+                        if nombre_aerolinea:
+                            proveedor = buscar_proveedor_por_nombre(nombre_aerolinea)
+                            if proveedor:
+                                dynamic_initial['proveedor_vuelo'] = proveedor
+                                # Pre-seleccionar servicio Vuelo
+                                if 'servicios_seleccionados' not in existing_initial:
+                                    existing_initial['servicios_seleccionados'] = []
+                                    dynamic_initial['servicios_seleccionados'] = []
+                                if 'Vuelo' not in existing_initial['servicios_seleccionados']:
+                                    existing_initial['servicios_seleccionados'].append('Vuelo')
+                                    if 'servicios_seleccionados' in dynamic_initial:
+                                        dynamic_initial['servicios_seleccionados'].append('Vuelo')
+                                    else:
+                                        dynamic_initial['servicios_seleccionados'] = existing_initial['servicios_seleccionados'].copy()
+            
+            elif tipo_cotizacion == 'hospedaje' and propuestas.get('hoteles'):
+                # Para hospedaje, usar la opción seleccionada o la primera por defecto
+                hoteles = propuestas.get('hoteles', [])
+                if hoteles and len(hoteles) > 0:
+                    # Determinar qué índice usar
+                    try:
+                        indice = int(opcion_hotel_index) if opcion_hotel_index is not None else 0
+                        if indice < 0 or indice >= len(hoteles):
+                            indice = 0
+                    except (ValueError, TypeError):
+                        indice = 0
+                    
+                    # Tomar el hotel seleccionado
+                    hotel_seleccionado = hoteles[indice] if isinstance(hoteles, list) else hoteles.get(f'propuesta_{indice + 1}', {})
+                    if isinstance(hotel_seleccionado, dict):
+                        nombre_hotel = hotel_seleccionado.get('nombre', '')
+                        if nombre_hotel:
+                            proveedor = buscar_proveedor_por_nombre(nombre_hotel)
+                            if proveedor:
+                                dynamic_initial['proveedor_hospedaje'] = proveedor
+                                # Pre-seleccionar servicio Hospedaje
+                                if 'servicios_seleccionados' not in existing_initial:
+                                    existing_initial['servicios_seleccionados'] = []
+                                    dynamic_initial['servicios_seleccionados'] = []
+                                if 'Hospedaje' not in existing_initial['servicios_seleccionados']:
+                                    existing_initial['servicios_seleccionados'].append('Hospedaje')
+                                    if 'servicios_seleccionados' in dynamic_initial:
+                                        dynamic_initial['servicios_seleccionados'].append('Hospedaje')
+                                    else:
+                                        dynamic_initial['servicios_seleccionados'] = existing_initial['servicios_seleccionados'].copy()
+            
+            elif tipo_cotizacion == 'paquete' and propuestas.get('paquete'):
+                # Para paquete, procesar vuelo y hotel
+                paquete = propuestas.get('paquete', {})
+                if isinstance(paquete, dict):
+                    # Procesar vuelo
+                    vuelo = paquete.get('vuelo', {})
+                    if isinstance(vuelo, dict):
+                        nombre_aerolinea = vuelo.get('aerolinea', '')
+                        if nombre_aerolinea:
+                            proveedor = buscar_proveedor_por_nombre(nombre_aerolinea)
+                            if proveedor:
+                                dynamic_initial['proveedor_vuelo'] = proveedor
+                                # Pre-seleccionar servicio Vuelo
+                                if 'servicios_seleccionados' not in existing_initial:
+                                    existing_initial['servicios_seleccionados'] = []
+                                    dynamic_initial['servicios_seleccionados'] = []
+                                if 'Vuelo' not in existing_initial['servicios_seleccionados']:
+                                    existing_initial['servicios_seleccionados'].append('Vuelo')
+                                    if 'servicios_seleccionados' in dynamic_initial:
+                                        dynamic_initial['servicios_seleccionados'].append('Vuelo')
+                                    else:
+                                        dynamic_initial['servicios_seleccionados'] = existing_initial['servicios_seleccionados'].copy()
+                    
+                    # Procesar hotel
+                    hotel = paquete.get('hotel', {})
+                    if isinstance(hotel, dict):
+                        nombre_hotel = hotel.get('nombre', '')
+                        if nombre_hotel:
+                            proveedor = buscar_proveedor_por_nombre(nombre_hotel)
+                            if proveedor:
+                                dynamic_initial['proveedor_hospedaje'] = proveedor
+                                # Pre-seleccionar servicio Hospedaje
+                                if 'servicios_seleccionados' not in existing_initial:
+                                    existing_initial['servicios_seleccionados'] = []
+                                    dynamic_initial['servicios_seleccionados'] = []
+                                if 'Hospedaje' not in existing_initial['servicios_seleccionados']:
+                                    existing_initial['servicios_seleccionados'].append('Hospedaje')
+                                    if 'servicios_seleccionados' in dynamic_initial:
+                                        dynamic_initial['servicios_seleccionados'].append('Hospedaje')
+                                    else:
+                                        dynamic_initial['servicios_seleccionados'] = existing_initial['servicios_seleccionados'].copy()
+            
+            elif tipo_cotizacion == 'tours' and propuestas.get('tours'):
+                # Para tours, procesar el proveedor de tours
+                tours = propuestas.get('tours', {})
+                if isinstance(tours, dict):
+                    nombre_proveedor = tours.get('proveedor', '')
+                    if nombre_proveedor:
+                        proveedor = buscar_proveedor_por_nombre(nombre_proveedor)
+                        if proveedor:
+                            dynamic_initial['proveedor_tour_y_actividades'] = proveedor
+                            # Pre-seleccionar servicio Tour y Actividades
+                            if 'servicios_seleccionados' not in existing_initial:
+                                existing_initial['servicios_seleccionados'] = []
+                                dynamic_initial['servicios_seleccionados'] = []
+                            if 'Tour y Actividades' not in existing_initial['servicios_seleccionados']:
+                                existing_initial['servicios_seleccionados'].append('Tour y Actividades')
+                                if 'servicios_seleccionados' in dynamic_initial:
+                                    dynamic_initial['servicios_seleccionados'].append('Tour y Actividades')
+                                else:
+                                    dynamic_initial['servicios_seleccionados'] = existing_initial['servicios_seleccionados'].copy()
+            
+            elif tipo_cotizacion == 'traslados' and propuestas.get('traslados'):
+                # Para traslados, procesar el proveedor de traslados
+                traslados = propuestas.get('traslados', {})
+                if isinstance(traslados, dict):
+                    nombre_proveedor = traslados.get('proveedor', '')
+                    if nombre_proveedor:
+                        proveedor = buscar_proveedor_por_nombre(nombre_proveedor)
+                        if proveedor:
+                            dynamic_initial['proveedor_traslado'] = proveedor
+                            # Pre-seleccionar servicio Traslado
+                            if 'servicios_seleccionados' not in existing_initial:
+                                existing_initial['servicios_seleccionados'] = []
+                                dynamic_initial['servicios_seleccionados'] = []
+                            if 'Traslado' not in existing_initial['servicios_seleccionados']:
+                                existing_initial['servicios_seleccionados'].append('Traslado')
+                                if 'servicios_seleccionados' in dynamic_initial:
+                                    dynamic_initial['servicios_seleccionados'].append('Traslado')
+                                else:
+                                    dynamic_initial['servicios_seleccionados'] = existing_initial['servicios_seleccionados'].copy()
         
         # IMPORTANTE: Django ModelForm pasa los valores de la instancia como 'initial'
         # en el parámetro 'object_data' a BaseForm.__init__(). Si pasamos 'initial' aquí,
@@ -788,8 +997,8 @@ class VentaViajeForm(forms.ModelForm):
                 )
         
         # IMPORTANTE: Después de crear los campos dinámicos, establecer sus valores iniciales
-        # Solo si el formulario NO está bound (sin datos POST)
-        if not self.is_bound and self.instance and self.instance.pk:
+        # Aplicar tanto para ventas existentes como para nuevas ventas (desde cotización)
+        if not self.is_bound:
             # 1. Establecer valores iniciales para campos dinámicos de proveedores
             # IMPORTANTE: Asegurarse de que los valores se establezcan ANTES de que el template los acceda
             for key, value in self._dynamic_initial.items():
@@ -801,12 +1010,40 @@ class VentaViajeForm(forms.ModelForm):
                     # DEBUG: Verificar que el valor se está estableciendo
                     # print(f"DEBUG: Establecido proveedor {key} = {value} (tipo: {type(value)})")
             
-            # 2. CRÍTICO: Asegurar que las fechas estén correctamente establecidas
+            # 2. Establecer servicios_seleccionados si hay valores en dynamic_initial
+            # Combinar con valores que puedan venir de la vista (ej: desde cotización)
+            servicios_dynamic = self._dynamic_initial.get('servicios_seleccionados', [])
+            servicios_existing = self.initial.get('servicios_seleccionados', [])
+            # Combinar ambos, evitando duplicados
+            servicios_combinados = list(set(servicios_dynamic + (servicios_existing if isinstance(servicios_existing, list) else [])))
+            if servicios_combinados:
+                self.initial['servicios_seleccionados'] = servicios_combinados
+                self.fields['servicios_seleccionados'].initial = servicios_combinados
+            
+            # 3. Establecer costo_venta_final si viene de cotización
+            # Asegurar que el valor se establezca explícitamente después de super().__init__()
+            if 'costo_venta_final' in self.initial:
+                costo_final = self.initial['costo_venta_final']
+                # Convertir Decimal a float para NumberInput
+                if isinstance(costo_final, Decimal):
+                    costo_final_float = float(costo_final)
+                else:
+                    costo_final_float = float(costo_final) if costo_final else 0.0
+                
+                # Establecer en el campo
+                if 'costo_venta_final' in self.fields and costo_final:
+                    self.fields['costo_venta_final'].initial = costo_final_float
+                    # También establecer en el widget para asegurar que se muestre
+                    if hasattr(self.fields['costo_venta_final'], 'widget'):
+                        # Para NumberInput, el valor se establece en el atributo 'value'
+                        self.fields['costo_venta_final'].widget.attrs['value'] = str(costo_final_float)
+            
+            # 3. CRÍTICO: Asegurar que las fechas estén correctamente establecidas
             # Django ModelForm debería haberlas cargado automáticamente desde la instancia
             # pero las verificamos y establecemos explícitamente para estar seguros
             # IMPORTANTE: Para inputs de tipo 'date', establecer el valor directamente en el widget
             # en formato ISO (YYYY-MM-DD) que es lo que requiere HTML5
-            if self.instance.fecha_inicio_viaje:
+            if self.instance and self.instance.pk and self.instance.fecha_inicio_viaje:
                 fecha_valor = self.instance.fecha_inicio_viaje
                 # Asegurar que esté en form.initial
                 self.initial['fecha_inicio_viaje'] = fecha_valor
@@ -817,7 +1054,7 @@ class VentaViajeForm(forms.ModelForm):
                     if self.fields['fecha_inicio_viaje'].widget.attrs.get('type') == 'date':
                         self.fields['fecha_inicio_viaje'].widget.attrs['value'] = fecha_valor.strftime('%Y-%m-%d')
             
-            if self.instance.fecha_fin_viaje:
+            if self.instance and self.instance.pk and self.instance.fecha_fin_viaje:
                 fecha_valor = self.instance.fecha_fin_viaje
                 self.initial['fecha_fin_viaje'] = fecha_valor
                 self.fields['fecha_fin_viaje'].initial = fecha_valor
@@ -825,7 +1062,7 @@ class VentaViajeForm(forms.ModelForm):
                     if self.fields['fecha_fin_viaje'].widget.attrs.get('type') == 'date':
                         self.fields['fecha_fin_viaje'].widget.attrs['value'] = fecha_valor.strftime('%Y-%m-%d')
             
-            if self.instance.fecha_vencimiento_pago:
+            if self.instance and self.instance.pk and self.instance.fecha_vencimiento_pago:
                 fecha_valor = self.instance.fecha_vencimiento_pago
                 self.initial['fecha_vencimiento_pago'] = fecha_valor
                 self.fields['fecha_vencimiento_pago'].initial = fecha_valor
@@ -834,7 +1071,7 @@ class VentaViajeForm(forms.ModelForm):
                         self.fields['fecha_vencimiento_pago'].widget.attrs['value'] = fecha_valor.strftime('%Y-%m-%d')
             
             # Para ventas internacionales, convertir valores de MXN a USD para mostrar en el formulario
-            if instance.tipo_viaje == 'INT' and instance.tipo_cambio and instance.tipo_cambio > 0:
+            if instance and instance.pk and instance.tipo_viaje == 'INT' and instance.tipo_cambio and instance.tipo_cambio > 0:
                 # Los campos USD ya están en USD, no necesitan conversión
                 # La cantidad de apertura está en MXN, convertirla a USD para mostrar
                 if instance.cantidad_apertura and instance.cantidad_apertura > 0:
@@ -856,22 +1093,35 @@ class VentaViajeForm(forms.ModelForm):
                 help_text=""
             )
         
-        # Agregar campos de edición solo cuando se está editando (no al crear)
+        # Agregar campos de edición solo cuando se está editando una venta existente
+        # y que ya tenga algún costo de modificación o que haya sido guardada previamente
         if self.instance and self.instance.pk:
-            # Campo costo_modificacion
-            self.fields['costo_modificacion'] = forms.DecimalField(
-                max_digits=10,
-                decimal_places=2,
-                required=False,
-                initial=Decimal('0.00'),
-                widget=forms.NumberInput(attrs={
-                    'step': 'any',
-                    'class': 'form-control',
-                    'placeholder': '0.00'
-                }),
-                label='Costo de Modificación',
-                help_text='Costo adicional por modificar esta venta. Se sumará al costo total.'
-            )
+            # Solo mostrar costo_modificacion si la venta ya tiene un valor o si tiene abonos/confirmaciones
+            # Esto evita mostrarlo en ventas recién creadas desde cotización
+            mostrar_costo_modificacion = False
+            if hasattr(self.instance, 'costo_modificacion') and self.instance.costo_modificacion:
+                if self.instance.costo_modificacion > 0:
+                    mostrar_costo_modificacion = True
+            # También mostrar si la venta tiene abonos confirmados (ya fue procesada)
+            if hasattr(self.instance, 'abonos'):
+                if self.instance.abonos.filter(confirmado=True).exists():
+                    mostrar_costo_modificacion = True
+            
+            if mostrar_costo_modificacion:
+                # Campo costo_modificacion
+                self.fields['costo_modificacion'] = forms.DecimalField(
+                    max_digits=10,
+                    decimal_places=2,
+                    required=False,
+                    initial=getattr(self.instance, 'costo_modificacion', Decimal('0.00')),
+                    widget=forms.NumberInput(attrs={
+                        'step': 'any',
+                        'class': 'form-control',
+                        'placeholder': '0.00'
+                    }),
+                    label='Costo de Modificación',
+                    help_text='Costo adicional por modificar esta venta. Se sumará al costo total.'
+                )
 
     def clean_documentos_cliente(self):
         """Valida que no se suban más de 5 archivos y maneja múltiples archivos"""
@@ -899,8 +1149,8 @@ class VentaViajeForm(forms.ModelForm):
             descuento = Decimal('0.00')
         else:
             aplica_descuento = cleaned_data.get('aplica_descuento_kilometros')
-            # Cambiar: usar costo_neto en lugar de costo_venta_final para calcular el descuento
-            costo_neto = cleaned_data.get('costo_neto') or Decimal('0.00')
+            # Regla: máximo 10% del valor total reservado (costo_venta_final)
+            costo_cliente = cleaned_data.get('costo_venta_final') or Decimal('0.00')
             cliente = cleaned_data.get('cliente')
             descuento = Decimal('0.00')
             credito_disponible = Decimal('0.00')
@@ -913,7 +1163,7 @@ class VentaViajeForm(forms.ModelForm):
                     valor_equivalente = resumen.get('valor_equivalente') or Decimal('0.00')
                     credito_disponible = valor_equivalente if isinstance(valor_equivalente, Decimal) else Decimal(str(valor_equivalente))
 
-            if aplica_descuento and costo_neto > 0:
+            if aplica_descuento and costo_cliente > 0:
                 if not cliente:
                     self.add_error('cliente', "Selecciona un cliente para aplicar el descuento de Kilómetros Movums.")
                     aplica_descuento = False
@@ -921,8 +1171,8 @@ class VentaViajeForm(forms.ModelForm):
                     self.add_error('aplica_descuento_kilometros', "El cliente no participa en Kilómetros Movums.")
                     aplica_descuento = False
                 else:
-                    # Calcular el 10% sobre el costo NETO (no sobre el total de la venta)
-                    max_por_regla = (costo_neto * Decimal('0.10')).quantize(Decimal('0.01'))
+                    # Máximo 10% del valor total reservado
+                    max_por_regla = (costo_cliente * Decimal('0.10')).quantize(Decimal('0.01'))
                     max_por_credito = credito_disponible.quantize(Decimal('0.01'))
                     descuento = min(max_por_regla, max_por_credito)
                     if descuento <= 0:
@@ -1128,4 +1378,212 @@ class VentaViajeForm(forms.ModelForm):
             # Marcar que no se ha aplicado aún como pago
             instance.descuento_promociones_aplicado_como_pago = False
             instance.save(update_fields=['descuento_promociones_aplicado_como_pago'])
+        return instance
+
+
+# ------------------- CotizacionForm -------------------
+class CotizacionForm(forms.ModelForm):
+    # Campos extra para estructurar propuestas como en el modal anterior
+    fecha_cotizacion = forms.DateField(required=False, widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}))
+    tipo = forms.ChoiceField(
+        choices=[
+            ('vuelos', '✈️ Vuelos'),
+            ('hospedaje', '🏨 Hospedaje'),
+            ('paquete', '🧳 Paquete'),
+            ('tours', '🗺️ Tours'),
+            ('traslados', '🚗 Traslados'),
+            ('generica', '📄 Plantilla Genérica'),
+        ],
+        required=True,
+        widget=forms.Select(attrs={'class': 'form-select form-select-lg', 'id': 'tipoCotizacionSelect'})
+    )
+    vuelo_propuesta_1 = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}))
+    vuelo_propuesta_2 = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}))
+    hotel_propuesta_1 = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}))
+    hotel_propuesta_2 = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}))
+    paquete_vuelo = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}))
+    paquete_hotel = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}))
+    tour_descripcion = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}))
+    generica_contenido = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}))
+
+    class Meta:
+        model = Cotizacion
+        fields = [
+            'cliente',
+            'titulo',
+            'tipo',
+            'fecha_cotizacion',
+            'origen',
+            'destino',
+            'dias',
+            'noches',
+            'fecha_inicio',
+            'fecha_fin',
+            'pasajeros',
+            'adultos',
+            'menores',
+            'notas',
+            'propuestas',
+            'vuelo_propuesta_1',
+            'vuelo_propuesta_2',
+            'hotel_propuesta_1',
+            'hotel_propuesta_2',
+            'paquete_vuelo',
+            'paquete_hotel',
+            'tour_descripcion',
+            'generica_contenido',
+        ]
+        widgets = {
+            'cliente': forms.Select(attrs={'class': 'form-select select2'}),
+            'titulo': forms.TextInput(attrs={'class': 'form-control'}),
+            'origen': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Guadalajara'}),
+            'destino': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Cancún'}),
+            'dias': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
+            'noches': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
+            'fecha_inicio': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha_fin': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'pasajeros': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
+            'adultos': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
+            'menores': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
+            'notas': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'propuestas': forms.HiddenInput(),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Función auxiliar para mostrar solo el nombre del proveedor
+        def label_from_nombre(obj):
+            return obj.nombre
+        
+        # Agregar campos dinámicos para seleccionar proveedores
+        # Para vuelos (3 opciones)
+        for i in range(1, 4):
+            self.fields[f'vuelo_proveedor_{i}'] = forms.ModelChoiceField(
+                queryset=Proveedor.objects.filter(
+                    servicios__icontains='VUELOS'
+                ).order_by('nombre'),
+                required=False,
+                empty_label="Selecciona una aerolínea...",
+                widget=forms.Select(attrs={'class': 'form-select form-select-sm', 'id': f'vuelo_proveedor_{i}'}),
+                label=f'Aerolínea Opción {i}'
+            )
+            # Personalizar para mostrar solo el nombre sin servicios
+            self.fields[f'vuelo_proveedor_{i}'].label_from_instance = label_from_nombre
+        
+        # Para hospedaje (3 opciones)
+        for i in range(1, 4):
+            self.fields[f'hotel_proveedor_{i}'] = forms.ModelChoiceField(
+                queryset=Proveedor.objects.filter(
+                    servicios__icontains='HOTELES'
+                ).order_by('nombre'),
+                required=False,
+                empty_label="Selecciona un hotel...",
+                widget=forms.Select(attrs={'class': 'form-select form-select-sm', 'id': f'hotel_proveedor_{i}'}),
+                label=f'Hotel Opción {i}'
+            )
+            # Personalizar para mostrar solo el nombre sin servicios
+            self.fields[f'hotel_proveedor_{i}'].label_from_instance = label_from_nombre
+        
+        # Para paquete (vuelo y hotel)
+        self.fields['paquete_proveedor_vuelo'] = forms.ModelChoiceField(
+            queryset=Proveedor.objects.filter(
+                servicios__icontains='VUELOS'
+            ).order_by('nombre'),
+            required=False,
+            empty_label="Selecciona una aerolínea...",
+            widget=forms.Select(attrs={'class': 'form-select form-select-sm', 'id': 'paquete_proveedor_vuelo'}),
+            label='Aerolínea'
+        )
+        self.fields['paquete_proveedor_vuelo'].label_from_instance = label_from_nombre
+        
+        self.fields['paquete_proveedor_hotel'] = forms.ModelChoiceField(
+            queryset=Proveedor.objects.filter(
+                servicios__icontains='HOTELES'
+            ).order_by('nombre'),
+            required=False,
+            empty_label="Selecciona un hotel...",
+            widget=forms.Select(attrs={'class': 'form-select form-select-sm', 'id': 'paquete_proveedor_hotel'}),
+            label='Hotel'
+        )
+        self.fields['paquete_proveedor_hotel'].label_from_instance = label_from_nombre
+        
+        # Para tours
+        self.fields['tour_proveedor'] = forms.ModelChoiceField(
+            queryset=Proveedor.objects.filter(
+                servicios__icontains='TOURS'
+            ).order_by('nombre'),
+            required=False,
+            empty_label="Selecciona un proveedor de tours...",
+            widget=forms.Select(attrs={'class': 'form-select', 'id': 'tour_proveedor'}),
+            label='Proveedor de Tours'
+        )
+        self.fields['tour_proveedor'].label_from_instance = label_from_nombre
+        
+        # Para traslados
+        self.fields['traslado_proveedor'] = forms.ModelChoiceField(
+            queryset=Proveedor.objects.filter(
+                servicios__icontains='TRASLADOS'
+            ).order_by('nombre'),
+            required=False,
+            empty_label="Selecciona un proveedor de traslados...",
+            widget=forms.Select(attrs={'class': 'form-select', 'id': 'traslado_proveedor'}),
+            label='Proveedor de Traslados'
+        )
+        self.fields['traslado_proveedor'].label_from_instance = label_from_nombre
+        
+        # Si hay una instancia (edición), inicializar propuestas con el valor guardado
+        if self.instance and self.instance.pk and self.instance.propuestas:
+            # Asegurar que propuestas sea un diccionario
+            if isinstance(self.instance.propuestas, dict):
+                self.fields['propuestas'].initial = json.dumps(self.instance.propuestas)
+            elif isinstance(self.instance.propuestas, str):
+                try:
+                    # Si ya es un string JSON válido, usarlo directamente
+                    json.loads(self.instance.propuestas)
+                    self.fields['propuestas'].initial = self.instance.propuestas
+                except (json.JSONDecodeError, TypeError):
+                    # Si no es JSON válido, inicializar como objeto vacío
+                    self.fields['propuestas'].initial = '{}'
+            else:
+                self.fields['propuestas'].initial = '{}'
+        else:
+            # Si es una nueva cotización, inicializar con objeto vacío
+            self.fields['propuestas'].initial = '{}'
+
+    def clean(self):
+        cleaned = super().clean()
+        propuestas_raw = cleaned.get('propuestas')
+        if isinstance(propuestas_raw, str):
+            try:
+                propuestas = json.loads(propuestas_raw)
+            except Exception:
+                propuestas = {}
+        else:
+            propuestas = propuestas_raw or {}
+        
+        # Asegurar que el tipo se guarde en propuestas
+        tipo = cleaned.get('tipo')
+        if tipo:
+            propuestas['tipo'] = tipo
+        
+        cleaned['propuestas'] = propuestas
+        return cleaned
+    
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        
+        # Asegurar que propuestas sea un diccionario, no un string
+        if isinstance(instance.propuestas, str):
+            try:
+                instance.propuestas = json.loads(instance.propuestas)
+            except (json.JSONDecodeError, TypeError):
+                instance.propuestas = {}
+        
+        # Asegurar que el tipo esté en propuestas
+        if instance.propuestas and 'tipo' not in instance.propuestas:
+            instance.propuestas['tipo'] = self.cleaned_data.get('tipo', 'vuelos')
+        
+        if commit:
+            instance.save()
         return instance
