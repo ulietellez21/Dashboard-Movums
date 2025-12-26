@@ -10,6 +10,7 @@ from django.urls import reverse
 # from crm.models import Cliente # NO se importa aquí, se usa la cadena de referencia
 from decimal import Decimal
 from datetime import date, datetime # Se asegura la importación de datetime
+from django.utils import timezone
 from django.utils.text import slugify 
 from django.core.validators import FileExtensionValidator
 from PIL import Image
@@ -76,6 +77,19 @@ class VentaViaje(models.Model):
         blank=True,
         help_text='Ingresa el nombre completo de cada pasajero, separados por línea nueva o coma.'
     )
+    edades_menores = models.TextField(
+        verbose_name='Edades de los menores',
+        blank=True,
+        help_text='Lista de edades de los menores que viajan (ej. 5, 8, 12).'
+    )
+    cotizacion_origen = models.ForeignKey(
+        'ventas.Cotizacion',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='ventas_generadas',
+        verbose_name='Cotización origen'
+    )
 
     fecha_inicio_viaje = models.DateField(verbose_name="Fecha de Ida (Inicio de Viaje)")
     fecha_fin_viaje = models.DateField(blank=True, null=True, verbose_name="Fecha de Regreso (Fin de Viaje)")
@@ -117,6 +131,8 @@ class VentaViaje(models.Model):
         ('TRN', 'Transferencia'),
         ('TAR', 'Tarjeta'),
         ('DEP', 'Depósito'),
+        ('LIG', 'Liga de Pago'),
+        ('PRO', 'Directo a Proveedor'),
     ]
     modo_pago_apertura = models.CharField(
         max_length=3,
@@ -448,8 +464,8 @@ class VentaViaje(models.Model):
         # Sumar el monto de apertura solo si está confirmado o es efectivo
         monto_apertura = Decimal('0.00')
         if self.cantidad_apertura and self.cantidad_apertura > 0:
-            # Si la apertura es efectivo, se cuenta automáticamente
-            if self.modo_pago_apertura == 'EFE':
+            # Si la apertura es efectivo, liga de pago o directo a proveedor, se cuenta automáticamente
+            if self.modo_pago_apertura in ['EFE', 'LIG', 'PRO']:
                 monto_apertura = self.cantidad_apertura
             # Si la apertura es transferencia/tarjeta/depósito:
             # - Si está en 'EN_CONFIRMACION', NO se cuenta (pendiente de confirmación del contador)
@@ -689,6 +705,8 @@ class AbonoPago(models.Model):
         ('TAR', 'Tarjeta'),
         ('DEP', 'Depósito'),
         ('PPL', 'PayPal/Digital'),
+        ('LIG', 'Liga de Pago'),
+        ('PRO', 'Directo a Proveedor'),
     ]
     
     venta = models.ForeignKey(VentaViaje, on_delete=models.CASCADE, related_name='abonos', verbose_name="Venta Asociada")
@@ -1366,6 +1384,74 @@ class PlantillaConfirmacion(models.Model):
     
     def __str__(self):
         return f"{self.get_tipo_display()} - Venta #{self.venta.pk} - {self.fecha_creacion.strftime('%d/%m/%Y')}"
+
+
+# ------------------- MODELO: Cotización -------------------
+class Cotizacion(models.Model):
+    folio = models.CharField(
+        max_length=20,
+        unique=True,
+        blank=True,
+        null=True,
+        verbose_name="Folio de Cotización",
+        help_text="Identificador único de la cotización. Formato: COT-AAAAMMDD-XX"
+    )
+    ESTADO_CHOICES = [
+        ('BORRADOR', 'Borrador'),
+        ('ENVIADA', 'Enviada'),
+        ('CONVERTIDA', 'Convertida a venta'),
+    ]
+
+    cliente = models.ForeignKey('crm.Cliente', on_delete=models.PROTECT, related_name='cotizaciones')
+    vendedor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='cotizaciones_creadas')
+    titulo = models.CharField(max_length=200, default='Cotización')
+    slug = models.SlugField(max_length=255, unique=True, blank=True)
+
+    origen = models.CharField(max_length=150, blank=True)
+    destino = models.CharField(max_length=150, blank=True)
+    dias = models.PositiveIntegerField(default=0)
+    noches = models.PositiveIntegerField(default=0)
+    fecha_inicio = models.DateField(null=True, blank=True)
+    fecha_fin = models.DateField(null=True, blank=True)
+
+    pasajeros = models.PositiveIntegerField(default=1)
+    adultos = models.PositiveIntegerField(default=1)
+    menores = models.PositiveIntegerField(default=0)
+    edades_menores = models.TextField(blank=True, help_text='Nombre y edad de los menores (ej. Juan - 5; Ana - 8)')
+
+    propuestas = models.JSONField(default=dict, blank=True)
+    notas = models.TextField(blank=True)
+    total_estimado = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='BORRADOR')
+
+    creada_en = models.DateTimeField(auto_now_add=True)
+    actualizada_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-creada_en']
+
+    def save(self, *args, **kwargs):
+        if not self.folio:
+            hoy = timezone.localdate()
+            fecha_str = hoy.strftime('%Y%m%d')
+            consecutivo = Cotizacion.objects.filter(creada_en__date=hoy).exclude(folio__isnull=True).exclude(folio='').count() + 1
+            folio = f"COT-{fecha_str}-{consecutivo:02d}"
+            while Cotizacion.objects.filter(folio=folio).exclude(pk=self.pk).exists():
+                consecutivo += 1
+                folio = f"COT-{fecha_str}-{consecutivo:02d}"
+            self.folio = folio
+        if not self.slug:
+            base = slugify(f"{self.cliente.nombre_completo_display}-{timezone.now().strftime('%Y%m%d%H%M%S')}")
+            slug_unique = base
+            num = 1
+            while Cotizacion.objects.filter(slug=slug_unique).exclude(pk=self.pk).exists():
+                slug_unique = f"{base}-{num}"
+                num += 1
+            self.slug = slug_unique
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Cotización {self.pk} - {self.cliente.nombre_completo_display}"
 
 
 # ------------------- SIGNALS (Sin cambios) -------------------
