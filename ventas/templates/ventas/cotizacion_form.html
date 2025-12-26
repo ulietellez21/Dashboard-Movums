@@ -1,0 +1,834 @@
+{% extends "base.html" %}
+{% load widget_tweaks %}
+
+{% block title %}{{ form.instance.pk|yesno:"Editar cotización,Nueva cotización" }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-file-invoice-dollar"></i> {{ form.instance.pk|yesno:"Editar cotización,Nueva cotización" }}</h1>
+    <div>
+        <a href="{% url 'cotizaciones_lista' %}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Volver</a>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body">
+        <form method="post" novalidate id="cotizacionForm">
+            {% csrf_token %}
+            {{ form.propuestas }} {# hidden #}
+
+            <div class="alert alert-info mb-4">
+                Completa la información para generar tu cotización con el formato Movums.
+            </div>
+
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {% for err in form.non_field_errors %}
+                        <div><i class="fas fa-exclamation-circle me-1"></i>{{ err }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="row g-3">
+                <div class="col-md-8">
+                    <label class="form-label fw-bold">Cliente</label>
+                    {{ form.cliente|add_class:"form-select select2" }}
+                    {% for error in form.cliente.errors %}
+                        <div class="invalid-feedback d-block">{{ error }}</div>
+                    {% endfor %}
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Título</label>
+                    {{ form.titulo|add_class:"form-control" }}
+                    {% for error in form.titulo.errors %}
+                        <div class="invalid-feedback d-block">{{ error }}</div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <div class="row g-3">
+                <div class="col-md-8">
+                    <label class="form-label fw-bold">Tipo de cotización</label>
+                    {{ form.tipo|add_class:"form-select form-select-lg"|attr:"id:tipoCotizacionSelect" }}
+                    {% for error in form.tipo.errors %}
+                        <div class="invalid-feedback d-block">{{ error }}</div>
+                    {% endfor %}
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Fecha de cotización</label>
+                    {{ form.fecha_cotizacion }}
+                </div>
+            </div>
+
+            <div class="row g-3 mt-2">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold" id="label_origen_destino_1">Origen</label>
+                    {{ form.origen|add_class:"form-control" }}
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold" id="label_origen_destino_2">Destino</label>
+                    {{ form.destino|add_class:"form-control" }}
+                </div>
+                <div class="col-md-4" id="duracion_viaje_container">
+                    <label class="form-label fw-bold">Duración del viaje</label>
+                    <div class="input-group">
+                        {{ form.dias|add_class:"form-control"|append_attr:"placeholder=Días min=1" }}
+                        <span class="input-group-text">días</span>
+                        {{ form.noches|add_class:"form-control"|append_attr:"placeholder=Noches min=0" }}
+                        <span class="input-group-text">noches</span>
+                    </div>
+                </div>
+                <div class="col-md-3" id="fecha_inicio_container">
+                    <label class="form-label fw-bold">Fecha inicio</label>
+                    {{ form.fecha_inicio|add_class:"form-control" }}
+                </div>
+                <div class="col-md-3" id="fecha_fin_container">
+                    <label class="form-label fw-bold">Fecha fin</label>
+                    {{ form.fecha_fin|add_class:"form-control" }}
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Pasajeros</label>
+                    {{ form.pasajeros|add_class:"form-control"|append_attr:"min=1 value=1" }}
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Adultos</label>
+                    {{ form.adultos|add_class:"form-control"|append_attr:"min=0 value=2" }}
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Menores</label>
+                    {{ form.menores|add_class:"form-control"|append_attr:"min=0 value=0" }}
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <div class="cotizacion-section" data-section="vuelos">
+                <h5 class="text-primary fw-bold mb-3"><i class="fas fa-plane"></i> Propuestas de Vuelo</h5>
+                <div class="row g-3">
+                    {% for idx in "123" %}
+                    <div class="col-md-4">
+                        <div class="border rounded p-3 h-100">
+                            <h6 class="fw-bold text-uppercase text-secondary">Opción {{ forloop.counter }}</h6>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Aerolínea</label>
+                                {% if forloop.counter == 1 %}
+                                    {{ form.vuelo_proveedor_1|add_class:"form-select form-select-sm" }}
+                                {% elif forloop.counter == 2 %}
+                                    {{ form.vuelo_proveedor_2|add_class:"form-select form-select-sm" }}
+                                {% else %}
+                                    {{ form.vuelo_proveedor_3|add_class:"form-select form-select-sm" }}
+                                {% endif %}
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Salida</label>
+                                <input type="text" class="form-control form-control-sm" name="vuelo_salida_{{ forloop.counter }}" placeholder="Ej: 07:50 CDMX">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Regreso</label>
+                                <input type="text" class="form-control form-control-sm" name="vuelo_regreso_{{ forloop.counter }}" placeholder="Ej: 22:20 Cancún">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Incluye</label>
+                                <textarea class="form-control form-control-sm" rows="2" name="vuelo_incluye_{{ forloop.counter }}" placeholder="Equipaje, tiempos, etc."></textarea>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Total MXN</label>
+                                <input type="text" class="form-control form-control-sm" name="vuelo_total_{{ forloop.counter }}" placeholder="24,909.00">
+                            </div>
+                            <div>
+                                <label class="form-label small fw-semibold">Forma de pago <span class="text-muted">(Opcional)</span></label>
+                                <input type="text" class="form-control form-control-sm" name="vuelo_forma_pago_{{ forloop.counter }}" placeholder="Ej: 50% anticipo, 50% al confirmar">
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="cotizacion-section d-none" data-section="hospedaje">
+                <h5 class="text-primary fw-bold mb-3"><i class="fas fa-hotel"></i> Propuestas de Hospedaje</h5>
+                <div class="row g-3">
+                    {% for idx in "123" %}
+                    <div class="col-md-4">
+                        <div class="border rounded p-3 h-100">
+                            <h6 class="fw-bold text-uppercase text-secondary">Opción {{ forloop.counter }}</h6>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Hotel</label>
+                                {% if forloop.counter == 1 %}
+                                    {{ form.hotel_proveedor_1|add_class:"form-select form-select-sm" }}
+                                {% elif forloop.counter == 2 %}
+                                    {{ form.hotel_proveedor_2|add_class:"form-select form-select-sm" }}
+                                {% else %}
+                                    {{ form.hotel_proveedor_3|add_class:"form-select form-select-sm" }}
+                                {% endif %}
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Habitación</label>
+                                <input type="text" class="form-control form-control-sm" name="hotel_habitacion_{{ forloop.counter }}" placeholder="2 x Estándar">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Dirección</label>
+                                <textarea class="form-control form-control-sm" rows="2" name="hotel_direccion_{{ forloop.counter }}" placeholder="Blvr Kukulkán km 4..."></textarea>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Plan de alimentos</label>
+                                <input type="text" class="form-control form-control-sm" name="hotel_plan_{{ forloop.counter }}" placeholder="Desayuno buffet">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Total MXN</label>
+                                <input type="text" class="form-control form-control-sm" name="hotel_total_{{ forloop.counter }}" placeholder="28,349.00">
+                            </div>
+                            <div>
+                                <label class="form-label small fw-semibold">Forma de pago <span class="text-muted">(Opcional)</span></label>
+                                <input type="text" class="form-control form-control-sm" name="hotel_forma_pago_{{ forloop.counter }}" placeholder="Ej: 50% anticipo, 50% al confirmar">
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="cotizacion-section d-none" data-section="paquete">
+                <h5 class="text-primary fw-bold mb-3"><i class="fas fa-layer-group"></i> Detalles del Paquete (Vuelo + Hospedaje)</h5>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="border rounded p-3">
+                            <h6 class="fw-bold text-uppercase text-secondary">Vuelo</h6>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Aerolínea</label>
+                                {{ form.paquete_proveedor_vuelo|add_class:"form-select form-select-sm" }}
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Salida</label>
+                                <input type="text" class="form-control form-control-sm" name="paquete_vuelo_salida" placeholder="07:50 CDMX">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Regreso</label>
+                                <input type="text" class="form-control form-control-sm" name="paquete_vuelo_regreso" placeholder="22:20 CDMX">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Incluye</label>
+                                <textarea class="form-control form-control-sm" rows="3" name="paquete_vuelo_incluye" placeholder="Equipaje, traslados, etc."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="border rounded p-3">
+                            <h6 class="fw-bold text-uppercase text-secondary">Hospedaje</h6>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Hotel</label>
+                                {{ form.paquete_proveedor_hotel|add_class:"form-select form-select-sm" }}
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Habitación / Plan</label>
+                                <input type="text" class="form-control form-control-sm" name="paquete_hotel_habitacion" placeholder="Gran Std | Todo Incluido">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Notas</label>
+                                <textarea class="form-control form-control-sm" rows="2" name="paquete_hotel_notas" placeholder="Incluye traslado redondo"></textarea>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Total MXN</label>
+                                <input type="text" class="form-control form-control-sm" name="paquete_total" placeholder="37,199.00">
+                            </div>
+                            <div>
+                                <label class="form-label small fw-semibold">Forma de pago <span class="text-muted">(Opcional)</span></label>
+                                <input type="text" class="form-control form-control-sm" name="paquete_forma_pago" placeholder="Ej: 50% anticipo, 50% al confirmar">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cotizacion-section d-none" data-section="tours">
+                <h5 class="text-primary fw-bold mb-3"><i class="fas fa-map-marked-alt"></i> Información de Tours</h5>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Proveedor de Tours</label>
+                        {{ form.tour_proveedor|add_class:"form-select" }}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Número de Reserva</label>
+                        <input type="text" class="form-control" name="tour_numero_reserva" placeholder="Ej: TOUR-2025-001">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Nombre del Tour</label>
+                        <input type="text" class="form-control" name="tour_nombre" placeholder="Ej: Tour Chichen Itzá + Cenote">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Especificaciones</label>
+                        <textarea class="form-control" rows="6" name="tour_especificaciones" placeholder="Detalles del tour, itinerario, horarios, incluye, no incluye, etc."></textarea>
+                        <small class="text-muted">Incluye toda la información relevante del tour: itinerario, horarios, qué incluye, qué no incluye, recomendaciones, etc.</small>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Forma de pago <span class="text-muted">(Opcional)</span></label>
+                        <input type="text" class="form-control" name="tour_forma_pago" placeholder="Ej: 50% anticipo, 50% al confirmar">
+                    </div>
+                </div>
+            </div>
+
+            <div class="cotizacion-section d-none" data-section="traslados">
+                <h5 class="text-primary fw-bold mb-3"><i class="fas fa-car"></i> Información de Traslados</h5>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Proveedor de Traslados</label>
+                        {{ form.traslado_proveedor|add_class:"form-select" }}
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Tipo</label>
+                        <select class="form-select" name="traslado_tipo" id="traslado_tipo">
+                            <option value="">Selecciona...</option>
+                            <option value="PRIVADO">Privado</option>
+                            <option value="COMPARTIDO">Compartido</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Modalidad</label>
+                        <select class="form-select" name="traslado_modalidad" id="traslado_modalidad">
+                            <option value="">Selecciona...</option>
+                            <option value="SENCILLO">Sencillo</option>
+                            <option value="REDONDO">Redondo</option>
+                        </select>
+                    </div>
+                    {# Campos para traslado redondo - se muestran solo cuando se selecciona "Redondo" #}
+                    <div class="col-md-3" id="traslado_fecha_ida_container" style="display: none;">
+                        <label class="form-label fw-semibold">Fecha de Ida</label>
+                        <input type="date" class="form-control" name="traslado_fecha_ida" id="traslado_fecha_ida">
+                    </div>
+                    <div class="col-md-3" id="traslado_fecha_regreso_container" style="display: none;">
+                        <label class="form-label fw-semibold">Fecha de Regreso</label>
+                        <input type="date" class="form-control" name="traslado_fecha_regreso" id="traslado_fecha_regreso">
+                    </div>
+                    <div class="col-md-3" id="traslado_hora_ida_container" style="display: none;">
+                        <label class="form-label fw-semibold">Hora de Ida</label>
+                        <input type="time" class="form-control" name="traslado_hora_ida" id="traslado_hora_ida" placeholder="Ej: 10:00">
+                    </div>
+                    <div class="col-md-3" id="traslado_hora_regreso_container" style="display: none;">
+                        <label class="form-label fw-semibold">Hora de Regreso</label>
+                        <input type="time" class="form-control" name="traslado_hora_regreso" id="traslado_hora_regreso" placeholder="Ej: 18:00">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Descripción del Traslado</label>
+                        <textarea class="form-control" name="traslado_descripcion" id="traslado_descripcion" rows="6" placeholder="Detalles del traslado: tipo de vehículo, capacidad, servicios incluidos, horarios, etc."></textarea>
+                        <small class="text-muted">Incluye toda la información relevante del traslado: tipo de vehículo, capacidad, servicios incluidos, horarios, puntos de recogida, etc.</small>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Total MXN</label>
+                        <input type="text" class="form-control" name="traslado_total" id="traslado_total" placeholder="Ej: 1,500.00">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Forma de pago <span class="text-muted">(Opcional)</span></label>
+                        <input type="text" class="form-control" name="traslado_forma_pago" id="traslado_forma_pago" placeholder="Ej: 50% anticipo, 50% al confirmar">
+                    </div>
+                </div>
+            </div>
+
+            <div class="cotizacion-section d-none" data-section="generica">
+                <h5 class="text-primary fw-bold mb-3"><i class="fas fa-file-alt"></i> Plantilla Genérica</h5>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Utiliza esta plantilla para incluir cualquier información personalizada en tu cotización.
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Contenido de la Cotización</label>
+                    <textarea class="form-control" name="generica_contenido" rows="15" placeholder="Ingresa aquí toda la información que deseas incluir en la cotización. Puedes incluir texto, detalles de servicios, precios, condiciones, etc."></textarea>
+                    <small class="form-text text-muted">Este contenido se incluirá tal cual en la cotización generada.</small>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <div class="row g-3">
+                <div class="col-md-12">
+                    <label class="form-label fw-bold">Notas adicionales</label>
+                    {{ form.notas|add_class:"form-control" }}
+                </div>
+            </div>
+
+            <div class="mt-4 d-flex justify-content-between">
+                <a href="{% url 'cotizaciones_lista' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </a>
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i> Guardar
+                    </button>
+                    {% if form.instance.pk and form.instance.slug %}
+                        <button type="button" class="btn btn-primary" id="docxBtn" data-docx-url="{% url 'cotizacion_docx' slug=form.instance.slug %}">
+                            <i class="fas fa-download me-1"></i> Descargar DOCX
+                        </button>
+                    {% else %}
+                        <button type="button" class="btn btn-outline-secondary" disabled title="Guarda primero para habilitar DOCX">
+                            <i class="fas fa-download me-1"></i> Descargar DOCX
+                        </button>
+                    {% endif %}
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('cotizacionForm');
+        let tipoSelect = document.getElementById('tipoCotizacionSelect');
+        const sections = form.querySelectorAll('.cotizacion-section');
+        const propuestasInput = document.getElementById('id_propuestas');
+        const docxBtn = document.getElementById('docxBtn');
+
+        // Función para mostrar/ocultar campos de traslado redondo
+        function toggleTrasladoRedondo() {
+            const modalidadSelect = document.getElementById('traslado_modalidad');
+            const fechaIdaContainer = document.getElementById('traslado_fecha_ida_container');
+            const fechaRegresoContainer = document.getElementById('traslado_fecha_regreso_container');
+            const horaIdaContainer = document.getElementById('traslado_hora_ida_container');
+            const horaRegresoContainer = document.getElementById('traslado_hora_regreso_container');
+            
+            if (modalidadSelect && tipoSelect && tipoSelect.value === 'traslados') {
+                const esRedondo = modalidadSelect.value === 'REDONDO';
+                
+                if (fechaIdaContainer) fechaIdaContainer.style.display = esRedondo ? 'block' : 'none';
+                if (fechaRegresoContainer) fechaRegresoContainer.style.display = esRedondo ? 'block' : 'none';
+                if (horaIdaContainer) horaIdaContainer.style.display = esRedondo ? 'block' : 'none';
+                if (horaRegresoContainer) horaRegresoContainer.style.display = esRedondo ? 'block' : 'none';
+            } else {
+                // Ocultar todos si no es traslados
+                if (fechaIdaContainer) fechaIdaContainer.style.display = 'none';
+                if (fechaRegresoContainer) fechaRegresoContainer.style.display = 'none';
+                if (horaIdaContainer) horaIdaContainer.style.display = 'none';
+                if (horaRegresoContainer) horaRegresoContainer.style.display = 'none';
+            }
+        }
+
+        function toggleSection(tipo) {
+            if (!tipo) return;
+            if (!tipo) return;
+            
+            sections.forEach(section => {
+                const shouldShow = section.dataset.section === tipo;
+                if (shouldShow) {
+                    section.classList.remove('d-none');
+                } else {
+                    section.classList.add('d-none');
+                }
+            });
+            
+            // Manejar visibilidad de campos y labels según el tipo
+            const duracionContainer = document.getElementById('duracion_viaje_container');
+            const fechaInicioContainer = document.getElementById('fecha_inicio_container');
+            const fechaFinContainer = document.getElementById('fecha_fin_container');
+            const labelOrigen = document.getElementById('label_origen_destino_1');
+            const labelDestino = document.getElementById('label_origen_destino_2');
+            
+            const origenField = document.getElementById('id_origen');
+            const destinoField = document.getElementById('id_destino');
+            
+            if (tipo === 'traslados') {
+                // Ocultar duración y fechas para traslados
+                if (duracionContainer) duracionContainer.style.display = 'none';
+                if (fechaInicioContainer) fechaInicioContainer.style.display = 'none';
+                if (fechaFinContainer) fechaFinContainer.style.display = 'none';
+                
+                // Cambiar labels a "Desde" y "Hasta"
+                if (labelOrigen) labelOrigen.textContent = 'Desde';
+                if (labelDestino) labelDestino.textContent = 'Hasta';
+                
+                // Cambiar placeholders para traslados
+                if (origenField) origenField.placeholder = 'Ej: Aeropuerto de Cancún';
+                if (destinoField) destinoField.placeholder = 'Ej: Hotel Riu Palace';
+            } else {
+                // Mostrar duración y fechas para otros tipos
+                if (duracionContainer) duracionContainer.style.display = 'block';
+                if (fechaInicioContainer) fechaInicioContainer.style.display = 'block';
+                if (fechaFinContainer) fechaFinContainer.style.display = 'block';
+                
+                // Restaurar labels a "Origen" y "Destino"
+                if (labelOrigen) labelOrigen.textContent = 'Origen';
+                if (labelDestino) labelDestino.textContent = 'Destino';
+                
+                // Restaurar placeholders originales
+                if (origenField) origenField.placeholder = 'Ej: Guadalajara';
+                if (destinoField) destinoField.placeholder = 'Ej: Cancún';
+            }
+        }
+        
+        // Verificar que el select existe antes de usarlo
+        if (!tipoSelect) {
+            console.error('No se encontró el elemento tipoCotizacionSelect');
+            // Intentar buscar por nombre también
+            const tipoSelectAlt = form.querySelector('select[name="tipo"]');
+            if (tipoSelectAlt) {
+                console.log('Encontrado por nombre, usando ese elemento');
+                tipoSelect = tipoSelectAlt;
+            } else {
+                return;
+            }
+        }
+        
+        console.log('tipoSelect encontrado:', tipoSelect);
+        console.log('Valor inicial:', tipoSelect.value);
+        
+        // Inicializar con el valor actual
+        const tipoInicial = tipoSelect.value || 'vuelos';
+        console.log('Inicializando con tipo:', tipoInicial);
+        toggleSection(tipoInicial);
+        toggleTrasladoRedondo();
+        
+        // Escuchar cambios en el tipo de cotización
+        tipoSelect.addEventListener('change', function() {
+            const nuevoTipo = this.value;
+            console.log('Cambio de tipo detectado:', nuevoTipo);
+            toggleSection(nuevoTipo);
+            toggleTrasladoRedondo();
+        });
+        
+        // También escuchar eventos de input por si acaso
+        tipoSelect.addEventListener('input', function() {
+            const nuevoTipo = this.value;
+            console.log('Input detectado:', nuevoTipo);
+            toggleSection(nuevoTipo);
+            toggleTrasladoRedondo();
+        });
+        
+        // Escuchar cambios en la modalidad de traslado
+        const modalidadSelect = document.getElementById('traslado_modalidad');
+        if (modalidadSelect) {
+            modalidadSelect.addEventListener('change', toggleTrasladoRedondo);
+        }
+
+        // FUNCIÓN NUEVA: Cargar datos del JSON oculto a los inputs visuales
+        function cargarPropuestasDesdeHidden() {
+            const raw = propuestasInput.value;
+            if (!raw || raw === '{}') return;
+            try {
+                const data = JSON.parse(raw);
+                
+                // 1. Restaurar Tipo (esto también actualizará labels y placeholders)
+                if (data.tipo) {
+                    tipoSelect.value = data.tipo;
+                    toggleSection(data.tipo);
+                }
+                // Función auxiliar para seleccionar proveedor por nombre
+                function selectProveedorByName(selectId, nombre) {
+                    if (!nombre) return;
+                    const select = form.elements[selectId];
+                    if (select) {
+                        for (let i = 0; i < select.options.length; i++) {
+                            if (select.options[i].text === nombre) {
+                                select.value = select.options[i].value;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                // 2. Restaurar Vuelos
+                if (data.vuelos && Array.isArray(data.vuelos)) {
+                    data.vuelos.forEach((v, idx) => {
+                        const i = idx + 1; // Índices 1, 2, 3
+                        selectProveedorByName(`vuelo_proveedor_${i}`, v.aerolinea);
+                        if (form.elements[`vuelo_salida_${i}`]) form.elements[`vuelo_salida_${i}`].value = v.salida || '';
+                        if (form.elements[`vuelo_regreso_${i}`]) form.elements[`vuelo_regreso_${i}`].value = v.regreso || '';
+                        if (form.elements[`vuelo_incluye_${i}`]) form.elements[`vuelo_incluye_${i}`].value = v.incluye || '';
+                        if (form.elements[`vuelo_total_${i}`]) form.elements[`vuelo_total_${i}`].value = v.total || '';
+                        if (form.elements[`vuelo_forma_pago_${i}`]) form.elements[`vuelo_forma_pago_${i}`].value = v.forma_pago || '';
+                    });
+                }
+                // 3. Restaurar Hospedaje
+                if (data.hoteles && Array.isArray(data.hoteles)) {
+                    data.hoteles.forEach((h, idx) => {
+                        const i = idx + 1;
+                        selectProveedorByName(`hotel_proveedor_${i}`, h.nombre);
+                        if (form.elements[`hotel_habitacion_${i}`]) form.elements[`hotel_habitacion_${i}`].value = h.habitacion || '';
+                        if (form.elements[`hotel_direccion_${i}`]) form.elements[`hotel_direccion_${i}`].value = h.direccion || '';
+                        if (form.elements[`hotel_plan_${i}`]) form.elements[`hotel_plan_${i}`].value = h.plan || '';
+                        if (form.elements[`hotel_total_${i}`]) form.elements[`hotel_total_${i}`].value = h.total || '';
+                        if (form.elements[`hotel_forma_pago_${i}`]) form.elements[`hotel_forma_pago_${i}`].value = h.forma_pago || '';
+                    });
+                }
+                // 4. Restaurar Paquete
+                if (data.paquete) {
+                    if (data.paquete.vuelo) {
+                        selectProveedorByName('paquete_proveedor_vuelo', data.paquete.vuelo.aerolinea);
+                        if (form.elements['paquete_vuelo_salida']) form.elements['paquete_vuelo_salida'].value = data.paquete.vuelo.salida || '';
+                        if (form.elements['paquete_vuelo_regreso']) form.elements['paquete_vuelo_regreso'].value = data.paquete.vuelo.regreso || '';
+                        if (form.elements['paquete_vuelo_incluye']) form.elements['paquete_vuelo_incluye'].value = data.paquete.vuelo.incluye || '';
+                    }
+                    if (data.paquete.hotel) {
+                        selectProveedorByName('paquete_proveedor_hotel', data.paquete.hotel.nombre);
+                        if (form.elements['paquete_hotel_habitacion']) form.elements['paquete_hotel_habitacion'].value = data.paquete.hotel.habitacion || '';
+                        if (form.elements['paquete_hotel_notas']) form.elements['paquete_hotel_notas'].value = data.paquete.hotel.notas || '';
+                    }
+                    if (form.elements['paquete_total']) form.elements['paquete_total'].value = data.paquete.total || '';
+                    if (form.elements['paquete_forma_pago']) form.elements['paquete_forma_pago'].value = data.paquete.forma_pago || '';
+                }
+                // 5. Restaurar Tours
+                if (data.tours) {
+                    selectProveedorByName('tour_proveedor', data.tours.proveedor);
+                    if (form.elements['tour_numero_reserva']) form.elements['tour_numero_reserva'].value = data.tours.numero_reserva || '';
+                    if (form.elements['tour_nombre']) form.elements['tour_nombre'].value = data.tours.nombre || '';
+                    if (form.elements['tour_especificaciones']) form.elements['tour_especificaciones'].value = data.tours.especificaciones || '';
+                    if (form.elements['tour_forma_pago']) form.elements['tour_forma_pago'].value = data.tours.forma_pago || '';
+                }
+                // 6. Restaurar Traslados
+                if (data.traslados) {
+                    selectProveedorByName('traslado_proveedor', data.traslados.proveedor);
+                    if (form.elements['traslado_tipo']) form.elements['traslado_tipo'].value = data.traslados.tipo || '';
+                    if (form.elements['traslado_modalidad']) {
+                        form.elements['traslado_modalidad'].value = data.traslados.modalidad || '';
+                        // Activar toggle para mostrar campos de redondo si aplica
+                        toggleTrasladoRedondo();
+                    }
+                    if (form.elements['traslado_descripcion']) form.elements['traslado_descripcion'].value = data.traslados.descripcion || '';
+                    if (form.elements['traslado_total']) form.elements['traslado_total'].value = data.traslados.total || '';
+                    if (form.elements['traslado_forma_pago']) form.elements['traslado_forma_pago'].value = data.traslados.forma_pago || '';
+                    // Campos de traslado redondo
+                    if (form.elements['traslado_fecha_ida']) form.elements['traslado_fecha_ida'].value = data.traslados.fecha_ida || '';
+                    if (form.elements['traslado_fecha_regreso']) form.elements['traslado_fecha_regreso'].value = data.traslados.fecha_regreso || '';
+                    if (form.elements['traslado_hora_ida']) form.elements['traslado_hora_ida'].value = data.traslados.hora_ida || '';
+                    if (form.elements['traslado_hora_regreso']) form.elements['traslado_hora_regreso'].value = data.traslados.hora_regreso || '';
+                    // Mapear desde/hasta a origen/destino (los campos principales)
+                    const origenField = document.getElementById('id_origen');
+                    const destinoField = document.getElementById('id_destino');
+                    if (origenField) origenField.value = data.traslados.desde || '';
+                    if (destinoField) destinoField.value = data.traslados.hasta || '';
+                }
+                // 7. Restaurar Generica
+                if (data.generica) {
+                    if (form.elements['generica_contenido']) form.elements['generica_contenido'].value = data.generica.contenido || '';
+                }
+            } catch (e) {
+                console.error("Error restaurando datos de propuestas:", e);
+            }
+        }
+
+        function buildPropuestas() {
+            const data = Object.fromEntries(new FormData(form).entries());
+            const tipo = data.tipo || 'vuelos';
+            
+            // Función auxiliar para obtener el nombre del proveedor desde el select
+            function getProveedorNombre(fieldName) {
+                const select = form.elements[fieldName];
+                if (select && select.value) {
+                    return select.options[select.selectedIndex].text;
+                }
+                return '';
+            }
+            
+            const propuestasVuelo = [1, 2, 3].map(idx => {
+                const proveedorNombre = getProveedorNombre(`vuelo_proveedor_${idx}`);
+                return {
+                    aerolinea: proveedorNombre || (data[`vuelo_aerolinea_${idx}`] || '').trim(),
+                    salida: (data[`vuelo_salida_${idx}`] || '').trim(),
+                    regreso: (data[`vuelo_regreso_${idx}`] || '').trim(),
+                    incluye: (data[`vuelo_incluye_${idx}`] || '').trim(),
+                    total: (data[`vuelo_total_${idx}`] || '').trim(),
+                    forma_pago: (data[`vuelo_forma_pago_${idx}`] || '').trim()
+                };
+            }).filter(item => Object.values(item).some(v => v));
+
+            const propuestasHotel = [1, 2, 3].map(idx => {
+                const proveedorNombre = getProveedorNombre(`hotel_proveedor_${idx}`);
+                return {
+                    nombre: proveedorNombre || (data[`hotel_nombre_${idx}`] || '').trim(),
+                    habitacion: (data[`hotel_habitacion_${idx}`] || '').trim(),
+                    direccion: (data[`hotel_direccion_${idx}`] || '').trim(),
+                    plan: (data[`hotel_plan_${idx}`] || '').trim(),
+                    total: (data[`hotel_total_${idx}`] || '').trim(),
+                    forma_pago: (data[`hotel_forma_pago_${idx}`] || '').trim()
+                };
+            }).filter(item => Object.values(item).some(v => v));
+
+            const propuestas = {
+                tipo: tipo,
+                fecha_cotizacion: data.fecha_cotizacion || null,
+                vuelos: propuestasVuelo,
+                hoteles: propuestasHotel,
+                paquete: {
+                    vuelo: {
+                        aerolinea: getProveedorNombre('paquete_proveedor_vuelo') || (data.paquete_vuelo_aerolinea || '').trim(),
+                        salida: (data.paquete_vuelo_salida || '').trim(),
+                        regreso: (data.paquete_vuelo_regreso || '').trim(),
+                        incluye: (data.paquete_vuelo_incluye || '').trim(),
+                    },
+                    hotel: {
+                        nombre: getProveedorNombre('paquete_proveedor_hotel') || (data.paquete_hotel_nombre || '').trim(),
+                        habitacion: (data.paquete_hotel_habitacion || '').trim(),
+                        notas: (data.paquete_hotel_notas || '').trim(),
+                    },
+                    total: (data.paquete_total || '').trim(),
+                    forma_pago: (data.paquete_forma_pago || '').trim()
+                },
+                tours: {
+                    proveedor: getProveedorNombre('tour_proveedor') || '',
+                    numero_reserva: (data.tour_numero_reserva || '').trim(),
+                    nombre: (data.tour_nombre || '').trim(),
+                    especificaciones: (data.tour_especificaciones || '').trim(),
+                    forma_pago: (data.tour_forma_pago || '').trim()
+                },
+                traslados: {
+                    proveedor: getProveedorNombre('traslado_proveedor') || '',
+                    tipo: (data.traslado_tipo || '').trim(),
+                    modalidad: (data.traslado_modalidad || '').trim(),
+                    // Para traslados, usar los campos de origen/destino (que ahora son desde/hasta)
+                    desde: (data.origen || '').trim(),
+                    hasta: (data.destino || '').trim(),
+                    descripcion: (data.traslado_descripcion || '').trim(),
+                    total: (data.traslado_total || '').trim(),
+                    forma_pago: (data.traslado_forma_pago || '').trim(),
+                    // Campos para traslado redondo
+                    fecha_ida: (data.traslado_fecha_ida || '').trim(),
+                    fecha_regreso: (data.traslado_fecha_regreso || '').trim(),
+                    hora_ida: (data.traslado_hora_ida || '').trim(),
+                    hora_regreso: (data.traslado_hora_regreso || '').trim()
+                },
+                generica: {
+                    contenido: (data.generica_contenido || '').trim()
+                }
+            };
+
+            if (propuestasInput) {
+                propuestasInput.value = JSON.stringify(propuestas);
+            }
+        }
+
+        form.addEventListener('submit', function(e) {
+            // Construir propuestas antes de enviar
+            buildPropuestas();
+            // Verificar que el campo propuestas tenga valor
+            if (!propuestasInput || !propuestasInput.value || propuestasInput.value === '{}') {
+                e.preventDefault();
+                alert('Por favor, completa al menos una propuesta antes de guardar.');
+                return false;
+            }
+        });
+
+        docxBtn?.addEventListener('click', function(e) {
+            e.preventDefault();
+            const docxUrl = this.dataset.docxUrl;
+            
+            if (!docxUrl) {
+                alert('No se puede generar el documento. Por favor, guarda la cotización primero.');
+                return;
+            }
+            
+            console.log('Generando DOCX desde:', docxUrl);
+            
+            // Hacer una petición GET simple para descargar el DOCX
+            fetch(docxUrl)
+                .then(async response => {
+                    console.log('Response status:', response.status);
+                    console.log('Response headers:', response.headers);
+                    
+                    // Verificar el tipo de contenido
+                    const contentType = response.headers.get('Content-Type');
+                    console.log('Content-Type:', contentType);
+                    
+                    if (!response.ok) {
+                        // Intentar leer el mensaje de error si es texto
+                        const errorText = await response.text();
+                        console.error('Error response:', errorText);
+                        throw new Error(`Error ${response.status}: ${errorText.substring(0, 100)}`);
+                    }
+                    
+                    // Verificar que sea un documento DOCX
+                    if (contentType && !contentType.includes('wordprocessingml') && !contentType.includes('octet-stream')) {
+                        const errorText = await response.text();
+                        console.error('Error: No es un documento DOCX:', errorText);
+                        throw new Error('El servidor no devolvió un documento DOCX válido');
+                    }
+                    
+                    // Obtener el nombre del archivo del header Content-Disposition si está disponible
+                    const contentDisposition = response.headers.get('Content-Disposition');
+                    let filename = 'cotizacion.docx';
+                    if (contentDisposition) {
+                        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                        if (filenameMatch) {
+                            filename = filenameMatch[1].replace(/['"]/g, '');
+                        }
+                    }
+                    
+                    return response.blob().then(blob => {
+                        console.log('Blob recibido, tamaño:', blob.size);
+                        if (blob.size === 0) {
+                            throw new Error('El documento generado está vacío');
+                        }
+                        return { blob, filename };
+                    });
+                })
+                .then(({ blob, filename }) => {
+                    console.log('Descargando archivo:', filename);
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    window.URL.revokeObjectURL(url);
+                    console.log('Descarga completada');
+                })
+                .catch(error => {
+                    console.error('Error completo:', error);
+                    alert('Error al descargar el documento: ' + error.message + '\n\nRevisa la consola para más detalles.');
+                });
+        });
+
+        // Ejecutar al cargar la página para restaurar datos guardados
+        cargarPropuestasDesdeHidden();
+
+        // Sincronización de fechas: fecha de fin no puede ser anterior a fecha de inicio
+        const fechaInicio = document.getElementById('id_fecha_inicio');
+        const fechaFin = document.getElementById('id_fecha_fin');
+        
+        if (fechaInicio && fechaFin) {
+            // Función para actualizar la fecha mínima de fin y pre-llenar si está vacía
+            function actualizarFechaMinimaFin() {
+                const fechaInicioValor = fechaInicio.value;
+                if (fechaInicioValor) {
+                    // Establecer la fecha mínima de fin como la fecha de inicio
+                    fechaFin.min = fechaInicioValor;
+                    
+                    // Si el campo de fin está vacío, pre-llenarlo automáticamente con la fecha de inicio
+                    if (!fechaFin.value) {
+                        fechaFin.value = fechaInicioValor;
+                    }
+                    // Si la fecha de fin es anterior a la fecha de inicio (en cualquier dirección), actualizarla
+                    else if (fechaFin.value < fechaInicioValor) {
+                        fechaFin.value = fechaInicioValor;
+                    }
+                }
+            }
+            
+            // Pre-llenar fecha de fin con fecha de inicio cuando se hace clic si está vacía
+            function prellenarFechaFin() {
+                const fechaInicioValor = fechaInicio.value;
+                // Si el campo de fin está vacío y hay una fecha de inicio, pre-llenarlo
+                if (!fechaFin.value && fechaInicioValor) {
+                    fechaFin.value = fechaInicioValor;
+                    actualizarFechaMinimaFin();
+                }
+            }
+            
+            // Usar tanto 'focus' como 'click' para mayor compatibilidad
+            fechaFin.addEventListener('focus', prellenarFechaFin);
+            fechaFin.addEventListener('click', prellenarFechaFin);
+            
+            // Ejecutar al cargar la página si ya hay una fecha de inicio
+            actualizarFechaMinimaFin();
+            
+            // Ejecutar cuando cambie la fecha de inicio (automáticamente actualiza la fecha de fin)
+            fechaInicio.addEventListener('change', actualizarFechaMinimaFin);
+        }
+    });
+</script>
+{% endblock %}
+{% endblock %}
+

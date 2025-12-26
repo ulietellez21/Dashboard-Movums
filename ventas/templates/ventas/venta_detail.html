@@ -39,16 +39,16 @@
             {% comment %} Ocultar el botón si la venta es solo de vuelo (VUE) ya que el pago es al momento {% endcomment %}
             {% if venta.servicios_seleccionados == 'VUE' %}
                 {# No mostrar botón de contrato para ventas de solo vuelo #}
-            {% elif venta.cantidad_apertura > 0 and venta.estado_confirmacion == 'EN_CONFIRMACION' and venta.modo_pago_apertura in 'TRN,TAR,DEP' and venta.comprobante_apertura_subido %}
+            {% elif not puede_generar_documentos %}
                 <button type="button" 
                     class="btn btn-danger shadow-sm" 
                     disabled
-                    title="El contrato no se puede generar hasta que el contador confirme el pago de apertura. El comprobante ya fue subido y está en proceso de confirmación.">
+                    title="El contrato se habilita cuando el anticipo está confirmado.">
                     <i class="fas fa-file-contract me-1"></i> Contrato Venta
                     <i class="fas fa-lock ms-1"></i>
                 </button>
-                <span class="badge bg-warning text-dark align-self-center" data-bs-toggle="tooltip" data-bs-placement="top" title="Esperando confirmación del contador para generar el contrato">
-                    <i class="fas fa-clock me-1"></i> Pago en confirmación
+                <span class="badge bg-warning text-dark align-self-center" data-bs-toggle="tooltip" data-bs-placement="top" title="Sube y confirma el anticipo para habilitar el contrato">
+                    <i class="fas fa-clock me-1"></i> Pendiente de anticipo confirmado
                 </span>
             {% else %}
                 <a href="{% url 'generar_contrato_pdf' slug=venta.slug pk=venta.pk %}" 
@@ -61,11 +61,22 @@
             <!-- Botón de Comprobante de Abonos PDF -->
             {% comment %} Ocultar el botón si la venta es solo de vuelo (VUE) ya que el pago es al momento y no habrá abonos {% endcomment %}
             {% if venta.servicios_seleccionados != 'VUE' %}
-                <a href="{% url 'comprobante_abonos_pdf' slug=venta.slug pk=venta.pk %}" 
-                    class="btn btn-success shadow-sm" target="_blank"
-                    title="Genera el comprobante de todos los abonos realizados">
-                    <i class="fas fa-receipt me-1"></i> Comprobante Abonos
-                </a>
+                {% if not puede_generar_documentos %}
+                    <button type="button" class="btn btn-success shadow-sm" disabled
+                        title="El comprobante de abonos se habilita cuando el anticipo está confirmado.">
+                        <i class="fas fa-receipt me-1"></i> Comprobante Abonos
+                        <i class="fas fa-lock ms-1"></i>
+                    </button>
+                    <span class="badge bg-warning text-dark align-self-center" data-bs-toggle="tooltip" data-bs-placement="top" title="Sube y confirma el anticipo para habilitar el comprobante de abonos">
+                        <i class="fas fa-clock me-1"></i> Pendiente de anticipo confirmado
+                    </span>
+                {% else %}
+                    <a href="{% url 'comprobante_abonos_pdf' slug=venta.slug pk=venta.pk %}" 
+                        class="btn btn-success shadow-sm" target="_blank"
+                        title="Genera el comprobante de todos los abonos realizados">
+                        <i class="fas fa-receipt me-1"></i> Comprobante Abonos
+                    </a>
+                {% endif %}
             {% endif %}
             
             <!-- Botón de Plantillas de Confirmación -->
@@ -75,12 +86,6 @@
                 <i class="fas fa-file-alt me-1"></i> Generar Confirmaciones
             </a>
 
-            <!-- Botón de Eliminar -->
-            {% if user.perfil.rol in 'JEFE' %}
-                <button type="button" class="btn btn-outline-danger shadow-sm" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal">
-                    <i class="fas fa-trash-alt me-1"></i> Eliminar Venta
-                </button>
-            {% endif %}
         </div>
         <!-- Fin de la Fila de Botones de Documentos -->
 
@@ -197,7 +202,7 @@
                             <div class="col-md-6">
                                 <h5><i class="fas fa-user"></i> Cliente</h5>
                                 <p><strong>Nombre:</strong> 
-                                    <a href="{% url 'detalle_cliente' pk=venta.cliente.pk %}">
+                                    <a href="{% url 'detalle_cliente' pk=venta.cliente.pk %}" class="text-decoration-none">
                                         {% if venta.cliente.tipo_cliente == 'EMPRESA' %}
                                             <i class="fas fa-building text-info"></i>
                                             <span class="badge bg-info text-white me-1">Empresa</span>
@@ -227,6 +232,13 @@
                                 </p>
                             </div>
                         </div>
+                <div class="row mt-3">
+                    <div class="col-md-12">
+                        <h5><i class="fas fa-users"></i> Pasajeros</h5>
+                        <p class="mb-1"><strong>Listado:</strong><br>{{ venta.pasajeros|linebreaksbr|default:"No especificado" }}</p>
+                        <p class="mb-0"><strong>Menores (nombre y edad):</strong> {{ venta.edades_menores|default:"No especificado" }}</p>
+                    </div>
+                </div>
                     </div>
                 </div>
                 
@@ -354,6 +366,8 @@
                                                         {# Solo está pendiente si la venta está en confirmación Y NO hay otros abonos pendientes #}
                                                         {% if venta.estado_confirmacion == 'EN_CONFIRMACION' and venta.modo_pago_apertura in 'TRN,TAR,DEP' and not tiene_abonos_pendientes %}
                                                             <span class="badge bg-warning text-dark"><i class="fas fa-clock"></i> Pendiente</span>
+                                                        {% elif venta.modo_pago_apertura in 'EFE,LIG,PRO' %}
+                                                            <span class="badge bg-success"><i class="fas fa-check"></i> Confirmado</span>
                                                         {% else %}
                                                             <span class="badge bg-success"><i class="fas fa-check"></i> Confirmado</span>
                                                         {% endif %}
@@ -391,9 +405,9 @@
                                                     {% else %}
                                                         <td><strong>${{ abono.monto|floatformat:2|intcomma }}</strong></td>
                                                     {% endif %}
-                                                    <td><span class="badge {% if abono.forma_pago == 'EFE' %}bg-success{% elif abono.forma_pago == 'TRN' %}bg-primary{% elif abono.forma_pago == 'TAR' %}bg-info{% elif abono.forma_pago == 'DEP' %}bg-secondary{% else %}bg-secondary{% endif %}">{{ abono.get_forma_pago_display }}</span></td>
+                                                    <td><span class="badge {% if abono.forma_pago == 'EFE' %}bg-success{% elif abono.forma_pago == 'TRN' %}bg-primary{% elif abono.forma_pago == 'TAR' %}bg-info{% elif abono.forma_pago == 'DEP' %}bg-secondary{% elif abono.forma_pago == 'LIG' %}bg-warning text-dark{% elif abono.forma_pago == 'PRO' %}bg-dark{% elif abono.forma_pago == 'PPL' %}bg-secondary{% else %}bg-secondary{% endif %}">{{ abono.get_forma_pago_display }}</span></td>
                                                     <td>
-                                                        {% if abono.confirmado or abono.forma_pago == 'EFE' %}
+                                                        {% if abono.confirmado or abono.forma_pago in 'EFE,LIG,PRO' %}
                                                             <span class="badge bg-success"><i class="fas fa-check"></i> Confirmado</span>
                                                         {% else %}
                                                             <span class="badge bg-warning text-dark"><i class="fas fa-clock"></i> Pendiente</span>
@@ -681,25 +695,6 @@
 {% endblock %}
 
 {% block modals %}
-<!-- Modal de Confirmación de Eliminación (opcional, pero buena práctica) -->
-<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title" id="confirmDeleteModalLabel">Confirmar Eliminación</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                ¿Estás seguro de que deseas eliminar la Venta {{ venta.folio|default:venta.id }} de manera permanente? Esta acción no se puede deshacer.
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <a href="{% url 'eliminar_venta' pk=venta.pk %}" class="btn btn-danger">Eliminar Venta</a>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- Modal para subir comprobante de apertura -->
 <div class="modal fade" id="modalComprobanteApertura" tabindex="-1" aria-labelledby="modalComprobanteAperturaLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">

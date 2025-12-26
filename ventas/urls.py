@@ -26,15 +26,16 @@ from .views import (
     ConfirmarAbonoView,
     CancelarVentaView,
     ClienteKilometrosResumenView,
+    CotizacionListView,
+    CotizacionCreateView,
+    CotizacionUpdateView,
+    CotizacionDetailView,
+    CotizacionDocxView,
+    CotizacionConvertirView,
     
     # ----------------------------------------------------
     # IMPORTACIÓN DE LA NUEVA VISTA DE PDF DEL CONTRATO
-    # Asumo que la vista para el contrato se llama ContratoVentaPDFView
     ContratoVentaPDFView, 
-    # Si la renombraste como ContratoGeneradoDetailView, cámbiala a ese nombre aquí
-    # Si la vista es solo para mostrar el HTML del contrato y no generar el PDF, 
-    # mantendrías ContratoGeneradoDetailView (asumo que es ContratoVentaPDFView ahora)
-    # ----------------------------------------------------
     
     # Plantillas de Confirmación
     ListarConfirmacionesView,
@@ -68,6 +69,14 @@ urlpatterns = [
     path('comisiones/<int:pk>/exportar-excel/', ExportarComisionesExcelView.as_view(), name='exportar_comisiones_excel'),
     path('gestion-roles/', GestionRolesView.as_view(), name='gestion_roles'),
     path('gestion-roles/ejecutivo/<int:pk>/', EjecutivoDetailView.as_view(), name='ejecutivo_detail'),
+    
+    # Cotizaciones
+    path('cotizaciones/', CotizacionListView.as_view(), name='cotizaciones_lista'),
+    path('cotizaciones/nueva/', CotizacionCreateView.as_view(), name='cotizacion_crear'),
+    path('cotizaciones/<slug:slug>/', CotizacionDetailView.as_view(), name='cotizacion_detalle'),
+    path('cotizaciones/<slug:slug>/editar/', CotizacionUpdateView.as_view(), name='cotizacion_editar'),
+    path('cotizaciones/<slug:slug>/docx/', CotizacionDocxView.as_view(), name='cotizacion_docx'),
+    path('cotizaciones/<slug:slug>/convertir/', CotizacionConvertirView.as_view(), name='cotizacion_convertir'),
     path('promociones/preview/', preview_promociones, name='preview_promociones'),
     path('proveedores/', ProveedorListCreateView.as_view(), name='proveedores'),
     path('proveedores/<int:pk>/editar/', ProveedorUpdateView.as_view(), name='editar_proveedor'),
@@ -91,7 +100,7 @@ urlpatterns = [
     # 3. CRUD de Ventas
     path('crear/', VentaViajeCreateView.as_view(), name='crear_venta'),
     path('clientes/<int:cliente_id>/kilometros/', ClienteKilometrosResumenView.as_view(), name='cliente_kilometros_resumen'),
-    path('<int:pk>/eliminar/', VentaViajeDeleteView.as_view(), name='eliminar_venta'),
+    # path('<int:pk>/eliminar/', VentaViajeDeleteView.as_view(), name='eliminar_venta'),  # Eliminado: ventas no se eliminan manualmente
     path('<int:pk>/editar/', VentaViajeUpdateView.as_view(), name='editar_venta'),
     path('<int:pk>/cancelar/', CancelarVentaView.as_view(), name='cancelar_venta'),
 
