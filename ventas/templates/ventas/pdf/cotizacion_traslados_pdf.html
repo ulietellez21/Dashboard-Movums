@@ -1,0 +1,7 @@
+{% extends "ventas/pdf/base_cotizacion_pdf.html" %}
+
+{% block content %}
+    {% if propuestas.traslados %}
+        {% include "ventas/pdf/components/seccion_traslado.html" with traslado=propuestas.traslados %}
+    {% endif %}
+{% endblock %}

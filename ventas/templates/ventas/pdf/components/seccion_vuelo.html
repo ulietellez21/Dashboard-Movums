@@ -1,0 +1,44 @@
+{% load humanize %}
+<div class="card">
+    <div class="card-header">
+        <span class="icon">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill="white" stroke="none"/>
+            </svg>
+        </span>
+        <span>VUELO</span>
+    </div>
+    
+    <table class="data-table">
+        <tr>
+            <td style="width: 30%;"><strong>Aerolínea:</strong></td>
+            <td>{{ vuelo.aerolinea|default:"-" }}</td>
+        </tr>
+        <tr>
+            <td><strong>Salida:</strong></td>
+            <td>{{ vuelo.salida|default:"-" }}</td>
+        </tr>
+        <tr>
+            <td><strong>Regreso:</strong></td>
+            <td>{{ vuelo.regreso|default:"-" }}</td>
+        </tr>
+        {% if vuelo.incluye %}
+        <tr>
+            <td><strong>Incluye:</strong></td>
+            <td>{{ vuelo.incluye }}</td>
+        </tr>
+        {% endif %}
+        {% if vuelo.forma_pago %}
+        <tr>
+            <td><strong>Forma de Pago:</strong></td>
+            <td>{{ vuelo.forma_pago }}</td>
+        </tr>
+        {% endif %}
+    </table>
+    
+    {% if vuelo.total %}
+    <div class="total-destacado">
+        <div class="total-text">Total MXN ${{ vuelo.total|floatformat:2|intcomma }} Pesos</div>
+    </div>
+    {% endif %}
+</div>

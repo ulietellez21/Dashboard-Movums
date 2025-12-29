@@ -221,6 +221,14 @@
                         <span class="linea-blanca"></span>
                     {% endif %}
                 </li>
+                <li>
+                    <strong>Menores (nombre y edad):</strong>
+                    {% if venta.edades_menores %}
+                        {{ venta.edades_menores }}
+                    {% else %}
+                        <span class="linea-blanca"></span>
+                    {% endif %}
+                </li>
                 <li><strong>Nombre(s) y edad(es):</strong> <span class="linea-blanca"></span></li>
                 <li><strong>Nombre(s) y edad(es):</strong> <span class="linea-blanca"></span></li>
             </ul>

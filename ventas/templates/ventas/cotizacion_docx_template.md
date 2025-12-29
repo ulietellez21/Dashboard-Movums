@@ -7,3 +7,8 @@ Guía de estilos para cotizaciones DOCX (Referencia rápida)
 - Espaciado: Párrafos con 4–6 pt de espacio posterior; interlineado 1.15–1.3.
 - Evitar estilos mixtos: usar estilos de párrafo/tabla definidos en la plantilla.
 
+
+
+
+
+

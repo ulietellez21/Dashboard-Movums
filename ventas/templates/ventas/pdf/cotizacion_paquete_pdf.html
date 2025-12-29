@@ -1,0 +1,36 @@
+{% extends "ventas/pdf/base_cotizacion_pdf.html" %}
+{% load humanize %}
+
+{% block content %}
+    {% with paquete=propuestas.paquete %}
+        {% if paquete.vuelo %}
+            {% include "ventas/pdf/components/seccion_vuelo.html" with vuelo=paquete.vuelo %}
+        {% endif %}
+        
+        {% if paquete.hotel %}
+            {% include "ventas/pdf/components/seccion_hotel.html" with hotel=paquete.hotel %}
+        {% endif %}
+        
+        {% if paquete.tours %}
+            {% for tour in paquete.tours %}
+                {% include "ventas/pdf/components/seccion_tour.html" with tour=tour tour_index=forloop.counter %}
+            {% endfor %}
+        {% endif %}
+        
+        {% if paquete.total %}
+        <div class="card">
+            {% if paquete.forma_pago %}
+            <table class="data-table">
+                <tr>
+                    <td style="width: 30%;"><strong>Forma de Pago:</strong></td>
+                    <td>{{ paquete.forma_pago }}</td>
+                </tr>
+            </table>
+            {% endif %}
+            <div class="total-destacado">
+                <div class="total-text">Total del Paquete MXN ${{ paquete.total|floatformat:2|intcomma }} Pesos</div>
+            </div>
+        </div>
+        {% endif %}
+    {% endwith %}
+{% endblock %}

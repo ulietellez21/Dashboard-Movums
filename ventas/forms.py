@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from crm.models import Cliente # Importamos Cliente para usarlo en el queryset si es necesario
 from crm.services import KilometrosService
 from ventas.services.promociones import PromocionesService
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from datetime import date
 
 # Widget personalizado para fechas que use formato ISO para inputs de tipo 'date'
@@ -506,6 +506,19 @@ class VentaViajeForm(forms.ModelForm):
         label="Servicios Contratados",
         help_text="Selecciona uno o más servicios haciendo clic en las casillas."
     )
+    
+    # Campo para tipo de trámite de documentación (solo visible cuando se selecciona "Trámites de Documentación")
+    tipo_tramite_documentacion = forms.ChoiceField(
+        choices=[
+            ('', 'Selecciona el tipo de trámite'),
+            ('VISA', 'Trámite de Visa'),
+            ('PASAPORTE', 'Trámite de Pasaporte'),
+        ],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label="Tipo de Trámite",
+        help_text="Selecciona si es trámite de visa o pasaporte."
+    )
 
     class Meta:
         model = VentaViaje
@@ -559,17 +572,17 @@ class VentaViajeForm(forms.ModelForm):
             'fecha_vencimiento_pago': ISODateInput(attrs={'type': 'date', 'class': 'form-control'}),
 
             # Montos
-            'costo_neto': forms.NumberInput(attrs={'step': 'any', 'class': 'form-control'}),
-            'costo_venta_final': forms.NumberInput(attrs={'step': 'any', 'class': 'form-control'}),
-            'cantidad_apertura': forms.NumberInput(attrs={'step': 'any', 'class': 'form-control'}),
+            'costo_neto': forms.TextInput(attrs={'class': 'form-control'}),
+            'costo_venta_final': forms.TextInput(attrs={'class': 'form-control'}),
+            'cantidad_apertura': forms.TextInput(attrs={'class': 'form-control'}),
             'aplica_descuento_kilometros': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'descuento_kilometros_mxn': forms.HiddenInput(),
             # Campos para ventas internacionales (USD)
-            'tarifa_base_usd': forms.NumberInput(attrs={'step': 'any', 'class': 'form-control', 'placeholder': '0.00'}),
-            'impuestos_usd': forms.NumberInput(attrs={'step': 'any', 'class': 'form-control', 'placeholder': '0.00'}),
-            'suplementos_usd': forms.NumberInput(attrs={'step': 'any', 'class': 'form-control', 'placeholder': '0.00'}),
-            'tours_usd': forms.NumberInput(attrs={'step': 'any', 'class': 'form-control', 'placeholder': '0.00'}),
-            'tipo_cambio': forms.NumberInput(attrs={'step': 'any', 'class': 'form-control', 'placeholder': '0.0000'}),
+            'tarifa_base_usd': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '0.00'}),
+            'impuestos_usd': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '0.00'}),
+            'suplementos_usd': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '0.00'}),
+            'tours_usd': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '0.00'}),
+            'tipo_cambio': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '0.0000'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -1114,8 +1127,7 @@ class VentaViajeForm(forms.ModelForm):
                     decimal_places=2,
                     required=False,
                     initial=getattr(self.instance, 'costo_modificacion', Decimal('0.00')),
-                    widget=forms.NumberInput(attrs={
-                        'step': 'any',
+                    widget=forms.TextInput(attrs={
                         'class': 'form-control',
                         'placeholder': '0.00'
                     }),
@@ -1141,6 +1153,14 @@ class VentaViajeForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+        
+        # Validar que si se selecciona "Trámites de Documentación", se especifique el tipo de trámite
+        servicios_seleccionados = cleaned_data.get('servicios_seleccionados', [])
+        if 'Trámites de Documentación' in servicios_seleccionados:
+            tipo_tramite = cleaned_data.get('tipo_tramite_documentacion', '').strip()
+            if not tipo_tramite:
+                self.add_error('tipo_tramite_documentacion', 'Debes seleccionar si es trámite de Visa o Pasaporte cuando seleccionas "Trámites de Documentación".')
+        
         tipo_viaje = cleaned_data.get('tipo_viaje', 'NAC')
         
         # Desactivar Kilómetros Movums para ventas internacionales
@@ -1181,19 +1201,57 @@ class VentaViajeForm(forms.ModelForm):
             else:
                 aplica_descuento = False
 
+        # Función auxiliar para limpiar valores con formato de moneda
+        def limpiar_valor_moneda(valor):
+            """Limpia un valor que puede tener formato de moneda ($, comas, etc.)"""
+            if valor is None or valor == '':
+                return None
+            if isinstance(valor, Decimal):
+                return valor
+            # Convertir a string y limpiar
+            valor_str = str(valor).strip()
+            # Remover símbolos de moneda y comas
+            valor_str = valor_str.replace('$', '').replace(',', '').replace('USD', '').replace(' ', '')
+            try:
+                return Decimal(valor_str)
+            except (ValueError, InvalidOperation):
+                return None
+        
+        # Limpiar valores monetarios antes de procesarlos
+        if 'costo_venta_final' in cleaned_data:
+            cleaned_data['costo_venta_final'] = limpiar_valor_moneda(cleaned_data.get('costo_venta_final')) or Decimal('0.00')
+        if 'cantidad_apertura' in cleaned_data:
+            cleaned_data['cantidad_apertura'] = limpiar_valor_moneda(cleaned_data.get('cantidad_apertura')) or Decimal('0.00')
+        if 'costo_neto' in cleaned_data:
+            cleaned_data['costo_neto'] = limpiar_valor_moneda(cleaned_data.get('costo_neto')) or Decimal('0.00')
+        
         costo_modificacion = cleaned_data.get('costo_modificacion')
-        if costo_modificacion is not None and costo_modificacion < 0:
-            self.add_error('costo_modificacion', "El costo de modificación debe ser mayor o igual a 0.")
+        if costo_modificacion is not None:
+            costo_modificacion_limpio = limpiar_valor_moneda(costo_modificacion)
+            if costo_modificacion_limpio is not None:
+                cleaned_data['costo_modificacion'] = costo_modificacion_limpio
+                if costo_modificacion_limpio < 0:
+                    self.add_error('costo_modificacion', "El costo de modificación debe ser mayor o igual a 0.")
+            else:
+                cleaned_data['costo_modificacion'] = Decimal('0.00')
 
         # ------------------- LÓGICA PARA VENTAS INTERNACIONALES (USD) -------------------
         tipo_viaje = cleaned_data.get('tipo_viaje', 'NAC')
         if tipo_viaje == 'INT':
             # Validar que se proporcionen los campos USD para ventas internacionales
-            tarifa_base_usd = cleaned_data.get('tarifa_base_usd') or Decimal('0.00')
-            impuestos_usd = cleaned_data.get('impuestos_usd') or Decimal('0.00')
-            suplementos_usd = cleaned_data.get('suplementos_usd') or Decimal('0.00')
-            tours_usd = cleaned_data.get('tours_usd') or Decimal('0.00')
-            tipo_cambio = cleaned_data.get('tipo_cambio') or Decimal('0.0000')
+            # Limpiar valores USD antes de procesarlos
+            tarifa_base_usd = limpiar_valor_moneda(cleaned_data.get('tarifa_base_usd')) or Decimal('0.00')
+            impuestos_usd = limpiar_valor_moneda(cleaned_data.get('impuestos_usd')) or Decimal('0.00')
+            suplementos_usd = limpiar_valor_moneda(cleaned_data.get('suplementos_usd')) or Decimal('0.00')
+            tours_usd = limpiar_valor_moneda(cleaned_data.get('tours_usd')) or Decimal('0.00')
+            tipo_cambio = limpiar_valor_moneda(cleaned_data.get('tipo_cambio')) or Decimal('0.0000')
+            
+            # Actualizar cleaned_data con valores limpios
+            cleaned_data['tarifa_base_usd'] = tarifa_base_usd
+            cleaned_data['impuestos_usd'] = impuestos_usd
+            cleaned_data['suplementos_usd'] = suplementos_usd
+            cleaned_data['tours_usd'] = tours_usd
+            cleaned_data['tipo_cambio'] = tipo_cambio
             
             # Validar que el tipo de cambio sea mayor a 0
             if tipo_cambio <= 0:
@@ -1336,7 +1394,15 @@ class VentaViajeForm(forms.ModelForm):
                     if proveedor_texto:
                         proveedor_info = f" - Proveedor: {proveedor_texto}"
                 
-                servicios_detalle_list.append(f"{nombre}{proveedor_info}")
+                # Si es "Trámites de Documentación", agregar el tipo de trámite
+                tipo_tramite_info = ""
+                if nombre == "Trámites de Documentación":
+                    tipo_tramite = self.cleaned_data.get('tipo_tramite_documentacion', '').strip()
+                    if tipo_tramite:
+                        tipo_tramite_display = "Visa" if tipo_tramite == "VISA" else "Pasaporte"
+                        tipo_tramite_info = f" - Tipo: {tipo_tramite_display}"
+                
+                servicios_detalle_list.append(f"{nombre}{tipo_tramite_info}{proveedor_info}")
         
         # Guardar códigos separados por coma en 'servicios_seleccionados' (ej: "VUE,HOS,SEG")
         instance.servicios_seleccionados = ','.join(servicios_codigos) if servicios_codigos else ''
@@ -1384,7 +1450,7 @@ class VentaViajeForm(forms.ModelForm):
 # ------------------- CotizacionForm -------------------
 class CotizacionForm(forms.ModelForm):
     # Campos extra para estructurar propuestas como en el modal anterior
-    fecha_cotizacion = forms.DateField(required=False, widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}))
+    fecha_cotizacion = forms.DateField(required=False, widget=forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date', 'class': 'form-control'}))
     tipo = forms.ChoiceField(
         choices=[
             ('vuelos', '✈️ Vuelos'),
@@ -1392,6 +1458,7 @@ class CotizacionForm(forms.ModelForm):
             ('paquete', '🧳 Paquete'),
             ('tours', '🗺️ Tours'),
             ('traslados', '🚗 Traslados'),
+            ('renta_autos', '🚙 Renta de Autos'),
             ('generica', '📄 Plantilla Genérica'),
         ],
         required=True,
@@ -1422,6 +1489,7 @@ class CotizacionForm(forms.ModelForm):
             'pasajeros',
             'adultos',
             'menores',
+            'edades_menores',
             'notas',
             'propuestas',
             'vuelo_propuesta_1',
@@ -1440,11 +1508,12 @@ class CotizacionForm(forms.ModelForm):
             'destino': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Cancún'}),
             'dias': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
             'noches': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
-            'fecha_inicio': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
-            'fecha_fin': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha_inicio': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha_fin': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
             'pasajeros': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
             'adultos': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
             'menores': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
+            'edades_menores': forms.HiddenInput(attrs={'id': 'id_edades_menores'}),
             'notas': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'propuestas': forms.HiddenInput(),
         }
@@ -1532,6 +1601,13 @@ class CotizacionForm(forms.ModelForm):
         )
         self.fields['traslado_proveedor'].label_from_instance = label_from_nombre
         
+        # Para renta de autos (campo de texto libre)
+        self.fields['renta_autos_arrendadora'] = forms.CharField(
+            required=False,
+            widget=forms.TextInput(attrs={'class': 'form-control', 'id': 'renta_autos_arrendadora', 'placeholder': 'Ej: Hertz, Avis, Budget, etc.'}),
+            label='Arrendadora'
+        )
+        
         # Si hay una instancia (edición), inicializar propuestas con el valor guardado
         if self.instance and self.instance.pk and self.instance.propuestas:
             # Asegurar que propuestas sea un diccionario
@@ -1567,22 +1643,141 @@ class CotizacionForm(forms.ModelForm):
         if tipo:
             propuestas['tipo'] = tipo
         
+        # Si el tipo es 'paquete', asegurar que el objeto paquete exista
+        if tipo == 'paquete':
+            if 'paquete' not in propuestas:
+                propuestas['paquete'] = {
+                    'vuelo': {},
+                    'hotel': {},
+                    'tours': []
+                }
+            # Asegurar que vuelo y hotel existan dentro de paquete
+            if 'vuelo' not in propuestas.get('paquete', {}):
+                propuestas.setdefault('paquete', {})['vuelo'] = {}
+            if 'hotel' not in propuestas.get('paquete', {}):
+                propuestas.setdefault('paquete', {})['hotel'] = {}
+            if 'tours' not in propuestas.get('paquete', {}):
+                propuestas.setdefault('paquete', {})['tours'] = []
+        
         cleaned['propuestas'] = propuestas
         return cleaned
     
     def save(self, commit=True):
         instance = super().save(commit=False)
         
-        # Asegurar que propuestas sea un diccionario, no un string
-        if isinstance(instance.propuestas, str):
+        # Asegurar que propuestas sea un diccionario, no un string o None
+        if instance.propuestas is None:
+            instance.propuestas = {}
+        elif isinstance(instance.propuestas, str):
             try:
                 instance.propuestas = json.loads(instance.propuestas)
             except (json.JSONDecodeError, TypeError):
                 instance.propuestas = {}
         
+        # Si propuestas está vacío o no es un dict, inicializarlo
+        if not isinstance(instance.propuestas, dict):
+            instance.propuestas = {}
+        
         # Asegurar que el tipo esté en propuestas
-        if instance.propuestas and 'tipo' not in instance.propuestas:
-            instance.propuestas['tipo'] = self.cleaned_data.get('tipo', 'vuelos')
+        tipo = self.cleaned_data.get('tipo', 'vuelos')
+        if 'tipo' not in instance.propuestas:
+            instance.propuestas['tipo'] = tipo
+        
+        # CRÍTICO: Si el tipo es 'paquete', asegurar que el objeto paquete exista y tenga la estructura correcta
+        if tipo == 'paquete':
+            # Si no existe el objeto paquete, crearlo con estructura completa
+            if 'paquete' not in instance.propuestas:
+                instance.propuestas['paquete'] = {
+                    'vuelo': {
+                        'aerolinea': '',
+                        'salida': '',
+                        'regreso': '',
+                        'incluye': '',
+                        'total': '',
+                        'forma_pago': ''
+                    },
+                    'hotel': {
+                        'nombre': '',
+                        'habitacion': '',
+                        'direccion': '',
+                        'plan': '',
+                        'notas': '',
+                        'total': '',
+                        'forma_pago': ''
+                    },
+                    'total': '',
+                    'forma_pago': '',
+                    'tours': []
+                }
+            else:
+                # Asegurar que tenga la estructura completa incluso si existe
+                paquete = instance.propuestas['paquete']
+                if 'vuelo' not in paquete:
+                    paquete['vuelo'] = {}
+                if 'hotel' not in paquete:
+                    paquete['hotel'] = {}
+                if 'tours' not in paquete:
+                    paquete['tours'] = []
+                if 'total' not in paquete:
+                    paquete['total'] = ''
+                if 'forma_pago' not in paquete:
+                    paquete['forma_pago'] = ''
+        
+        # Calcular total_estimado según el tipo de cotización
+        def limpiar_y_convertir_total(valor):
+            """Convierte un string de total (puede tener comas) a Decimal"""
+            if not valor:
+                return Decimal('0.00')
+            try:
+                valor_limpio = str(valor).replace(',', '').replace('$', '').strip()
+                return Decimal(valor_limpio)
+            except (ValueError, InvalidOperation):
+                return Decimal('0.00')
+        
+        total_estimado = Decimal('0.00')
+        propuestas = instance.propuestas if isinstance(instance.propuestas, dict) else {}
+        tipo = propuestas.get('tipo', '')
+        
+        if tipo == 'tours' and propuestas.get('tours'):
+            # Para tours, sumar todos los totales
+            tours = propuestas.get('tours', {})
+            tours_list = []
+            if isinstance(tours, list):
+                tours_list = tours
+            else:
+                tours_list = [tours] if tours else []
+            
+            for tour in tours_list:
+                if isinstance(tour, dict) and tour.get('total'):
+                    total_tour = limpiar_y_convertir_total(tour.get('total'))
+                    total_estimado += total_tour
+        elif tipo == 'paquete' and propuestas.get('paquete'):
+            # Para paquete, usar el total del paquete si existe
+            paquete = propuestas.get('paquete', {})
+            if isinstance(paquete, dict) and paquete.get('total'):
+                total_estimado = limpiar_y_convertir_total(paquete.get('total'))
+        elif tipo == 'vuelos' and propuestas.get('vuelos'):
+            # Para vuelos, usar el total del primer vuelo
+            vuelos = propuestas.get('vuelos', [])
+            if vuelos and len(vuelos) > 0 and isinstance(vuelos[0], dict) and vuelos[0].get('total'):
+                total_estimado = limpiar_y_convertir_total(vuelos[0].get('total'))
+        elif tipo == 'hospedaje' and propuestas.get('hoteles'):
+            # Para hospedaje, usar el total del primer hotel
+            hoteles = propuestas.get('hoteles', [])
+            if hoteles and len(hoteles) > 0 and isinstance(hoteles[0], dict) and hoteles[0].get('total'):
+                total_estimado = limpiar_y_convertir_total(hoteles[0].get('total'))
+        elif tipo == 'traslados' and propuestas.get('traslados'):
+            # Para traslados, usar el total
+            traslados = propuestas.get('traslados', {})
+            if isinstance(traslados, dict) and traslados.get('total'):
+                total_estimado = limpiar_y_convertir_total(traslados.get('total'))
+        elif tipo == 'renta_autos' and propuestas.get('renta_autos'):
+            # Para renta_autos, usar el total
+            renta_autos = propuestas.get('renta_autos', {})
+            if isinstance(renta_autos, dict) and renta_autos.get('total'):
+                total_estimado = limpiar_y_convertir_total(renta_autos.get('total'))
+        
+        instance.total_estimado = total_estimado
         
         if commit:
             instance.save()

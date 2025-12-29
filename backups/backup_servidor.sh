@@ -82,3 +82,8 @@ find $BACKUP_DIR -name "*.backup_*" -mtime +7 -delete 2>/dev/null
 find $BACKUP_DIR -name "*.tar.gz" -mtime +7 -delete 2>/dev/null
 echo "   ✅ Limpieza completada"
 
+
+
+
+
+

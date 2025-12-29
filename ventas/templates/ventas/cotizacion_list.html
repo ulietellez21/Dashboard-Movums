@@ -81,10 +81,33 @@
                         <tr>
                             <td><span class="badge bg-secondary">{{ c.folio|default:c.id }}</span></td>
                             <td>{{ c.cliente.nombre_completo_display }}</td>
-                            <td>{{ c.destino|default:"-" }}</td>
                             <td>
-                                {% if c.fecha_inicio %}{{ c.fecha_inicio|date:"d M Y" }}{% else %}-{% endif %} /
-                                {% if c.fecha_fin %}{{ c.fecha_fin|date:"d M Y" }}{% else %}-{% endif %}
+                                {% if c.propuestas.tipo == 'renta_autos' %}
+                                    Uso personal
+                                {% elif c.propuestas.tipo == 'traslados' and c.propuestas.traslados %}
+                                    {{ c.propuestas.traslados.hasta|default:c.propuestas.traslados.desde|default:"-" }}
+                                {% else %}
+                                    {{ c.destino|default:"-" }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if c.propuestas.tipo == 'traslados' and c.propuestas.traslados %}
+                                    {% if c.propuestas.traslados.fecha_ida %}
+                                        {% with fecha_ida=c.propuestas.traslados.fecha_ida %}
+                                            {{ fecha_ida|date:"d M Y"|default:fecha_ida }}
+                                        {% endwith %}
+                                    {% else %}-{% endif %} /
+                                    {% if c.propuestas.traslados.fecha_regreso %}
+                                        {% with fecha_regreso=c.propuestas.traslados.fecha_regreso %}
+                                            {{ fecha_regreso|date:"d M Y"|default:fecha_regreso }}
+                                        {% endwith %}
+                                    {% else %}-{% endif %}
+                                {% elif c.propuestas.tipo == 'renta_autos' %}
+                                    - / -
+                                {% else %}
+                                    {% if c.fecha_inicio %}{{ c.fecha_inicio|date:"d M Y" }}{% else %}-{% endif %} /
+                                    {% if c.fecha_fin %}{{ c.fecha_fin|date:"d M Y" }}{% else %}-{% endif %}
+                                {% endif %}
                             </td>
                             <td>
                                 {% if c.propuestas.tipo == 'vuelos' %}
@@ -97,6 +120,8 @@
                                     <span class="badge bg-warning text-dark">🗺️ Tours</span>
                                 {% elif c.propuestas.tipo == 'traslados' %}
                                     <span class="badge bg-info text-white">🚗 Traslados</span>
+                                {% elif c.propuestas.tipo == 'renta_autos' %}
+                                    <span class="badge bg-danger text-white">🚙 Renta de Autos</span>
                                 {% elif c.propuestas.tipo == 'generica' %}
                                     <span class="badge bg-secondary">📄 Genérica</span>
                                 {% else %}

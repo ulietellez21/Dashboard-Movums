@@ -1,0 +1,7 @@
+{% extends "ventas/pdf/base_cotizacion_pdf.html" %}
+
+{% block content %}
+    {% for hotel in propuestas.hoteles %}
+        {% include "ventas/pdf/components/seccion_hotel.html" with hotel=hotel %}
+    {% endfor %}
+{% endblock %}

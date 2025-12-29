@@ -32,3 +32,5 @@ class Migration(migrations.Migration):
         migrations.RunPython(migrar_tipos_vendedor, revertir_migracion),
     ]
 
+
+

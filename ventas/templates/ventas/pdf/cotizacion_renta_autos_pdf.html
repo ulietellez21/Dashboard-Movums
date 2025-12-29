@@ -1,0 +1,7 @@
+{% extends "ventas/pdf/base_cotizacion_pdf.html" %}
+
+{% block content %}
+    {% if propuestas.renta_autos %}
+        {% include "ventas/pdf/components/seccion_renta_autos.html" with renta_autos=propuestas.renta_autos %}
+    {% endif %}
+{% endblock %}

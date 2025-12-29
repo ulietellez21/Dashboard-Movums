@@ -182,3 +182,8 @@ puts "   3. Revisar logs si hay problemas: sudo journalctl -u gunicorn -n 50"
 send "exit\r"
 expect eof
 
+
+
+
+
+

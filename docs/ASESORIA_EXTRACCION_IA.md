@@ -311,3 +311,8 @@ def extract_with_tesseract(image_path):
 
 
 
+
+
+
+
+
