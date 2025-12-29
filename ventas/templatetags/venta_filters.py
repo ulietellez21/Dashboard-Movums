@@ -49,3 +49,37 @@ def servicio_esta_contratado(servicios_str, codigo_servicio):
     # Convertir la cadena a lista de códigos separados por coma
     servicios_codes = [s.strip() for s in str(servicios_str).split(',')]
     return codigo_servicio.strip() in servicios_codes
+
+@register.filter
+def solo_nombre_proveedor(nombre_completo):
+    """Extrae solo el nombre del proveedor, eliminando los servicios entre paréntesis."""
+    if not nombre_completo:
+        return ''
+    nombre_str = str(nombre_completo)
+    # Si hay un paréntesis, tomar solo la parte antes de él
+    if '(' in nombre_str:
+        return nombre_str.split('(')[0].strip()
+    return nombre_str.strip()
+
+@register.filter
+def formato_moneda_mx(value):
+    """Formatea un valor numérico como moneda mexicana ($25,000.00)."""
+    if not value or value == '-' or value == '':
+        return '-'
+    try:
+        # Limpiar el valor si tiene formato previo
+        if isinstance(value, str):
+            # Remover $, comas y espacios
+            valor_limpio = value.replace('$', '').replace(',', '').replace(' ', '').strip()
+            if not valor_limpio or valor_limpio == '':
+                return '-'
+            numero = float(valor_limpio)
+        else:
+            numero = float(value)
+        
+        # Formatear con 2 decimales y comas cada 3 dígitos
+        numero_formateado = f"{numero:,.2f}"
+        return f"${numero_formateado}"
+    except (ValueError, TypeError, AttributeError):
+        # Si no se puede convertir, retornar el valor original
+        return str(value) if value else '-'
