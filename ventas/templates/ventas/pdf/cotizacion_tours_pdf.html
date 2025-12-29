@@ -1,0 +1,7 @@
+{% extends "ventas/pdf/base_cotizacion_pdf.html" %}
+
+{% block content %}
+    {% for tour in propuestas.tours %}
+        {% include "ventas/pdf/components/seccion_tour.html" with tour=tour tour_index=forloop.counter %}
+    {% endfor %}
+{% endblock %}

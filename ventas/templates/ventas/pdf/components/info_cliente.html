@@ -1,0 +1,170 @@
+<div class="info-section">
+    <h1 class="titulo-principal">{{ cotizacion.titulo|default:"Cotización de Viaje" }}</h1>
+    
+    <div class="info-section-layout">
+    <div class="info-section-main">
+        <div class="card info-card-client">
+            <div style="padding: 12px 16px 8px 16px; border-bottom: 1px solid #E5E7EB;">
+                <div style="font-size: 7.5pt; color: var(--movums-medium); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 4px;">Cotización Para</div>
+                <div style="font-size: 14pt; font-weight: 700; color: var(--movums-navy); margin-bottom: 0;">{{ cotizacion.cliente.nombre_completo_display }}</div>
+            </div>
+            <table class="info-table">
+            <tr>
+                <td>Cliente:</td>
+                <td>{{ cotizacion.cliente.nombre_completo_display }}</td>
+            </tr>
+            {% if cotizacion.propuestas.tipo == 'traslados' %}
+                <tr>
+                    <td>Desde / Hasta:</td>
+                    <td>
+                        {{ cotizacion.propuestas.traslados.desde|default:cotizacion.origen|default:"-" }} / 
+                        {{ cotizacion.propuestas.traslados.hasta|default:cotizacion.destino|default:"-" }}
+                    </td>
+                </tr>
+            {% elif cotizacion.propuestas.tipo == 'renta_autos' %}
+                <tr>
+                    <td>Punto de Origen / Punto de Regreso:</td>
+                    <td>
+                        {{ cotizacion.propuestas.renta_autos.punto_origen|default:"-" }} / 
+                        {{ cotizacion.propuestas.renta_autos.punto_regreso|default:"-" }}
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td>Origen / Destino:</td>
+                    <td>{{ cotizacion.origen|default:"-" }} / {{ cotizacion.destino|default:"-" }}</td>
+                </tr>
+            {% endif %}
+            
+            {% if cotizacion.propuestas.tipo != 'traslados' and cotizacion.propuestas.tipo != 'renta_autos' %}
+                {% if cotizacion.fecha_inicio or cotizacion.fecha_fin %}
+                <tr>
+                    <td>Inicio / Fin:</td>
+                    <td>
+                        {% if cotizacion.fecha_inicio %}{{ cotizacion.fecha_inicio|date:"d/m/Y" }}{% else %}-{% endif %} / 
+                        {% if cotizacion.fecha_fin %}{{ cotizacion.fecha_fin|date:"d/m/Y" }}{% else %}-{% endif %}
+                    </td>
+                </tr>
+                {% endif %}
+            {% elif cotizacion.propuestas.tipo == 'traslados' and cotizacion.propuestas.traslados %}
+                {% if cotizacion.propuestas.traslados.fecha_ida or cotizacion.propuestas.traslados.fecha_regreso %}
+                <tr>
+                    <td>Fecha de Ida / Fecha de Regreso:</td>
+                    <td>
+                        {% if cotizacion.propuestas.traslados.fecha_ida %}{{ cotizacion.propuestas.traslados.fecha_ida|date:"d/m/Y" }}{% else %}-{% endif %} / 
+                        {% if cotizacion.propuestas.traslados.fecha_regreso %}{{ cotizacion.propuestas.traslados.fecha_regreso|date:"d/m/Y" }}{% else %}-{% endif %}
+                    </td>
+                </tr>
+                {% endif %}
+            {% endif %}
+            
+            <tr>
+                <td>Pasajeros:</td>
+                <td>
+                    {{ cotizacion.adultos|default:1 }} Adultos / {{ cotizacion.menores|default:0 }} Menores
+                    {% if cotizacion.edades_menores %}(Edades: {{ cotizacion.edades_menores }}){% endif %}
+                </td>
+            </tr>
+            
+            {% if cotizacion.propuestas.tipo != 'traslados' and cotizacion.propuestas.tipo != 'renta_autos' %}
+                {% if cotizacion.dias or cotizacion.noches %}
+                <tr>
+                    <td>Viaje:</td>
+                    <td>{{ cotizacion.dias|default:"-" }} días / {{ cotizacion.noches|default:"-" }} noches</td>
+                </tr>
+                {% endif %}
+            {% endif %}
+            
+            <tr>
+                <td>Fecha de Cotización:</td>
+                <td>
+                    {% if cotizacion.propuestas.fecha_cotizacion %}
+                        {{ cotizacion.propuestas.fecha_cotizacion|date:"d/m/Y" }}
+                    {% else %}
+                        {{ cotizacion.creada_en|date:"d/m/Y" }}
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+        </div>
+    </div>
+    
+    <div class="info-section-sidebar">
+        <div class="sidebar-card">
+            <div class="sidebar-card-title">Detalles de Cotización</div>
+            <div class="sidebar-card-content">
+                <div class="sidebar-card-item">
+                    <div class="sidebar-card-label">Número de Cotización</div>
+                    <div class="sidebar-card-value">{{ cotizacion.folio|default:"N/A" }}</div>
+                </div>
+                <div class="sidebar-card-item">
+                    <div class="sidebar-card-label">Fecha de Cotización</div>
+                    <div class="sidebar-card-value">
+                        {% if cotizacion.propuestas.fecha_cotizacion %}
+                            {{ cotizacion.propuestas.fecha_cotizacion|date:"d/m/Y" }}
+                        {% else %}
+                            {{ cotizacion.creada_en|date:"d/m/Y" }}
+                        {% endif %}
+                    </div>
+                </div>
+                {% if cotizacion.fecha_inicio or cotizacion.fecha_fin %}
+                <div class="sidebar-card-item">
+                    <div class="sidebar-card-label">Fecha de Viaje</div>
+                    <div class="sidebar-card-value">
+                        {% if cotizacion.fecha_inicio %}{{ cotizacion.fecha_inicio|date:"d/m/Y" }}{% else %}-{% endif %} / 
+                        {% if cotizacion.fecha_fin %}{{ cotizacion.fecha_fin|date:"d/m/Y" }}{% else %}-{% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="sidebar-card purple">
+            <div class="sidebar-card-title">Información del Viaje</div>
+            <div class="sidebar-card-content">
+                <div class="sidebar-card-item">
+                    <div class="sidebar-card-label">Pasajeros</div>
+                    <div class="sidebar-card-value">
+                        {{ cotizacion.adultos|default:1 }} Adultos / {{ cotizacion.menores|default:0 }} Menores
+                        {% if cotizacion.edades_menores %}(Edades: {{ cotizacion.edades_menores }}){% endif %}
+                    </div>
+                </div>
+                {% if cotizacion.dias or cotizacion.noches %}
+                <div class="sidebar-card-item">
+                    <div class="sidebar-card-label">Duración</div>
+                    <div class="sidebar-card-value">{{ cotizacion.dias|default:"-" }} días / {{ cotizacion.noches|default:"-" }} noches</div>
+                </div>
+                {% endif %}
+                {% if cotizacion.origen or cotizacion.destino %}
+                <div class="sidebar-card-item">
+                    <div class="sidebar-card-label">Ruta</div>
+                    <div class="sidebar-card-value">{{ cotizacion.origen|default:"-" }} → {{ cotizacion.destino|default:"-" }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="sidebar-card blue">
+            <div class="sidebar-card-title">Contacto</div>
+            <div class="sidebar-card-content">
+                <div class="sidebar-card-item">
+                    <div class="sidebar-card-label">Cliente</div>
+                    <div class="sidebar-card-value">{{ cotizacion.cliente.nombre_completo_display }}</div>
+                </div>
+                {% if cotizacion.cliente.email %}
+                <div class="sidebar-card-item">
+                    <div class="sidebar-card-label">Email</div>
+                    <div class="sidebar-card-value">{{ cotizacion.cliente.email }}</div>
+                </div>
+                {% endif %}
+                {% if cotizacion.cliente.telefono %}
+                <div class="sidebar-card-item">
+                    <div class="sidebar-card-label">Teléfono</div>
+                    <div class="sidebar-card-value">{{ cotizacion.cliente.telefono }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    </div>
+</div>

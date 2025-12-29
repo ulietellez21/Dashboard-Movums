@@ -1,0 +1,19 @@
+{% extends "ventas/pdf/base_cotizacion_pdf.html" %}
+
+{% block content %}
+    <div class="card">
+        <div class="card-header">
+            <span class="icon">📄</span>
+            <span>COTIZACIÓN GENÉRICA</span>
+        </div>
+        
+        {% if propuestas.generica.contenido %}
+        <table class="data-table">
+            <tr>
+                <td style="width: 30%;"><strong>Contenido:</strong></td>
+                <td>{{ propuestas.generica.contenido|linebreaks }}</td>
+            </tr>
+        </table>
+        {% endif %}
+    </div>
+{% endblock %}

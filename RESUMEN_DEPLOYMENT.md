@@ -113,3 +113,8 @@ Todos estos archivos están listos para cuando tengas acceso:
 
 **Usa el panel de DigitalOcean** para acceder al servidor y ejecutar los comandos manualmente. Es la forma más rápida y segura dado que SSH no está funcionando desde tu máquina local.
 
+
+
+
+
+

@@ -133,3 +133,8 @@ sudo tail -f /var/log/gunicorn/error.log
 - Las migraciones son importantes: asegúrate de aplicarlas
 - El servicio debe reiniciarse para cargar los nuevos cambios
 
+
+
+
+
+

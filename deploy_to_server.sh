@@ -144,3 +144,8 @@ echo "   3. Revisar logs si hay algún problema:"
 echo "      sudo journalctl -u gunicorn -n 50"
 echo ""
 
+
+
+
+
+

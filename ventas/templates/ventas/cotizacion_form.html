@@ -5,9 +5,11 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="fas fa-file-invoice-dollar"></i> {{ form.instance.pk|yesno:"Editar cotización,Nueva cotización" }}</h1>
+    <h1><i class="fas fa-file-invoice-dollar"></i> {{ form.instance.pk|yesno:"Editar cotización,Nueva cotización" }}
+    </h1>
     <div>
-        <a href="{% url 'cotizaciones_lista' %}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Volver</a>
+        <a href="{% url 'cotizaciones_lista' %}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i>
+            Volver</a>
     </div>
 </div>
 
@@ -22,11 +24,11 @@
             </div>
 
             {% if form.non_field_errors %}
-                <div class="alert alert-danger">
-                    {% for err in form.non_field_errors %}
-                        <div><i class="fas fa-exclamation-circle me-1"></i>{{ err }}</div>
-                    {% endfor %}
-                </div>
+            <div class="alert alert-danger">
+                {% for err in form.non_field_errors %}
+                <div><i class="fas fa-exclamation-circle me-1"></i>{{ err }}</div>
+                {% endfor %}
+            </div>
             {% endif %}
 
             <div class="row g-3">
@@ -34,14 +36,14 @@
                     <label class="form-label fw-bold">Cliente</label>
                     {{ form.cliente|add_class:"form-select select2" }}
                     {% for error in form.cliente.errors %}
-                        <div class="invalid-feedback d-block">{{ error }}</div>
+                    <div class="invalid-feedback d-block">{{ error }}</div>
                     {% endfor %}
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-bold">Título</label>
                     {{ form.titulo|add_class:"form-control" }}
                     {% for error in form.titulo.errors %}
-                        <div class="invalid-feedback d-block">{{ error }}</div>
+                    <div class="invalid-feedback d-block">{{ error }}</div>
                     {% endfor %}
                 </div>
             </div>
@@ -53,7 +55,7 @@
                     <label class="form-label fw-bold">Tipo de cotización</label>
                     {{ form.tipo|add_class:"form-select form-select-lg"|attr:"id:tipoCotizacionSelect" }}
                     {% for error in form.tipo.errors %}
-                        <div class="invalid-feedback d-block">{{ error }}</div>
+                    <div class="invalid-feedback d-block">{{ error }}</div>
                     {% endfor %}
                 </div>
                 <div class="col-md-4">
@@ -102,6 +104,21 @@
                 </div>
             </div>
 
+            {# Contenedor dinámico para edades de menores #}
+            <div id="edadesMenoresContainer" class="row g-3 mt-2" style="display: none;">
+                <div class="col-12">
+                    <label class="form-label fw-bold text-secondary">
+                        <i class="fas fa-child me-1"></i>Edades de los Menores
+                    </label>
+                    <div id="edadesMenoresFields" class="row g-2">
+                        {# Los campos se generarán dinámicamente aquí #}
+                    </div>
+                </div>
+            </div>
+
+            {# Campo oculto para almacenar las edades en el formato esperado #}
+            {# El campo se renderiza más abajo para evitar duplicados #}
+
             <hr class="my-4">
 
             <div class="cotizacion-section" data-section="vuelos">
@@ -113,33 +130,37 @@
                             <h6 class="fw-bold text-uppercase text-secondary">Opción {{ forloop.counter }}</h6>
                             <div class="mb-2">
                                 <label class="form-label small fw-semibold">Aerolínea</label>
-                                {% if forloop.counter == 1 %}
-                                    {{ form.vuelo_proveedor_1|add_class:"form-select form-select-sm" }}
-                                {% elif forloop.counter == 2 %}
-                                    {{ form.vuelo_proveedor_2|add_class:"form-select form-select-sm" }}
-                                {% else %}
-                                    {{ form.vuelo_proveedor_3|add_class:"form-select form-select-sm" }}
-                                {% endif %}
+                                <input type="text" class="form-control form-control-sm"
+                                    name="vuelo_aerolinea_{{ forloop.counter }}"
+                                    placeholder="Ej: Aeroméxico, Volaris, etc.">
                             </div>
                             <div class="mb-2">
                                 <label class="form-label small fw-semibold">Salida</label>
-                                <input type="text" class="form-control form-control-sm" name="vuelo_salida_{{ forloop.counter }}" placeholder="Ej: 07:50 CDMX">
+                                <input type="text" class="form-control form-control-sm"
+                                    name="vuelo_salida_{{ forloop.counter }}" placeholder="Ej: 07:50 CDMX">
                             </div>
                             <div class="mb-2">
                                 <label class="form-label small fw-semibold">Regreso</label>
-                                <input type="text" class="form-control form-control-sm" name="vuelo_regreso_{{ forloop.counter }}" placeholder="Ej: 22:20 Cancún">
+                                <input type="text" class="form-control form-control-sm"
+                                    name="vuelo_regreso_{{ forloop.counter }}" placeholder="Ej: 22:20 Cancún">
                             </div>
                             <div class="mb-2">
                                 <label class="form-label small fw-semibold">Incluye</label>
-                                <textarea class="form-control form-control-sm" rows="2" name="vuelo_incluye_{{ forloop.counter }}" placeholder="Equipaje, tiempos, etc."></textarea>
+                                <textarea class="form-control form-control-sm" rows="2"
+                                    name="vuelo_incluye_{{ forloop.counter }}"
+                                    placeholder="Equipaje, tiempos, etc."></textarea>
                             </div>
                             <div class="mb-2">
                                 <label class="form-label small fw-semibold">Total MXN</label>
-                                <input type="text" class="form-control form-control-sm" name="vuelo_total_{{ forloop.counter }}" placeholder="24,909.00">
+                                <input type="text" class="form-control form-control-sm"
+                                    name="vuelo_total_{{ forloop.counter }}" placeholder="24,909.00">
                             </div>
                             <div>
-                                <label class="form-label small fw-semibold">Forma de pago <span class="text-muted">(Opcional)</span></label>
-                                <input type="text" class="form-control form-control-sm" name="vuelo_forma_pago_{{ forloop.counter }}" placeholder="Ej: 50% anticipo, 50% al confirmar">
+                                <label class="form-label small fw-semibold">Forma de pago <span
+                                        class="text-muted">(Opcional)</span></label>
+                                <input type="text" class="form-control form-control-sm"
+                                    name="vuelo_forma_pago_{{ forloop.counter }}"
+                                    placeholder="Ej: 50% anticipo, 50% al confirmar">
                             </div>
                         </div>
                     </div>
@@ -156,33 +177,37 @@
                             <h6 class="fw-bold text-uppercase text-secondary">Opción {{ forloop.counter }}</h6>
                             <div class="mb-2">
                                 <label class="form-label small fw-semibold">Hotel</label>
-                                {% if forloop.counter == 1 %}
-                                    {{ form.hotel_proveedor_1|add_class:"form-select form-select-sm" }}
-                                {% elif forloop.counter == 2 %}
-                                    {{ form.hotel_proveedor_2|add_class:"form-select form-select-sm" }}
-                                {% else %}
-                                    {{ form.hotel_proveedor_3|add_class:"form-select form-select-sm" }}
-                                {% endif %}
+                                <input type="text" class="form-control form-control-sm"
+                                    name="hotel_nombre_{{ forloop.counter }}"
+                                    placeholder="Ej: Hotel Riu, Grand Fiesta, etc.">
                             </div>
                             <div class="mb-2">
                                 <label class="form-label small fw-semibold">Habitación</label>
-                                <input type="text" class="form-control form-control-sm" name="hotel_habitacion_{{ forloop.counter }}" placeholder="2 x Estándar">
+                                <input type="text" class="form-control form-control-sm"
+                                    name="hotel_habitacion_{{ forloop.counter }}" placeholder="2 x Estándar">
                             </div>
                             <div class="mb-2">
                                 <label class="form-label small fw-semibold">Dirección</label>
-                                <textarea class="form-control form-control-sm" rows="2" name="hotel_direccion_{{ forloop.counter }}" placeholder="Blvr Kukulkán km 4..."></textarea>
+                                <textarea class="form-control form-control-sm" rows="2"
+                                    name="hotel_direccion_{{ forloop.counter }}"
+                                    placeholder="Blvr Kukulkán km 4..."></textarea>
                             </div>
                             <div class="mb-2">
                                 <label class="form-label small fw-semibold">Plan de alimentos</label>
-                                <input type="text" class="form-control form-control-sm" name="hotel_plan_{{ forloop.counter }}" placeholder="Desayuno buffet">
+                                <input type="text" class="form-control form-control-sm"
+                                    name="hotel_plan_{{ forloop.counter }}" placeholder="Desayuno buffet">
                             </div>
                             <div class="mb-2">
                                 <label class="form-label small fw-semibold">Total MXN</label>
-                                <input type="text" class="form-control form-control-sm" name="hotel_total_{{ forloop.counter }}" placeholder="28,349.00">
+                                <input type="text" class="form-control form-control-sm"
+                                    name="hotel_total_{{ forloop.counter }}" placeholder="28,349.00">
                             </div>
                             <div>
-                                <label class="form-label small fw-semibold">Forma de pago <span class="text-muted">(Opcional)</span></label>
-                                <input type="text" class="form-control form-control-sm" name="hotel_forma_pago_{{ forloop.counter }}" placeholder="Ej: 50% anticipo, 50% al confirmar">
+                                <label class="form-label small fw-semibold">Forma de pago <span
+                                        class="text-muted">(Opcional)</span></label>
+                                <input type="text" class="form-control form-control-sm"
+                                    name="hotel_forma_pago_{{ forloop.counter }}"
+                                    placeholder="Ej: 50% anticipo, 50% al confirmar">
                             </div>
                         </div>
                     </div>
@@ -191,26 +216,42 @@
             </div>
 
             <div class="cotizacion-section d-none" data-section="paquete">
-                <h5 class="text-primary fw-bold mb-3"><i class="fas fa-layer-group"></i> Detalles del Paquete (Vuelo + Hospedaje)</h5>
+                <h5 class="text-primary fw-bold mb-3"><i class="fas fa-layer-group"></i> Detalles del Paquete (Vuelo +
+                    Hospedaje)</h5>
                 <div class="row g-3">
                     <div class="col-md-6">
                         <div class="border rounded p-3">
                             <h6 class="fw-bold text-uppercase text-secondary">Vuelo</h6>
                             <div class="mb-2">
                                 <label class="form-label small fw-semibold">Aerolínea</label>
-                                {{ form.paquete_proveedor_vuelo|add_class:"form-select form-select-sm" }}
+                                <input type="text" class="form-control form-control-sm" name="paquete_vuelo_aerolinea"
+                                    placeholder="Ej: Aeroméxico, Volaris, etc.">
                             </div>
                             <div class="mb-2">
                                 <label class="form-label small fw-semibold">Salida</label>
-                                <input type="text" class="form-control form-control-sm" name="paquete_vuelo_salida" placeholder="07:50 CDMX">
+                                <input type="text" class="form-control form-control-sm" name="paquete_vuelo_salida"
+                                    placeholder="Ej: 07:50 CDMX">
                             </div>
                             <div class="mb-2">
                                 <label class="form-label small fw-semibold">Regreso</label>
-                                <input type="text" class="form-control form-control-sm" name="paquete_vuelo_regreso" placeholder="22:20 CDMX">
+                                <input type="text" class="form-control form-control-sm" name="paquete_vuelo_regreso"
+                                    placeholder="Ej: 22:20 Cancún">
                             </div>
                             <div class="mb-2">
                                 <label class="form-label small fw-semibold">Incluye</label>
-                                <textarea class="form-control form-control-sm" rows="3" name="paquete_vuelo_incluye" placeholder="Equipaje, traslados, etc."></textarea>
+                                <textarea class="form-control form-control-sm" rows="2" name="paquete_vuelo_incluye"
+                                    placeholder="Equipaje, tiempos, etc."></textarea>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Total MXN</label>
+                                <input type="text" class="form-control form-control-sm" name="paquete_vuelo_total"
+                                    placeholder="Ej: 24,909.00">
+                            </div>
+                            <div>
+                                <label class="form-label small fw-semibold">Forma de pago <span
+                                        class="text-muted">(Opcional)</span></label>
+                                <input type="text" class="form-control form-control-sm" name="paquete_vuelo_forma_pago"
+                                    placeholder="Ej: 50% anticipo, 50% al confirmar">
                             </div>
                         </div>
                     </div>
@@ -219,23 +260,104 @@
                             <h6 class="fw-bold text-uppercase text-secondary">Hospedaje</h6>
                             <div class="mb-2">
                                 <label class="form-label small fw-semibold">Hotel</label>
-                                {{ form.paquete_proveedor_hotel|add_class:"form-select form-select-sm" }}
+                                <input type="text" class="form-control form-control-sm" name="paquete_hotel_nombre"
+                                    placeholder="Ej: Hotel Riu, Grand Fiesta, etc.">
                             </div>
                             <div class="mb-2">
-                                <label class="form-label small fw-semibold">Habitación / Plan</label>
-                                <input type="text" class="form-control form-control-sm" name="paquete_hotel_habitacion" placeholder="Gran Std | Todo Incluido">
+                                <label class="form-label small fw-semibold">Habitación</label>
+                                <input type="text" class="form-control form-control-sm" name="paquete_hotel_habitacion"
+                                    placeholder="Ej: 2 x Estándar">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Dirección</label>
+                                <textarea class="form-control form-control-sm" rows="2" name="paquete_hotel_direccion"
+                                    placeholder="Ej: Blvr Kukulkán km 4..."></textarea>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Plan de alimentos</label>
+                                <input type="text" class="form-control form-control-sm" name="paquete_hotel_plan"
+                                    placeholder="Ej: Desayuno buffet">
                             </div>
                             <div class="mb-2">
                                 <label class="form-label small fw-semibold">Notas</label>
-                                <textarea class="form-control form-control-sm" rows="2" name="paquete_hotel_notas" placeholder="Incluye traslado redondo"></textarea>
+                                <textarea class="form-control form-control-sm" rows="2" name="paquete_hotel_notas"
+                                    placeholder="Ej: Incluye traslado redondo"></textarea>
                             </div>
                             <div class="mb-2">
                                 <label class="form-label small fw-semibold">Total MXN</label>
-                                <input type="text" class="form-control form-control-sm" name="paquete_total" placeholder="37,199.00">
+                                <input type="text" class="form-control form-control-sm" name="paquete_hotel_total"
+                                    placeholder="Ej: 28,349.00">
                             </div>
                             <div>
-                                <label class="form-label small fw-semibold">Forma de pago <span class="text-muted">(Opcional)</span></label>
-                                <input type="text" class="form-control form-control-sm" name="paquete_forma_pago" placeholder="Ej: 50% anticipo, 50% al confirmar">
+                                <label class="form-label small fw-semibold">Forma de pago <span
+                                        class="text-muted">(Opcional)</span></label>
+                                <input type="text" class="form-control form-control-sm" name="paquete_hotel_forma_pago"
+                                    placeholder="Ej: 50% anticipo, 50% al confirmar">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {# Checkbox para incluir tours en el paquete (opcional) #}
+                <div class="mt-4 mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="incluirToursPaquete"
+                            name="incluir_tours_paquete">
+                        <label class="form-check-label fw-semibold" for="incluirToursPaquete">
+                            <i class="fas fa-map-marked-alt me-2"></i>Incluir tours en el paquete (Opcional)
+                        </label>
+                    </div>
+                </div>
+
+                {# Sección de Tours del Paquete - Oculto por defecto #}
+                <div id="paqueteToursContainer" class="mt-4" style="display: none;">
+                    <h6 class="text-primary fw-bold mb-3"><i class="fas fa-map-marked-alt"></i> Tours del Paquete</h6>
+                    {# Primer tour del paquete - siempre visible cuando se muestra la sección #}
+                    <div class="paquete-tour-item mb-4" data-paquete-tour-index="1">
+                        <div class="card border-warning">
+                            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0 fw-bold text-secondary paquete-tour-title">Tour del Paquete 1</h6>
+                                <button type="button" class="btn btn-sm btn-outline-danger eliminar-paquete-tour"
+                                    data-paquete-tour-index="1" style="display: none;">
+                                    <i class="fas fa-times"></i> Eliminar
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div class="row g-3">
+                                    <div class="col-md-12">
+                                        <label class="form-label fw-semibold">Nombre del Tour</label>
+                                        <input type="text" class="form-control" name="paquete_tour_nombre_1"
+                                            placeholder="Ej: Tour Chichen Itzá + Cenote">
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label fw-semibold">Especificaciones</label>
+                                        <textarea class="form-control" rows="4" name="paquete_tour_especificaciones_1"
+                                            placeholder="Detalles del tour, itinerario, horarios, incluye, no incluye, etc."></textarea>
+                                        <small class="text-muted">Incluye toda la información relevante del
+                                            tour.</small>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Total MXN</label>
+                                        <input type="text" class="form-control" name="paquete_tour_total_1"
+                                            placeholder="Ej: 1,500.00">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Forma de pago <span
+                                                class="text-muted">(Opcional)</span></label>
+                                        <input type="text" class="form-control" name="paquete_tour_forma_pago_1"
+                                            placeholder="Ej: 50% anticipo, 50% al confirmar">
+                                    </div>
+                                </div>
+                                {# Checkbox para añadir otro tour - dentro de cada tour del paquete #}
+                                <div class="mt-3 pt-3 border-top">
+                                    <div class="form-check">
+                                        <input class="form-check-input agregar-paquete-tour-checkbox" type="checkbox"
+                                            data-paquete-tour-index="1" id="agregar_paquete_tour_1">
+                                        <label class="form-check-label fw-semibold" for="agregar_paquete_tour_1">
+                                            Añadir otro tour al viaje/cotización
+                                        </label>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -244,27 +366,56 @@
 
             <div class="cotizacion-section d-none" data-section="tours">
                 <h5 class="text-primary fw-bold mb-3"><i class="fas fa-map-marked-alt"></i> Información de Tours</h5>
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label fw-semibold">Proveedor de Tours</label>
-                        {{ form.tour_proveedor|add_class:"form-select" }}
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-semibold">Número de Reserva</label>
-                        <input type="text" class="form-control" name="tour_numero_reserva" placeholder="Ej: TOUR-2025-001">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-semibold">Nombre del Tour</label>
-                        <input type="text" class="form-control" name="tour_nombre" placeholder="Ej: Tour Chichen Itzá + Cenote">
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label fw-semibold">Especificaciones</label>
-                        <textarea class="form-control" rows="6" name="tour_especificaciones" placeholder="Detalles del tour, itinerario, horarios, incluye, no incluye, etc."></textarea>
-                        <small class="text-muted">Incluye toda la información relevante del tour: itinerario, horarios, qué incluye, qué no incluye, recomendaciones, etc.</small>
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label fw-semibold">Forma de pago <span class="text-muted">(Opcional)</span></label>
-                        <input type="text" class="form-control" name="tour_forma_pago" placeholder="Ej: 50% anticipo, 50% al confirmar">
+                <div id="toursContainer">
+                    {# Primer tour - siempre visible #}
+                    <div class="tour-item mb-4" data-tour-index="1">
+                        <div class="card border-info">
+                            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0 fw-bold text-secondary tour-title">Tour 1</h6>
+                                <button type="button" class="btn btn-sm btn-outline-danger eliminar-tour"
+                                    data-tour-index="1" style="display: none;">
+                                    <i class="fas fa-times"></i> Eliminar
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div class="row g-3">
+                                    <div class="col-md-12">
+                                        <label class="form-label fw-semibold">Nombre del Tour</label>
+                                        <input type="text" class="form-control" name="tour_nombre_1"
+                                            placeholder="Ej: Tour Chichen Itzá + Cenote">
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label fw-semibold">Especificaciones</label>
+                                        <textarea class="form-control" rows="6" name="tour_especificaciones_1"
+                                            placeholder="Detalles del tour, itinerario, horarios, incluye, no incluye, etc."></textarea>
+                                        <small class="text-muted">Incluye toda la información relevante del tour:
+                                            itinerario, horarios, qué incluye, qué no incluye, recomendaciones,
+                                            etc.</small>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Total MXN</label>
+                                        <input type="text" class="form-control" name="tour_total_1"
+                                            placeholder="Ej: 1,500.00">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Forma de pago <span
+                                                class="text-muted">(Opcional)</span></label>
+                                        <input type="text" class="form-control" name="tour_forma_pago_1"
+                                            placeholder="Ej: 50% anticipo, 50% al confirmar">
+                                    </div>
+                                </div>
+                                {# Checkbox para añadir otro tour - dentro de cada tour #}
+                                <div class="mt-3 pt-3 border-top">
+                                    <div class="form-check">
+                                        <input class="form-check-input agregar-tour-checkbox" type="checkbox"
+                                            data-tour-index="1" id="agregar_tour_1">
+                                        <label class="form-check-label fw-semibold" for="agregar_tour_1">
+                                            Añadir otro tour al viaje/cotización
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -272,10 +423,6 @@
             <div class="cotizacion-section d-none" data-section="traslados">
                 <h5 class="text-primary fw-bold mb-3"><i class="fas fa-car"></i> Información de Traslados</h5>
                 <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label fw-semibold">Proveedor de Traslados</label>
-                        {{ form.traslado_proveedor|add_class:"form-select" }}
-                    </div>
                     <div class="col-md-3">
                         <label class="form-label fw-semibold">Tipo</label>
                         <select class="form-select" name="traslado_tipo" id="traslado_tipo">
@@ -299,28 +446,80 @@
                     </div>
                     <div class="col-md-3" id="traslado_fecha_regreso_container" style="display: none;">
                         <label class="form-label fw-semibold">Fecha de Regreso</label>
-                        <input type="date" class="form-control" name="traslado_fecha_regreso" id="traslado_fecha_regreso">
+                        <input type="date" class="form-control" name="traslado_fecha_regreso"
+                            id="traslado_fecha_regreso">
                     </div>
                     <div class="col-md-3" id="traslado_hora_ida_container" style="display: none;">
                         <label class="form-label fw-semibold">Hora de Ida</label>
-                        <input type="time" class="form-control" name="traslado_hora_ida" id="traslado_hora_ida" placeholder="Ej: 10:00">
+                        <input type="time" class="form-control" name="traslado_hora_ida" id="traslado_hora_ida"
+                            placeholder="Ej: 10:00">
                     </div>
                     <div class="col-md-3" id="traslado_hora_regreso_container" style="display: none;">
                         <label class="form-label fw-semibold">Hora de Regreso</label>
-                        <input type="time" class="form-control" name="traslado_hora_regreso" id="traslado_hora_regreso" placeholder="Ej: 18:00">
+                        <input type="time" class="form-control" name="traslado_hora_regreso" id="traslado_hora_regreso"
+                            placeholder="Ej: 18:00">
                     </div>
                     <div class="col-12">
                         <label class="form-label fw-semibold">Descripción del Traslado</label>
-                        <textarea class="form-control" name="traslado_descripcion" id="traslado_descripcion" rows="6" placeholder="Detalles del traslado: tipo de vehículo, capacidad, servicios incluidos, horarios, etc."></textarea>
-                        <small class="text-muted">Incluye toda la información relevante del traslado: tipo de vehículo, capacidad, servicios incluidos, horarios, puntos de recogida, etc.</small>
+                        <textarea class="form-control" name="traslado_descripcion" id="traslado_descripcion" rows="6"
+                            placeholder="Detalles del traslado: tipo de vehículo, capacidad, servicios incluidos, horarios, etc."></textarea>
+                        <small class="text-muted">Incluye toda la información relevante del traslado: tipo de vehículo,
+                            capacidad, servicios incluidos, horarios, puntos de recogida, etc.</small>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-semibold">Total MXN</label>
-                        <input type="text" class="form-control" name="traslado_total" id="traslado_total" placeholder="Ej: 1,500.00">
+                        <input type="text" class="form-control" name="traslado_total" id="traslado_total"
+                            placeholder="Ej: 1,500.00">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label fw-semibold">Forma de pago <span class="text-muted">(Opcional)</span></label>
-                        <input type="text" class="form-control" name="traslado_forma_pago" id="traslado_forma_pago" placeholder="Ej: 50% anticipo, 50% al confirmar">
+                        <label class="form-label fw-semibold">Forma de pago <span
+                                class="text-muted">(Opcional)</span></label>
+                        <input type="text" class="form-control" name="traslado_forma_pago" id="traslado_forma_pago"
+                            placeholder="Ej: 50% anticipo, 50% al confirmar">
+                    </div>
+                </div>
+            </div>
+
+            <div class="cotizacion-section d-none" data-section="renta_autos">
+                <h5 class="text-primary fw-bold mb-3"><i class="fas fa-car-side"></i> Información de Renta de Autos</h5>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Arrendadora</label>
+                        {{ form.renta_autos_arrendadora|add_class:"form-control" }}
+                        {% for error in form.renta_autos_arrendadora.errors %}
+                        <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Punto de Origen</label>
+                        <input type="text" class="form-control" name="renta_autos_punto_origen"
+                            id="renta_autos_punto_origen" placeholder="Ej: Aeropuerto de Cancún">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Punto de Regreso</label>
+                        <input type="text" class="form-control" name="renta_autos_punto_regreso"
+                            id="renta_autos_punto_regreso" placeholder="Ej: Aeropuerto de Cancún">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Hora de Pickup</label>
+                        <input type="time" class="form-control" name="renta_autos_hora_pickup"
+                            id="renta_autos_hora_pickup">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Hora de Devolución</label>
+                        <input type="time" class="form-control" name="renta_autos_hora_devolucion"
+                            id="renta_autos_hora_devolucion">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Total MXN</label>
+                        <input type="text" class="form-control" name="renta_autos_total" id="renta_autos_total"
+                            placeholder="Ej: 3,500.00">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Forma de pago <span
+                                class="text-muted">(Opcional)</span></label>
+                        <input type="text" class="form-control" name="renta_autos_forma_pago"
+                            id="renta_autos_forma_pago" placeholder="Ej: 50% anticipo, 50% al confirmar">
                     </div>
                 </div>
             </div>
@@ -333,12 +532,52 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold">Contenido de la Cotización</label>
-                    <textarea class="form-control" name="generica_contenido" rows="15" placeholder="Ingresa aquí toda la información que deseas incluir en la cotización. Puedes incluir texto, detalles de servicios, precios, condiciones, etc."></textarea>
-                    <small class="form-text text-muted">Este contenido se incluirá tal cual en la cotización generada.</small>
+                    <textarea class="form-control" name="generica_contenido" rows="15"
+                        placeholder="Ingresa aquí toda la información que deseas incluir en la cotización. Puedes incluir texto, detalles de servicios, precios, condiciones, etc."></textarea>
+                    <small class="form-text text-muted">Este contenido se incluirá tal cual en la cotización
+                        generada.</small>
                 </div>
             </div>
 
             <hr class="my-4">
+
+            <div class="cotizacion-section d-none" data-section="paquete-total" id="paqueteTotalSection">
+                <div class="row mt-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="border rounded p-3 bg-light">
+                            <div class="mb-2">
+                                <label class="form-label fw-bold text-secondary">Total del Paquete MXN</label>
+                                <input type="text" class="form-control" name="paquete_total"
+                                    placeholder="Ej: 53,258.00">
+                                <small class="text-muted">Total combinado del paquete (Vuelo + Hospedaje + Tours si
+                                    aplica)</small>
+                            </div>
+                            <div>
+                                <label class="form-label fw-semibold">Forma de pago del Paquete <span
+                                        class="text-muted">(Opcional)</span></label>
+                                <input type="text" class="form-control" name="paquete_forma_pago"
+                                    placeholder="Ej: 50% anticipo, 50% al confirmar">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {# Sección de Total de Tours - Solo visible cuando el tipo es 'tours' #}
+            <div class="cotizacion-section d-none" data-section="tours-total" id="toursTotalSection">
+                <div class="row mt-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="border rounded p-3 bg-light">
+                            <div class="mb-2">
+                                <label class="form-label fw-bold text-secondary">Total de Tours MXN</label>
+                                <input type="text" class="form-control" name="tours_total" id="tours_total"
+                                    placeholder="Ej: 5,000.00" readonly>
+                                <small class="text-muted">Total calculado automáticamente (suma de todos los tours)</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <div class="row g-3">
                 <div class="col-md-12">
@@ -356,29 +595,165 @@
                         <i class="fas fa-save me-1"></i> Guardar
                     </button>
                     {% if form.instance.pk and form.instance.slug %}
-                        <button type="button" class="btn btn-primary" id="docxBtn" data-docx-url="{% url 'cotizacion_docx' slug=form.instance.slug %}">
-                            <i class="fas fa-download me-1"></i> Descargar DOCX
-                        </button>
+                    <button type="button" class="btn btn-primary" id="docxBtn"
+                        data-docx-url="{% url 'cotizacion_pdf' slug=form.instance.slug %}">
+                        <i class="fas fa-file-pdf me-1"></i> Descargar PDF
+                    </button>
                     {% else %}
-                        <button type="button" class="btn btn-outline-secondary" disabled title="Guarda primero para habilitar DOCX">
-                            <i class="fas fa-download me-1"></i> Descargar DOCX
-                        </button>
+                    <button type="button" class="btn btn-outline-secondary" disabled
+                        title="Guarda primero para habilitar PDF">
+                        <i class="fas fa-file-pdf me-1"></i> Descargar PDF
+                    </button>
                     {% endif %}
                 </div>
             </div>
-        </form>
     </div>
+
+    {# Campo oculto para almacenar las edades de menores #}
+    {{ form.edades_menores }}
+
+    </form>
+</div>
 </div>
 
 {% block extra_head %}
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    crossorigin="anonymous" referrerpolicy="no-referrer" />
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         const form = document.getElementById('cotizacionForm');
         let tipoSelect = document.getElementById('tipoCotizacionSelect');
+
+        // ========== GESTIÓN DINÁMICA DE EDADES DE MENORES ==========
+        const campoMenores = document.getElementById('id_menores');
+        const edadesMenoresContainer = document.getElementById('edadesMenoresContainer');
+        const edadesMenoresFields = document.getElementById('edadesMenoresFields');
+        const campoEdadesMenoresHidden = document.getElementById('id_edades_menores');
+
+        function generarCamposEdades(numMenores) {
+            // Limpiar campos existentes
+            edadesMenoresFields.innerHTML = '';
+
+            if (numMenores > 0) {
+                edadesMenoresContainer.style.display = 'block';
+
+                // Generar un campo por cada menor
+                for (let i = 1; i <= numMenores; i++) {
+                    const colDiv = document.createElement('div');
+                    colDiv.className = 'col-md-3 col-sm-6';
+
+                    const inputGroup = document.createElement('div');
+                    inputGroup.className = 'input-group';
+
+                    const label = document.createElement('label');
+                    label.className = 'input-group-text';
+                    label.textContent = `Menor ${i}:`;
+                    label.style.minWidth = '80px';
+
+                    const input = document.createElement('input');
+                    input.type = 'number';
+                    input.className = 'form-control edad-menor-input';
+                    input.name = `edad_menor_${i}`;
+                    input.id = `edad_menor_${i}`;
+                    input.min = '0';
+                    input.max = '17';
+                    input.placeholder = 'Edad';
+                    input.setAttribute('data-menor-index', i);
+
+                    const span = document.createElement('span');
+                    span.className = 'input-group-text';
+                    span.textContent = 'años';
+
+                    inputGroup.appendChild(label);
+                    inputGroup.appendChild(input);
+                    inputGroup.appendChild(span);
+                    colDiv.appendChild(inputGroup);
+                    edadesMenoresFields.appendChild(colDiv);
+                }
+            } else {
+                edadesMenoresContainer.style.display = 'none';
+            }
+        }
+
+        function actualizarEdadesMenoresHidden() {
+            // Recopilar todas las edades y guardarlas en el campo hidden
+            // Verificación de seguridad para evitar crash
+            if (!campoEdadesMenoresHidden) {
+                console.warn("campoEdadesMenoresHidden no encontrado, saltando actualización");
+                return;
+            }
+
+            const inputs = edadesMenoresFields.querySelectorAll('.edad-menor-input');
+            const edades = [];
+
+            inputs.forEach(input => {
+                if (input.value && input.value.trim() !== '') {
+                    edades.push(input.value.trim());
+                }
+            });
+
+            // Guardar en el formato esperado: "5, 8, 12"
+            campoEdadesMenoresHidden.value = edades.join(', ');
+        }
+
+        function cargarEdadesMenoresDesdeHidden() {
+            // Si hay edades guardadas, cargarlas en los campos
+            if (campoEdadesMenoresHidden && campoEdadesMenoresHidden.value) {
+                const edades = campoEdadesMenoresHidden.value.split(',').map(e => e.trim()).filter(e => e);
+                const numMenores = parseInt(campoMenores.value) || 0;
+
+                // Asegurar que hay suficientes campos
+                if (numMenores > 0) {
+                    generarCamposEdades(numMenores);
+
+                    // Llenar los campos con las edades guardadas
+                    edades.forEach((edad, index) => {
+                        if (index < numMenores) {
+                            const input = document.getElementById(`edad_menor_${index + 1}`);
+                            if (input) {
+                                input.value = edad;
+                            }
+                        }
+                    });
+                }
+            }
+        }
+
+        // Escuchar cambios en el campo de número de menores
+        if (campoMenores) {
+            campoMenores.addEventListener('input', function () {
+                const numMenores = parseInt(this.value) || 0;
+                generarCamposEdades(numMenores);
+                actualizarEdadesMenoresHidden();
+            });
+
+            // Escuchar cambios en los campos de edades para actualizar el hidden
+            edadesMenoresFields.addEventListener('input', function (e) {
+                if (e.target.classList.contains('edad-menor-input')) {
+                    actualizarEdadesMenoresHidden();
+                }
+            });
+        }
+
+        // Cargar edades al iniciar si hay datos
+        function inicializarEdadesMenores() {
+            if (campoMenores && campoMenores.value) {
+                const numMenores = parseInt(campoMenores.value) || 0;
+                if (numMenores > 0) {
+                    generarCamposEdades(numMenores);
+                    // Esperar un momento para que los campos se generen antes de cargar valores
+                    setTimeout(() => {
+                        cargarEdadesMenoresDesdeHidden();
+                    }, 50);
+                }
+            }
+        }
+
+        // Ejecutar al cargar la página
+        inicializarEdadesMenores();
         const sections = form.querySelectorAll('.cotizacion-section');
         const propuestasInput = document.getElementById('id_propuestas');
         const docxBtn = document.getElementById('docxBtn');
@@ -390,10 +765,10 @@
             const fechaRegresoContainer = document.getElementById('traslado_fecha_regreso_container');
             const horaIdaContainer = document.getElementById('traslado_hora_ida_container');
             const horaRegresoContainer = document.getElementById('traslado_hora_regreso_container');
-            
+
             if (modalidadSelect && tipoSelect && tipoSelect.value === 'traslados') {
                 const esRedondo = modalidadSelect.value === 'REDONDO';
-                
+
                 if (fechaIdaContainer) fechaIdaContainer.style.display = esRedondo ? 'block' : 'none';
                 if (fechaRegresoContainer) fechaRegresoContainer.style.display = esRedondo ? 'block' : 'none';
                 if (horaIdaContainer) horaIdaContainer.style.display = esRedondo ? 'block' : 'none';
@@ -410,7 +785,7 @@
         function toggleSection(tipo) {
             if (!tipo) return;
             if (!tipo) return;
-            
+
             sections.forEach(section => {
                 const shouldShow = section.dataset.section === tipo;
                 if (shouldShow) {
@@ -419,46 +794,87 @@
                     section.classList.add('d-none');
                 }
             });
-            
+
+            // Mostrar/ocultar la sección del Total del Paquete solo cuando el tipo es 'paquete'
+            const paqueteTotalSection = document.getElementById('paqueteTotalSection');
+            if (paqueteTotalSection) {
+                if (tipo === 'paquete') {
+                    paqueteTotalSection.classList.remove('d-none');
+                    // Inicializar el cálculo automático del total cuando se muestra la sección de paquete
+                    setTimeout(function() {
+                        inicializarCalculoTotalPaquete();
+                    }, 200);
+                } else {
+                    paqueteTotalSection.classList.add('d-none');
+                }
+            }
+
+            // Mostrar/ocultar la sección del Total de Tours solo cuando el tipo es 'tours'
+            const toursTotalSection = document.getElementById('toursTotalSection');
+            if (toursTotalSection) {
+                if (tipo === 'tours') {
+                    toursTotalSection.classList.remove('d-none');
+                    // Inicializar el cálculo automático del total cuando se muestra la sección de tours
+                    setTimeout(function() {
+                        inicializarCalculoTotalTours();
+                    }, 200);
+                } else {
+                    toursTotalSection.classList.add('d-none');
+                }
+            }
+
             // Manejar visibilidad de campos y labels según el tipo
             const duracionContainer = document.getElementById('duracion_viaje_container');
             const fechaInicioContainer = document.getElementById('fecha_inicio_container');
             const fechaFinContainer = document.getElementById('fecha_fin_container');
             const labelOrigen = document.getElementById('label_origen_destino_1');
             const labelDestino = document.getElementById('label_origen_destino_2');
-            
+
             const origenField = document.getElementById('id_origen');
             const destinoField = document.getElementById('id_destino');
-            
+
             if (tipo === 'traslados') {
                 // Ocultar duración y fechas para traslados
                 if (duracionContainer) duracionContainer.style.display = 'none';
                 if (fechaInicioContainer) fechaInicioContainer.style.display = 'none';
                 if (fechaFinContainer) fechaFinContainer.style.display = 'none';
-                
+
                 // Cambiar labels a "Desde" y "Hasta"
                 if (labelOrigen) labelOrigen.textContent = 'Desde';
                 if (labelDestino) labelDestino.textContent = 'Hasta';
-                
+
                 // Cambiar placeholders para traslados
                 if (origenField) origenField.placeholder = 'Ej: Aeropuerto de Cancún';
                 if (destinoField) destinoField.placeholder = 'Ej: Hotel Riu Palace';
+            } else if (tipo === 'renta_autos') {
+                // Ocultar duración, fechas, origen y destino para renta de autos
+                if (duracionContainer) duracionContainer.style.display = 'none';
+                if (fechaInicioContainer) fechaInicioContainer.style.display = 'none';
+                if (fechaFinContainer) fechaFinContainer.style.display = 'none';
+                if (labelOrigen && labelOrigen.parentElement) labelOrigen.parentElement.style.display = 'none';
+                if (labelDestino && labelDestino.parentElement) labelDestino.parentElement.style.display = 'none';
             } else {
                 // Mostrar duración y fechas para otros tipos
                 if (duracionContainer) duracionContainer.style.display = 'block';
                 if (fechaInicioContainer) fechaInicioContainer.style.display = 'block';
                 if (fechaFinContainer) fechaFinContainer.style.display = 'block';
-                
+
                 // Restaurar labels a "Origen" y "Destino"
-                if (labelOrigen) labelOrigen.textContent = 'Origen';
-                if (labelDestino) labelDestino.textContent = 'Destino';
-                
+                if (labelOrigen) {
+                    labelOrigen.textContent = 'Origen';
+                    if (labelOrigen.parentElement) labelOrigen.parentElement.style.display = 'block';
+                }
+                if (labelDestino) {
+                    labelDestino.textContent = 'Destino';
+                    if (labelDestino.parentElement) labelDestino.parentElement.style.display = 'block';
+                }
+
                 // Restaurar placeholders originales
                 if (origenField) origenField.placeholder = 'Ej: Guadalajara';
                 if (destinoField) destinoField.placeholder = 'Ej: Cancún';
             }
         }
-        
+
         // Verificar que el select existe antes de usarlo
         if (!tipoSelect) {
             console.error('No se encontró el elemento tipoCotizacionSelect');
@@ -471,32 +887,32 @@
                 return;
             }
         }
-        
+
         console.log('tipoSelect encontrado:', tipoSelect);
         console.log('Valor inicial:', tipoSelect.value);
-        
+
         // Inicializar con el valor actual
         const tipoInicial = tipoSelect.value || 'vuelos';
         console.log('Inicializando con tipo:', tipoInicial);
         toggleSection(tipoInicial);
         toggleTrasladoRedondo();
-        
+
         // Escuchar cambios en el tipo de cotización
-        tipoSelect.addEventListener('change', function() {
+        tipoSelect.addEventListener('change', function () {
             const nuevoTipo = this.value;
             console.log('Cambio de tipo detectado:', nuevoTipo);
             toggleSection(nuevoTipo);
             toggleTrasladoRedondo();
         });
-        
+
         // También escuchar eventos de input por si acaso
-        tipoSelect.addEventListener('input', function() {
+        tipoSelect.addEventListener('input', function () {
             const nuevoTipo = this.value;
             console.log('Input detectado:', nuevoTipo);
             toggleSection(nuevoTipo);
             toggleTrasladoRedondo();
         });
-        
+
         // Escuchar cambios en la modalidad de traslado
         const modalidadSelect = document.getElementById('traslado_modalidad');
         if (modalidadSelect) {
@@ -510,6 +926,10 @@
             try {
                 const data = JSON.parse(raw);
                 
+                // --- CORRECCIÓN 1: Definir la variable 'tipo' que faltaba ---
+                const tipo = data.tipo; 
+                // -----------------------------------------------------------
+
                 // 1. Restaurar Tipo (esto también actualizará labels y placeholders)
                 if (data.tipo) {
                     tipoSelect.value = data.tipo;
@@ -528,16 +948,20 @@
                         }
                     }
                 }
-                
+
                 // 2. Restaurar Vuelos
                 if (data.vuelos && Array.isArray(data.vuelos)) {
                     data.vuelos.forEach((v, idx) => {
                         const i = idx + 1; // Índices 1, 2, 3
-                        selectProveedorByName(`vuelo_proveedor_${i}`, v.aerolinea);
+                        if (form.elements[`vuelo_aerolinea_${i}`]) form.elements[`vuelo_aerolinea_${i}`].value = v.aerolinea || '';
                         if (form.elements[`vuelo_salida_${i}`]) form.elements[`vuelo_salida_${i}`].value = v.salida || '';
                         if (form.elements[`vuelo_regreso_${i}`]) form.elements[`vuelo_regreso_${i}`].value = v.regreso || '';
                         if (form.elements[`vuelo_incluye_${i}`]) form.elements[`vuelo_incluye_${i}`].value = v.incluye || '';
-                        if (form.elements[`vuelo_total_${i}`]) form.elements[`vuelo_total_${i}`].value = v.total || '';
+                        if (form.elements[`vuelo_total_${i}`]) {
+                            const campoTotal = form.elements[`vuelo_total_${i}`];
+                            campoTotal.value = v.total || '';
+                            aplicarFormatoMoneda(campoTotal);
+                        }
                         if (form.elements[`vuelo_forma_pago_${i}`]) form.elements[`vuelo_forma_pago_${i}`].value = v.forma_pago || '';
                     });
                 }
@@ -545,41 +969,233 @@
                 if (data.hoteles && Array.isArray(data.hoteles)) {
                     data.hoteles.forEach((h, idx) => {
                         const i = idx + 1;
-                        selectProveedorByName(`hotel_proveedor_${i}`, h.nombre);
+                        if (form.elements[`hotel_nombre_${i}`]) form.elements[`hotel_nombre_${i}`].value = h.nombre || '';
                         if (form.elements[`hotel_habitacion_${i}`]) form.elements[`hotel_habitacion_${i}`].value = h.habitacion || '';
                         if (form.elements[`hotel_direccion_${i}`]) form.elements[`hotel_direccion_${i}`].value = h.direccion || '';
                         if (form.elements[`hotel_plan_${i}`]) form.elements[`hotel_plan_${i}`].value = h.plan || '';
-                        if (form.elements[`hotel_total_${i}`]) form.elements[`hotel_total_${i}`].value = h.total || '';
+                        if (form.elements[`hotel_total_${i}`]) {
+                            const campoTotal = form.elements[`hotel_total_${i}`];
+                            campoTotal.value = h.total || '';
+                            aplicarFormatoMoneda(campoTotal);
+                        }
                         if (form.elements[`hotel_forma_pago_${i}`]) form.elements[`hotel_forma_pago_${i}`].value = h.forma_pago || '';
                     });
                 }
                 // 4. Restaurar Paquete
                 if (data.paquete) {
                     if (data.paquete.vuelo) {
-                        selectProveedorByName('paquete_proveedor_vuelo', data.paquete.vuelo.aerolinea);
+                        if (form.elements['paquete_vuelo_aerolinea']) form.elements['paquete_vuelo_aerolinea'].value = data.paquete.vuelo.aerolinea || '';
                         if (form.elements['paquete_vuelo_salida']) form.elements['paquete_vuelo_salida'].value = data.paquete.vuelo.salida || '';
                         if (form.elements['paquete_vuelo_regreso']) form.elements['paquete_vuelo_regreso'].value = data.paquete.vuelo.regreso || '';
                         if (form.elements['paquete_vuelo_incluye']) form.elements['paquete_vuelo_incluye'].value = data.paquete.vuelo.incluye || '';
+                        if (form.elements['paquete_vuelo_total']) {
+                            const campoTotal = form.elements['paquete_vuelo_total'];
+                            campoTotal.value = data.paquete.vuelo.total || '';
+                            aplicarFormatoMoneda(campoTotal);
+                        }
+                        if (form.elements['paquete_vuelo_forma_pago']) form.elements['paquete_vuelo_forma_pago'].value = data.paquete.vuelo.forma_pago || '';
                     }
                     if (data.paquete.hotel) {
-                        selectProveedorByName('paquete_proveedor_hotel', data.paquete.hotel.nombre);
+                        if (form.elements['paquete_hotel_nombre']) form.elements['paquete_hotel_nombre'].value = data.paquete.hotel.nombre || '';
                         if (form.elements['paquete_hotel_habitacion']) form.elements['paquete_hotel_habitacion'].value = data.paquete.hotel.habitacion || '';
+                        if (form.elements['paquete_hotel_direccion']) form.elements['paquete_hotel_direccion'].value = data.paquete.hotel.direccion || '';
+                        if (form.elements['paquete_hotel_plan']) form.elements['paquete_hotel_plan'].value = data.paquete.hotel.plan || '';
                         if (form.elements['paquete_hotel_notas']) form.elements['paquete_hotel_notas'].value = data.paquete.hotel.notas || '';
+                        if (form.elements['paquete_hotel_total']) {
+                            const campoTotal = form.elements['paquete_hotel_total'];
+                            campoTotal.value = data.paquete.hotel.total || '';
+                            aplicarFormatoMoneda(campoTotal);
+                        }
+                        if (form.elements['paquete_hotel_forma_pago']) form.elements['paquete_hotel_forma_pago'].value = data.paquete.hotel.forma_pago || '';
                     }
-                    if (form.elements['paquete_total']) form.elements['paquete_total'].value = data.paquete.total || '';
+                    if (form.elements['paquete_total']) {
+                        const campoTotal = form.elements['paquete_total'];
+                        campoTotal.value = data.paquete.total || '';
+                        aplicarFormatoMoneda(campoTotal);
+                    }
                     if (form.elements['paquete_forma_pago']) form.elements['paquete_forma_pago'].value = data.paquete.forma_pago || '';
+
+                    // Restaurar tours del paquete (si existen)
+                    if (data.paquete.tours && Array.isArray(data.paquete.tours) && data.paquete.tours.length > 0) {
+                        // Inicializar el contador al número correcto de tours ANTES de mostrar la sección
+                        paqueteTourCounter = data.paquete.tours.length;
+                        
+                        // Mostrar la sección de tours y marcar el checkbox
+                        // Usar un flag temporal para prevenir que se dispare el evento al marcar programáticamente
+                        if (incluirToursPaqueteCheckbox && paqueteToursContainer) {
+                            // Desactivar temporalmente el listener para evitar que se dispare
+                            const checkboxEvent = new Event('change', { bubbles: false });
+                            incluirToursPaqueteCheckbox.checked = true;
+                            paqueteToursContainer.style.display = 'block';
+                        }
+
+                        // Restaurar el primer tour
+                        if (data.paquete.tours.length > 0) {
+                            const primerTour = data.paquete.tours[0];
+                            if (form.elements['paquete_tour_nombre_1']) form.elements['paquete_tour_nombre_1'].value = primerTour.nombre || '';
+                            if (form.elements['paquete_tour_especificaciones_1']) form.elements['paquete_tour_especificaciones_1'].value = primerTour.especificaciones || '';
+                            if (form.elements['paquete_tour_total_1']) {
+                                const campoTotal = form.elements['paquete_tour_total_1'];
+                                campoTotal.value = primerTour.total || '';
+                                aplicarFormatoMoneda(campoTotal);
+                            }
+                            if (form.elements['paquete_tour_forma_pago_1']) form.elements['paquete_tour_forma_pago_1'].value = primerTour.forma_pago || '';
+                        }
+
+                        // Crear tours adicionales del paquete (solo si hay más de 1 tour)
+                        // IMPORTANTE: No crear tours adicionales si solo hay 1 tour
+                        if (data.paquete.tours.length > 1) {
+                            // Verificar cuántos tours ya existen en el DOM
+                            const toursExistentes = paqueteToursContainer.querySelectorAll('.paquete-tour-item').length;
+                            
+                            // Solo crear tours adicionales si no existen ya en el DOM
+                            if (toursExistentes < data.paquete.tours.length) {
+                                // Crear todos los tours adicionales que faltan
+                                for (let i = toursExistentes; i < data.paquete.tours.length; i++) {
+                                    const tourIndex = i + 1; // El índice del tour (2, 3, 4, etc.)
+                                    const nuevoTour = crearNuevoPaqueteTour(tourIndex);
+                                    const primerTourPaquete = paqueteToursContainer.querySelector('.paquete-tour-item');
+                                    if (primerTourPaquete) {
+                                        primerTourPaquete.insertAdjacentHTML('afterend', nuevoTour);
+                                    }
+                                }
+                            }
+
+                            // Esperar a que el DOM esté listo y luego llenar los datos
+                            setTimeout(() => {
+                                for (let i = 1; i < data.paquete.tours.length; i++) {
+                                    const tour = data.paquete.tours[i];
+                                    const tourIndex = i + 1; // El índice del tour (2, 3, 4, etc.)
+                                    
+                                    if (form.elements[`paquete_tour_nombre_${tourIndex}`]) {
+                                        form.elements[`paquete_tour_nombre_${tourIndex}`].value = tour.nombre || '';
+                                    }
+                                    if (form.elements[`paquete_tour_especificaciones_${tourIndex}`]) {
+                                        form.elements[`paquete_tour_especificaciones_${tourIndex}`].value = tour.especificaciones || '';
+                                    }
+                                    if (form.elements[`paquete_tour_total_${tourIndex}`]) {
+                                        const campoTotal = form.elements[`paquete_tour_total_${tourIndex}`];
+                                        campoTotal.value = tour.total || '';
+                                        aplicarFormatoMoneda(campoTotal);
+                                    }
+                                    if (form.elements[`paquete_tour_forma_pago_${tourIndex}`]) {
+                                        form.elements[`paquete_tour_forma_pago_${tourIndex}`].value = tour.forma_pago || '';
+                                    }
+                                }
+
+                                // Actualizar números después de llenar todos los datos
+                                actualizarNumerosPaqueteTour();
+                            }, 200);
+                        }
+                    }
                 }
-                // 5. Restaurar Tours
+                // 5. Restaurar Tours (ESTA ES LA SECCIÓN CORREGIDA)
                 if (data.tours) {
-                    selectProveedorByName('tour_proveedor', data.tours.proveedor);
-                    if (form.elements['tour_numero_reserva']) form.elements['tour_numero_reserva'].value = data.tours.numero_reserva || '';
-                    if (form.elements['tour_nombre']) form.elements['tour_nombre'].value = data.tours.nombre || '';
-                    if (form.elements['tour_especificaciones']) form.elements['tour_especificaciones'].value = data.tours.especificaciones || '';
-                    if (form.elements['tour_forma_pago']) form.elements['tour_forma_pago'].value = data.tours.forma_pago || '';
+                    bloqueandoCreacionTours = true;
+                    
+                    let toursArray = [];
+                    if (Array.isArray(data.tours)) {
+                        toursArray = data.tours;
+                    } else {
+                        toursArray = [data.tours];
+                    }
+                    
+                    // --- MEJORA 1: Filtro Estricto (Ignora "$" y ceros) ---
+                    toursArray = toursArray.filter(t => {
+                        // Limpiar el total de símbolos y espacios para verificar si está vacío
+                        const totalClean = (t.total || '').toString().replace('$', '').replace(/,/g, '').trim();
+                        
+                        // Es válido solo si tiene nombre O un total real (mayor a 0) O especificaciones
+                        return (t.nombre && t.nombre.trim() !== '') || 
+                               (totalClean !== '' && totalClean !== '0.00' && totalClean !== '0') || 
+                               (t.especificaciones && t.especificaciones.trim() !== '');
+                    });
+                    
+                    // Restaurar el primer tour (Siempre existe en el HTML base)
+                    if (toursArray.length > 0) {
+                        const primerTour = toursArray[0];
+                        if (form.elements['tour_nombre_1']) form.elements['tour_nombre_1'].value = primerTour.nombre || '';
+                        if (form.elements['tour_especificaciones_1']) form.elements['tour_especificaciones_1'].value = primerTour.especificaciones || '';
+                        if (form.elements['tour_total_1']) {
+                            const campoTotal = form.elements['tour_total_1'];
+                            campoTotal.value = primerTour.total || '';
+                            aplicarFormatoMoneda(campoTotal);
+                        }
+                        if (form.elements['tour_forma_pago_1']) form.elements['tour_forma_pago_1'].value = primerTour.forma_pago || '';
+                    }
+                    
+                    // Si hay tours adicionales
+                    if (toursArray.length > 1) {
+                        // --- MEJORA 2: Anti-Duplicados (Verificar DOM antes de crear) ---
+                        const toursExistentes = toursContainer.querySelectorAll('.tour-item').length;
+                        
+                        // Solo crear si faltan tours
+                        for (let i = toursExistentes; i < toursArray.length; i++) {
+                            const tourIndex = i + 1;
+                            const nuevoTour = crearNuevoTour(tourIndex);
+                            
+                            // Insertar al final
+                            toursContainer.insertAdjacentHTML('beforeend', nuevoTour);
+                        }
+                        
+                        // Llenar datos (con timeout para asegurar DOM)
+                        setTimeout(() => {
+                            for (let i = 1; i < toursArray.length; i++) {
+                                const tour = toursArray[i];
+                                const tourIndex = i + 1;
+                                
+                                // Lógica de llenado estandar...
+                                const tourItem = toursContainer.querySelector(`.tour-item[data-tour-index="${tourIndex}"]`);
+                                if (tourItem) {
+                                    const nombreF = tourItem.querySelector(`[name="tour_nombre_${tourIndex}"]`);
+                                    const specsF = tourItem.querySelector(`[name="tour_especificaciones_${tourIndex}"]`);
+                                    const totalF = tourItem.querySelector(`[name="tour_total_${tourIndex}"]`);
+                                    const pagoF = tourItem.querySelector(`[name="tour_forma_pago_${tourIndex}"]`);
+                                    
+                                    if (nombreF) nombreF.value = tour.nombre || '';
+                                    if (specsF) specsF.value = tour.especificaciones || '';
+                                    if (totalF) {
+                                        totalF.value = tour.total || '';
+                                        aplicarFormatoMoneda(totalF);
+                                    }
+                                    if (pagoF) pagoF.value = tour.forma_pago || '';
+                                }
+                            }
+                            
+                            // Finalización
+                            actualizarNumerosTour();
+                            
+                            // Asegurar checkboxes desmarcados
+                            toursContainer.querySelectorAll('.agregar-tour-checkbox').forEach(cb => {
+                                cb.checked = false;
+                                cb.removeAttribute('checked');
+                            });
+                            
+                            if (tipo === 'tours') {
+                                calcularTotalTours();
+                            }
+                            
+                            // DESBLOQUEO CRÍTICO
+                            bloqueandoCreacionTours = false;
+                            
+                        }, Math.max(150 * toursArray.length + 500, 800));
+                    } else {
+                        // Caso 1 solo tour o ninguno
+                        if (tipo === 'tours') {
+                            setTimeout(function() {
+                                calcularTotalTours();
+                                bloqueandoCreacionTours = false; 
+                            }, 300);
+                        } else {
+                            bloqueandoCreacionTours = false; 
+                        }
+                    }
+                    
+                    // IMPORTANTE: Establecer tourCounter al número exacto de tours cargados
+                    tourCounter = toursArray.length;
                 }
                 // 6. Restaurar Traslados
                 if (data.traslados) {
-                    selectProveedorByName('traslado_proveedor', data.traslados.proveedor);
                     if (form.elements['traslado_tipo']) form.elements['traslado_tipo'].value = data.traslados.tipo || '';
                     if (form.elements['traslado_modalidad']) {
                         form.elements['traslado_modalidad'].value = data.traslados.modalidad || '';
@@ -587,7 +1203,11 @@
                         toggleTrasladoRedondo();
                     }
                     if (form.elements['traslado_descripcion']) form.elements['traslado_descripcion'].value = data.traslados.descripcion || '';
-                    if (form.elements['traslado_total']) form.elements['traslado_total'].value = data.traslados.total || '';
+                    if (form.elements['traslado_total']) {
+                        const campoTotal = form.elements['traslado_total'];
+                        campoTotal.value = data.traslados.total || '';
+                        aplicarFormatoMoneda(campoTotal);
+                    }
                     if (form.elements['traslado_forma_pago']) form.elements['traslado_forma_pago'].value = data.traslados.forma_pago || '';
                     // Campos de traslado redondo
                     if (form.elements['traslado_fecha_ida']) form.elements['traslado_fecha_ida'].value = data.traslados.fecha_ida || '';
@@ -600,19 +1220,35 @@
                     if (origenField) origenField.value = data.traslados.desde || '';
                     if (destinoField) destinoField.value = data.traslados.hasta || '';
                 }
-                // 7. Restaurar Generica
+                // 7. Restaurar Renta de Autos
+                if (data.renta_autos) {
+                    if (form.elements['renta_autos_arrendadora']) form.elements['renta_autos_arrendadora'].value = data.renta_autos.arrendadora || '';
+                    if (form.elements['renta_autos_punto_origen']) form.elements['renta_autos_punto_origen'].value = data.renta_autos.punto_origen || '';
+                    if (form.elements['renta_autos_punto_regreso']) form.elements['renta_autos_punto_regreso'].value = data.renta_autos.punto_regreso || '';
+                    if (form.elements['renta_autos_hora_pickup']) form.elements['renta_autos_hora_pickup'].value = data.renta_autos.hora_pickup || '';
+                    if (form.elements['renta_autos_hora_devolucion']) form.elements['renta_autos_hora_devolucion'].value = data.renta_autos.hora_devolucion || '';
+                    if (form.elements['renta_autos_total']) {
+                        const campoTotal = form.elements['renta_autos_total'];
+                        campoTotal.value = data.renta_autos.total || '';
+                        aplicarFormatoMoneda(campoTotal);
+                    }
+                    if (form.elements['renta_autos_forma_pago']) form.elements['renta_autos_forma_pago'].value = data.renta_autos.forma_pago || '';
+                }
+                // 8. Restaurar Generica
                 if (data.generica) {
                     if (form.elements['generica_contenido']) form.elements['generica_contenido'].value = data.generica.contenido || '';
                 }
             } catch (e) {
                 console.error("Error restaurando datos de propuestas:", e);
+                // Asegurar desbloqueo en caso de error
+                bloqueandoCreacionTours = false;
             }
         }
 
         function buildPropuestas() {
             const data = Object.fromEntries(new FormData(form).entries());
             const tipo = data.tipo || 'vuelos';
-            
+
             // Función auxiliar para obtener el nombre del proveedor desde el select
             function getProveedorNombre(fieldName) {
                 const select = form.elements[fieldName];
@@ -621,67 +1257,144 @@
                 }
                 return '';
             }
-            
+
             const propuestasVuelo = [1, 2, 3].map(idx => {
-                const proveedorNombre = getProveedorNombre(`vuelo_proveedor_${idx}`);
                 return {
-                    aerolinea: proveedorNombre || (data[`vuelo_aerolinea_${idx}`] || '').trim(),
+                    aerolinea: (data[`vuelo_aerolinea_${idx}`] || '').trim(),
                     salida: (data[`vuelo_salida_${idx}`] || '').trim(),
                     regreso: (data[`vuelo_regreso_${idx}`] || '').trim(),
                     incluye: (data[`vuelo_incluye_${idx}`] || '').trim(),
-                    total: (data[`vuelo_total_${idx}`] || '').trim(),
+                    total: limpiarFormatoMoneda((data[`vuelo_total_${idx}`] || '').trim()),
                     forma_pago: (data[`vuelo_forma_pago_${idx}`] || '').trim()
                 };
             }).filter(item => Object.values(item).some(v => v));
 
             const propuestasHotel = [1, 2, 3].map(idx => {
-                const proveedorNombre = getProveedorNombre(`hotel_proveedor_${idx}`);
                 return {
-                    nombre: proveedorNombre || (data[`hotel_nombre_${idx}`] || '').trim(),
+                    nombre: (data[`hotel_nombre_${idx}`] || '').trim(),
                     habitacion: (data[`hotel_habitacion_${idx}`] || '').trim(),
                     direccion: (data[`hotel_direccion_${idx}`] || '').trim(),
                     plan: (data[`hotel_plan_${idx}`] || '').trim(),
-                    total: (data[`hotel_total_${idx}`] || '').trim(),
+                    total: limpiarFormatoMoneda((data[`hotel_total_${idx}`] || '').trim()),
                     forma_pago: (data[`hotel_forma_pago_${idx}`] || '').trim()
                 };
             }).filter(item => Object.values(item).some(v => v));
+
+            // Construir objeto paquete (siempre se crea, incluso si está vacío cuando tipo es 'paquete')
+            const objetoPaquete = {
+                vuelo: {
+                    aerolinea: (data.paquete_vuelo_aerolinea || '').trim(),
+                    salida: (data.paquete_vuelo_salida || '').trim(),
+                    regreso: (data.paquete_vuelo_regreso || '').trim(),
+                    incluye: (data.paquete_vuelo_incluye || '').trim(),
+                    total: limpiarFormatoMoneda((data.paquete_vuelo_total || '').trim()),
+                    forma_pago: (data.paquete_vuelo_forma_pago || '').trim(),
+                },
+                hotel: {
+                    nombre: (data.paquete_hotel_nombre || '').trim(),
+                    habitacion: (data.paquete_hotel_habitacion || '').trim(),
+                    direccion: (data.paquete_hotel_direccion || '').trim(),
+                    plan: (data.paquete_hotel_plan || '').trim(),
+                    notas: (data.paquete_hotel_notas || '').trim(),
+                    total: limpiarFormatoMoneda((data.paquete_hotel_total || '').trim()),
+                    forma_pago: (data.paquete_hotel_forma_pago || '').trim(),
+                },
+                total: limpiarFormatoMoneda((data.paquete_total || '').trim()),
+                forma_pago: (data.paquete_forma_pago || '').trim(),
+                tours: (function () {
+                    // Recopilar todos los tours del paquete desde el DOM
+                    const toursArray = [];
+                    const container = document.getElementById('paqueteToursContainer');
+                    if (container) {
+                        const tourItems = container.querySelectorAll('.paquete-tour-item');
+                        tourItems.forEach((tourItem, index) => {
+                            // Buscar campos dentro del tourItem usando selectores más flexibles
+                            const nombreField = tourItem.querySelector('input[name*="paquete_tour_nombre"], textarea[name*="paquete_tour_nombre"]');
+                            const especificacionesField = tourItem.querySelector('textarea[name*="paquete_tour_especificaciones"]');
+                            const totalField = tourItem.querySelector('input[name*="paquete_tour_total"]');
+                            const formaPagoField = tourItem.querySelector('input[name*="paquete_tour_forma_pago"]');
+
+                            const nombre = nombreField ? (nombreField.value || '').trim() : '';
+                            const especificaciones = especificacionesField ? (especificacionesField.value || '').trim() : '';
+                            const total = totalField ? limpiarFormatoMoneda((totalField.value || '').trim()) : '';
+                            const forma_pago = formaPagoField ? (formaPagoField.value || '').trim() : '';
+
+                            // Si hay al menos un campo con datos, agregar el tour
+                            if (nombre || especificaciones || total || forma_pago) {
+                                toursArray.push({
+                                    nombre: nombre,
+                                    especificaciones: especificaciones,
+                                    total: total,
+                                    forma_pago: forma_pago
+                                });
+                            }
+                        });
+                    } else {
+                        // Fallback: buscar por índices consecutivos si no hay contenedor
+                        let tourIndex = 1;
+                        while (true) {
+                            const nombre = (data[`paquete_tour_nombre_${tourIndex}`] || '').trim();
+                            const especificaciones = (data[`paquete_tour_especificaciones_${tourIndex}`] || '').trim();
+                            const total = limpiarFormatoMoneda((data[`paquete_tour_total_${tourIndex}`] || '').trim());
+                            const forma_pago = (data[`paquete_tour_forma_pago_${tourIndex}`] || '').trim();
+
+                            // Si hay al menos un campo con datos, agregar el tour
+                            if (nombre || especificaciones || total || forma_pago) {
+                                toursArray.push({
+                                    nombre: nombre,
+                                    especificaciones: especificaciones,
+                                    total: total,
+                                    forma_pago: forma_pago
+                                });
+                                tourIndex++;
+                            } else {
+                                break; // No hay más tours
+                            }
+                        }
+                    }
+                    return toursArray;
+                })()
+            };
 
             const propuestas = {
                 tipo: tipo,
                 fecha_cotizacion: data.fecha_cotizacion || null,
                 vuelos: propuestasVuelo,
                 hoteles: propuestasHotel,
-                paquete: {
-                    vuelo: {
-                        aerolinea: getProveedorNombre('paquete_proveedor_vuelo') || (data.paquete_vuelo_aerolinea || '').trim(),
-                        salida: (data.paquete_vuelo_salida || '').trim(),
-                        regreso: (data.paquete_vuelo_regreso || '').trim(),
-                        incluye: (data.paquete_vuelo_incluye || '').trim(),
-                    },
-                    hotel: {
-                        nombre: getProveedorNombre('paquete_proveedor_hotel') || (data.paquete_hotel_nombre || '').trim(),
-                        habitacion: (data.paquete_hotel_habitacion || '').trim(),
-                        notas: (data.paquete_hotel_notas || '').trim(),
-                    },
-                    total: (data.paquete_total || '').trim(),
-                    forma_pago: (data.paquete_forma_pago || '').trim()
-                },
-                tours: {
-                    proveedor: getProveedorNombre('tour_proveedor') || '',
-                    numero_reserva: (data.tour_numero_reserva || '').trim(),
-                    nombre: (data.tour_nombre || '').trim(),
-                    especificaciones: (data.tour_especificaciones || '').trim(),
-                    forma_pago: (data.tour_forma_pago || '').trim()
-                },
+                paquete: objetoPaquete,
+                tours: (function () {
+                    // Recopilar todos los tours (puede haber múltiples)
+                    const toursArray = [];
+                    let tourIndex = 1;
+                    while (true) {
+                        const nombre = (data[`tour_nombre_${tourIndex}`] || '').trim();
+                        const especificaciones = (data[`tour_especificaciones_${tourIndex}`] || '').trim();
+                        const total = limpiarFormatoMoneda((data[`tour_total_${tourIndex}`] || '').trim());
+                        const forma_pago = (data[`tour_forma_pago_${tourIndex}`] || '').trim();
+
+                        // Si hay al menos un campo con datos, agregar el tour
+                        if (nombre || especificaciones || total || forma_pago) {
+                            toursArray.push({
+                                nombre: nombre,
+                                especificaciones: especificaciones,
+                                total: total,
+                                forma_pago: forma_pago
+                            });
+                            tourIndex++;
+                        } else {
+                            break; // No hay más tours
+                        }
+                    }
+                    return toursArray;
+                })(),
                 traslados: {
-                    proveedor: getProveedorNombre('traslado_proveedor') || '',
                     tipo: (data.traslado_tipo || '').trim(),
                     modalidad: (data.traslado_modalidad || '').trim(),
                     // Para traslados, usar los campos de origen/destino (que ahora son desde/hasta)
                     desde: (data.origen || '').trim(),
                     hasta: (data.destino || '').trim(),
                     descripcion: (data.traslado_descripcion || '').trim(),
-                    total: (data.traslado_total || '').trim(),
+                    total: limpiarFormatoMoneda((data.traslado_total || '').trim()),
                     forma_pago: (data.traslado_forma_pago || '').trim(),
                     // Campos para traslado redondo
                     fecha_ida: (data.traslado_fecha_ida || '').trim(),
@@ -689,72 +1402,181 @@
                     hora_ida: (data.traslado_hora_ida || '').trim(),
                     hora_regreso: (data.traslado_hora_regreso || '').trim()
                 },
+                renta_autos: {
+                    arrendadora: (data.renta_autos_arrendadora || '').trim(),
+                    punto_origen: (data.renta_autos_punto_origen || '').trim(),
+                    punto_regreso: (data.renta_autos_punto_regreso || '').trim(),
+                    hora_pickup: (data.renta_autos_hora_pickup || '').trim(),
+                    hora_devolucion: (data.renta_autos_hora_devolucion || '').trim(),
+                    total: limpiarFormatoMoneda((data.renta_autos_total || '').trim()),
+                    forma_pago: (data.renta_autos_forma_pago || '').trim()
+                },
                 generica: {
                     contenido: (data.generica_contenido || '').trim()
                 }
             };
 
             if (propuestasInput) {
-                propuestasInput.value = JSON.stringify(propuestas);
+                // CRÍTICO: Si el tipo es 'paquete', el objeto paquete DEBE existir siempre
+                // (Ya se creó arriba como objetoPaquete, pero verificamos por seguridad)
+                if (tipo === 'paquete') {
+                    // Asegurar que el objeto paquete exista y tenga la estructura completa
+                    if (!propuestas.paquete) {
+                        console.warn('⚠️  Objeto paquete no existe, creándolo...');
+                        propuestas.paquete = objetoPaquete;
+                    }
+
+                    // Verificar estructura completa
+                    if (!propuestas.paquete.vuelo) {
+                        propuestas.paquete.vuelo = objetoPaquete.vuelo || {};
+                    }
+                    if (!propuestas.paquete.hotel) {
+                        propuestas.paquete.hotel = objetoPaquete.hotel || {};
+                    }
+                    if (!propuestas.paquete.tours) {
+                        propuestas.paquete.tours = objetoPaquete.tours || [];
+                    }
+
+                    // Debug: mostrar en consola para verificar
+                    console.log('✅ Tipo es paquete, objeto paquete:', JSON.stringify(propuestas.paquete, null, 2));
+                }
+
+                // Asegurar que renta_autos tenga la estructura correcta si el tipo es renta_autos
+                if (tipo === 'renta_autos') {
+                    if (!propuestas.renta_autos) {
+                        propuestas.renta_autos = {
+                            arrendadora: '',
+                            punto_origen: '',
+                            punto_regreso: '',
+                            hora_pickup: '',
+                            hora_devolucion: '',
+                            total: '',
+                            forma_pago: ''
+                        };
+                    }
+                }
+                
+                // Guardar el JSON en el campo hidden
+                const jsonString = JSON.stringify(propuestas);
+                propuestasInput.value = jsonString;
+
+                // Debug adicional: verificar que se guardó correctamente
+                if (tipo === 'paquete') {
+                    console.log('✅ JSON guardado en campo hidden (primeros 300 chars):', jsonString.substring(0, 300));
+                    try {
+                        const parsed = JSON.parse(jsonString);
+                        if (parsed.paquete) {
+                            console.log('✅ Verificación: objeto paquete existe en JSON parseado');
+                            console.log('   - Tiene vuelo?:', !!parsed.paquete.vuelo);
+                            console.log('   - Tiene hotel?:', !!parsed.paquete.hotel);
+                            console.log('   - Tiene tours?:', Array.isArray(parsed.paquete.tours));
+                        } else {
+                            console.error('❌ ERROR: objeto paquete NO existe en JSON parseado!');
+                            console.error('   Contenido de propuestas:', Object.keys(parsed));
+                        }
+                    } catch (e) {
+                        console.error('❌ ERROR parseando JSON:', e);
+                    }
+                }
+            } else {
+                console.error('❌ ERROR: No se encontró el campo propuestasInput (id_propuestas)');
             }
         }
 
-        form.addEventListener('submit', function(e) {
+        form.addEventListener('submit', function (e) {
+            // Actualizar edades de menores antes de enviar
+            actualizarEdadesMenoresHidden();
             // Construir propuestas antes de enviar
             buildPropuestas();
+
+            // Debug: verificar el contenido antes de enviar
+            if (propuestasInput && propuestasInput.value) {
+                try {
+                    const propuestasData = JSON.parse(propuestasInput.value);
+                    console.log('Propuestas antes de enviar:', propuestasData);
+                    if (propuestasData.tipo === 'paquete') {
+                        console.log('Tipo es paquete, objeto paquete:', propuestasData.paquete);
+                        if (!propuestasData.paquete) {
+                            console.error('ERROR: El objeto paquete no existe aunque el tipo es paquete!');
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error parseando propuestas:', err);
+                }
+            }
+
             // Verificar que el campo propuestas tenga valor
             if (!propuestasInput || !propuestasInput.value || propuestasInput.value === '{}') {
                 e.preventDefault();
                 alert('Por favor, completa al menos una propuesta antes de guardar.');
                 return false;
             }
+            
+            // Verificar que para renta_autos haya al menos algún dato
+            try {
+                const propuestasData = JSON.parse(propuestasInput.value);
+                if (propuestasData.tipo === 'renta_autos' && propuestasData.renta_autos) {
+                    const rentaAutos = propuestasData.renta_autos;
+                    const tieneDatos = rentaAutos.arrendadora || 
+                                      rentaAutos.punto_origen || 
+                                      rentaAutos.punto_regreso || 
+                                      rentaAutos.total;
+                    if (!tieneDatos) {
+                        e.preventDefault();
+                        alert('Por favor, completa al menos un campo de la información de renta de autos (Arrendadora, Punto de Origen, Punto de Regreso o Total) antes de guardar.');
+                        return false;
+                    }
+                }
+            } catch (err) {
+                console.error('Error validando propuestas:', err);
+            }
         });
 
-        docxBtn?.addEventListener('click', function(e) {
+        docxBtn?.addEventListener('click', function (e) {
             e.preventDefault();
             const docxUrl = this.dataset.docxUrl;
-            
+
             if (!docxUrl) {
                 alert('No se puede generar el documento. Por favor, guarda la cotización primero.');
                 return;
             }
-            
-            console.log('Generando DOCX desde:', docxUrl);
-            
-            // Hacer una petición GET simple para descargar el DOCX
+
+            console.log('Generando PDF desde:', docxUrl);
+
+            // Hacer una petición GET simple para descargar el PDF
             fetch(docxUrl)
                 .then(async response => {
                     console.log('Response status:', response.status);
                     console.log('Response headers:', response.headers);
-                    
+
                     // Verificar el tipo de contenido
                     const contentType = response.headers.get('Content-Type');
                     console.log('Content-Type:', contentType);
-                    
+
                     if (!response.ok) {
                         // Intentar leer el mensaje de error si es texto
                         const errorText = await response.text();
                         console.error('Error response:', errorText);
                         throw new Error(`Error ${response.status}: ${errorText.substring(0, 100)}`);
                     }
-                    
-                    // Verificar que sea un documento DOCX
-                    if (contentType && !contentType.includes('wordprocessingml') && !contentType.includes('octet-stream')) {
+
+                    // Verificar que sea un documento PDF
+                    if (contentType && !contentType.includes('application/pdf') && !contentType.includes('octet-stream')) {
                         const errorText = await response.text();
-                        console.error('Error: No es un documento DOCX:', errorText);
-                        throw new Error('El servidor no devolvió un documento DOCX válido');
+                        console.error('Error: No es un documento PDF:', errorText);
+                        throw new Error('El servidor no devolvió un documento PDF válido');
                     }
-                    
+
                     // Obtener el nombre del archivo del header Content-Disposition si está disponible
                     const contentDisposition = response.headers.get('Content-Disposition');
-                    let filename = 'cotizacion.docx';
+                    let filename = 'cotizacion.pdf';
                     if (contentDisposition) {
                         const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
                         if (filenameMatch) {
                             filename = filenameMatch[1].replace(/['"]/g, '');
                         }
                     }
-                    
+
                     return response.blob().then(blob => {
                         console.log('Blob recibido, tamaño:', blob.size);
                         if (blob.size === 0) {
@@ -781,54 +1603,916 @@
                 });
         });
 
-        // Ejecutar al cargar la página para restaurar datos guardados
-        cargarPropuestasDesdeHidden();
+        // ========== GESTIÓN DE MÚLTIPLES TOURS ==========
+        let tourCounter = 1; // Contador para tours
+        const toursContainer = document.getElementById('toursContainer');
+        let bloqueandoCreacionTours = false; // Bandera para bloquear creación automática de tours
+
+        // Función para actualizar los números de tour
+        function actualizarNumerosTour() {
+            const tourItems = toursContainer.querySelectorAll('.tour-item');
+            tourItems.forEach((item, index) => {
+                const tourIndex = index + 1;
+                item.setAttribute('data-tour-index', tourIndex);
+
+                // Actualizar título
+                const title = item.querySelector('.tour-title');
+                if (title) title.textContent = `Tour ${tourIndex}`;
+
+                // Actualizar checkbox - Asegurar que esté desmarcado
+                const checkbox = item.querySelector('.agregar-tour-checkbox');
+                if (checkbox) {
+                    checkbox.setAttribute('data-tour-index', tourIndex);
+                    checkbox.setAttribute('id', `agregar_tour_${tourIndex}`);
+                    checkbox.checked = false;
+                    checkbox.removeAttribute('checked');
+                    const label = checkbox.nextElementSibling;
+                    if (label) label.setAttribute('for', `agregar_tour_${tourIndex}`);
+                }
+
+                // Actualizar botón eliminar
+                const eliminarBtn = item.querySelector('.eliminar-tour');
+                if (eliminarBtn) {
+                    eliminarBtn.setAttribute('data-tour-index', tourIndex);
+                    // Mostrar botón eliminar solo si hay más de un tour
+                    eliminarBtn.style.display = tourItems.length > 1 ? 'block' : 'none';
+                }
+
+                // Actualizar nombres de campos
+                const inputs = item.querySelectorAll('input, select, textarea');
+                inputs.forEach(input => {
+                    const name = input.getAttribute('name');
+                    if (name && name.includes('_')) {
+                        const parts = name.split('_');
+                        const lastPart = parts[parts.length - 1];
+                        if (!isNaN(lastPart)) {
+                            // Es un campo numerado, actualizar
+                            parts[parts.length - 1] = tourIndex;
+                            input.setAttribute('name', parts.join('_'));
+                            input.setAttribute('id', parts.join('_'));
+                        }
+                    }
+                });
+            });
+        }
+
+        // Función para crear un nuevo tour (clonando el primero y actualizando atributos)
+        function crearNuevoTour(index) {
+            // No actualizar tourCounter aquí, se actualizará explícitamente donde se necesite
+            const primerTour = toursContainer.querySelector('.tour-item');
+            if (!primerTour) return '';
+
+            // Clonar el primer tour
+            const nuevoTour = primerTour.cloneNode(true);
+
+            // Actualizar atributos del contenedor
+            nuevoTour.setAttribute('data-tour-index', index);
+
+            // Actualizar título
+            const title = nuevoTour.querySelector('.tour-title');
+            if (title) title.textContent = `Tour ${index}`;
+
+            // Actualizar checkbox - Asegurar que esté desmarcado y sin listeners
+            const checkbox = nuevoTour.querySelector('.agregar-tour-checkbox');
+            if (checkbox) {
+                checkbox.setAttribute('data-tour-index', index);
+                checkbox.setAttribute('id', `agregar_tour_${index}`);
+                checkbox.checked = false;
+                checkbox.removeAttribute('checked'); // Asegurar que no tenga el atributo checked
+                const label = checkbox.nextElementSibling;
+                if (label) label.setAttribute('for', `agregar_tour_${index}`);
+            }
+
+            // Actualizar botón eliminar
+            const eliminarBtn = nuevoTour.querySelector('.eliminar-tour');
+            if (eliminarBtn) {
+                eliminarBtn.setAttribute('data-tour-index', index);
+                eliminarBtn.style.display = 'block';
+            }
+
+            // Limpiar valores de los campos
+            nuevoTour.querySelectorAll('input, select, textarea').forEach(input => {
+                if (input.type !== 'checkbox') {
+                    input.value = '';
+                }
+            });
+
+            // Actualizar nombres e IDs de campos
+            nuevoTour.querySelectorAll('input, select, textarea').forEach(input => {
+                const name = input.getAttribute('name');
+                if (name && name.includes('_')) {
+                    const parts = name.split('_');
+                    const lastPart = parts[parts.length - 1];
+                    if (!isNaN(lastPart)) {
+                        // Es un campo numerado, actualizar
+                        parts[parts.length - 1] = index;
+                        const newName = parts.join('_');
+                        input.setAttribute('name', newName);
+                        input.setAttribute('id', newName);
+                    }
+                }
+            });
+
+            // Convertir a HTML string
+            return nuevoTour.outerHTML;
+        }
+
+        // Event listener delegado para checkboxes de añadir tour
+        toursContainer.addEventListener('change', function (e) {
+            if (e.target && e.target.classList.contains('agregar-tour-checkbox')) {
+                // NO procesar si estamos bloqueando la creación (durante carga de datos)
+                if (bloqueandoCreacionTours) {
+                    e.target.checked = false;
+                    e.target.removeAttribute('checked');
+                    return;
+                }
+                
+                // Solo procesar si el checkbox está marcado Y no estamos bloqueando
+                if (e.target.checked) {
+                    // Incrementar el contador y crear el nuevo tour
+                    tourCounter++;
+                    const nuevoTour = crearNuevoTour(tourCounter);
+                    const tourItem = e.target.closest('.tour-item');
+                    if (tourItem) {
+                        tourItem.insertAdjacentHTML('afterend', nuevoTour);
+
+                        // Desmarcar el checkbox que generó el nuevo tour
+                        e.target.checked = false;
+                        e.target.removeAttribute('checked');
+
+                        // Actualizar números
+                        actualizarNumerosTour();
+
+                        // Inicializar formato de moneda en el nuevo campo de total y agregar listeners
+                        setTimeout(function () {
+                            // Buscar el campo recién creado usando el contenedor del tour
+                            const tourItemCreado = tourItem.nextElementSibling;
+                            if (tourItemCreado) {
+                                const nuevoCampoTotal = tourItemCreado.querySelector(`input[name^="tour_total_"]`);
+                                if (nuevoCampoTotal) {
+                                    // Aplicar formato si hay un valor
+                                    if (nuevoCampoTotal.value) {
+                                        aplicarFormatoMoneda(nuevoCampoTotal);
+                                    }
+                                    // Agregar event listeners para formato automático
+                                    // EVENTO CLAVE: 'input' para formatear mientras escribes
+                                    nuevoCampoTotal.addEventListener('input', function () {
+                                        formatearEnTiempoReal(this);
+                                    });
+                                    // Blur limpia entradas inválidas como "$" solo
+                                    nuevoCampoTotal.addEventListener('blur', function () {
+                                        if (this.value === '$') this.value = '';
+                                    });
+                                    
+                                    // Agregar listener para calcular el total de tours en tiempo real
+                                    agregarListenerATour(nuevoCampoTotal);
+                                }
+                            }
+                            
+                            // Calcular el total de tours después de agregar el nuevo tour
+                            calcularTotalTours();
+                        }, 100);
+                    }
+                }
+            }
+        });
+
+        // Event listener delegado para botones de eliminar
+        toursContainer.addEventListener('click', function (e) {
+            if (e.target.closest('.eliminar-tour')) {
+                const btn = e.target.closest('.eliminar-tour');
+                const tourItem = btn.closest('.tour-item');
+                if (tourItem) {
+                    tourItem.remove();
+                    actualizarNumerosTour();
+                    // Recalcular el total de tours después de eliminar
+                    // (Los listeners ya están configurados por event delegation)
+                    setTimeout(calcularTotalTours, 200);
+                }
+            }
+        });
+
+        // ========== GESTIÓN DE TOURS DEL PAQUETE ==========
+        let paqueteTourCounter = 1;
+        const paqueteToursContainer = document.getElementById('paqueteToursContainer');
+        const incluirToursPaqueteCheckbox = document.getElementById('incluirToursPaquete');
+
+        // Event listener para mostrar/ocultar la sección de tours del paquete
+        // Usar delegación de eventos para que funcione incluso cuando la sección está oculta
+        document.addEventListener('change', function (e) {
+            if (e.target && e.target.id === 'incluirToursPaquete') {
+                const checkbox = e.target;
+                const container = document.getElementById('paqueteToursContainer');
+
+                if (container) {
+                    if (checkbox.checked) {
+                        container.style.display = 'block';
+                        console.log('Mostrando sección de tours del paquete');
+                    } else {
+                        container.style.display = 'none';
+                        console.log('Ocultando sección de tours del paquete');
+                        // Limpiar todos los tours adicionales si se desmarca
+                        const tourItems = container.querySelectorAll('.paquete-tour-item');
+                        tourItems.forEach((item, index) => {
+                            if (index > 0) { // Mantener solo el primero
+                                item.remove();
+                            } else {
+                                // Limpiar los campos del primer tour
+                                item.querySelectorAll('input, select, textarea').forEach(input => {
+                                    if (input.type !== 'checkbox') {
+                                        input.value = '';
+                                    }
+                                });
+                            }
+                        });
+                        paqueteTourCounter = 1;
+                        if (container.querySelectorAll('.paquete-tour-item').length > 0) {
+                            actualizarNumerosPaqueteTour();
+                        }
+                    }
+                }
+            }
+        });
+
+        // Función para actualizar los números de tour del paquete
+        function actualizarNumerosPaqueteTour() {
+            const tourItems = paqueteToursContainer.querySelectorAll('.paquete-tour-item');
+            tourItems.forEach((item, index) => {
+                const tourIndex = index + 1;
+                item.setAttribute('data-paquete-tour-index', tourIndex);
+
+                // Actualizar título
+                const title = item.querySelector('.paquete-tour-title');
+                if (title) title.textContent = `Tour del Paquete ${tourIndex}`;
+
+                // Actualizar checkbox
+                const checkbox = item.querySelector('.agregar-paquete-tour-checkbox');
+                if (checkbox) {
+                    checkbox.setAttribute('data-paquete-tour-index', tourIndex);
+                    checkbox.setAttribute('id', `agregar_paquete_tour_${tourIndex}`);
+                    const label = checkbox.nextElementSibling;
+                    if (label) label.setAttribute('for', `agregar_paquete_tour_${tourIndex}`);
+                }
+
+                // Actualizar botón eliminar
+                const eliminarBtn = item.querySelector('.eliminar-paquete-tour');
+                if (eliminarBtn) {
+                    eliminarBtn.setAttribute('data-paquete-tour-index', tourIndex);
+                    // Mostrar botón eliminar solo si hay más de un tour
+                    eliminarBtn.style.display = tourItems.length > 1 ? 'block' : 'none';
+                }
+
+                // Actualizar nombres de campos
+                const inputs = item.querySelectorAll('input, select, textarea');
+                inputs.forEach(input => {
+                    const name = input.getAttribute('name');
+                    if (name && name.startsWith('paquete_tour_')) {
+                        const parts = name.split('_');
+                        const lastPart = parts[parts.length - 1];
+                        if (!isNaN(lastPart)) {
+                            // Es un campo numerado, actualizar
+                            parts[parts.length - 1] = tourIndex;
+                            const newName = parts.join('_');
+                            input.setAttribute('name', newName);
+                            input.setAttribute('id', newName);
+                        }
+                    }
+                });
+            });
+        }
+
+        // Función para crear un nuevo tour del paquete
+        function crearNuevoPaqueteTour(index) {
+            // NO actualizar el contador aquí, solo usarlo para crear el tour
+            const primerTour = paqueteToursContainer.querySelector('.paquete-tour-item');
+            if (!primerTour) return '';
+
+            // Clonar el primer tour
+            const nuevoTour = primerTour.cloneNode(true);
+
+            // Actualizar atributos del contenedor
+            nuevoTour.setAttribute('data-paquete-tour-index', index);
+
+            // Actualizar título
+            const title = nuevoTour.querySelector('.paquete-tour-title');
+            if (title) title.textContent = `Tour del Paquete ${index}`;
+
+            // Actualizar checkbox
+            const checkbox = nuevoTour.querySelector('.agregar-paquete-tour-checkbox');
+            if (checkbox) {
+                checkbox.setAttribute('data-paquete-tour-index', index);
+                checkbox.setAttribute('id', `agregar_paquete_tour_${index}`);
+                checkbox.checked = false;
+                const label = checkbox.nextElementSibling;
+                if (label) label.setAttribute('for', `agregar_paquete_tour_${index}`);
+            }
+
+            // Actualizar botón eliminar
+            const eliminarBtn = nuevoTour.querySelector('.eliminar-paquete-tour');
+            if (eliminarBtn) {
+                eliminarBtn.setAttribute('data-paquete-tour-index', index);
+                eliminarBtn.style.display = 'block';
+            }
+
+            // Limpiar valores de los campos
+            nuevoTour.querySelectorAll('input, select, textarea').forEach(input => {
+                if (input.type !== 'checkbox') {
+                    input.value = '';
+                }
+            });
+
+            // Actualizar nombres e IDs de campos
+            nuevoTour.querySelectorAll('input, select, textarea').forEach(input => {
+                const name = input.getAttribute('name');
+                if (name && name.startsWith('paquete_tour_')) {
+                    const parts = name.split('_');
+                    const lastPart = parts[parts.length - 1];
+                    if (!isNaN(lastPart)) {
+                        // Es un campo numerado, actualizar
+                        parts[parts.length - 1] = index;
+                        const newName = parts.join('_');
+                        input.setAttribute('name', newName);
+                        input.setAttribute('id', newName);
+                    }
+                }
+            });
+
+            // Convertir a HTML string
+            return nuevoTour.outerHTML;
+        }
+
+        // Event listener delegado para checkboxes de añadir tour del paquete
+        if (paqueteToursContainer) {
+            paqueteToursContainer.addEventListener('change', function (e) {
+                if (e.target.classList.contains('agregar-paquete-tour-checkbox')) {
+                    if (e.target.checked) {
+                        paqueteTourCounter++;
+                        const nuevoTour = crearNuevoPaqueteTour(paqueteTourCounter);
+                        const tourItem = e.target.closest('.paquete-tour-item');
+                        tourItem.insertAdjacentHTML('afterend', nuevoTour);
+
+                        // Desmarcar el checkbox que generó el nuevo tour
+                        e.target.checked = false;
+
+                        // Actualizar números
+                        actualizarNumerosPaqueteTour();
+
+                        // Inicializar formato de moneda en el nuevo campo de total
+                        setTimeout(function () {
+                            const nuevoCampoTotal = form.elements[`paquete_tour_total_${paqueteTourCounter}`];
+                            if (nuevoCampoTotal) {
+                                // Aplicar formato si hay un valor
+                                if (nuevoCampoTotal.value) {
+                                    aplicarFormatoMoneda(nuevoCampoTotal);
+                                }
+                                // Agregar event listeners para formato automático
+                                // EVENTO CLAVE: 'input' para formatear mientras escribes
+                                nuevoCampoTotal.addEventListener('input', function () {
+                                    formatearEnTiempoReal(this);
+                                    // Calcular el total del paquete cuando cambia el total del tour
+                                    clearTimeout(this._timeoutCalculo);
+                                    this._timeoutCalculo = setTimeout(calcularTotalPaquete, 300);
+                                });
+                                // Blur limpia entradas inválidas como "$" solo
+                                nuevoCampoTotal.addEventListener('blur', function () {
+                                    if (this.value === '$') this.value = '';
+                                    // Calcular el total del paquete cuando sale del campo
+                                    setTimeout(calcularTotalPaquete, 100);
+                                });
+                            }
+                        }, 50);
+                    }
+                }
+            });
+
+            // Event listener delegado para botones de eliminar tours del paquete
+            paqueteToursContainer.addEventListener('click', function (e) {
+                if (e.target.closest('.eliminar-paquete-tour')) {
+                    const btn = e.target.closest('.eliminar-paquete-tour');
+                    const tourItem = btn.closest('.paquete-tour-item');
+                    if (tourItem) {
+                        tourItem.remove();
+                        actualizarNumerosPaqueteTour();
+                    }
+                }
+            });
+        }
 
         // Sincronización de fechas: fecha de fin no puede ser anterior a fecha de inicio
         const fechaInicio = document.getElementById('id_fecha_inicio');
         const fechaFin = document.getElementById('id_fecha_fin');
-        
+
+        // IMPORTANTE: Guardar los valores iniciales de las fechas ANTES de ejecutar cargarPropuestasDesdeHidden()
+        // para preservarlos durante la restauración de datos
+        let fechaInicioInicial = '';
+        let fechaFinInicial = '';
         if (fechaInicio && fechaFin) {
+            fechaInicioInicial = fechaInicio.value || '';
+            fechaFinInicial = fechaFin.value || '';
+        }
+
+        // ========== FORMATO DE MONEDA MEXICANA PARA CAMPOS TOTAL MXN ==========
+        // Función para formatear número a formato de moneda mexicana ($25,000.00)
+        function formatearMonedaMexicana(valor) {
+            if (!valor) return '';
+            // Remover todo excepto números y punto decimal
+            let numero = valor.toString().replace(/[^\d.]/g, '');
+            // Si está vacío, retornar vacío
+            if (!numero) return '';
+            // Convertir a número y formatear
+            const num = parseFloat(numero);
+            if (isNaN(num)) return '';
+            // Formatear con comas cada 3 dígitos y 2 decimales
+            try {
+                const formateado = num.toLocaleString('es-MX', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+                return '$' + formateado;
+            } catch (e) {
+                // Fallback si toLocaleString no funciona
+                const partes = num.toFixed(2).split('.');
+                const parteEntera = partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                return '$' + parteEntera + '.' + partes[1];
+            }
+        }
+
+        // Función para limpiar el formato y obtener solo el número (sin $ y sin comas)
+        function limpiarFormatoMoneda(valor) {
+            if (!valor) return '';
+            // Remover $, comas y espacios, mantener solo números y punto decimal
+            return valor.toString().replace(/[^\d.]/g, '');
+        }
+
+        // Función para aplicar formato a un campo de total
+        function aplicarFormatoMoneda(campo) {
+            if (!campo) return;
+            // Si ya está formateado correctamente, no hacer nada
+            if (campo.value && campo.value.startsWith('$') && campo.value.includes(',')) {
+                return;
+            }
+            const valorLimpio = limpiarFormatoMoneda(campo.value);
+            if (valorLimpio && valorLimpio !== '' && valorLimpio !== '0' && valorLimpio !== '0.0' && valorLimpio !== '0.00') {
+                const valorFormateado = formatearMonedaMexicana(valorLimpio);
+                if (valorFormateado && valorFormateado !== '') {
+                    campo.value = valorFormateado;
+                }
+            } else if (!campo.value || campo.value.trim() === '') {
+                campo.value = '';
+            }
+        }
+
+        // Obtener todos los campos de total MXN
+        function obtenerCamposTotalMXN() {
+            const selectores = [
+                'input[name^="vuelo_total_"]',
+                'input[name^="hotel_total_"]',
+                'input[name="paquete_total"]',
+                'input[name="paquete_vuelo_total"]',
+                'input[name="paquete_hotel_total"]',
+                'input[name^="paquete_tour_total_"]',
+                'input[name^="tour_total_"]',
+                'input[name="tours_total"]',
+                'input[name="traslado_total"]',
+                'input[name="renta_autos_total"]'
+            ];
+            const campos = [];
+            selectores.forEach(selector => {
+                document.querySelectorAll(selector).forEach(campo => {
+                    campos.push(campo);
+                });
+            });
+            return campos;
+        }
+
+        // ========== CÁLCULO AUTOMÁTICO DEL TOTAL DEL PAQUETE ==========
+        function calcularTotalPaquete() {
+            const campoTotalPaquete = document.querySelector('input[name="paquete_total"]');
+            if (!campoTotalPaquete) return;
+
+            let total = 0;
+
+            // Sumar total del vuelo
+            const campoVueloTotal = document.querySelector('input[name="paquete_vuelo_total"]');
+            if (campoVueloTotal && campoVueloTotal.value) {
+                const valorVuelo = parseFloat(limpiarFormatoMoneda(campoVueloTotal.value)) || 0;
+                total += valorVuelo;
+            }
+
+            // Sumar total del hospedaje
+            const campoHotelTotal = document.querySelector('input[name="paquete_hotel_total"]');
+            if (campoHotelTotal && campoHotelTotal.value) {
+                const valorHotel = parseFloat(limpiarFormatoMoneda(campoHotelTotal.value)) || 0;
+                total += valorHotel;
+            }
+
+            // Sumar todos los totales de tours (puede haber múltiples)
+            const camposTourTotal = document.querySelectorAll('input[name^="paquete_tour_total_"]');
+            camposTourTotal.forEach(campo => {
+                if (campo && campo.value) {
+                    const valorTour = parseFloat(limpiarFormatoMoneda(campo.value)) || 0;
+                    total += valorTour;
+                }
+            });
+
+            // Actualizar el campo de total del paquete con el formato correcto
+            if (total > 0) {
+                const totalFormateado = formatearMonedaMexicana(total.toString());
+                campoTotalPaquete.value = totalFormateado;
+            } else {
+                campoTotalPaquete.value = '';
+            }
+        }
+
+        // Función para inicializar el cálculo automático del total del paquete
+        function inicializarCalculoTotalPaquete() {
+            // Obtener todos los campos que afectan el total
+            const campoVueloTotal = document.querySelector('input[name="paquete_vuelo_total"]');
+            const campoHotelTotal = document.querySelector('input[name="paquete_hotel_total"]');
+            const campoTotalPaquete = document.querySelector('input[name="paquete_total"]');
+
+            if (!campoTotalPaquete) return;
+
+            // Función para agregar listeners a un campo
+            function agregarListenerACampo(campo) {
+                if (!campo) return;
+                
+                // Evitar agregar listeners duplicados
+                if (campo.hasAttribute('data-total-paquete-listener')) return;
+                campo.setAttribute('data-total-paquete-listener', 'true');
+                
+                // Listener para cuando cambia el valor (blur = cuando sale del campo)
+                campo.addEventListener('blur', function() {
+                    // Esperar un poco para que el formato se aplique primero
+                    setTimeout(calcularTotalPaquete, 100);
+                });
+
+                // Listener para cuando se escribe (input = en tiempo real)
+                campo.addEventListener('input', function() {
+                    // Calcular después de un pequeño delay para permitir que el usuario termine de escribir
+                    clearTimeout(campo._timeoutCalculo);
+                    campo._timeoutCalculo = setTimeout(calcularTotalPaquete, 300);
+                });
+            }
+
+            // Agregar listeners a vuelo y hospedaje
+            agregarListenerACampo(campoVueloTotal);
+            agregarListenerACampo(campoHotelTotal);
+
+            // Agregar listeners a todos los campos de tour existentes
+            const camposTourTotal = document.querySelectorAll('input[name^="paquete_tour_total_"]');
+            camposTourTotal.forEach(campo => {
+                agregarListenerACampo(campo);
+            });
+
+            // Usar MutationObserver para detectar cuando se agregan nuevos tours dinámicamente
+            const paqueteToursContainer = document.getElementById('paqueteToursContainer');
+            if (paqueteToursContainer) {
+                const observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        if (mutation.addedNodes.length > 0) {
+                            // Se agregaron nuevos nodos, buscar nuevos campos de tour total
+                            mutation.addedNodes.forEach(function(node) {
+                                if (node.nodeType === 1) { // Es un elemento
+                                    const nuevosCampos = node.querySelectorAll ? 
+                                        node.querySelectorAll('input[name^="paquete_tour_total_"]') : [];
+                                    nuevosCampos.forEach(campo => {
+                                        agregarListenerACampo(campo);
+                                    });
+                                }
+                            });
+                            // Recalcular el total después de agregar tours
+                            setTimeout(calcularTotalPaquete, 100);
+                        }
+                        if (mutation.removedNodes.length > 0) {
+                            // Se eliminaron nodos, recalcular el total
+                            setTimeout(calcularTotalPaquete, 100);
+                        }
+                    });
+                });
+
+                observer.observe(paqueteToursContainer, {
+                    childList: true,
+                    subtree: true
+                });
+            }
+
+            // Calcular el total inicial si hay valores
+            setTimeout(calcularTotalPaquete, 500);
+        }
+
+        // ========== CÁLCULO AUTOMÁTICO DEL TOTAL DE TOURS ==========
+        // Función para calcular el total de tours
+        function calcularTotalTours() {
+            const campoTotalTours = document.getElementById('tours_total');
+            if (!campoTotalTours) return;
+
+            let total = 0;
+
+            // Sumar todos los totales de tours (puede haber múltiples)
+            const camposTourTotal = document.querySelectorAll('input[name^="tour_total_"]');
+            camposTourTotal.forEach(campo => {
+                if (campo && campo.value) {
+                    const valorTour = parseFloat(limpiarFormatoMoneda(campo.value)) || 0;
+                    total += valorTour;
+                }
+            });
+
+            // Actualizar el campo de total de tours con el formato correcto
+            if (total > 0) {
+                const totalFormateado = formatearMonedaMexicana(total.toString());
+                campoTotalTours.value = totalFormateado;
+            } else {
+                campoTotalTours.value = '';
+            }
+        }
+
+        // Variable para almacenar el timeout del cálculo
+        let timeoutCalculoTours = null;
+
+        // Función para calcular con debounce (evitar cálculos excesivos)
+        function calcularTotalToursDebounced() {
+            clearTimeout(timeoutCalculoTours);
+            timeoutCalculoTours = setTimeout(calcularTotalTours, 300);
+        }
+
+        // Función para inicializar el cálculo automático del total de tours
+        function inicializarCalculoTotalTours() {
+            const campoTotalTours = document.getElementById('tours_total');
+            if (!campoTotalTours) {
+                console.warn('Campo tours_total no encontrado');
+                return;
+            }
+
+            // Usar event delegation en el contenedor de tours para capturar TODOS los cambios
+            const toursContainer = document.getElementById('toursContainer');
+            if (!toursContainer) {
+                console.warn('Contenedor toursContainer no encontrado');
+                return;
+            }
+
+            // Remover listeners previos si existen
+            if (toursContainer._toursTotalListener) {
+                toursContainer.removeEventListener('input', toursContainer._toursTotalListener, true);
+                toursContainer.removeEventListener('blur', toursContainer._toursTotalBlurListener, true);
+            }
+
+            // Listener para input (tiempo real) - usando capture phase para asegurar que se capture
+            toursContainer._toursTotalListener = function(e) {
+                if (e.target && e.target.name && e.target.name.startsWith('tour_total_')) {
+                    calcularTotalToursDebounced();
+                }
+            };
+            toursContainer.addEventListener('input', toursContainer._toursTotalListener, true);
+
+            // Listener para blur (cuando sale del campo)
+            toursContainer._toursTotalBlurListener = function(e) {
+                if (e.target && e.target.name && e.target.name.startsWith('tour_total_')) {
+                    calcularTotalTours();
+                }
+            };
+            toursContainer.addEventListener('blur', toursContainer._toursTotalBlurListener, true);
+
+            // Usar MutationObserver para detectar cuando se agregan o eliminan tours
+            if (toursContainer._toursObserver) {
+                toursContainer._toursObserver.disconnect();
+            }
+            
+            toursContainer._toursObserver = new MutationObserver(function(mutations) {
+                let recalcular = false;
+                mutations.forEach(function(mutation) {
+                    if (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0) {
+                        recalcular = true;
+                    }
+                });
+                if (recalcular) {
+                    setTimeout(calcularTotalTours, 200);
+                }
+            });
+
+            toursContainer._toursObserver.observe(toursContainer, {
+                childList: true,
+                subtree: true
+            });
+
+            // Calcular el total inicial después de un breve delay para asegurar que los campos estén disponibles
+            setTimeout(function() {
+                calcularTotalTours();
+            }, 300);
+        }
+
+        // Función para formatear en tiempo real manteniendo la posición del cursor
+        function formatearEnTiempoReal(input) {
+            // 1. Guardar posición del cursor y contar dígitos a su izquierda
+            const cursorPosition = input.selectionStart;
+            const originalValue = input.value;
+            let digitsBeforeCursor = 0;
+            for (let i = 0; i < cursorPosition; i++) {
+                if (/[0-9]/.test(originalValue[i])) digitsBeforeCursor++;
+            }
+            // 2. Limpiar valor (quitar todo lo que no sea número o punto)
+            let value = input.value.replace(/[^0-9.]/g, '');
+
+            // Si está vacío, borrar y salir
+            if (!value) {
+                input.value = '';
+                return;
+            }
+            // 3. Separar enteros y decimales para no forzar .00
+            const parts = value.split('.');
+            let integerPart = parts[0];
+            let decimalPart = parts.length > 1 ? '.' + parts[1].substring(0, 2) : ''; // Máximo 2 decimales
+            // 4. Formatear enteros con comas
+            if (integerPart) {
+                // Usar toLocaleString para las comas, pero asegurando base 10
+                integerPart = parseInt(integerPart, 10).toLocaleString('es-MX');
+            } else if (parts.length > 1) {
+                // Si escribe ".50", asumimos "0.50"
+                integerPart = '0';
+            }
+            // 5. Construir el nuevo valor final
+            const newValue = '$' + integerPart + decimalPart;
+
+            // Evitar re-asignar si no hubo cambios (evita parpadeos)
+            if (input.value !== newValue) {
+                input.value = newValue;
+                // 6. Restaurar posición del cursor inteligente
+                // Recorremos el nuevo valor buscando dónde calzan nuestros "digitsBeforeCursor"
+                let newCursorPos = 0;
+                let digitsFound = 0;
+                for (let i = 0; i < newValue.length; i++) {
+                    if (/[0-9]/.test(newValue[i])) {
+                        digitsFound++;
+                    }
+                    if (digitsFound >= digitsBeforeCursor) {
+                        // Si encontramos el dígito, el cursor va justo después
+                        // Ajuste especial: si el siguiente char es una coma o punto, avanzamos uno más
+                        newCursorPos = i + 1;
+                        // Si acabamos de pasar el último dígito deseado, paramos
+                        if (digitsFound === digitsBeforeCursor) break;
+                    }
+                }
+
+                // Si el cursor estaba al inicio (antes de cualquier dígito), ponerlo después del $
+                if (digitsBeforeCursor === 0) newCursorPos = 1;
+
+                input.setSelectionRange(newCursorPos, newCursorPos);
+            }
+        }
+
+        // Aplicar formato a todos los campos de total MXN existentes
+        function inicializarFormatoMoneda() {
+            const campos = obtenerCamposTotalMXN();
+            campos.forEach(campo => {
+                if (campo.hasAttribute('data-formato-inicializado')) return;
+                campo.setAttribute('data-formato-inicializado', 'true');
+
+                // Formato inicial si ya tiene valor
+                if (campo.value && !campo.value.startsWith('$')) {
+                    formatearEnTiempoReal(campo); // Reusamos la lógica segura
+                }
+
+                // EVENTO CLAVE: 'input' para formatear mientras escribes
+                campo.addEventListener('input', function () {
+                    formatearEnTiempoReal(this);
+                });
+                // Blur limpia entradas inválidas como "$" solo
+                campo.addEventListener('blur', function () {
+                    if (this.value === '$') this.value = '';
+                });
+            });
+        }
+
+        // Limpiar formato de todos los campos antes de enviar el formulario
+        function limpiarFormatosAntesDeEnviar() {
+            const campos = obtenerCamposTotalMXN();
+            campos.forEach(campo => {
+                const valorLimpio = limpiarFormatoMoneda(campo.value);
+                // Guardar el valor limpio en un atributo data para usarlo al enviar
+                campo.setAttribute('data-valor-limpio', valorLimpio);
+            });
+        }
+
+        // Interceptar el envío del formulario para limpiar formatos
+        form.addEventListener('submit', function (e) {
+            const campos = obtenerCamposTotalMXN();
+            campos.forEach(campo => {
+                const valorLimpio = limpiarFormatoMoneda(campo.value);
+                campo.value = valorLimpio; // Enviar solo el número sin formato
+            });
+        });
+
+        // Ejecutar al cargar la página para restaurar datos guardados
+        cargarPropuestasDesdeHidden();
+
+        // Inicializar cálculo automático del total del paquete si el tipo es 'paquete'
+        setTimeout(function() {
+            const tipoInicial = tipoSelect ? tipoSelect.value : '';
+            if (tipoInicial === 'paquete') {
+                inicializarCalculoTotalPaquete();
+            }
+            // Inicializar cálculo automático del total de tours si el tipo es 'tours'
+            if (tipoInicial === 'tours') {
+                inicializarCalculoTotalTours();
+            }
+        }, 1500);
+
+        // Inicializar formato de moneda después de cargar propuestas
+        // Usar múltiples timeouts para asegurar que los campos estén disponibles
+        function aplicarFormatoATodosLosCampos() {
+            inicializarFormatoMoneda();
+            // Aplicar formato a todos los campos que tengan valores pero no estén formateados
+            const campos = obtenerCamposTotalMXN();
+            campos.forEach(campo => {
+                if (campo.value && campo.value.trim() !== '' && !campo.value.startsWith('$')) {
+                    aplicarFormatoMoneda(campo);
+                }
+            });
+        }
+
+        setTimeout(aplicarFormatoATodosLosCampos, 100);
+        setTimeout(aplicarFormatoATodosLosCampos, 300);
+        setTimeout(aplicarFormatoATodosLosCampos, 500);
+        
+        // Inicializar listeners para cálculo de total de tours después de aplicar formato
+        // (Ya se inicializa en toggleSection cuando se muestra la sección de tours)
+
+        // Después de cargar propuestas, restaurar las fechas si fueron modificadas
+        // Usar múltiples intentos para asegurar que las fechas se preserven
+        if (fechaInicio && fechaFin) {
+            // Función para restaurar fechas
+            function restaurarFechas() {
+                if (fechaInicioInicial && fechaInicio.value !== fechaInicioInicial) {
+                    fechaInicio.value = fechaInicioInicial;
+                }
+                if (fechaFinInicial && fechaFin.value !== fechaFinInicial) {
+                    fechaFin.value = fechaFinInicial;
+                }
+            }
+
+            // Restaurar inmediatamente después de cargar propuestas
+            restaurarFechas();
+
+            // Restaurar después de un pequeño delay (por si hay código asíncrono)
+            setTimeout(restaurarFechas, 50);
+            setTimeout(restaurarFechas, 100);
+            setTimeout(restaurarFechas, 200);
+
+            // También restaurar cuando el formulario recibe foco (por si se pierden al cambiar de pestaña)
+            form.addEventListener('focus', restaurarFechas, true);
+
             // Función para actualizar la fecha mínima de fin y pre-llenar si está vacía
-            function actualizarFechaMinimaFin() {
+            function actualizarFechaMinimaFin(esCambioUsuario = false) {
                 const fechaInicioValor = fechaInicio.value;
                 if (fechaInicioValor) {
                     // Establecer la fecha mínima de fin como la fecha de inicio
                     fechaFin.min = fechaInicioValor;
-                    
-                    // Si el campo de fin está vacío, pre-llenarlo automáticamente con la fecha de inicio
-                    if (!fechaFin.value) {
-                        fechaFin.value = fechaInicioValor;
+
+                    // Solo modificar valores si:
+                    // 1. El campo de fin está vacío Y es un cambio del usuario (no carga inicial)
+                    // 2. O si es un cambio del usuario y la fecha de fin es anterior a la fecha de inicio
+                    if (esCambioUsuario) {
+                        if (!fechaFin.value) {
+                            // Solo pre-llenar si el usuario está cambiando la fecha de inicio
+                            fechaFin.value = fechaInicioValor;
+                        } else if (fechaFin.value < fechaInicioValor) {
+                            // Solo actualizar si la fecha de fin es anterior a la fecha de inicio
+                            fechaFin.value = fechaInicioValor;
+                        }
                     }
-                    // Si la fecha de fin es anterior a la fecha de inicio (en cualquier dirección), actualizarla
-                    else if (fechaFin.value < fechaInicioValor) {
-                        fechaFin.value = fechaInicioValor;
-                    }
+                    // Si no es un cambio del usuario (carga inicial), solo establecer el min sin modificar el valor
                 }
             }
-            
+
             // Pre-llenar fecha de fin con fecha de inicio cuando se hace clic si está vacía
             function prellenarFechaFin() {
                 const fechaInicioValor = fechaInicio.value;
                 // Si el campo de fin está vacío y hay una fecha de inicio, pre-llenarlo
                 if (!fechaFin.value && fechaInicioValor) {
                     fechaFin.value = fechaInicioValor;
-                    actualizarFechaMinimaFin();
+                    actualizarFechaMinimaFin(true);
                 }
             }
-            
+
+            // Restauración final después de que todo se haya inicializado completamente
+            setTimeout(restaurarFechas, 300);
+            setTimeout(restaurarFechas, 500);
+
             // Usar tanto 'focus' como 'click' para mayor compatibilidad
             fechaFin.addEventListener('focus', prellenarFechaFin);
             fechaFin.addEventListener('click', prellenarFechaFin);
-            
-            // Ejecutar al cargar la página si ya hay una fecha de inicio
-            actualizarFechaMinimaFin();
-            
-            // Ejecutar cuando cambie la fecha de inicio (automáticamente actualiza la fecha de fin)
-            fechaInicio.addEventListener('change', actualizarFechaMinimaFin);
+
+            // Ejecutar al cargar la página solo para establecer el min, sin modificar valores existentes
+            if (fechaInicio.value) {
+                fechaFin.min = fechaInicio.value;
+            }
+
+            // Ejecutar cuando cambie la fecha de inicio (solo cuando el usuario hace un cambio)
+            fechaInicio.addEventListener('change', function () {
+                actualizarFechaMinimaFin(true);
+            });
         }
     });
 </script>
 {% endblock %}
 {% endblock %}
-

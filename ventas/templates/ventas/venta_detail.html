@@ -2,6 +2,7 @@
 {% load humanize %}
 {% load widget_tweaks %} 
 {% load venta_filters %}
+{% load static %}
 {% block title %}Venta {{ venta.folio|default:venta.id }} | {{ venta.cliente.nombre_completo_display }}{% endblock %}
 
 {% block content %}
@@ -845,4 +846,139 @@
             background-color: rgba(25,135,84,0.08);
         }
     </style>
+    {# Script común para formateo de moneda #}
+    <script src="{% static 'js/currency-formatter.js' %}"></script>
+    <script>
+        // ========== FORMATO DE MONEDA EN TIEMPO REAL ==========
+        document.addEventListener('DOMContentLoaded', function() {
+            // Campo de monto en MXN (formulario de abonos)
+            const campoMontoMXN = document.getElementById('{{ abono_form.monto.id_for_label }}');
+            if (campoMontoMXN) {
+                inicializarFormatoMonedaEnCampos(['#{{ abono_form.monto.id_for_label }}']);
+            }
+            
+            // Campo de monto en USD (formulario de abonos para ventas internacionales)
+            const campoMontoUSD = document.getElementById('montoUsd');
+            if (campoMontoUSD) {
+                campoMontoUSD.setAttribute('data-formato-inicializado', 'true');
+                
+                // Formato inicial si ya tiene valor
+                if (campoMontoUSD.value && !campoMontoUSD.value.startsWith('USD $') && !campoMontoUSD.value.startsWith('$')) {
+                    const valorLimpio = limpiarFormatoMoneda(campoMontoUSD.value);
+                    if (valorLimpio) {
+                        const parts = valorLimpio.split('.');
+                        let integerPart = parts[0];
+                        let decimalPart = parts.length > 1 ? '.' + parts[1].substring(0, 2) : '';
+                        if (integerPart) {
+                            integerPart = parseInt(integerPart, 10).toLocaleString('es-MX');
+                        }
+                        campoMontoUSD.value = 'USD $' + integerPart + decimalPart;
+                    }
+                }
+                
+                // Formatear mientras escribe (con USD $)
+                campoMontoUSD.addEventListener('input', function() {
+                    const cursorPosition = this.selectionStart;
+                    const originalValue = this.value;
+                    let digitsBeforeCursor = 0;
+                    for (let i = 0; i < cursorPosition; i++) {
+                        if (/[0-9]/.test(originalValue[i])) digitsBeforeCursor++;
+                    }
+                    
+                    let value = this.value.replace(/[^0-9.]/g, '');
+                    if (!value) {
+                        this.value = '';
+                        return;
+                    }
+                    
+                    const parts = value.split('.');
+                    let integerPart = parts[0];
+                    let decimalPart = parts.length > 1 ? '.' + parts[1].substring(0, 2) : '';
+                    if (integerPart) {
+                        integerPart = parseInt(integerPart, 10).toLocaleString('es-MX');
+                    } else if (parts.length > 1) {
+                        integerPart = '0';
+                    }
+                    
+                    const newValue = 'USD $' + integerPart + decimalPart;
+                    
+                    if (this.value !== newValue) {
+                        this.value = newValue;
+                        let newCursorPos = 0;
+                        let digitsFound = 0;
+                        for (let i = 0; i < newValue.length; i++) {
+                            if (/[0-9]/.test(newValue[i])) {
+                                digitsFound++;
+                            }
+                            if (digitsFound >= digitsBeforeCursor) {
+                                newCursorPos = i + 1;
+                                if (digitsFound === digitsBeforeCursor) break;
+                            }
+                        }
+                        if (digitsBeforeCursor === 0) newCursorPos = 6; // Después de "USD $"
+                        this.setSelectionRange(newCursorPos, newCursorPos);
+                    }
+                });
+                
+                campoMontoUSD.addEventListener('blur', function() {
+                    if (this.value === 'USD $' || this.value === '$') this.value = '';
+                });
+            }
+            
+            // Campos monto_planeado en la tabla de servicios (logística)
+            // Estos campos se generan dinámicamente, así que usamos delegación de eventos
+            document.addEventListener('input', function(e) {
+                if (e.target && e.target.id && e.target.id.includes('monto_planeado')) {
+                    const campo = e.target;
+                    if (!campo.hasAttribute('data-formato-inicializado')) {
+                        campo.setAttribute('data-formato-inicializado', 'true');
+                        formatearEnTiempoReal(campo);
+                    } else {
+                        formatearEnTiempoReal(campo);
+                    }
+                }
+            });
+            
+            // Inicializar formato en campos monto_planeado existentes
+            const camposMontoPlaneado = document.querySelectorAll('[id*="monto_planeado"]');
+            camposMontoPlaneado.forEach(campo => {
+                if (!campo.hasAttribute('data-formato-inicializado')) {
+                    campo.setAttribute('data-formato-inicializado', 'true');
+                    if (campo.value && !campo.value.startsWith('$')) {
+                        formatearEnTiempoReal(campo);
+                    }
+                    campo.addEventListener('input', function() {
+                        formatearEnTiempoReal(this);
+                    });
+                    campo.addEventListener('blur', function() {
+                        if (this.value === '$') this.value = '';
+                    });
+                }
+            });
+            
+            // Limpiar formato antes de enviar formularios
+            const forms = document.querySelectorAll('form[method="post"]');
+            forms.forEach(form => {
+                form.addEventListener('submit', function(e) {
+                    // Limpiar formato de campo monto MXN
+                    if (campoMontoMXN && campoMontoMXN.value) {
+                        campoMontoMXN.value = limpiarFormatoMoneda(campoMontoMXN.value);
+                    }
+                    
+                    // Limpiar formato de campo monto USD
+                    if (campoMontoUSD && campoMontoUSD.value) {
+                        let valorLimpio = campoMontoUSD.value.replace(/USD \$/g, '').replace(/\$/g, '').replace(/,/g, '');
+                        campoMontoUSD.value = valorLimpio;
+                    }
+                    
+                    // Limpiar formato de campos monto_planeado
+                    camposMontoPlaneado.forEach(campo => {
+                        if (campo.value) {
+                            campo.value = limpiarFormatoMoneda(campo.value);
+                        }
+                    });
+                });
+            });
+        });
+    </script>
 {% endblock %}

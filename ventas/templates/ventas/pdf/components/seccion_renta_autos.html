@@ -1,0 +1,50 @@
+{% load humanize %}
+<div class="card">
+    <div class="card-header">
+        <span class="icon">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M18.92 2.01C18.72 1.42 18.16 1 17.5 1h-11c-.66 0-1.21.42-1.42 1.01L3.5 8H2c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1h-1.5l-2.08-5.99zM6.5 12c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9s1.5.67 1.5 1.5S7.33 12 6.5 12zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 7l1.5-4.5h11L19 7H5z" fill="white" stroke="none"/>
+            </svg>
+        </span>
+        <span>RENTA DE AUTOS</span>
+    </div>
+    
+    <table class="data-table">
+        <tr>
+            <td style="width: 30%;"><strong>Arrendadora:</strong></td>
+            <td>{{ renta_autos.arrendadora|default:"-" }}</td>
+        </tr>
+        <tr>
+            <td><strong>Punto de Origen:</strong></td>
+            <td>{{ renta_autos.punto_origen|default:"-" }}</td>
+        </tr>
+        <tr>
+            <td><strong>Punto de Regreso:</strong></td>
+            <td>{{ renta_autos.punto_regreso|default:"-" }}</td>
+        </tr>
+        {% if renta_autos.hora_pickup %}
+        <tr>
+            <td><strong>Hora de Pickup:</strong></td>
+            <td>{{ renta_autos.hora_pickup }}</td>
+        </tr>
+        {% endif %}
+        {% if renta_autos.hora_devolucion %}
+        <tr>
+            <td><strong>Hora de Devolución:</strong></td>
+            <td>{{ renta_autos.hora_devolucion }}</td>
+        </tr>
+        {% endif %}
+        {% if renta_autos.forma_pago %}
+        <tr>
+            <td><strong>Forma de Pago:</strong></td>
+            <td>{{ renta_autos.forma_pago }}</td>
+        </tr>
+        {% endif %}
+    </table>
+    
+    {% if renta_autos.total %}
+    <div class="total-destacado">
+        <div class="total-text">Total MXN ${{ renta_autos.total|floatformat:2|intcomma }} Pesos</div>
+    </div>
+    {% endif %}
+</div>

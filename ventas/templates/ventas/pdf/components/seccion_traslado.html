@@ -1,0 +1,70 @@
+{% load humanize %}
+<div class="card">
+    <div class="card-header">
+        <span class="icon">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z" fill="white" stroke="none"/>
+            </svg>
+        </span>
+        <span>TRASLADO</span>
+    </div>
+    
+    <table class="data-table">
+        <tr>
+            <td style="width: 30%;"><strong>Tipo:</strong></td>
+            <td>{{ traslado.tipo|default:"-" }}</td>
+        </tr>
+        <tr>
+            <td><strong>Modalidad:</strong></td>
+            <td>{{ traslado.modalidad|default:"-" }}</td>
+        </tr>
+        <tr>
+            <td><strong>Desde:</strong></td>
+            <td>{{ traslado.desde|default:"-" }}</td>
+        </tr>
+        <tr>
+            <td><strong>Hasta:</strong></td>
+            <td>{{ traslado.hasta|default:"-" }}</td>
+        </tr>
+        {% if traslado.modalidad == 'REDONDO' %}
+            {% if traslado.fecha_ida or traslado.fecha_regreso %}
+            <tr>
+                <td><strong>Fecha de Ida:</strong></td>
+                <td>{% if traslado.fecha_ida %}{{ traslado.fecha_ida|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+            </tr>
+            <tr>
+                <td><strong>Fecha de Regreso:</strong></td>
+                <td>{% if traslado.fecha_regreso %}{{ traslado.fecha_regreso|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+            </tr>
+            {% endif %}
+            {% if traslado.hora_ida or traslado.hora_regreso %}
+            <tr>
+                <td><strong>Hora de Ida:</strong></td>
+                <td>{{ traslado.hora_ida|default:"-" }}</td>
+            </tr>
+            <tr>
+                <td><strong>Hora de Regreso:</strong></td>
+                <td>{{ traslado.hora_regreso|default:"-" }}</td>
+            </tr>
+            {% endif %}
+        {% endif %}
+        {% if traslado.descripcion %}
+        <tr>
+            <td><strong>Descripción:</strong></td>
+            <td>{{ traslado.descripcion|linebreaks }}</td>
+        </tr>
+        {% endif %}
+        {% if traslado.forma_pago %}
+        <tr>
+            <td><strong>Forma de Pago:</strong></td>
+            <td>{{ traslado.forma_pago }}</td>
+        </tr>
+        {% endif %}
+    </table>
+    
+    {% if traslado.total %}
+    <div class="total-destacado">
+        <div class="total-text">Total MXN ${{ traslado.total|floatformat:2|intcomma }} Pesos</div>
+    </div>
+    {% endif %}
+</div>

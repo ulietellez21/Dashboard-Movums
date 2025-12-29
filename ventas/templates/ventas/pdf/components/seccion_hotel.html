@@ -1,0 +1,48 @@
+{% load humanize %}
+<div class="card">
+    <div class="card-header">
+        <span class="icon">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7h8V7zM7 14c-2.33 0-7 1.17-7 3.5V19h14v-1.5c0-2.33-4.67-3.5-7-3.5zM19 14c-2.33 0-7 1.17-7 3.5V19h14v-1.5c0-2.33-4.67-3.5-7-3.5z" fill="white" stroke="none"/>
+            </svg>
+        </span>
+        <span>HOSPEDAJE</span>
+    </div>
+    
+    <table class="data-table">
+        <tr>
+            <td style="width: 30%;"><strong>Nombre:</strong></td>
+            <td>{{ hotel.nombre|default:"-" }}</td>
+        </tr>
+        <tr>
+            <td><strong>Habitación:</strong></td>
+            <td>{{ hotel.habitacion|default:"-" }}</td>
+        </tr>
+        <tr>
+            <td><strong>Dirección:</strong></td>
+            <td>{{ hotel.direccion|default:"-" }}</td>
+        </tr>
+        <tr>
+            <td><strong>Plan de Alimentos:</strong></td>
+            <td>{{ hotel.plan|default:"-" }}</td>
+        </tr>
+        {% if hotel.notas %}
+        <tr>
+            <td><strong>Notas:</strong></td>
+            <td>{{ hotel.notas }}</td>
+        </tr>
+        {% endif %}
+        {% if hotel.forma_pago %}
+        <tr>
+            <td><strong>Forma de Pago:</strong></td>
+            <td>{{ hotel.forma_pago }}</td>
+        </tr>
+        {% endif %}
+    </table>
+    
+    {% if hotel.total %}
+    <div class="total-destacado">
+        <div class="total-text">Total MXN ${{ hotel.total|floatformat:2|intcomma }} Pesos</div>
+    </div>
+    {% endif %}
+</div>

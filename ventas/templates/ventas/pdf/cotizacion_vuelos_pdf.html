@@ -1,0 +1,7 @@
+{% extends "ventas/pdf/base_cotizacion_pdf.html" %}
+
+{% block content %}
+    {% for vuelo in propuestas.vuelos %}
+        {% include "ventas/pdf/components/seccion_vuelo.html" with vuelo=vuelo %}
+    {% endfor %}
+{% endblock %}

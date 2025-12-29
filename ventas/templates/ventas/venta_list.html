@@ -23,13 +23,9 @@ Mis Ventas 💼
             <a href="{% url 'crear_venta' %}" class="btn btn-success">
                 <i class="fas fa-plus-circle"></i> Registrar Nueva Venta
             </a>
-            <button type="button"
-                    class="btn btn-primary"
-                    data-bs-toggle="modal"
-                    data-bs-target="#cotizacionModal"
-                    {% if not puede_generar_cotizacion %}disabled title="No hay ventas disponibles para generar cotización"{% endif %}>
-                <i class="fas fa-file-invoice-dollar"></i> Generar Cotización
-            </button>
+            <a href="{% url 'cotizaciones_lista' %}" class="btn btn-primary">
+                <i class="fas fa-file-invoice-dollar"></i> Ir a Cotizaciones
+            </a>
         </div>
     {% endif %}
 {% endwith %}
