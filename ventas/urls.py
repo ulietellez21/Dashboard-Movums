@@ -31,6 +31,7 @@ from .views import (
     CotizacionUpdateView,
     CotizacionDetailView,
     CotizacionDocxView,
+    CotizacionPDFView,
     CotizacionConvertirView,
     
     # ----------------------------------------------------
@@ -75,7 +76,8 @@ urlpatterns = [
     path('cotizaciones/nueva/', CotizacionCreateView.as_view(), name='cotizacion_crear'),
     path('cotizaciones/<slug:slug>/', CotizacionDetailView.as_view(), name='cotizacion_detalle'),
     path('cotizaciones/<slug:slug>/editar/', CotizacionUpdateView.as_view(), name='cotizacion_editar'),
-    path('cotizaciones/<slug:slug>/docx/', CotizacionDocxView.as_view(), name='cotizacion_docx'),
+    path('cotizaciones/<slug:slug>/docx/', CotizacionDocxView.as_view(), name='cotizacion_docx'),  # Deprecated, mantener por compatibilidad
+    path('cotizaciones/<slug:slug>/pdf/', CotizacionPDFView.as_view(), name='cotizacion_pdf'),
     path('cotizaciones/<slug:slug>/convertir/', CotizacionConvertirView.as_view(), name='cotizacion_convertir'),
     path('promociones/preview/', preview_promociones, name='preview_promociones'),
     path('proveedores/', ProveedorListCreateView.as_view(), name='proveedores'),
