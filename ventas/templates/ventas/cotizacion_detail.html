@@ -14,22 +14,23 @@
             <strong>Cliente:</strong>
             <a href="{% url 'detalle_cliente' pk=cotizacion.cliente.pk %}" class="text-decoration-none">
                 {% if cotizacion.cliente.tipo_cliente == 'EMPRESA' %}
-                    <span class="badge bg-warning text-dark me-1">Empresa</span>
+                <span class="badge bg-warning text-dark me-1">Empresa</span>
                 {% else %}
-                    <span class="badge bg-success text-white me-1">Particular</span>
+                <span class="badge bg-success text-white me-1">Particular</span>
                 {% endif %}
                 <span class="fs-5">{{ cotizacion.cliente.nombre_completo_display }}</span>
             </a>
         </p>
     </div>
     <div class="d-flex gap-2">
-        <button type="button" class="btn btn-primary" id="descargarDocxBtn" data-docx-url="{% url 'cotizacion_docx' slug=cotizacion.slug %}">
-            <i class="fas fa-download"></i> DOCX
-        </button>
+        <a href="{% url 'cotizacion_pdf' slug=cotizacion.slug %}" class="btn btn-primary" target="_blank">
+            <i class="fas fa-file-pdf"></i> Descargar PDF
+        </a>
         <a href="{% url 'cotizacion_editar' slug=cotizacion.slug %}" class="btn btn-secondary">
             <i class="fas fa-edit"></i> Editar
         </a>
-        <form method="post" action="{% url 'cotizacion_convertir' slug=cotizacion.slug %}" class="d-inline" id="formConvertirVenta">
+        <form method="post" action="{% url 'cotizacion_convertir' slug=cotizacion.slug %}" class="d-inline"
+            id="formConvertirVenta">
             {% csrf_token %}
             <input type="hidden" name="opcion_vuelo_index" id="opcionVueloIndex" value="">
             <input type="hidden" name="opcion_hotel_index" id="opcionHotelIndex" value="">
@@ -46,19 +47,37 @@
             <div class="col-md-6">
                 <h5>Datos del viaje</h5>
                 {% if cotizacion.propuestas.tipo == 'traslados' %}
-                    <p><strong>Desde:</strong> {{ cotizacion.propuestas.traslados.desde|default:cotizacion.origen|default:"-" }}</p>
-                    <p><strong>Hasta:</strong> {{ cotizacion.propuestas.traslados.hasta|default:cotizacion.destino|default:"-" }}</p>
+                <p><strong>Desde:</strong> {{ cotizacion.propuestas.traslados.desde|default:cotizacion.origen|default:"-" }}</p>
+                <p><strong>Hasta:</strong> {{ cotizacion.propuestas.traslados.hasta|default:cotizacion.destino|default:"-" }}</p>
+                {% elif cotizacion.propuestas.tipo == 'renta_autos' %}
+                <p><strong>Punto de Origen:</strong> {{ cotizacion.propuestas.renta_autos.punto_origen|default:"-" }}</p>
+                <p><strong>Punto de Regreso:</strong> {{ cotizacion.propuestas.renta_autos.punto_regreso|default:"-" }}</p>
                 {% else %}
-                    <p><strong>Origen:</strong> {{ cotizacion.origen|default:"-" }}</p>
-                    <p><strong>Destino:</strong> {{ cotizacion.destino|default:"-" }}</p>
-                    <p><strong>Fechas:</strong> {% if cotizacion.fecha_inicio %}{{ cotizacion.fecha_inicio|date:"d M Y" }}{% else %}-{% endif %} / {% if cotizacion.fecha_fin %}{{ cotizacion.fecha_fin|date:"d M Y" }}{% else %}-{% endif %}</p>
-                    <p><strong>Días / Noches:</strong> {{ cotizacion.dias }} / {{ cotizacion.noches }}</p>
+                <p><strong>Origen:</strong> {{ cotizacion.origen|default:"-" }}</p>
+                <p><strong>Destino:</strong> {{ cotizacion.destino|default:"-" }}</p>
+                <p><strong>Fechas:</strong>
+                    {% if cotizacion.fecha_inicio %}
+                    {{ cotizacion.fecha_inicio|date:"d M Y" }}
+                    {% else %}
+                    <span class="text-muted">-</span>
+                    {% endif %}
+                    /
+                    {% if cotizacion.fecha_fin %}
+                    {{ cotizacion.fecha_fin|date:"d M Y" }}
+                    {% else %}
+                    <span class="text-muted">-</span>
+                    {% endif %}
+                </p>
+                <p><strong>Días / Noches:</strong> {{ cotizacion.dias }} / {{ cotizacion.noches }}</p>
                 {% endif %}
             </div>
             <div class="col-md-6">
                 <h5>Pasajeros</h5>
                 <p><strong>Total:</strong> {{ cotizacion.pasajeros }}</p>
                 <p><strong>Adultos:</strong> {{ cotizacion.adultos }} | <strong>Menores:</strong> {{ cotizacion.menores }}</p>
+                {% if cotizacion.edades_menores %}
+                <p><strong>Edades de los Menores:</strong> {{ cotizacion.edades_menores }}</p>
+                {% endif %}
             </div>
         </div>
         <hr>
@@ -66,174 +85,298 @@
         <p>{{ cotizacion.notas|default:"Sin notas" }}</p>
         <h5>Propuestas</h5>
         {% if cotizacion.propuestas %}
-            {# --- SECCIÓN VUELOS --- #}
-            {% if cotizacion.propuestas.tipo == 'vuelos' and cotizacion.propuestas.vuelos %}
-            <h6 class="text-primary fw-bold mt-3"><i class="fas fa-plane"></i> Propuestas de Vuelos</h6>
-            <p class="text-muted small mb-3"><i class="fas fa-info-circle"></i> Selecciona la opción que deseas usar al crear la venta</p>
-            <div class="row g-3" id="opcionesVuelos">
-                {% for v in cotizacion.propuestas.vuelos %}
-                <div class="col-md-6">
-                    <div class="card h-100 border-light shadow-sm opcion-vuelo" 
-                         data-opcion-index="{{ forloop.counter0 }}" 
-                         style="cursor: pointer; transition: all 0.3s;"
-                         onclick="seleccionarOpcionVuelo({{ forloop.counter0 }})">
-                        <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
-                            <span>Opción {{ forloop.counter }}: {{ v.aerolinea|solo_nombre_proveedor|default:"Aerolínea sin nombre" }}</span>
-                            <i class="fas fa-check-circle text-success opcion-seleccionada-icon" style="display: none;"></i>
-                        </div>
-                        <div class="card-body small">
-                            <p class="mb-1"><strong>Salida:</strong> {{ v.salida|default:"-" }}</p>
-                            <p class="mb-1"><strong>Regreso:</strong> {{ v.regreso|default:"-" }}</p>
-                            <p class="mb-1"><strong>Incluye:</strong> {{ v.incluye|default:"-" }}</p>
-                            {% if v.forma_pago %}
-                            <p class="mb-1"><strong>Forma de pago:</strong> {{ v.forma_pago }}</p>
-                            {% endif %}
-                            <p class="mb-0 fw-bold text-success fs-6">Total: {{ v.total|default:"-" }}</p>
-                        </div>
+        {# --- SECCIÓN VUELOS --- #}
+        {% if cotizacion.propuestas.tipo == 'vuelos' and cotizacion.propuestas.vuelos %}
+        <h6 class="text-primary fw-bold mt-3"><i class="fas fa-plane"></i> Propuestas de Vuelos</h6>
+        <p class="text-muted small mb-3"><i class="fas fa-info-circle"></i> Selecciona la opción que deseas usar al
+            crear la venta</p>
+        <div class="row g-3" id="opcionesVuelos">
+            {% for v in cotizacion.propuestas.vuelos %}
+            <div class="col-md-6">
+                <div class="card h-100 border-light shadow-sm opcion-vuelo" data-opcion-index="{{ forloop.counter0 }}"
+                    style="cursor: pointer; transition: all 0.3s;">
+                    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+                        <span>Opción {{ forloop.counter }}: {{ v.aerolinea|solo_nombre_proveedor|default:"Aerolínea sin nombre" }}</span>
+                        <i class="fas fa-check-circle text-success opcion-seleccionada-icon" style="display: none;"></i>
                     </div>
-                </div>
-                {% endfor %}
-            </div>
-            {% endif %}
-            {# --- SECCIÓN HOSPEDAJE --- #}
-            {% if cotizacion.propuestas.tipo == 'hospedaje' and cotizacion.propuestas.hoteles %}
-            <h6 class="text-primary fw-bold mt-3"><i class="fas fa-hotel"></i> Propuestas de Hospedaje</h6>
-            <p class="text-muted small mb-3"><i class="fas fa-info-circle"></i> Selecciona la opción que deseas usar al crear la venta</p>
-            <div class="row g-3" id="opcionesHospedaje">
-                {% for h in cotizacion.propuestas.hoteles %}
-                <div class="col-md-6">
-                    <div class="card h-100 border-light shadow-sm opcion-hotel" 
-                         data-opcion-index="{{ forloop.counter0 }}" 
-                         style="cursor: pointer; transition: all 0.3s;"
-                         onclick="seleccionarOpcionHotel({{ forloop.counter0 }})">
-                        <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
-                            <span>Opción {{ forloop.counter }}: {{ h.nombre|solo_nombre_proveedor|default:"Hotel sin nombre" }}</span>
-                            <i class="fas fa-check-circle text-success opcion-seleccionada-icon" style="display: none;"></i>
-                        </div>
-                        <div class="card-body small">
-                            <p class="mb-1"><strong>Habitación:</strong> {{ h.habitacion|default:"-" }}</p>
-                            <p class="mb-1"><strong>Plan:</strong> {{ h.plan|default:"-" }}</p>
-                            <p class="mb-1"><strong>Dirección:</strong> {{ h.direccion|default:"-" }}</p>
-                            {% if h.forma_pago %}
-                            <p class="mb-1"><strong>Forma de pago:</strong> {{ h.forma_pago }}</p>
-                            {% endif %}
-                            <p class="mb-0 fw-bold text-success fs-6">Total: {{ h.total|default:"-" }}</p>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            <input type="hidden" name="opcion_hotel_seleccionada" id="opcionHotelSeleccionada" value="0">
-            {% endif %}
-            {# --- SECCIÓN PAQUETE --- #}
-            {% if cotizacion.propuestas.tipo == 'paquete' and cotizacion.propuestas.paquete %}
-            <h6 class="text-primary fw-bold mt-3"><i class="fas fa-suitcase"></i> Paquete Completo</h6>
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <div class="card h-100 border-light shadow-sm">
-                        <div class="card-header bg-white fw-bold">Vuelo</div>
-                        <div class="card-body small">
-                            <p class="mb-1"><strong>Aerolínea:</strong> {{ cotizacion.propuestas.paquete.vuelo.aerolinea|solo_nombre_proveedor|default:"-" }}</p>
-                            <p class="mb-1"><strong>Salida:</strong> {{ cotizacion.propuestas.paquete.vuelo.salida|default:"-" }}</p>
-                            <p class="mb-1"><strong>Regreso:</strong> {{ cotizacion.propuestas.paquete.vuelo.regreso|default:"-" }}</p>
-                            <p class="mb-0"><strong>Incluye:</strong> {{ cotizacion.propuestas.paquete.vuelo.incluye|default:"-" }}</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="card h-100 border-light shadow-sm">
-                        <div class="card-header bg-white fw-bold">Hospedaje</div>
-                        <div class="card-body small">
-                            <p class="mb-1"><strong>Hotel:</strong> {{ cotizacion.propuestas.paquete.hotel.nombre|solo_nombre_proveedor|default:"-" }}</p>
-                            <p class="mb-1"><strong>Habitación:</strong> {{ cotizacion.propuestas.paquete.hotel.habitacion|default:"-" }}</p>
-                            <p class="mb-1"><strong>Notas:</strong> {{ cotizacion.propuestas.paquete.hotel.notas|default:"-" }}</p>
-                            {% if cotizacion.propuestas.paquete.forma_pago %}
-                            <p class="mb-1"><strong>Forma de pago:</strong> {{ cotizacion.propuestas.paquete.forma_pago }}</p>
-                            {% endif %}
-                            <p class="mb-0 fw-bold text-success fs-6">Total: {{ cotizacion.propuestas.paquete.total|default:"-" }}</p>
-                        </div>
+                    <div class="card-body small">
+                        <p class="mb-1"><strong>Salida:</strong> {{ v.salida|default:"-" }}</p>
+                        <p class="mb-1"><strong>Regreso:</strong> {{ v.regreso|default:"-" }}</p>
+                        <p class="mb-1"><strong>Incluye:</strong> {{ v.incluye|default:"-" }}</p>
+                        {% if v.forma_pago %}
+                        <p class="mb-1"><strong>Forma de pago:</strong> {{ v.forma_pago }}</p>
+                        {% endif %}
+                        <p class="mb-0 fw-bold text-success fs-6">Total: {{ v.total|formato_moneda_mx }}</p>
                     </div>
                 </div>
             </div>
-            {% endif %}
-            {# --- SECCIÓN TOURS --- #}
-            {% if cotizacion.propuestas.tipo == 'tours' and cotizacion.propuestas.tours %}
-            <h6 class="text-primary fw-bold mt-3"><i class="fas fa-map-marked-alt"></i> Tour</h6>
-            <div class="row g-3">
-                <div class="col-md-12">
-                    <div class="card border-light shadow-sm">
-                        <div class="card-header bg-white fw-bold">{{ cotizacion.propuestas.tours.nombre|default:"Tour sin nombre" }}</div>
-                        <div class="card-body small">
-                            <p class="mb-1"><strong>Proveedor:</strong> {{ cotizacion.propuestas.tours.proveedor|solo_nombre_proveedor|default:"-" }}</p>
-                            <p class="mb-1"><strong>Número de Reserva:</strong> {{ cotizacion.propuestas.tours.numero_reserva|default:"-" }}</p>
-                            {% if cotizacion.propuestas.tours.forma_pago %}
-                            <p class="mb-1"><strong>Forma de pago:</strong> {{ cotizacion.propuestas.tours.forma_pago }}</p>
-                            {% endif %}
-                            <hr>
-                            <p class="mb-0" style="white-space: pre-line;"><strong>Especificaciones:</strong><br>{{ cotizacion.propuestas.tours.especificaciones|default:"Sin especificaciones." }}</p>
-                        </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {# --- SECCIÓN HOSPEDAJE --- #}
+        {% if cotizacion.propuestas.tipo == 'hospedaje' and cotizacion.propuestas.hoteles %}
+        <h6 class="text-primary fw-bold mt-3"><i class="fas fa-hotel"></i> Propuestas de Hospedaje</h6>
+        <p class="text-muted small mb-3"><i class="fas fa-info-circle"></i> Selecciona la opción que deseas usar al
+            crear la venta</p>
+        <div class="row g-3" id="opcionesHospedaje">
+            {% for h in cotizacion.propuestas.hoteles %}
+            <div class="col-md-6">
+                <div class="card h-100 border-light shadow-sm opcion-hotel" data-opcion-index="{{ forloop.counter0 }}"
+                    style="cursor: pointer; transition: all 0.3s;">
+                    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+                        <span>Opción {{ forloop.counter }}: {{ h.nombre|solo_nombre_proveedor|default:"Hotel sin nombre" }}</span>
+                        <i class="fas fa-check-circle text-success opcion-seleccionada-icon" style="display: none;"></i>
+                    </div>
+                    <div class="card-body small">
+                        <p class="mb-1"><strong>Habitación:</strong> {{ h.habitacion|default:"-" }}</p>
+                        <p class="mb-1"><strong>Plan:</strong> {{ h.plan|default:"-" }}</p>
+                        <p class="mb-1"><strong>Dirección:</strong> {{ h.direccion|default:"-" }}</p>
+                        {% if h.forma_pago %}
+                        <p class="mb-1"><strong>Forma de pago:</strong> {{ h.forma_pago }}</p>
+                        {% endif %}
+                        <p class="mb-0 fw-bold text-success fs-6">Total: {{ h.total|formato_moneda_mx }}</p>
                     </div>
                 </div>
             </div>
-            {% endif %}
-            {# --- SECCIÓN TRASLADOS --- #}
-            {% if cotizacion.propuestas.tipo == 'traslados' and cotizacion.propuestas.traslados %}
-            <h6 class="text-primary fw-bold mt-3"><i class="fas fa-car"></i> Traslado</h6>
-            <div class="row g-3">
-                <div class="col-md-12">
-                    <div class="card border-light shadow-sm">
-                        <div class="card-header bg-white fw-bold">
-                            Traslado {% if cotizacion.propuestas.traslados.tipo %}({{ cotizacion.propuestas.traslados.tipo }}){% endif %} 
-                            {% if cotizacion.propuestas.traslados.modalidad %}- {{ cotizacion.propuestas.traslados.modalidad }}{% endif %}
-                        </div>
-                        <div class="card-body small">
-                            <p class="mb-1"><strong>Proveedor:</strong> {{ cotizacion.propuestas.traslados.proveedor|solo_nombre_proveedor|default:"-" }}</p>
-                            <p class="mb-1"><strong>Desde:</strong> {{ cotizacion.propuestas.traslados.desde|default:"-" }}</p>
-                            <p class="mb-1"><strong>Hasta:</strong> {{ cotizacion.propuestas.traslados.hasta|default:"-" }}</p>
-                            {% if cotizacion.propuestas.traslados.modalidad == 'REDONDO' %}
-                                {% if cotizacion.propuestas.traslados.fecha_ida %}
-                                <p class="mb-1"><strong>Fecha de Ida:</strong> {{ cotizacion.propuestas.traslados.fecha_ida }}</p>
-                                {% endif %}
-                                {% if cotizacion.propuestas.traslados.fecha_regreso %}
-                                <p class="mb-1"><strong>Fecha de Regreso:</strong> {{ cotizacion.propuestas.traslados.fecha_regreso }}</p>
-                                {% endif %}
-                                {% if cotizacion.propuestas.traslados.hora_ida %}
-                                <p class="mb-1"><strong>Hora de Ida:</strong> {{ cotizacion.propuestas.traslados.hora_ida }}</p>
-                                {% endif %}
-                                {% if cotizacion.propuestas.traslados.hora_regreso %}
-                                <p class="mb-1"><strong>Hora de Regreso:</strong> {{ cotizacion.propuestas.traslados.hora_regreso }}</p>
-                                {% endif %}
-                            {% endif %}
-                            {% if cotizacion.propuestas.traslados.forma_pago %}
-                            <p class="mb-1"><strong>Forma de pago:</strong> {{ cotizacion.propuestas.traslados.forma_pago }}</p>
-                            {% endif %}
-                            <hr>
-                            <p class="mb-0" style="white-space: pre-line;"><strong>Descripción:</strong><br>{{ cotizacion.propuestas.traslados.descripcion|default:"Sin descripción." }}</p>
-                            <hr>
-                            <p class="mb-0 fw-bold text-success fs-6">Total: {{ cotizacion.propuestas.traslados.total|default:"-" }}</p>
-                        </div>
+            {% endfor %}
+        </div>
+        <input type="hidden" name="opcion_hotel_seleccionada" id="opcionHotelSeleccionada" value="0">
+        {% endif %}
+        {# --- SECCIÓN PAQUETE --- #}
+        {% if cotizacion.propuestas.tipo == 'paquete' %}
+        {% if cotizacion.propuestas.paquete %}
+        <h6 class="text-primary fw-bold mt-3"><i class="fas fa-suitcase"></i> Paquete Completo</h6>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="card h-100 border-light shadow-sm">
+                    <div class="card-header bg-white fw-bold">Vuelo</div>
+                    <div class="card-body small">
+                        {% if cotizacion.propuestas.paquete.vuelo %}
+                        <p class="mb-1"><strong>Aerolínea:</strong> {{ cotizacion.propuestas.paquete.vuelo.aerolinea|default:"-" }}</p>
+                        <p class="mb-1"><strong>Salida:</strong> {{ cotizacion.propuestas.paquete.vuelo.salida|default:"-" }}</p>
+                        <p class="mb-1"><strong>Regreso:</strong> {{ cotizacion.propuestas.paquete.vuelo.regreso|default:"-" }}</p>
+                        <p class="mb-1"><strong>Incluye:</strong> {{ cotizacion.propuestas.paquete.vuelo.incluye|default:"-" }}</p>
+                        {% if cotizacion.propuestas.paquete.vuelo.total %}
+                        <p class="mb-1"><strong>Total MXN:</strong> {{ cotizacion.propuestas.paquete.vuelo.total|formato_moneda_mx }}</p>
+                        {% endif %}
+                        {% if cotizacion.propuestas.paquete.vuelo.forma_pago %}
+                        <p class="mb-0"><strong>Forma de pago:</strong> {{ cotizacion.propuestas.paquete.vuelo.forma_pago }}</p>
+                        {% endif %}
+                        {% else %}
+                        <p class="mb-0 text-muted">No hay información de vuelo disponible.</p>
+                        {% endif %}
                     </div>
                 </div>
             </div>
-            {% endif %}
-            {# --- SECCIÓN GENÉRICA --- #}
-            {% if cotizacion.propuestas.tipo == 'generica' %}
-            <h6 class="text-primary fw-bold mt-3"><i class="fas fa-file-alt"></i> Detalles</h6>
-            <div class="row g-3">
-                <div class="col-md-12">
-                    <div class="card border-light shadow-sm">
-                        <div class="card-header bg-white fw-bold">Contenido de la Cotización</div>
-                        <div class="card-body small" style="white-space: pre-line;">
-                            {{ cotizacion.propuestas.generica.contenido|default:"Sin contenido específico." }}
-                        </div>
+            <div class="col-md-6">
+                <div class="card h-100 border-light shadow-sm">
+                    <div class="card-header bg-white fw-bold">Hospedaje</div>
+                    <div class="card-body small">
+                        {% if cotizacion.propuestas.paquete.hotel %}
+                        <p class="mb-1"><strong>Hotel:</strong> {{ cotizacion.propuestas.paquete.hotel.nombre|default:"-" }}</p>
+                        <p class="mb-1"><strong>Habitación:</strong> {{ cotizacion.propuestas.paquete.hotel.habitacion|default:"-" }}</p>
+                        {% if cotizacion.propuestas.paquete.hotel.direccion %}
+                        <p class="mb-1"><strong>Dirección:</strong> {{ cotizacion.propuestas.paquete.hotel.direccion|default:"-" }}</p>
+                        {% endif %}
+                        {% if cotizacion.propuestas.paquete.hotel.plan %}
+                        <p class="mb-1"><strong>Plan de alimentos:</strong> {{ cotizacion.propuestas.paquete.hotel.plan|default:"-" }}</p>
+                        {% endif %}
+                        {% if cotizacion.propuestas.paquete.hotel.notas %}
+                        <p class="mb-1"><strong>Notas:</strong> {{ cotizacion.propuestas.paquete.hotel.notas|default:"-" }}</p>
+                        {% endif %}
+                        {% if cotizacion.propuestas.paquete.hotel.total %}
+                        <p class="mb-1"><strong>Total MXN:</strong> {{ cotizacion.propuestas.paquete.hotel.total|formato_moneda_mx }}</p>
+                        {% endif %}
+                        {% if cotizacion.propuestas.paquete.hotel.forma_pago %}
+                        <p class="mb-1"><strong>Forma de pago:</strong> {{ cotizacion.propuestas.paquete.hotel.forma_pago }}</p>
+                        {% endif %}
+                        {% else %}
+                        <p class="mb-0 text-muted">No hay información de hospedaje disponible.</p>
+                        {% endif %}
+                        {% if cotizacion.propuestas.paquete.forma_pago %}
+                        <p class="mb-1"><strong>Forma de pago del Paquete:</strong> {{ cotizacion.propuestas.paquete.forma_pago }}</p>
+                        {% endif %}
                     </div>
                 </div>
             </div>
-            {% endif %}
+        </div>
         {% else %}
-            <div class="alert alert-secondary">No hay propuestas registradas para esta cotización.</div>
+        <div class="alert alert-warning mt-3">
+            <i class="fas fa-exclamation-triangle"></i> La cotización es de tipo "Paquete" pero no se encontró
+            información del paquete.
+        </div>
+        {% endif %}
+        {# Tours del Paquete #}
+        {% if cotizacion.propuestas.paquete.tours and cotizacion.propuestas.paquete.tours|length > 0 %}
+        <div class="row g-3 mt-3">
+            <div class="col-12">
+                <h6 class="text-warning fw-bold"><i class="fas fa-map-marked-alt"></i> Tours del Paquete</h6>
+                {% for tour in cotizacion.propuestas.paquete.tours %}
+                <div class="card border-warning shadow-sm mb-3">
+                    <div class="card-header bg-white fw-bold">Tour del Paquete {{ forloop.counter }}: {{ tour.nombre|default:"Tour sin nombre" }}</div>
+                    <div class="card-body small">
+                        {% if tour.total %}
+                        <p class="mb-1"><strong>Total MXN:</strong> {{ tour.total|formato_moneda_mx }}</p>
+                        {% endif %}
+                        {% if tour.forma_pago %}
+                        <p class="mb-1"><strong>Forma de pago:</strong> {{ tour.forma_pago }}</p>
+                        {% endif %}
+                        <hr>
+                        <p class="mb-0" style="white-space: pre-line;"><strong>Especificaciones:</strong><br>{{ tour.especificaciones|default:"Sin especificaciones." }}</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        {% endif %}
+        {# --- SECCIÓN TOURS --- #}
+        {% if cotizacion.propuestas.tipo == 'tours' and cotizacion.propuestas.tours %}
+        <h6 class="text-primary fw-bold mt-3"><i class="fas fa-map-marked-alt"></i> Tours</h6>
+        <div class="row g-3">
+            {% if cotizacion.propuestas.tours|length > 0 %}
+            {# Si es un array de tours #}
+            {% for tour in cotizacion.propuestas.tours %}
+            <div class="col-md-12">
+                <div class="card border-light shadow-sm">
+                    <div class="card-header bg-white fw-bold">Tour {{ forloop.counter }}: {{ tour.nombre|default:"Tour sin nombre" }}</div>
+                    <div class="card-body small">
+                        {% if tour.total %}
+                        <p class="mb-1"><strong>Total MXN:</strong> {{ tour.total|formato_moneda_mx }}</p>
+                        {% endif %}
+                        {% if tour.forma_pago %}
+                        <p class="mb-1"><strong>Forma de pago:</strong> {{ tour.forma_pago }}</p>
+                        {% endif %}
+                        <hr>
+                        <p class="mb-0" style="white-space: pre-line;"><strong>Especificaciones:</strong><br>{{ tour.especificaciones|default:"Sin especificaciones." }}</p>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            {# Compatibilidad: si es un objeto único (formato antiguo) #}
+            <div class="col-md-12">
+                <div class="card border-light shadow-sm">
+                    <div class="card-header bg-white fw-bold">{{ cotizacion.propuestas.tours.nombre|default:"Tour sin
+                        nombre" }}</div>
+                    <div class="card-body small">
+                        {% if cotizacion.propuestas.tours.total %}
+                        <p class="mb-1"><strong>Total MXN:</strong> {{
+                            cotizacion.propuestas.tours.total|formato_moneda_mx }}</p>
+                        {% endif %}
+                        {% if cotizacion.propuestas.tours.forma_pago %}
+                        <p class="mb-1"><strong>Forma de pago:</strong> {{ cotizacion.propuestas.tours.forma_pago }}</p>
+                        {% endif %}
+                        <hr>
+                        <p class="mb-0" style="white-space: pre-line;"><strong>Especificaciones:</strong><br>{{
+                            cotizacion.propuestas.tours.especificaciones|default:"Sin especificaciones." }}</p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+        {# --- SECCIÓN TRASLADOS --- #}
+        {% if cotizacion.propuestas.tipo == 'traslados' and cotizacion.propuestas.traslados %}
+        <h6 class="text-primary fw-bold mt-3"><i class="fas fa-car"></i> Traslado</h6>
+        <div class="row g-3">
+            <div class="col-md-12">
+                <div class="card border-light shadow-sm">
+                    <div class="card-header bg-white fw-bold">
+                        Traslado {% if cotizacion.propuestas.traslados.tipo %}({{ cotizacion.propuestas.traslados.tipo }}){% endif %}{% if cotizacion.propuestas.traslados.modalidad %} - {{ cotizacion.propuestas.traslados.modalidad }}{% endif %}
+                    </div>
+                    <div class="card-body small">
+                        <p class="mb-1"><strong>Desde:</strong> {{ cotizacion.propuestas.traslados.desde|default:"-" }}</p>
+                        <p class="mb-1"><strong>Hasta:</strong> {{ cotizacion.propuestas.traslados.hasta|default:"-" }}</p>
+                        {% if cotizacion.propuestas.traslados.modalidad == 'REDONDO' %}
+                        {% if cotizacion.propuestas.traslados.fecha_ida %}
+                        <p class="mb-1"><strong>Fecha de Ida:</strong> {{ cotizacion.propuestas.traslados.fecha_ida }}</p>
+                        {% endif %}
+                        {% if cotizacion.propuestas.traslados.fecha_regreso %}
+                        <p class="mb-1"><strong>Fecha de Regreso:</strong> {{ cotizacion.propuestas.traslados.fecha_regreso }}</p>
+                        {% endif %}
+                        {% if cotizacion.propuestas.traslados.hora_ida %}
+                        <p class="mb-1"><strong>Hora de Ida:</strong> {{ cotizacion.propuestas.traslados.hora_ida }}</p>
+                        {% endif %}
+                        {% if cotizacion.propuestas.traslados.hora_regreso %}
+                        <p class="mb-1"><strong>Hora de Regreso:</strong> {{ cotizacion.propuestas.traslados.hora_regreso }}</p>
+                        {% endif %}
+                        {% endif %}
+                        {% if cotizacion.propuestas.traslados.forma_pago %}
+                        <p class="mb-1"><strong>Forma de pago:</strong> {{ cotizacion.propuestas.traslados.forma_pago }}</p>
+                        {% endif %}
+                        <hr>
+                        <p class="mb-0" style="white-space: pre-line;"><strong>Descripción:</strong><br>{{ cotizacion.propuestas.traslados.descripcion|default:"Sin descripción." }}</p>
+                        <hr>
+                        <p class="mb-0 fw-bold text-success fs-6">Total: {{ cotizacion.propuestas.traslados.total|formato_moneda_mx }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {# --- SECCIÓN RENTA DE AUTOS --- #}
+        {% if cotizacion.propuestas.tipo == 'renta_autos' and cotizacion.propuestas.renta_autos %}
+        <h6 class="text-primary fw-bold mt-3"><i class="fas fa-car-side"></i> Renta de Autos</h6>
+        <div class="row g-3">
+            <div class="col-md-12">
+                <div class="card border-light shadow-sm">
+                    <div class="card-header bg-white fw-bold">Información de Renta de Autos</div>
+                    <div class="card-body small">
+                        <p class="mb-1"><strong>Arrendadora:</strong> {{ cotizacion.propuestas.renta_autos.arrendadora|default:"-" }}</p>
+                        <p class="mb-1"><strong>Punto de Origen:</strong> {{ cotizacion.propuestas.renta_autos.punto_origen|default:"-" }}</p>
+                        <p class="mb-1"><strong>Punto de Regreso:</strong> {{ cotizacion.propuestas.renta_autos.punto_regreso|default:"-" }}</p>
+                        {% if cotizacion.propuestas.renta_autos.hora_pickup %}
+                        <p class="mb-1"><strong>Hora de Pickup:</strong> {{ cotizacion.propuestas.renta_autos.hora_pickup }}</p>
+                        {% endif %}
+                        {% if cotizacion.propuestas.renta_autos.hora_devolucion %}
+                        <p class="mb-1"><strong>Hora de Devolución:</strong> {{ cotizacion.propuestas.renta_autos.hora_devolucion }}</p>
+                        {% endif %}
+                        {% if cotizacion.propuestas.renta_autos.forma_pago %}
+                        <p class="mb-1"><strong>Forma de pago:</strong> {{ cotizacion.propuestas.renta_autos.forma_pago }}</p>
+                        {% endif %}
+                        <p class="mb-0 fw-bold text-success fs-6 mt-3">Total: {{ cotizacion.propuestas.renta_autos.total|formato_moneda_mx }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {# --- SECCIÓN GENÉRICA --- #}
+        {% if cotizacion.propuestas.tipo == 'generica' %}
+        <h6 class="text-primary fw-bold mt-3"><i class="fas fa-file-alt"></i> Detalles</h6>
+        <div class="row g-3">
+            <div class="col-md-12">
+                <div class="card border-light shadow-sm">
+                    <div class="card-header bg-white fw-bold">Contenido de la Cotización</div>
+                    <div class="card-body small" style="white-space: pre-line;">
+                        {{ cotizacion.propuestas.generica.contenido|default:"Sin contenido específico." }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="alert alert-secondary">No hay propuestas registradas para esta cotización.</div>
         {% endif %}
         <hr>
+
+        {# Total del Paquete - Solo para cotizaciones de tipo paquete #}
+        {% if cotizacion.propuestas and cotizacion.propuestas.tipo == 'paquete' and cotizacion.propuestas.paquete and cotizacion.propuestas.paquete.total %}
+        <div class="mb-3">
+            <p class="mb-0 fw-bold text-success fs-5">
+                Total del Paquete: {{ cotizacion.propuestas.paquete.total|formato_moneda_mx }}
+            </p>
+        </div>
+        {% endif %}
+
+        {# Total de Tours - Solo para cotizaciones de tipo tours #}
+        {% if cotizacion.propuestas and cotizacion.propuestas.tipo == 'tours' and cotizacion.total_estimado and cotizacion.total_estimado > 0 %}
+        <div class="mb-3">
+            <p class="mb-0 fw-bold text-success fs-5">
+                Total de Tours: {{ cotizacion.total_estimado|formato_moneda_mx }}
+            </p>
+        </div>
+        {% endif %}
+
         <p><strong>Estado:</strong> <span class="badge bg-secondary">{{ cotizacion.get_estado_display }}</span></p>
     </div>
 </div>
@@ -241,50 +384,60 @@
 
 {% block extra_js %}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const docxBtn = document.getElementById('descargarDocxBtn');
-        if (docxBtn) {
-            docxBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                const docxUrl = this.dataset.docxUrl;
-                
-                // Crear un enlace temporal para descargar el archivo
-                fetch(docxUrl)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Error al generar el documento');
-                        }
-                        return response.blob();
-                    })
-                    .then(blob => {
-                        const url = window.URL.createObjectURL(blob);
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.download = `cotizacion-{{ cotizacion.slug }}.docx`;
-                        document.body.appendChild(link);
-                        link.click();
-                        link.remove();
-                        window.URL.revokeObjectURL(url);
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('Error al descargar el documento. Por favor, intenta de nuevo.');
-                    });
+    document.addEventListener('DOMContentLoaded', function () {
+        // Asegurar que se seleccione la primera opción por defecto si no hay selección
+        const formConvertir = document.getElementById('formConvertirVenta');
+        if (formConvertir) {
+            formConvertir.addEventListener('submit', function (e) {
+                const inputVuelo = document.getElementById('opcionVueloIndex');
+                const inputHotel = document.getElementById('opcionHotelIndex');
+
+                // Si no hay selección de vuelo, seleccionar la primera opción (índice 0)
+                if (inputVuelo && inputVuelo.value === '') {
+                    const primeraOpcionVuelo = document.querySelector('.opcion-vuelo[data-opcion-index="0"]');
+                    if (primeraOpcionVuelo) {
+                        inputVuelo.value = '0';
+                    }
+                }
+
+                // Si no hay selección de hotel, seleccionar la primera opción (índice 0)
+                if (inputHotel && inputHotel.value === '') {
+                    const primeraOpcionHotel = document.querySelector('.opcion-hotel[data-opcion-index="0"]');
+                    if (primeraOpcionHotel) {
+                        inputHotel.value = '0';
+                    }
+                }
             });
         }
-        
+
+        // Agregar event listeners para las opciones de vuelo
+        document.querySelectorAll('.opcion-vuelo').forEach(card => {
+            card.addEventListener('click', function() {
+                const index = parseInt(this.getAttribute('data-opcion-index'));
+                seleccionarOpcionVuelo(index);
+            });
+        });
+
+        // Agregar event listeners para las opciones de hotel
+        document.querySelectorAll('.opcion-hotel').forEach(card => {
+            card.addEventListener('click', function() {
+                const index = parseInt(this.getAttribute('data-opcion-index'));
+                seleccionarOpcionHotel(index);
+            });
+        });
+
         // Inicializar: seleccionar la primera opción por defecto para vuelos y hospedaje
         const primeraOpcionVuelo = document.querySelector('.opcion-vuelo');
         if (primeraOpcionVuelo) {
             seleccionarOpcionVuelo(0);
         }
-        
+
         const primeraOpcionHotel = document.querySelector('.opcion-hotel');
         if (primeraOpcionHotel) {
             seleccionarOpcionHotel(0);
         }
     });
-    
+
     function seleccionarOpcionVuelo(index) {
         // Remover selección de todas las opciones
         document.querySelectorAll('.opcion-vuelo').forEach(card => {
@@ -293,7 +446,7 @@
             const icon = card.querySelector('.opcion-seleccionada-icon');
             if (icon) icon.style.display = 'none';
         });
-        
+
         // Seleccionar la opción elegida
         const opcionSeleccionada = document.querySelector(`.opcion-vuelo[data-opcion-index="${index}"]`);
         if (opcionSeleccionada) {
@@ -301,13 +454,13 @@
             opcionSeleccionada.style.backgroundColor = '#f0f8ff';
             const icon = opcionSeleccionada.querySelector('.opcion-seleccionada-icon');
             if (icon) icon.style.display = 'inline-block';
-            
+
             // Guardar el índice seleccionado
             const inputVuelo = document.getElementById('opcionVueloIndex');
             if (inputVuelo) inputVuelo.value = index;
         }
     }
-    
+
     function seleccionarOpcionHotel(index) {
         // Remover selección de todas las opciones
         document.querySelectorAll('.opcion-hotel').forEach(card => {
@@ -316,7 +469,7 @@
             const icon = card.querySelector('.opcion-seleccionada-icon');
             if (icon) icon.style.display = 'none';
         });
-        
+
         // Seleccionar la opción elegida
         const opcionSeleccionada = document.querySelector(`.opcion-hotel[data-opcion-index="${index}"]`);
         if (opcionSeleccionada) {
@@ -324,7 +477,7 @@
             opcionSeleccionada.style.backgroundColor = '#f0f8ff';
             const icon = opcionSeleccionada.querySelector('.opcion-seleccionada-icon');
             if (icon) icon.style.display = 'inline-block';
-            
+
             // Guardar el índice seleccionado
             const inputHotel = document.getElementById('opcionHotelIndex');
             if (inputHotel) inputHotel.value = index;
@@ -332,13 +485,15 @@
     }
 </script>
 <style>
-    .opcion-vuelo:hover, .opcion-hotel:hover {
+    .opcion-vuelo:hover,
+    .opcion-hotel:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
     }
-    .opcion-vuelo.border-primary, .opcion-hotel.border-primary {
+
+    .opcion-vuelo.border-primary,
+    .opcion-hotel.border-primary {
         box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3) !important;
     }
 </style>
 {% endblock %}
-
