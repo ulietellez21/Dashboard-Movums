@@ -24,6 +24,7 @@ urlpatterns = [
     # Rutas de aplicaciones
     path('crm/', include('crm.urls')),
     path('ventas/', include('ventas.urls')),
+    path('auditoria/', include('auditoria.urls')),
 ]
 
 if settings.DEBUG:

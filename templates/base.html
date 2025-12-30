@@ -127,9 +127,9 @@
     
     /* REGLAS CONSOLIDADAS: El overlay NUNCA debe estar activo cuando hay un modal */
     
-    /* Asegurar que los modales y su backdrop estén SIEMPRE por encima del overlay */
+    /* Asegurar que los modales y su backdrop estén SIEMPRE por encima del overlay y navbar */
     .modal {
-        z-index: 1055 !important;
+        z-index: 1060 !important;
     }
     
     .modal.show {
@@ -137,18 +137,27 @@
         visibility: visible !important;
         opacity: 1 !important;
         pointer-events: auto !important;
+        z-index: 1060 !important;
     }
     
     /* Asegurar que el contenido del modal sea interactivo */
-    .modal.show .modal-dialog,
+    .modal.show .modal-dialog {
+        pointer-events: auto !important;
+        z-index: 1061 !important;
+    }
+    
     .modal.show .modal-content {
         pointer-events: auto !important;
-        z-index: 1056 !important;
+        z-index: 1062 !important;
     }
     
     .modal-backdrop {
-        z-index: 1050 !important;
+        z-index: 1055 !important;
         pointer-events: auto !important; /* Permitir clicks en backdrop para cerrar */
+    }
+    
+    .modal-backdrop.show {
+        z-index: 1055 !important;
     }
     
     /* FORZAR que el overlay se oculte cuando hay un modal abierto */
@@ -170,32 +179,39 @@
     .modal .form-control,
     .modal .form-select {
         pointer-events: auto !important;
-        z-index: 1057 !important;
         position: relative;
-    }
-    
-    /* Asegurar que el modal-dialog y modal-content sean completamente interactivos */
-    .modal.show .modal-dialog {
-        pointer-events: auto !important;
-        z-index: 1056 !important;
-    }
-    
-    .modal.show .modal-content {
-        pointer-events: auto !important;
-        z-index: 1057 !important;
     }
     
     /* Asegurar que el modal-body sea interactivo */
     .modal.show .modal-body {
         pointer-events: auto !important;
-        z-index: 1058 !important;
+        position: relative !important;
     }
     
-    /* CRÍTICO: Asegurar que el contenido del modal esté por encima del backdrop */
-    .modal.show .modal-dialog {
-        z-index: 1056 !important;
-        position: relative !important;
+    /* Asegurar que el navbar no interfiera con modales */
+    #main-navbar.sticky-top {
+        z-index: 1020 !important; /* Bootstrap default, menor que modales */
+    }
+    
+    /* Cuando hay un modal abierto, el navbar debe estar por debajo */
+    body.modal-open #main-navbar {
+        z-index: 1019 !important;
+    }
+    
+    /* Asegurar que elementos sticky dentro del modal tengan z-index correcto */
+    .modal .table-responsive thead.sticky-top,
+    .modal .table thead[style*="sticky"] {
+        z-index: 1063 !important;
+        position: sticky !important;
+    }
+    
+    /* Asegurar que toda la tabla dentro del modal sea interactiva */
+    .modal .table-responsive,
+    .modal .table,
+    .modal .table tbody,
+    .modal .table thead {
         pointer-events: auto !important;
+        position: relative !important;
     }
     
     .modal.show .modal-content {
@@ -235,19 +251,41 @@
         z-index: -9999 !important; /* MUY bajo para que nunca bloquee nada */
     }
     
-    /* Modales siempre por encima */
+    /* Modales siempre por encima - z-index más alto que navbar sticky (1020) */
     .modal {
-        z-index: 1055 !important;
+        z-index: 1060 !important;
+    }
+    
+    .modal.show {
+        z-index: 1060 !important;
     }
     
     .modal-backdrop {
-        z-index: 1050 !important;
+        z-index: 1055 !important;
         pointer-events: auto !important; /* Permitir clicks en backdrop para cerrar */
     }
     
     /* CRÍTICO: Asegurar que el backdrop no bloquee el contenido del modal */
     .modal-backdrop.show {
-        z-index: 1050 !important;
+        z-index: 1055 !important;
+    }
+    
+    /* Asegurar que el modal-dialog esté por encima del backdrop */
+    .modal-dialog {
+        z-index: 1061 !important;
+    }
+    
+    .modal.show .modal-dialog {
+        z-index: 1061 !important;
+    }
+    
+    /* Asegurar que el modal-content esté por encima del dialog */
+    .modal-content {
+        z-index: 1062 !important;
+    }
+    
+    .modal.show .modal-content {
+        z-index: 1062 !important;
     }
     
     /* El fondo del body se mantiene normal, solo el overlay cambia */

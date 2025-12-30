@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from crm.models import Cliente # Importamos Cliente para usarlo en el queryset si es necesario
 from crm.services import KilometrosService
 from ventas.services.promociones import PromocionesService
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import date
 
 # Widget personalizado para fechas que use formato ISO para inputs de tipo 'date'
@@ -394,6 +394,16 @@ class ConfirmacionVentaForm(forms.Form):
 class AbonoPagoForm(forms.ModelForm):
     """Formulario para registrar un abono pago en la vista de detalle de la venta."""
     
+    # Redefinimos monto como CharField para que acepte "$" y comas sin fallar
+    monto = forms.CharField(
+        label="Monto del Abono",
+        widget=forms.TextInput(attrs={
+            'placeholder': 'Ej: 1500.00', 
+            'class': 'form-control', 
+            'type': 'text'  # Importante que sea text
+        })
+    )
+    
     registrado_por = forms.ModelChoiceField(
         queryset=User.objects.all(),
         widget=forms.HiddenInput(),
@@ -404,9 +414,25 @@ class AbonoPagoForm(forms.ModelForm):
         model = AbonoPago
         fields = ['monto', 'forma_pago', 'registrado_por'] 
         widgets = {
-            'monto': forms.NumberInput(attrs={'placeholder': 'Ej: 1500.00', 'step': 'any', 'class': 'form-control'}),
             'forma_pago': forms.Select(attrs={'class': 'form-select'}), 
         }
+    
+    def clean_monto(self):
+        """Limpia el formato de moneda (quita $ y comas) antes de validar."""
+        monto = self.cleaned_data.get('monto')
+        if monto:
+            # Si es string, limpiar formato (quitar $, USD, comas y espacios)
+            if isinstance(monto, str):
+                # Remover símbolos de moneda y formateo
+                monto_limpio = monto.replace('$', '').replace('USD', '').replace(',', '').replace(' ', '').strip()
+                try:
+                    monto = Decimal(monto_limpio)
+                except (ValueError, InvalidOperation):
+                    raise forms.ValidationError("Ingresa un monto válido.")
+            # Validar que el monto sea positivo
+            if monto <= 0:
+                raise forms.ValidationError("El monto debe ser mayor a cero.")
+        return monto
 
 # ------------------- LogisticaForm (Mantenido) -------------------
 
@@ -1192,9 +1218,11 @@ class VentaViajeForm(forms.ModelForm):
                     aplica_descuento = False
                 else:
                     # Máximo 10% del valor total reservado
-                    max_por_regla = (costo_cliente * Decimal('0.10')).quantize(Decimal('0.01'))
-                    max_por_credito = credito_disponible.quantize(Decimal('0.01'))
-                    descuento = min(max_por_regla, max_por_credito)
+                    # Usar ROUND_HALF_UP: del 1-4 baja, del 5-9 sube (redondeo estándar)
+                    from decimal import ROUND_HALF_UP
+                    max_por_regla = (costo_cliente * Decimal('0.10')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                    max_por_credito = credito_disponible.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                    descuento = min(max_por_regla, max_por_credito).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
                     if descuento <= 0:
                         self.add_error('aplica_descuento_kilometros', "El cliente no tiene saldo disponible para aplicar el descuento.")
                         aplica_descuento = False

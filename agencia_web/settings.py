@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'usuarios',             # Módulo de Perfil y Rol
     'crm',                  # Módulo de Clientes
     'ventas',               # Módulo de Ventas, Pagos, Logística y Reportes
+    'auditoria',            # Módulo de Auditoría e Historial de Movimientos
 ]
 
 MIDDLEWARE = [

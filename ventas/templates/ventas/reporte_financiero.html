@@ -4,11 +4,8 @@
 {% block title %}Reporte Financiero{% endblock %}
 
 {% block content %}
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="mb-4">
         <h1 class="mb-0 text-info"><i class="fas fa-chart-line"></i> Reporte Financiero Consolidado</h1>
-        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">
-            <i class="fas fa-arrow-left"></i> Volver al Dashboard
-        </a>
     </div>
     
     <div class="card p-4 shadow-lg mb-5 border-info">
@@ -40,56 +37,246 @@
         </div>
     </div>
 
-    <div class="card p-4 shadow-sm border-secondary">
-        <h2 class="card-title text-secondary"><i class="fas fa-clipboard-check"></i> Verificación de Consistencia</h2>
-        <p class="text-muted">
-            Esta sección asegura que el saldo registrado en el sistema es matemáticamente consistente con los pagos y las ventas.
-        </p>
-
-        <table class="table table-sm table-hover mt-3 align-middle">
-            <thead class="table-dark">
-                <tr>
-                    <th>Cálculo</th>
-                    <th class="text-end">Monto</th>
-                    <th style="width: 120px;" class="text-center">Resultado</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><i class="fas fa-money-check-alt"></i> Pagos Reales (Suma de Abonos)</td>
-                    <td class="text-end fw-bold">${{ consistencia.real|default:"0.00"|floatformat:2|intcomma }}</td>
-                    <td>-</td>
-                </tr>
-                <tr>
-                    <td><i class="fas fa-equals"></i> Pagos Esperados (Total Venta - Saldo Pendiente)</td>
-                    <td class="text-end fw-bold">${{ consistencia.esperado|default:"0.00"|floatformat:2|intcomma }}</td>
-                    <td>-</td>
-                </tr>
-                <tr class="{% if not consistencia.es_consistente %}table-danger{% else %}table-success{% endif %}">
-                    <td class="fw-bold">Estado de Consistencia</td>
-                    <td class="text-end fw-bold">
-                        Diferencia: 
-                        {% if consistencia.diferencia > 0 %}<span class="text-success">+</span>{% endif %}
-                        {% if consistencia.diferencia < 0 %}<span class="text-danger">-</span>{% endif %}
-                        ${{ consistencia.diferencia|default:"0.00"|floatformat:2|intcomma|cut:"-" }}
-                    </td>
-                    <td class="text-center">
+    <div class="row g-4 mb-4">
+        <!-- Tarjeta de Verificación de Consistencia -->
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-secondary">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="card-title mb-0"><i class="fas fa-clipboard-check me-2"></i>Verificación de Consistencia</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Esta sección asegura que el saldo registrado en el sistema es matemáticamente consistente con los pagos y las ventas.
+                    </p>
+                    
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="small"><i class="fas fa-money-check-alt me-2"></i>Pagos Reales</span>
+                            <strong>${{ consistencia.real|default:"0.00"|floatformat:2|intcomma }}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="small"><i class="fas fa-equals me-2"></i>Pagos Esperados</span>
+                            <strong>${{ consistencia.esperado|default:"0.00"|floatformat:2|intcomma }}</strong>
+                        </div>
+                        <hr>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="small fw-bold">Diferencia</span>
+                            <strong class="{% if consistencia.diferencia > 0 %}text-success{% elif consistencia.diferencia < 0 %}text-danger{% else %}text-secondary{% endif %}">
+                                {% if consistencia.diferencia > 0 %}+{% elif consistencia.diferencia < 0 %}-{% endif %}
+                                ${{ consistencia.diferencia|default:"0.00"|floatformat:2|intcomma|cut:"-" }}
+                            </strong>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center">
                         {% if consistencia.es_consistente %}
-                            <span class="badge bg-success">👍 OK</span>
+                            <span class="badge bg-success fs-6"><i class="fas fa-check-circle me-1"></i>OK</span>
                         {% else %}
-                            <span class="badge bg-danger">⚠️ ERROR</span>
+                            <span class="badge bg-danger fs-6"><i class="fas fa-exclamation-triangle me-1"></i>ERROR</span>
                         {% endif %}
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-        
-        {% if not consistencia.es_consistente %}
-            <div class="alert alert-danger mt-3">
-                <i class="fas fa-bug"></i> Alerta: ¡Se detectó una inconsistencia financiera! La diferencia es de 
-                <span class="fw-bold">${{ consistencia.diferencia|floatformat:2|intcomma }}</span>. Por favor, revise el cálculo y los abonos de las ventas.
+                    </div>
+                    
+                    {% if not consistencia.es_consistente %}
+                        <div class="alert alert-danger mt-3 mb-0 small">
+                            <i class="fas fa-bug"></i> Alerta: ¡Se detectó una inconsistencia financiera! La diferencia es de 
+                            <span class="fw-bold">${{ consistencia.diferencia|floatformat:2|intcomma }}</span>. Por favor, revise el cálculo y los abonos de las ventas.
+                        </div>
+                    {% endif %}
+                </div>
             </div>
-        {% endif %}
+        </div>
+        
+        <!-- Tarjeta de Historial de Movimientos -->
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0"><i class="fas fa-history me-2"></i>Historial de Movimientos</h5>
+                </div>
+                <div class="card-body">
+                    {% if ultimos_movimientos %}
+                        <h6 class="text-muted mb-3"><i class="fas fa-clock me-2"></i>Últimos 5 movimientos</h6>
+                        <div id="carouselMovimientos" class="carousel slide" data-bs-ride="carousel" data-bs-interval="3000">
+                            <div class="carousel-inner">
+                                {% for item in ultimos_movimientos %}
+                                    <div class="carousel-item {% if forloop.first %}active{% endif %}">
+                                        <div class="p-3 border rounded bg-light" style="min-height: 150px;">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div class="flex-grow-1">
+                                                    <small class="text-muted d-block mb-2">
+                                                        <i class="fas fa-calendar-alt me-1"></i>{{ item.movimiento.fecha_hora|date:"d/m/Y H:i" }}
+                                                    </small>
+                                                    <div class="mb-2">
+                                                        <span class="badge bg-secondary small">{{ item.movimiento.usuario.username|default:"Sistema" }}</span>
+                                                        <span class="badge {% if item.movimiento.nivel == 'INFO' %}bg-info{% elif item.movimiento.nivel == 'WARNING' %}bg-warning text-dark{% elif item.movimiento.nivel == 'ERROR' %}bg-danger{% else %}bg-secondary{% endif %} small ms-1">
+                                                            {{ item.movimiento.get_tipo_evento_display }}
+                                                        </span>
+                                                    </div>
+                                                    <p class="mb-2 small">{{ item.movimiento.descripcion|truncatewords:20 }}</p>
+                                                    {% if item.enlace_url %}
+                                                        <a href="{{ item.enlace_url }}" class="btn btn-sm btn-primary" title="{{ item.enlace_texto }}">
+                                                            <i class="fas fa-external-link-alt me-1"></i>{{ item.enlace_texto }}
+                                                        </a>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            {% if ultimos_movimientos|length > 1 %}
+                                <button class="carousel-control-prev" type="button" data-bs-target="#carouselMovimientos" data-bs-slide="prev" style="width: 5%;">
+                                    <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                                    <span class="visually-hidden">Anterior</span>
+                                </button>
+                                <button class="carousel-control-next" type="button" data-bs-target="#carouselMovimientos" data-bs-slide="next" style="width: 5%;">
+                                    <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                                    <span class="visually-hidden">Siguiente</span>
+                                </button>
+                                <div class="text-center mt-2">
+                                    {% for item in ultimos_movimientos %}
+                                        <button type="button" class="carousel-indicator-btn" data-bs-target="#carouselMovimientos" data-bs-slide-to="{{ forloop.counter0 }}" {% if forloop.first %}data-active="true"{% endif %} aria-label="Slide {{ forloop.counter }}" style="width: 10px; height: 10px; border-radius: 50%; border: 1px solid #0d6efd; background-color: {% if forloop.first %}#0d6efd{% else %}#ffffff{% endif %}; margin: 0 3px; padding: 0; cursor: pointer;"></button>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="text-center mt-3">
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#historialMovimientosModal">
+                                <i class="fas fa-history me-2"></i>Ver Historial Completo
+                            </button>
+                        </div>
+                    {% else %}
+                        <div class="text-center">
+                            <i class="fas fa-list-alt fa-3x text-primary mb-3"></i>
+                            <p class="text-muted mb-3">
+                                Visualiza todos los movimientos del sistema: ventas, cotizaciones, abonos, clientes, usuarios, proveedores, ejecutivos, logística, confirmaciones y eventos de Kilómetros Movums.
+                            </p>
+                            <button type="button" class="btn btn-primary btn-lg" data-bs-toggle="modal" data-bs-target="#historialMovimientosModal">
+                                <i class="fas fa-history me-2"></i>Ver Historial Completo
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block modals %}
+    <!-- Modal de Historial de Movimientos -->
+    <div class="modal fade" id="historialMovimientosModal" tabindex="-1" aria-labelledby="historialMovimientosModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="historialMovimientosModalLabel">
+                        <i class="fas fa-history me-2"></i>Historial de Movimientos del Sistema
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Filtros -->
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title mb-3"><i class="fas fa-filter me-2"></i>Filtros de Búsqueda</h6>
+                            <form id="filtrosHistorialForm" class="row g-3">
+                                <div class="col-md-3">
+                                    <label for="filtroTipoEvento" class="form-label small">Tipo de Evento</label>
+                                    <select id="filtroTipoEvento" class="form-select form-select-sm">
+                                        <option value="">Todos los tipos</option>
+                                        <option value="VENTA_CREADA">Venta Creada</option>
+                                        <option value="VENTA_EDITADA">Venta Editada</option>
+                                        <option value="COTIZACION_CREADA">Cotización Creada</option>
+                                        <option value="COTIZACION_CONVERTIDA">Cotización Convertida</option>
+                                        <option value="ABONO_REGISTRADO">Abono Registrado</option>
+                                        <option value="ABONO_CONFIRMADO">Abono Confirmado</option>
+                                        <option value="CLIENTE_CREADO">Cliente Creado</option>
+                                        <option value="CLIENTE_EDITADO">Cliente Editado</option>
+                                        <option value="USUARIO_CREADO">Usuario Creado</option>
+                                        <option value="USUARIO_EDITADO">Usuario Editado</option>
+                                        <option value="KILOMETROS_ACUMULADOS">Kilómetros Acumulados</option>
+                                        <option value="KILOMETROS_REDIMIDOS">Kilómetros Redimidos</option>
+                                        <option value="PROMOCION_CREADA">Promoción Creada</option>
+                                        <option value="PROMOCION_EDITADA">Promoción Editada</option>
+                                        <option value="PROVEEDOR_CREADO">Proveedor Creado</option>
+                                        <option value="PROVEEDOR_EDITADO">Proveedor Editado</option>
+                                        <option value="EJECUTIVO_CREADO">Ejecutivo Creado</option>
+                                        <option value="EJECUTIVO_EDITADO">Ejecutivo Editado</option>
+                                        <option value="LOGISTICA_ACTUALIZADA">Logística Actualizada</option>
+                                        <option value="CONFIRMACION_SUBIDA">Confirmación Subida</option>
+                                        <option value="CONFIRMACION_ELIMINADA">Confirmación Eliminada</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="filtroUsuario" class="form-label small">Usuario</label>
+                                    <select id="filtroUsuario" class="form-select form-select-sm">
+                                        <option value="">Todos los usuarios</option>
+                                        {% for user in usuarios %}
+                                        <option value="{{ user.pk }}">{{ user.username }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="filtroFechaDesde" class="form-label small">Fecha Desde</label>
+                                    <input type="date" id="filtroFechaDesde" class="form-control form-control-sm">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="filtroFechaHasta" class="form-label small">Fecha Hasta</label>
+                                    <input type="date" id="filtroFechaHasta" class="form-control form-control-sm">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="filtroBusqueda" class="form-label small">Búsqueda</label>
+                                    <input type="text" id="filtroBusqueda" class="form-control form-control-sm" placeholder="Buscar...">
+                                </div>
+                                <div class="col-12">
+                                    <button type="button" id="btnAplicarFiltros" class="btn btn-primary btn-sm me-2">
+                                        <i class="fas fa-search me-1"></i>Aplicar Filtros
+                                    </button>
+                                    <button type="button" id="btnLimpiarFiltros" class="btn btn-outline-secondary btn-sm">
+                                        <i class="fas fa-times me-1"></i>Limpiar
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Tabla de Movimientos -->
+                    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                        <table class="table table-sm table-hover align-middle">
+                            <thead class="table-light" style="position: sticky; top: 0; z-index: 1063 !important; background-color: #f8f9fa !important;">
+                                <tr>
+                                    <th style="width: 150px;">Fecha y Hora</th>
+                                    <th style="width: 120px;">Usuario</th>
+                                    <th style="width: 180px;">Tipo</th>
+                                    <th>Descripción</th>
+                                    <th style="width: 100px;" class="text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaMovimientos">
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        <i class="fas fa-spinner fa-spin me-2"></i>Cargando movimientos...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación -->
+                    <div id="paginacionMovimientos" class="mt-3 d-flex justify-content-between align-items-center">
+                        <div class="text-muted small">
+                            Mostrando <span id="mostrandoDesde">0</span> - <span id="mostrandoHasta">0</span> de <span id="totalMovimientos">0</span> movimientos
+                        </div>
+                        <nav>
+                            <ul class="pagination pagination-sm mb-0" id="paginacionNav">
+                                <!-- Se llenará dinámicamente -->
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
     </div>
 {% endblock %}
 
@@ -97,4 +284,237 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" 
           integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLMD/cd2jBDEXk4B7Hw22Z5+gD5b7t9R1B1xR1wM8t7j07JtMv0jXw4W5r3v5sXw==" 
           crossorigin="anonymous" referrerpolicy="no-referrer" />
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const modal = document.getElementById('historialMovimientosModal');
+    const tablaMovimientos = document.getElementById('tablaMovimientos');
+    const paginacionNav = document.getElementById('paginacionNav');
+    const btnAplicarFiltros = document.getElementById('btnAplicarFiltros');
+    const btnLimpiarFiltros = document.getElementById('btnLimpiarFiltros');
+    let currentPage = 1;
+
+    // Cargar usuarios para el filtro
+    function cargarUsuarios() {
+        // Esto se puede hacer con una llamada AJAX o pasar desde el contexto
+        // Por ahora, dejamos el select vacío y se llenará dinámicamente si es necesario
+    }
+
+    // Cargar movimientos
+    function cargarMovimientos(page = 1) {
+        currentPage = page;
+        const params = new URLSearchParams({
+            page: page,
+            tipo_evento: document.getElementById('filtroTipoEvento').value || '',
+            usuario: document.getElementById('filtroUsuario').value || '',
+            fecha_desde: document.getElementById('filtroFechaDesde').value || '',
+            fecha_hasta: document.getElementById('filtroFechaHasta').value || '',
+            busqueda: document.getElementById('filtroBusqueda').value || '',
+        });
+
+        tablaMovimientos.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin me-2"></i>Cargando movimientos...</td></tr>';
+
+        fetch(`{% url 'auditoria:historial_movimientos_ajax' %}?${params.toString()}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    mostrarMovimientos(data.movimientos);
+                    mostrarPaginacion(data.page, data.total_pages, data.total);
+                    actualizarContadores(data.total, data.page, data.per_page);
+                } else {
+                    tablaMovimientos.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">Error al cargar movimientos</td></tr>';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                tablaMovimientos.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">Error al cargar movimientos</td></tr>';
+            });
+    }
+
+    // Mostrar movimientos en la tabla
+    function mostrarMovimientos(movimientos) {
+        if (movimientos.length === 0) {
+            tablaMovimientos.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No se encontraron movimientos</td></tr>';
+            return;
+        }
+
+        let html = '';
+        movimientos.forEach(mov => {
+            const nivelClass = {
+                'INFO': 'text-info',
+                'WARNING': 'text-warning',
+                'ERROR': 'text-danger',
+                'CRITICAL': 'text-danger fw-bold'
+            }[mov.nivel] || 'text-secondary';
+
+            html += `
+                <tr>
+                    <td class="small">${mov.fecha_hora}</td>
+                    <td><span class="badge bg-secondary">${mov.usuario}</span></td>
+                    <td><span class="badge ${nivelClass}">${mov.tipo_evento}</span></td>
+                    <td class="small">${mov.descripcion}</td>
+                    <td class="text-center">
+                        ${mov.enlace_url ? `<a href="${mov.enlace_url}" class="btn btn-sm btn-outline-primary" title="${mov.enlace_texto}"><i class="fas fa-external-link-alt me-1"></i> Ver</a>` : '<span class="text-muted">-</span>'}
+                    </td>
+                </tr>
+            `;
+        });
+        tablaMovimientos.innerHTML = html;
+    }
+
+    // Mostrar paginación
+    function mostrarPaginacion(page, totalPages, total) {
+        if (totalPages <= 1) {
+            paginacionNav.innerHTML = '';
+            return;
+        }
+
+        let html = '';
+        
+        // Botón Anterior
+        if (page > 1) {
+            html += `<li class="page-item"><a class="page-link" href="#" data-page="${page - 1}">Anterior</a></li>`;
+        } else {
+            html += `<li class="page-item disabled"><span class="page-link">Anterior</span></li>`;
+        }
+
+        // Números de página
+        const startPage = Math.max(1, page - 2);
+        const endPage = Math.min(totalPages, page + 2);
+
+        if (startPage > 1) {
+            html += `<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>`;
+            if (startPage > 2) {
+                html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+            }
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            if (i === page) {
+                html += `<li class="page-item active"><span class="page-link">${i}</span></li>`;
+            } else {
+                html += `<li class="page-item"><a class="page-link" href="#" data-page="${i}">${i}</a></li>`;
+            }
+        }
+
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+            }
+            html += `<li class="page-item"><a class="page-link" href="#" data-page="${totalPages}">${totalPages}</a></li>`;
+        }
+
+        // Botón Siguiente
+        if (page < totalPages) {
+            html += `<li class="page-item"><a class="page-link" href="#" data-page="${page + 1}">Siguiente</a></li>`;
+        } else {
+            html += `<li class="page-item disabled"><span class="page-link">Siguiente</span></li>`;
+        }
+
+        paginacionNav.innerHTML = html;
+
+        // Agregar event listeners a los enlaces de paginación
+        paginacionNav.querySelectorAll('a[data-page]').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                cargarMovimientos(parseInt(link.dataset.page));
+            });
+        });
+    }
+
+    // Actualizar contadores
+    function actualizarContadores(total, page, perPage) {
+        const desde = (page - 1) * perPage + 1;
+        const hasta = Math.min(page * perPage, total);
+        document.getElementById('mostrandoDesde').textContent = desde;
+        document.getElementById('mostrandoHasta').textContent = hasta;
+        document.getElementById('totalMovimientos').textContent = total;
+    }
+
+    // Event listeners
+    btnAplicarFiltros.addEventListener('click', () => {
+        cargarMovimientos(1);
+    });
+
+    btnLimpiarFiltros.addEventListener('click', () => {
+        document.getElementById('filtroTipoEvento').value = '';
+        document.getElementById('filtroUsuario').value = '';
+        document.getElementById('filtroFechaDesde').value = '';
+        document.getElementById('filtroFechaHasta').value = '';
+        document.getElementById('filtroBusqueda').value = '';
+        cargarMovimientos(1);
+    });
+
+    // Cargar movimientos cuando se abre el modal
+    modal.addEventListener('show.bs.modal', () => {
+        // Establecer fecha por defecto: últimos 30 días
+        const hoy = new Date();
+        const hace30Dias = new Date();
+        hace30Dias.setDate(hace30Dias.getDate() - 30);
+        
+        document.getElementById('filtroFechaDesde').value = hace30Dias.toISOString().split('T')[0];
+        document.getElementById('filtroFechaHasta').value = hoy.toISOString().split('T')[0];
+        
+        cargarMovimientos(1);
+    });
+
+    // Permitir búsqueda con Enter
+    document.getElementById('filtroBusqueda').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            cargarMovimientos(1);
+        }
+    });
+    
+    // Actualizar indicadores del carrusel cuando cambia el slide
+    const carouselMovimientos = document.getElementById('carouselMovimientos');
+    if (carouselMovimientos) {
+        // Función para actualizar los indicadores
+        function actualizarIndicadores(activeIndex) {
+            // Buscar el contenedor de indicadores (está dentro del mismo carrusel)
+            const indicadoresContainer = carouselMovimientos.querySelector('.text-center');
+            if (indicadoresContainer) {
+                const allIndicators = indicadoresContainer.querySelectorAll('.carousel-indicator-btn');
+                allIndicators.forEach((indicator, index) => {
+                    const slideTo = parseInt(indicator.getAttribute('data-bs-slide-to'));
+                    if (slideTo === activeIndex) {
+                        indicator.style.backgroundColor = '#0d6efd';
+                        indicator.setAttribute('data-active', 'true');
+                    } else {
+                        indicator.style.backgroundColor = '#ffffff';
+                        indicator.removeAttribute('data-active');
+                    }
+                });
+            }
+        }
+        
+        // Escuchar el evento cuando el carrusel COMIENZA a cambiar (para sincronización inmediata)
+        carouselMovimientos.addEventListener('slide.bs.carousel', function (e) {
+            actualizarIndicadores(e.to);
+        });
+        
+        // También escuchar cuando termina para asegurar sincronización
+        carouselMovimientos.addEventListener('slid.bs.carousel', function (e) {
+            actualizarIndicadores(e.to);
+        });
+        
+        // Inicializar indicadores al cargar la página (el primer slide está activo)
+        setTimeout(() => {
+            const activeItem = carouselMovimientos.querySelector('.carousel-item.active');
+            if (activeItem) {
+                const items = carouselMovimientos.querySelectorAll('.carousel-item');
+                let activeIndex = 0;
+                items.forEach((item, index) => {
+                    if (item === activeItem) {
+                        activeIndex = index;
+                    }
+                });
+                actualizarIndicadores(activeIndex);
+            }
+        }, 100);
+    }
+})();
+</script>
 {% endblock %}
