@@ -67,13 +67,23 @@
     </div>
   </div>
 
-  <div class="row g-3">
-    <div class="col-12 col-lg-5">
-      <div class="card shadow-sm mb-3 border-0">
-        <div class="card-header d-flex justify-content-between align-items-center bg-white border-0">
-          <strong class="text-primary"><i class="fas fa-bullhorn me-2"></i>Promociones</strong>
-        </div>
-        <div class="card-body p-0">
+  <!-- Acordeón de secciones -->
+  <div class="accordion" id="kilometrosAccordion">
+    <!-- Sección 1: Promociones -->
+    <div class="accordion-item shadow-sm border-0 mb-3">
+      <h2 class="accordion-header" id="headingPromociones">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePromociones" aria-expanded="false" aria-controls="collapsePromociones">
+          <div class="d-flex justify-content-between align-items-center w-100 me-3">
+            <div>
+              <i class="fas fa-bullhorn me-2 text-primary"></i>
+              <strong class="text-primary">Promociones</strong>
+            </div>
+            <span class="badge bg-primary">{{ promociones|length }}</span>
+          </div>
+        </button>
+      </h2>
+      <div id="collapsePromociones" class="accordion-collapse collapse" aria-labelledby="headingPromociones" data-bs-parent="#kilometrosAccordion">
+        <div class="accordion-body p-0">
           <div class="table-responsive">
             <table class="table mb-0 align-middle table-hover table-striped">
               <thead class="table-light">
@@ -124,207 +134,259 @@
             </table>
           </div>
         </div>
-        {% if request.user.perfil.rol == 'JEFE' %}
-        <div class="card-footer">
-          {% with tipo_actual=promocion_form.initial.tipo|default:promocion_form.instance.tipo|default:"" %}
-          <form method="post" class="row g-2">
-            {% csrf_token %}
-            {{ promocion_form.non_field_errors }}
-            <div class="col-12">
-              <label class="form-label mb-1">Nombre</label>
-              {{ promocion_form.nombre }}
-              {{ promocion_form.nombre.errors }}
-            </div>
-            <div class="col-12">
-              <label class="form-label mb-1">Descripción</label>
-              {{ promocion_form.descripcion }}
-              {{ promocion_form.descripcion.errors }}
-            </div>
-            <div class="col-6">
-              <label class="form-label mb-1">Tipo</label>
-              {{ promocion_form.tipo }}
-              {{ promocion_form.tipo.errors }}
-            </div>
-            <div class="col-3 {% if tipo_actual == 'KM' %}d-none{% endif %}" data-field="porcentaje">
-              <label class="form-label mb-1">% Descuento</label>
-              {{ promocion_form.porcentaje_descuento }}
-              {{ promocion_form.porcentaje_descuento.errors }}
-            </div>
-            <div class="col-3 {% if tipo_actual == 'KM' %}d-none{% endif %}" data-field="tope">
-              <label class="form-label mb-1">Tope MXN</label>
-              {{ promocion_form.monto_tope_mxn }}
-              {{ promocion_form.monto_tope_mxn.errors }}
-            </div>
-            <div class="col-3 {% if tipo_actual != 'KM' %}d-none{% endif %}" data-field="km_bono">
-              <label class="form-label mb-1">Km a bonificar</label>
-              {{ promocion_form.kilometros_bono }}
-              {{ promocion_form.kilometros_bono.errors }}
-            </div>
-            <div class="col-6">
-              <label class="form-label mb-1">Inicio</label>
-              {{ promocion_form.fecha_inicio }}
-              {{ promocion_form.fecha_inicio.errors }}
-            </div>
-            <div class="col-6">
-              <label class="form-label mb-1">Fin</label>
-              {{ promocion_form.fecha_fin }}
-              {{ promocion_form.fecha_fin.errors }}
-            </div>
-            <div class="col-6">
-              <label class="form-label mb-1">Condición</label>
-              {{ promocion_form.condicion }}
-              {{ promocion_form.condicion.errors }}
-            </div>
-            <div class="col-6">
-              <label class="form-label mb-1">Valor condición</label>
-              {{ promocion_form.valor_condicion }}
-              {{ promocion_form.valor_condicion.errors }}
-            </div>
-            <div class="col-6">
-              <label class="form-label mb-1">Alcance</label>
-              {{ promocion_form.alcance }}
-              {{ promocion_form.alcance.errors }}
-            </div>
-            <div class="col-6 d-flex align-items-end">
-              <div class="form-check mt-3">
-                {{ promocion_form.requiere_confirmacion }} <label class="form-check-label">Requiere confirmación</label>
+          {% if request.user.perfil.rol == 'JEFE' %}
+          <div class="card-footer bg-light">
+            {% with tipo_actual=promocion_form.initial.tipo|default:promocion_form.instance.tipo|default:"" %}
+            <form method="post" class="row g-2">
+              {% csrf_token %}
+              {{ promocion_form.non_field_errors }}
+              <div class="col-12">
+                <label class="form-label mb-1">Nombre</label>
+                {{ promocion_form.nombre }}
+                {{ promocion_form.nombre.errors }}
               </div>
-            </div>
-            <div class="col-12 d-flex align-items-center">
-              <div class="form-check">
-                {{ promocion_form.activa }} <label class="form-check-label">Activa</label>
+              <div class="col-12">
+                <label class="form-label mb-1">Descripción</label>
+                {{ promocion_form.descripcion }}
+                {{ promocion_form.descripcion.errors }}
               </div>
-            </div>
-            <div class="col-12 text-end">
-              <button class="btn btn-primary btn-sm" type="submit">Guardar promoción</button>
-            </div>
-          </form>
-          {% endwith %}
+              <div class="col-6">
+                <label class="form-label mb-1">Tipo</label>
+                {{ promocion_form.tipo }}
+                {{ promocion_form.tipo.errors }}
+              </div>
+              <div class="col-3 {% if tipo_actual == 'KM' %}d-none{% endif %}" data-field="porcentaje">
+                <label class="form-label mb-1">% Descuento</label>
+                {{ promocion_form.porcentaje_descuento }}
+                {{ promocion_form.porcentaje_descuento.errors }}
+              </div>
+              <div class="col-3 {% if tipo_actual == 'KM' %}d-none{% endif %}" data-field="tope">
+                <label class="form-label mb-1">Tope MXN</label>
+                {{ promocion_form.monto_tope_mxn }}
+                {{ promocion_form.monto_tope_mxn.errors }}
+              </div>
+              <div class="col-3 {% if tipo_actual != 'KM' %}d-none{% endif %}" data-field="km_bono">
+                <label class="form-label mb-1">Km a bonificar</label>
+                {{ promocion_form.kilometros_bono }}
+                {{ promocion_form.kilometros_bono.errors }}
+              </div>
+              <div class="col-6">
+                <label class="form-label mb-1">Inicio</label>
+                {{ promocion_form.fecha_inicio }}
+                {{ promocion_form.fecha_inicio.errors }}
+              </div>
+              <div class="col-6">
+                <label class="form-label mb-1">Fin</label>
+                {{ promocion_form.fecha_fin }}
+                {{ promocion_form.fecha_fin.errors }}
+              </div>
+              <div class="col-6">
+                <label class="form-label mb-1">Condición</label>
+                {{ promocion_form.condicion }}
+                {{ promocion_form.condicion.errors }}
+              </div>
+              <div class="col-6">
+                <label class="form-label mb-1">Valor condición</label>
+                {{ promocion_form.valor_condicion }}
+                {{ promocion_form.valor_condicion.errors }}
+              </div>
+              <div class="col-6">
+                <label class="form-label mb-1">Alcance</label>
+                {{ promocion_form.alcance }}
+                {{ promocion_form.alcance.errors }}
+              </div>
+              <div class="col-6 d-flex align-items-end">
+                <div class="form-check mt-3">
+                  {{ promocion_form.requiere_confirmacion }} <label class="form-check-label">Requiere confirmación</label>
+                </div>
+              </div>
+              <div class="col-12 d-flex align-items-center">
+                <div class="form-check">
+                  {{ promocion_form.activa }} <label class="form-check-label">Activa</label>
+                </div>
+              </div>
+              <div class="col-12 text-end">
+                <button class="btn btn-primary btn-sm" type="submit">Guardar promoción</button>
+              </div>
+            </form>
+            {% endwith %}
+          </div>
+          {% endif %}
         </div>
-        {% endif %}
+      </div>
+
+    <!-- Sección 2: Ventas con promociones aplicadas -->
+    <div class="accordion-item shadow-sm border-0 mb-3">
+      <h2 class="accordion-header" id="headingVentas">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseVentas" aria-expanded="false" aria-controls="collapseVentas">
+          <div class="d-flex justify-content-between align-items-center w-100 me-3">
+            <div>
+              <i class="fas fa-receipt me-2 text-success"></i>
+              <strong class="text-success">Ventas con promociones aplicadas</strong>
+            </div>
+            <span class="badge bg-success">{{ ventas_con_promos|length }}</span>
+          </div>
+        </button>
+      </h2>
+      <div id="collapseVentas" class="accordion-collapse collapse" aria-labelledby="headingVentas" data-bs-parent="#kilometrosAccordion">
+        <div class="accordion-body p-0">
+          <div class="table-responsive">
+            <table class="table mb-0 align-middle table-hover table-striped">
+              <thead class="table-light">
+                <tr>
+                  <th>ID</th>
+                  <th>Cliente</th>
+                  <th>Fecha viaje</th>
+                  <th>Promo</th>
+                  <th>Pagado</th>
+                  <th>Saldo</th>
+                  <th>Estado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for v in ventas_con_promos %}
+                <tr>
+                  <td>#{{ v.id }}</td>
+                  <td><a href="{% url 'detalle_cliente' pk=v.cliente.pk %}" class="text-decoration-none">{{ v.cliente }}</a></td>
+                  <td>{{ v.fecha_inicio_viaje|date:"d M Y" }}</td>
+                  <td>${{ v.descuento_promociones_mxn|floatformat:2|intcomma }}</td>
+                  <td>${{ v.total_pagado|floatformat:2|intcomma }}</td>
+                  <td>
+                    {% if v.saldo_restante > 0 %}
+                      <span class="badge bg-danger">${{ v.saldo_restante|floatformat:2|intcomma }}</span>
+                    {% else %}
+                      <span class="badge bg-success">Pagado</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if v.estado_confirmacion == 'EN_CONFIRMACION' %}
+                      <span class="badge bg-warning text-dark">En confirmación</span>
+                    {% elif v.saldo_restante > 0 %}
+                      <span class="badge bg-info text-dark">Pendiente</span>
+                    {% else %}
+                      <span class="badge bg-success">Completado</span>
+                    {% endif %}
+                  </td>
+                  <td><a href="{% url 'detalle_venta' slug=v.slug_safe pk=v.pk %}" class="btn btn-sm btn-outline-primary">Ver</a></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" class="text-center text-muted py-3">Sin ventas con promociones.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="col-12 col-lg-7">
-      <div class="card shadow-sm mb-3 border-0">
-        <div class="card-header d-flex justify-content-between align-items-center bg-white border-0">
-          <strong class="text-primary"><i class="fas fa-receipt me-2"></i>Ventas con promociones aplicadas</strong>
-          <span class="badge bg-primary">{{ ventas_con_promos|length }}</span>
-        </div>
-        <div class="table-responsive">
-          <table class="table mb-0 align-middle table-hover table-striped">
-            <thead class="table-light">
-              <tr>
-                <th>ID</th>
-                <th>Cliente</th>
-                <th>Fecha viaje</th>
-                <th>Promo</th>
-                <th>Pagado</th>
-                <th>Saldo</th>
-                <th>Estado</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for v in ventas_con_promos %}
-              <tr>
-                <td>#{{ v.id }}</td>
-                <td><a href="{% url 'detalle_cliente' pk=v.cliente.pk %}" class="text-decoration-none">{{ v.cliente }}</a></td>
-                <td>{{ v.fecha_inicio_viaje|date:"d M Y" }}</td>
-                <td>${{ v.descuento_promociones_mxn|floatformat:2|intcomma }}</td>
-                <td>${{ v.total_pagado|floatformat:2|intcomma }}</td>
-                <td>
-                  {% if v.saldo_restante > 0 %}
-                    <span class="badge bg-danger">${{ v.saldo_restante|floatformat:2|intcomma }}</span>
-                  {% else %}
-                    <span class="badge bg-success">Pagado</span>
-                  {% endif %}
-                </td>
-                <td>
-                  {% if v.estado_confirmacion == 'EN_CONFIRMACION' %}
-                    <span class="badge bg-warning text-dark">En confirmación</span>
-                  {% elif v.saldo_restante > 0 %}
-                    <span class="badge bg-info text-dark">Pendiente</span>
-                  {% else %}
-                    <span class="badge bg-success">Completado</span>
-                  {% endif %}
-                </td>
-                <td><a href="{% url 'detalle_venta' slug=v.slug_safe pk=v.pk %}" class="btn btn-sm btn-outline-primary">Ver</a></td>
-              </tr>
-              {% empty %}
-              <tr><td colspan="9" class="text-center text-muted py-3">Sin ventas con promociones.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
+    <!-- Sección 3: Top socios -->
+    <div class="accordion-item shadow-sm border-0 mb-3">
+      <h2 class="accordion-header" id="headingSocios">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSocios" aria-expanded="false" aria-controls="collapseSocios">
+          <div class="d-flex justify-content-between align-items-center w-100 me-3">
+            <div>
+              <i class="fas fa-users me-2 text-info"></i>
+              <strong class="text-info">Top socios (km disponibles)</strong>
+            </div>
+            <span class="badge bg-info">{{ socios_count }} socios</span>
+          </div>
+        </button>
+      </h2>
+      <div id="collapseSocios" class="accordion-collapse collapse" aria-labelledby="headingSocios" data-bs-parent="#kilometrosAccordion">
+        <div class="accordion-body p-0">
+          <div class="table-responsive">
+            <table class="table mb-0 align-middle table-hover">
+              <thead class="table-light">
+                <tr>
+                  <th>Cliente</th>
+                  <th>Km disp.</th>
+                  <th>Km acum.</th>
+                  <th>Valor disponible</th>
+                  <th>Último mov.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for c in socios %}
+                  <tr>
+                    <td><a href="{% url 'detalle_cliente' pk=c.pk %}" class="text-decoration-none fw-bold">{{ c }}</a></td>
+                    <td><span class="badge bg-success">{{ c.kilometros_disponibles|floatformat:0|intcomma }}</span></td>
+                    <td>{{ c.kilometros_acumulados|floatformat:0|intcomma }}</td>
+                    <td><strong class="text-success">${{ c.valor_disponible_mxn|floatformat:2|intcomma }}</strong></td>
+                    <td>{% if c.ultima_fecha_km %}{{ c.ultima_fecha_km|date:"d/m/Y H:i" }}{% else %}-{% endif %}</td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="5" class="text-center text-muted py-3">Sin socios registrados.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
+    </div>
 
-      <div class="card shadow-sm mb-3">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <strong>Top socios (km disponibles)</strong>
-          <span class="badge bg-secondary">{{ socios_count }} socios</span>
-        </div>
-        <div class="table-responsive">
-          <table class="table mb-0 align-middle">
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Km disp.</th>
-                <th>Km acum.</th>
-                <th>Último mov.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for c in socios %}
+    <!-- Sección 4: Movimientos recientes -->
+    <div class="accordion-item shadow-sm border-0 mb-3">
+      <h2 class="accordion-header" id="headingMovimientos">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMovimientos" aria-expanded="false" aria-controls="collapseMovimientos">
+          <div class="d-flex justify-content-between align-items-center w-100 me-3">
+            <div>
+              <i class="fas fa-history me-2 text-warning"></i>
+              <strong class="text-warning">Movimientos recientes</strong>
+            </div>
+            <span class="badge bg-warning text-dark">{{ movimientos|length }}</span>
+          </div>
+        </button>
+      </h2>
+      <div id="collapseMovimientos" class="accordion-collapse collapse" aria-labelledby="headingMovimientos" data-bs-parent="#kilometrosAccordion">
+        <div class="accordion-body p-0">
+          <div class="table-responsive">
+            <table class="table mb-0 align-middle table-hover">
+              <thead class="table-light">
                 <tr>
-                  <td><a href="{% url 'detalle_cliente' pk=c.pk %}" class="text-decoration-none">{{ c }}</a></td>
-                  <td>{{ c.kilometros_disponibles|floatformat:0|intcomma }}</td>
-                  <td>{{ c.kilometros_acumulados|floatformat:0|intcomma }}</td>
-                  <td>{% if c.ultima_fecha_km %}{{ c.ultima_fecha_km|date:"d/m/Y H:i" }}{% else %}-{% endif %}</td>
+                  <th>Fecha</th>
+                  <th>Cliente</th>
+                  <th>Kilómetros</th>
+                  <th>Pesos MXN</th>
+                  <th>Descripción</th>
+                  <th class="text-center">Acciones</th>
                 </tr>
-              {% empty %}
-                <tr><td colspan="4" class="text-center text-muted py-3">Sin socios registrados.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="card shadow-sm">
-        <div class="card-header">
-          <strong>Movimientos recientes</strong>
-        </div>
-        <div class="table-responsive">
-          <table class="table mb-0 align-middle">
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Cliente</th>
-                <th>Tipo</th>
-                <th>Kilómetros</th>
-                <th>Descripción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for mov in movimientos %}
-                <tr>
-                  <td>{{ mov.fecha_registro|date:"d/m/Y H:i" }}</td>
-                  <td>{{ mov.cliente }}</td>
-                  <td>{{ mov.get_tipo_evento_display }}</td>
-                  <td>
-                    {% if mov.es_redencion %}<span class="text-danger">-{{ mov.kilometros|floatformat:0|intcomma }}</span>
-                    {% else %}<span class="text-success">+{{ mov.kilometros|floatformat:0|intcomma }}</span>{% endif %}
-                  </td>
-                  <td>{{ mov.descripcion|default:"-" }}</td>
-                </tr>
-              {% empty %}
-                <tr><td colspan="5" class="text-center text-muted py-3">Sin movimientos.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        <div class="card-footer">
+              </thead>
+              <tbody>
+                {% for mov in movimientos %}
+                  <tr>
+                    <td>{{ mov.fecha_registro|date:"d/m/Y H:i" }}</td>
+                    <td><a href="{% url 'detalle_cliente' pk=mov.cliente.pk %}" class="text-decoration-none">{{ mov.cliente }}</a></td>
+                    <td>
+                      {% if mov.es_redencion %}<span class="text-danger">-{{ mov.kilometros|floatformat:0|intcomma }}</span>
+                      {% else %}<span class="text-success">+{{ mov.kilometros|floatformat:0|intcomma }}</span>{% endif %}
+                    </td>
+                    <td>
+                      {% if mov.es_redencion %}
+                        <span class="text-danger">-${{ mov.valor_equivalente|floatformat:2|intcomma }}</span>
+                      {% else %}
+                        <span class="text-success">${{ mov.valor_equivalente|floatformat:2|intcomma }}</span>
+                      {% endif %}
+                    </td>
+                    <td>{{ mov.descripcion|default:"-" }}</td>
+                    <td class="text-center">
+                      {% if mov.venta %}
+                        <a href="{% url 'detalle_venta' slug=mov.venta.slug_safe pk=mov.venta.pk %}" class="btn btn-sm btn-outline-primary" title="Ver detalle de la venta">
+                          <i class="fas fa-eye me-1"></i>Ver Venta
+                        </a>
+                      {% else %}
+                        <span class="text-muted small">-</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="6" class="text-center text-muted py-3">Sin movimientos.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
           {% if is_paginated %}
+          <div class="card-footer bg-light">
             <nav aria-label="Paginación">
               <ul class="pagination pagination-sm mb-0 justify-content-end">
                 {% if page_obj.has_previous %}
@@ -336,6 +398,7 @@
                 {% endif %}
               </ul>
             </nav>
+          </div>
           {% endif %}
         </div>
       </div>

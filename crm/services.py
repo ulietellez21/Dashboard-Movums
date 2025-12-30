@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from datetime import timedelta
 from django.db import transaction
 from django.utils import timezone
@@ -117,7 +117,8 @@ class KilometrosService:
             return Decimal('0.00'), Decimal('0.00')
         max_valor = venta_total * cls.MAX_PORCENTAJE_REDENCION
         max_km = max_valor / cls.VALOR_PESO_POR_KM
-        return max_km.quantize(Decimal('0.01')), max_valor.quantize(Decimal('0.01'))
+        # Usar ROUND_HALF_UP: del 1-4 baja, del 5-9 sube (redondeo estándar)
+        return max_km.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP), max_valor.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
     @classmethod
     def redimir(cls, cliente: Cliente, kilometros, venta=None, descripcion="Redención aplicada a servicio"):
