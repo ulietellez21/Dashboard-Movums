@@ -932,9 +932,21 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         kwargs = super().get_form_kwargs()
         kwargs['request'] = self.request
         
-        # Pre-llenar valores desde cotización si existe
+        # Pre-llenar valores desde cotización si existe (tiene prioridad)
         cot_slug = self.request.GET.get('cotizacion')
         cotizacion_data = self.request.session.get('cotizacion_convertir', {})
+        
+        # Pre-seleccionar cliente si viene en la URL (desde detalle del cliente)
+        # Solo si no hay cotización (la cotización tiene prioridad)
+        cliente_pk = self.request.GET.get('cliente_pk')
+        if cliente_pk and not (cot_slug or cotizacion_data):
+            if 'initial' not in kwargs:
+                kwargs['initial'] = {}
+            try:
+                cliente = Cliente.objects.get(pk=cliente_pk)
+                kwargs['initial']['cliente'] = cliente
+            except Cliente.DoesNotExist:
+                pass
         
         # Función auxiliar para limpiar y convertir totales
         def limpiar_y_convertir_total(valor):
@@ -1286,10 +1298,47 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         
         # 5. Llama a save_m2m (necesario si hay campos ManyToMany en VentaViajeForm)
         form.save_m2m() 
+        
+        # 5.1. KILÓMETROS MOVUMS: Primero redimir (si aplica), luego acumular sobre el total CON descuento
         try:
-            KilometrosService.acumular_por_compra(self.object.cliente, self.object.costo_venta_final, venta=self.object)
+            # PRIMERO: Redimir kilómetros si se aplicó descuento
+            if self.object.aplica_descuento_kilometros and self.object.descuento_kilometros_mxn > 0:
+                # Calcular kilómetros a redimir: descuento_mxn / valor_por_km (0.05)
+                km_a_redimir = (self.object.descuento_kilometros_mxn / KilometrosService.VALOR_PESO_POR_KM).quantize(Decimal('0.01'))
+                if km_a_redimir > 0:
+                    registro_redencion = KilometrosService.redimir(
+                        cliente=self.object.cliente,
+                        kilometros=km_a_redimir,
+                        venta=self.object,
+                        descripcion=f"Redención aplicada a venta #{self.object.pk}: ${self.object.descuento_kilometros_mxn:,.2f} MXN"
+                    )
+                    if registro_redencion:
+                        logger.info(f"✅ Kilómetros redimidos para venta {self.object.pk}: {km_a_redimir} km (${self.object.descuento_kilometros_mxn:,.2f} MXN)")
+                    else:
+                        logger.warning(f"⚠️ No se pudieron redimir kilómetros para venta {self.object.pk} (posible saldo insuficiente)")
+            
+            # DESPUÉS: Acumular kilómetros por la compra
+            # IMPORTANTE: Se acumula sobre el total CON descuento (después de aplicar el descuento de kilómetros)
+            # según las reglas: "Cada $1 MXN gastado = 0.5 Kilómetro Movums"
+            # El cliente gasta el costo_venta_final menos el descuento de kilómetros
+            if self.object.cliente and self.object.cliente.participa_kilometros:
+                # Calcular el monto sobre el cual acumular: costo_venta_final - descuento_kilometros_mxn
+                monto_para_acumular = self.object.costo_venta_final
+                if self.object.aplica_descuento_kilometros and self.object.descuento_kilometros_mxn > 0:
+                    monto_para_acumular = monto_para_acumular - self.object.descuento_kilometros_mxn
+                monto_para_acumular = max(Decimal('0.00'), monto_para_acumular)
+                
+                if monto_para_acumular > 0:
+                    registro_acumulacion = KilometrosService.acumular_por_compra(
+                        self.object.cliente, 
+                        monto_para_acumular,  # Se acumula sobre el total con descuento
+                        venta=self.object
+                    )
+                    if registro_acumulacion:
+                        km_acumulados = monto_para_acumular * KilometrosService.KM_POR_PESO
+                        logger.info(f"✅ Kilómetros acumulados para venta {self.object.pk}: {km_acumulados} km (por ${monto_para_acumular:,.2f} MXN)")
         except Exception:
-            logger.exception("No se pudieron acumular kilómetros para la venta %s", self.object.pk)
+            logger.exception("❌ Error procesando kilómetros Movums para la venta %s", self.object.pk)
     
         # 5.1. Lógica de notificaciones para apertura con Transferencia/Tarjeta
         # ✅ NUEVO FLUJO: NO se crean notificaciones automáticas
@@ -1397,12 +1446,21 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         Maneja la validación del formulario y actualiza el costo total
         incluyendo el costo de modificación si se proporciona.
         """
+        # Obtener valores anteriores ANTES de guardar
+        venta_anterior = VentaViaje.objects.get(pk=form.instance.pk)
+        aplica_descuento_anterior = venta_anterior.aplica_descuento_kilometros
+        descuento_anterior = venta_anterior.descuento_kilometros_mxn or Decimal('0.00')
+        
         # Obtener el costo de modificación del formulario
         costo_modificacion = form.cleaned_data.get('costo_modificacion', Decimal('0.00')) or Decimal('0.00')
         previo_modificacion = form.instance.costo_modificacion or Decimal('0.00')
         
         # Guardar la instancia
         self.object = form.save()
+        
+        # Obtener valores nuevos DESPUÉS de guardar
+        aplica_descuento_nuevo = self.object.aplica_descuento_kilometros
+        descuento_nuevo = self.object.descuento_kilometros_mxn or Decimal('0.00')
         
         mensaje = "Venta actualizada correctamente."
         if costo_modificacion > 0:
@@ -1418,6 +1476,42 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
             if self.object.costo_modificacion != previo_modificacion:
                 self.object.costo_modificacion = previo_modificacion
                 self.object.save(update_fields=['costo_modificacion'])
+        
+        # Manejar cambios en descuento de kilómetros
+        if self.object.cliente and self.object.cliente.participa_kilometros:
+            try:
+                # Si se aplicó descuento por primera vez o aumentó el descuento
+                if aplica_descuento_nuevo and descuento_nuevo > 0:
+                    if not aplica_descuento_anterior:
+                        # Primera vez que se aplica descuento
+                        km_a_redimir = (descuento_nuevo / KilometrosService.VALOR_PESO_POR_KM).quantize(Decimal('0.01'))
+                        if km_a_redimir > 0:
+                            registro_redencion = KilometrosService.redimir(
+                                cliente=self.object.cliente,
+                                kilometros=km_a_redimir,
+                                venta=self.object,
+                                descripcion=f"Redención aplicada a venta #{self.object.pk}: ${descuento_nuevo:,.2f} MXN"
+                            )
+                            if registro_redencion:
+                                logger.info(f"✅ Kilómetros redimidos en actualización de venta {self.object.pk}: {km_a_redimir} km")
+                    elif descuento_nuevo != descuento_anterior:
+                        # El descuento cambió
+                        diferencia = descuento_nuevo - descuento_anterior
+                        if diferencia > 0:
+                            # Descuento aumentó, redimir kilómetros adicionales
+                            km_diferencia = (diferencia / KilometrosService.VALOR_PESO_POR_KM).quantize(Decimal('0.01'))
+                            if km_diferencia > 0:
+                                registro_redencion = KilometrosService.redimir(
+                                    cliente=self.object.cliente,
+                                    kilometros=km_diferencia,
+                                    venta=self.object,
+                                    descripcion=f"Redención adicional aplicada a venta #{self.object.pk}: ${diferencia:,.2f} MXN"
+                                )
+                                if registro_redencion:
+                                    logger.info(f"✅ Kilómetros adicionales redimidos en actualización de venta {self.object.pk}: {km_diferencia} km")
+                        # Si diferencia < 0, no podemos "devolver" kilómetros ya redimidos
+            except Exception:
+                logger.exception("❌ Error procesando redención de kilómetros en actualización de venta %s", self.object.pk)
         
         self.object.actualizar_estado_financiero()
         messages.success(self.request, mensaje)
@@ -1626,6 +1720,54 @@ class ReporteFinancieroView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
             # Usamos una tolerancia pequeña para los decimales
             'es_consistente': abs(diferencia) < Decimal('0.01') 
         }
+        
+        # 4. Lista de usuarios para el filtro del historial
+        context['usuarios'] = User.objects.filter(is_active=True).order_by('username')
+        
+        # 5. Últimos 5 movimientos para la vista previa
+        try:
+            from auditoria.models import HistorialMovimiento
+            
+            ultimos_movimientos = HistorialMovimiento.objects.select_related('usuario', 'content_type').order_by('-fecha_hora')[:5]
+            
+            # Preparar los movimientos con enlaces
+            movimientos_preview = []
+            for mov in ultimos_movimientos:
+                enlace_url = None
+                enlace_texto = None
+                
+                if mov.content_type and mov.object_id:
+                    try:
+                        obj = mov.content_type.get_object_for_this_type(pk=mov.object_id)
+                        # Si el objeto es un AbonoPago, obtener la venta relacionada
+                        if isinstance(obj, AbonoPago):
+                            venta = obj.venta
+                            enlace_url = reverse('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}) + '?tab=abonos'
+                            enlace_texto = f"Ver Venta #{venta.pk}"
+                        elif isinstance(obj, VentaViaje):
+                            enlace_url = reverse('detalle_venta', kwargs={'pk': obj.pk, 'slug': obj.slug_safe})
+                            # Si es un movimiento de abono, agregar parámetro para ir directo a la pestaña de abonos
+                            if mov.tipo_evento in ['ABONO_REGISTRADO', 'ABONO_CONFIRMADO', 'ABONO_ELIMINADO']:
+                                enlace_url += '?tab=abonos'
+                            enlace_texto = f"Ver Venta #{obj.pk}"
+                        elif isinstance(obj, Cotizacion):
+                            enlace_url = reverse('detalle_cotizacion', kwargs={'slug': obj.slug})
+                            enlace_texto = "Ver Cotización"
+                        elif isinstance(obj, Cliente):
+                            enlace_url = reverse('detalle_cliente', kwargs={'pk': obj.pk})
+                            enlace_texto = "Ver Cliente"
+                    except Exception as e:
+                        pass
+                
+                movimientos_preview.append({
+                    'movimiento': mov,
+                    'enlace_url': enlace_url,
+                    'enlace_texto': enlace_texto,
+                })
+            
+            context['ultimos_movimientos'] = movimientos_preview
+        except ImportError:
+            context['ultimos_movimientos'] = []
         
         return context
 

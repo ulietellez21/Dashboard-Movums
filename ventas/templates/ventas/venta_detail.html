@@ -294,7 +294,7 @@
                                         {% if venta.tipo_viaje == 'INT' %}
                                             <div class="mb-3">
                                                 <label class="form-label">Monto (USD)</label>
-                                                <input type="number" step="0.01" min="0.01" class="form-control" id="montoUsd" name="monto_usd" placeholder="Ej: 100.00">
+                                                <input type="text" inputmode="decimal" step="0.01" min="0.01" class="form-control" id="montoUsd" name="monto_usd" placeholder="Ej: 100.00">
                                                 <div class="text-danger small d-none" id="montoUsdError">Ingresa un monto válido en USD.</div>
                                             </div>
                                             <div class="mb-3">
@@ -309,7 +309,7 @@
                                         {% else %}
                                             <div class="mb-3">
                                                 <label for="{{ abono_form.monto.id_for_label }}" class="form-label">Monto (Máximo: ${{ venta.saldo_restante|floatformat:2|intcomma }})</label>
-                                                {{ abono_form.monto|add_class:"form-control"|attr:"min:0.01"|attr:"max:"|add_max_attr:venta.saldo_restante }}
+                                                {{ abono_form.monto|add_class:"form-control"|attr:"type:text"|attr:"inputmode:decimal"|attr:"min:0.01"|attr:"max:"|add_max_attr:venta.saldo_restante }}
                                                 {% for error in abono_form.monto.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
                                             </div>
                                         {% endif %}
@@ -802,8 +802,9 @@
             const tipoCambioError = document.getElementById('tipoCambioError');
             abonoForm.addEventListener('submit', function(e) {
                 if (!montoUsdInput || !montoInput || !tipoCambioInput) return;
-                const usd = parseFloat(montoUsdInput.value);
-                const tc = parseFloat(tipoCambioInput.value);
+                // Usamos limpiarFormatoMoneda() para quitar '$', 'USD' y comas antes de convertir
+                const usd = parseFloat(limpiarFormatoMoneda(montoUsdInput.value));
+                const tc = parseFloat(limpiarFormatoMoneda(tipoCambioInput.value));
                 let hasError = false;
                 if (isNaN(usd) || usd <= 0) {
                     hasError = true;

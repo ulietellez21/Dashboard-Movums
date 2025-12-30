@@ -1,0 +1,190 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}Historial de Movimientos - Auditoría{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0">
+                    <i class="fas fa-history me-2"></i>Historial de Movimientos
+                </h2>
+                <div>
+                    <span class="badge bg-primary">Total: {{ total_movimientos|intcomma }}</span>
+                    <span class="badge bg-success">Hoy: {{ movimientos_hoy|intcomma }}</span>
+                    <span class="badge bg-info">Última semana: {{ movimientos_ultima_semana|intcomma }}</span>
+                </div>
+            </div>
+
+            <!-- Filtros -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtros</h5>
+                </div>
+                <div class="card-body">
+                    <form method="get" class="row g-3">
+                        <div class="col-md-3">
+                            <label for="tipo_evento" class="form-label">Tipo de Evento</label>
+                            <select name="tipo_evento" id="tipo_evento" class="form-select">
+                                <option value="">Todos</option>
+                                {% for codigo, nombre in tipos_evento %}
+                                    <option value="{{ codigo }}" {% if filtro_tipo == codigo %}selected{% endif %}>
+                                        {{ nombre }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="nivel" class="form-label">Nivel</label>
+                            <select name="nivel" id="nivel" class="form-select">
+                                <option value="">Todos</option>
+                                {% for codigo, nombre in niveles %}
+                                    <option value="{{ codigo }}" {% if filtro_nivel == codigo %}selected{% endif %}>
+                                        {{ nombre }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="fecha_desde" class="form-label">Fecha Desde</label>
+                            <input type="date" name="fecha_desde" id="fecha_desde" class="form-control" value="{{ filtro_fecha_desde }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="fecha_hasta" class="form-label">Fecha Hasta</label>
+                            <input type="date" name="fecha_hasta" id="fecha_hasta" class="form-control" value="{{ filtro_fecha_hasta }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="busqueda" class="form-label">Búsqueda</label>
+                            <input type="text" name="busqueda" id="busqueda" class="form-control" 
+                                   placeholder="Buscar en descripción..." value="{{ filtro_busqueda }}">
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search me-2"></i>Filtrar
+                            </button>
+                            <a href="{% url 'auditoria:historial_movimientos' %}" class="btn btn-secondary">
+                                <i class="fas fa-times me-2"></i>Limpiar
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Tabla de Movimientos -->
+            <div class="card">
+                <div class="card-body">
+                    {% if movimientos %}
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha y Hora</th>
+                                        <th>Tipo</th>
+                                        <th>Usuario</th>
+                                        <th>Nivel</th>
+                                        <th>Descripción</th>
+                                        <th>IP</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for movimiento in movimientos %}
+                                        <tr>
+                                            <td>
+                                                <small class="text-muted">
+                                                    {{ movimiento.fecha_hora|date:"d/m/Y" }}<br>
+                                                    {{ movimiento.fecha_hora|date:"H:i:s" }}
+                                                </small>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-secondary">
+                                                    {{ movimiento.get_tipo_evento_display }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                {% if movimiento.usuario %}
+                                                    <strong>{{ movimiento.usuario.username }}</strong>
+                                                {% else %}
+                                                    <span class="text-muted">Sistema</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if movimiento.nivel == 'INFO' %}
+                                                    <span class="badge bg-info">{{ movimiento.get_nivel_display }}</span>
+                                                {% elif movimiento.nivel == 'WARNING' %}
+                                                    <span class="badge bg-warning text-dark">{{ movimiento.get_nivel_display }}</span>
+                                                {% elif movimiento.nivel == 'ERROR' %}
+                                                    <span class="badge bg-danger">{{ movimiento.get_nivel_display }}</span>
+                                                {% elif movimiento.nivel == 'CRITICAL' %}
+                                                    <span class="badge bg-dark">{{ movimiento.get_nivel_display }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <div class="text-wrap" style="max-width: 400px;">
+                                                    {{ movimiento.descripcion }}
+                                                </div>
+                                            </td>
+                                            <td>
+                                                {% if movimiento.ip_address %}
+                                                    <small class="text-muted">{{ movimiento.ip_address }}</small>
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Paginación -->
+                        {% if is_paginated %}
+                            <nav aria-label="Paginación">
+                                <ul class="pagination justify-content-center">
+                                    {% if page_obj.has_previous %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page=1{% if filtro_tipo %}&tipo_evento={{ filtro_tipo }}{% endif %}{% if filtro_nivel %}&nivel={{ filtro_nivel }}{% endif %}{% if filtro_fecha_desde %}&fecha_desde={{ filtro_fecha_desde }}{% endif %}{% if filtro_fecha_hasta %}&fecha_hasta={{ filtro_fecha_hasta }}{% endif %}{% if filtro_busqueda %}&busqueda={{ filtro_busqueda }}{% endif %}">
+                                                Primera
+                                            </a>
+                                        </li>
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if filtro_tipo %}&tipo_evento={{ filtro_tipo }}{% endif %}{% if filtro_nivel %}&nivel={{ filtro_nivel }}{% endif %}{% if filtro_fecha_desde %}&fecha_desde={{ filtro_fecha_desde }}{% endif %}{% if filtro_fecha_hasta %}&fecha_hasta={{ filtro_fecha_hasta }}{% endif %}{% if filtro_busqueda %}&busqueda={{ filtro_busqueda }}{% endif %}">
+                                                Anterior
+                                            </a>
+                                        </li>
+                                    {% endif %}
+                                    
+                                    <li class="page-item active">
+                                        <span class="page-link">
+                                            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                                        </span>
+                                    </li>
+                                    
+                                    {% if page_obj.has_next %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if filtro_tipo %}&tipo_evento={{ filtro_tipo }}{% endif %}{% if filtro_nivel %}&nivel={{ filtro_nivel }}{% endif %}{% if filtro_fecha_desde %}&fecha_desde={{ filtro_fecha_desde }}{% endif %}{% if filtro_fecha_hasta %}&fecha_hasta={{ filtro_fecha_hasta }}{% endif %}{% if filtro_busqueda %}&busqueda={{ filtro_busqueda }}{% endif %}">
+                                                Siguiente
+                                            </a>
+                                        </li>
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if filtro_tipo %}&tipo_evento={{ filtro_tipo }}{% endif %}{% if filtro_nivel %}&nivel={{ filtro_nivel }}{% endif %}{% if filtro_fecha_desde %}&fecha_desde={{ filtro_fecha_desde }}{% endif %}{% if filtro_fecha_hasta %}&fecha_hasta={{ filtro_fecha_hasta }}{% endif %}{% if filtro_busqueda %}&busqueda={{ filtro_busqueda }}{% endif %}">
+                                                Última
+                                            </a>
+                                        </li>
+                                    {% endif %}
+                                </ul>
+                            </nav>
+                        {% endif %}
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>No se encontraron movimientos con los filtros seleccionados.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
