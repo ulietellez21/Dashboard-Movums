@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.db.models import Q, Max 
 from django.db import IntegrityError
 from django.views.decorators.http import require_POST
+from decimal import Decimal
 from .models import Cliente, HistorialKilometros, PromocionKilometros
 from ventas.models import VentaViaje
 from .services import KilometrosService
@@ -236,7 +237,11 @@ class KilometrosDashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView)
         })
         context['promociones'] = PromocionKilometros.objects.all().order_by('-creada_en')
         context['promocion_form'] = kwargs.get('promocion_form') or PromocionKilometrosForm()
-        context['socios'] = socios.order_by('-kilometros_disponibles')[:20]
+        # Calcular valor en pesos para cada socio
+        socios_list = list(socios.order_by('-kilometros_disponibles')[:20])
+        for socio in socios_list:
+            socio.valor_disponible_mxn = (socio.kilometros_disponibles or Decimal('0.00')) * Decimal('0.05')
+        context['socios'] = socios_list
         context['ventas_con_promos'] = (
             VentaViaje.objects.filter(descuento_promociones_mxn__gt=0)
             .select_related('cliente', 'vendedor')
