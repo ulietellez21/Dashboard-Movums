@@ -482,19 +482,48 @@ class LogisticaForm(forms.ModelForm):
 
 
 class LogisticaServicioForm(forms.ModelForm):
+    """Formulario para actualizar servicios de logística."""
+    
+    # Redefinimos monto_planeado como CharField para que acepte "$" y comas sin fallar
+    monto_planeado = forms.CharField(
+        label="Monto planificado",
+        widget=forms.TextInput(attrs={
+            'placeholder': 'Ej: 1500.00',
+            'class': 'form-control',
+            'type': 'text',  # Importante que sea text para permitir formato de moneda
+            'inputmode': 'decimal'
+        }),
+        required=False
+    )
+    
     class Meta:
         model = LogisticaServicio
         fields = ['monto_planeado', 'pagado', 'notas']
         widgets = {
-            'monto_planeado': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
             'pagado': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'notas': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Notas internas opcionales'}),
         }
         labels = {
-            'monto_planeado': 'Monto planificado',
             'pagado': 'Marcar como pagado',
             'notas': 'Notas',
         }
+    
+    def clean_monto_planeado(self):
+        """Limpia el formato de moneda (quita $ y comas) antes de validar."""
+        monto = self.cleaned_data.get('monto_planeado')
+        if monto:
+            # Si es string, limpiar formato (quitar $, USD, comas y espacios)
+            if isinstance(monto, str):
+                # Remover símbolos de moneda y formateo
+                monto_limpio = monto.replace('$', '').replace('USD', '').replace(',', '').replace(' ', '').strip()
+                try:
+                    monto = Decimal(monto_limpio)
+                except (ValueError, InvalidOperation):
+                    raise forms.ValidationError("Ingresa un monto válido.")
+            # Validar que el monto sea positivo o cero
+            if monto < 0:
+                raise forms.ValidationError("El monto no puede ser negativo.")
+        return monto or Decimal('0.00')
 
 
 LogisticaServicioFormSet = modelformset_factory(
