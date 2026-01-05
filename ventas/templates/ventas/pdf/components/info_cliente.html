@@ -1,6 +1,4 @@
 <div class="info-section">
-    <h1 class="titulo-principal">COTIZACIÓN</h1>
-    
     <div class="info-section-layout">
     <div class="info-section-main">
         <div class="card info-card-client">
@@ -13,8 +11,9 @@
             </div>
             <table class="info-table">
             {% if cotizacion.propuestas.tipo == 'traslados' %}
+                <!-- INICIO: Iconos en labels (PRUEBA - fácil de revertir) -->
                 <tr>
-                    <td>Desde / Hasta:</td>
+                    <td>🚗 Desde / Hasta:</td>
                     <td>
                         {{ cotizacion.propuestas.traslados.desde|default:cotizacion.origen|default:"-" }} / 
                         {{ cotizacion.propuestas.traslados.hasta|default:cotizacion.destino|default:"-" }}
@@ -22,7 +21,7 @@
                 </tr>
             {% elif cotizacion.propuestas.tipo == 'renta_autos' %}
                 <tr>
-                    <td>Punto de Origen / Punto de Regreso:</td>
+                    <td>🚙 Punto de Origen / Punto de Regreso:</td>
                     <td>
                         {{ cotizacion.propuestas.renta_autos.punto_origen|default:"-" }} / 
                         {{ cotizacion.propuestas.renta_autos.punto_regreso|default:"-" }}
@@ -30,7 +29,7 @@
                 </tr>
             {% else %}
                 <tr>
-                    <td>Origen / Destino:</td>
+                    <td>🛫 Origen / 🛬 Destino:</td>
                     <td>{{ cotizacion.origen|default:"-" }} / {{ cotizacion.destino|default:"-" }}</td>
                 </tr>
             {% endif %}
@@ -38,7 +37,7 @@
             {% if cotizacion.propuestas.tipo != 'traslados' and cotizacion.propuestas.tipo != 'renta_autos' %}
                 {% if cotizacion.fecha_inicio or cotizacion.fecha_fin %}
                 <tr>
-                    <td>Inicio / Fin:</td>
+                    <td>📅 Inicio / Fin:</td>
                     <td>
                         {% if cotizacion.fecha_inicio %}{{ cotizacion.fecha_inicio|date:"d/m/Y" }}{% else %}-{% endif %} / 
                         {% if cotizacion.fecha_fin %}{{ cotizacion.fecha_fin|date:"d/m/Y" }}{% else %}-{% endif %}
@@ -48,7 +47,7 @@
             {% elif cotizacion.propuestas.tipo == 'traslados' and cotizacion.propuestas.traslados %}
                 {% if cotizacion.propuestas.traslados.fecha_ida or cotizacion.propuestas.traslados.fecha_regreso %}
                 <tr>
-                    <td>Fecha de Ida / Fecha de Regreso:</td>
+                    <td>📅 Fecha de Ida / Fecha de Regreso:</td>
                     <td>
                         {% if cotizacion.propuestas.traslados.fecha_ida %}{{ cotizacion.propuestas.traslados.fecha_ida|date:"d/m/Y" }}{% else %}-{% endif %} / 
                         {% if cotizacion.propuestas.traslados.fecha_regreso %}{{ cotizacion.propuestas.traslados.fecha_regreso|date:"d/m/Y" }}{% else %}-{% endif %}
@@ -58,7 +57,7 @@
             {% endif %}
             
             <tr>
-                <td>Pasajeros:</td>
+                <td>👥 Pasajeros:</td>
                 <td>
                     {{ cotizacion.adultos|default:1 }} Adultos / {{ cotizacion.menores|default:0 }} Menores
                     {% if cotizacion.edades_menores %}(Edades: {{ cotizacion.edades_menores }}){% endif %}
@@ -68,14 +67,15 @@
             {% if cotizacion.propuestas.tipo != 'traslados' and cotizacion.propuestas.tipo != 'renta_autos' %}
                 {% if cotizacion.dias or cotizacion.noches %}
                 <tr>
-                    <td>Viaje:</td>
+                    <td>🗺️ Viaje:</td>
                     <td>{{ cotizacion.dias|default:"-" }} días / {{ cotizacion.noches|default:"-" }} noches</td>
                 </tr>
                 {% endif %}
             {% endif %}
             
             <tr>
-                <td>Fecha de Cotización:</td>
+                <td>📝 Fecha de Cotización:</td>
+                <!-- FIN: Iconos en labels (PRUEBA - fácil de revertir) -->
                 <td>
                     {% if cotizacion.propuestas.fecha_cotizacion %}
                         {{ cotizacion.propuestas.fecha_cotizacion|date:"d/m/Y" }}
