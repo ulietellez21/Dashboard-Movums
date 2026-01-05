@@ -1,18 +1,17 @@
 <div class="info-section">
-    <h1 class="titulo-principal">{{ cotizacion.titulo|default:"Cotización de Viaje" }}</h1>
+    <h1 class="titulo-principal">COTIZACIÓN</h1>
     
     <div class="info-section-layout">
     <div class="info-section-main">
         <div class="card info-card-client">
-            <div style="padding: 12px 16px 8px 16px; border-bottom: 1px solid #E5E7EB;">
-                <div style="font-size: 7.5pt; color: var(--movums-medium); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 4px;">Cotización Para</div>
-                <div style="font-size: 14pt; font-weight: 700; color: var(--movums-navy); margin-bottom: 0;">{{ cotizacion.cliente.nombre_completo_display }}</div>
+            <div style="padding: 0 0 20px 0; border-bottom: none;">
+                <div style="font-size: 9pt; color: #4a5568; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; font-weight: 500;">COTIZACIÓN PARA</div>
+                <div style="font-size: 28pt; font-weight: 700; color: #2d3748; margin-bottom: 20px; letter-spacing: -0.5px; line-height: 1.2; display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 32pt;">👤</span>
+                    <span>{{ cotizacion.cliente.nombre_completo_display }}</span>
+                </div>
             </div>
             <table class="info-table">
-            <tr>
-                <td>Cliente:</td>
-                <td>{{ cotizacion.cliente.nombre_completo_display }}</td>
-            </tr>
             {% if cotizacion.propuestas.tipo == 'traslados' %}
                 <tr>
                     <td>Desde / Hasta:</td>
@@ -91,7 +90,7 @@
     
     <div class="info-section-sidebar">
         <div class="sidebar-card">
-            <div class="sidebar-card-title">Detalles de Cotización</div>
+            <div class="sidebar-card-title">DETALLES DE COTIZACIÓN</div>
             <div class="sidebar-card-content">
                 <div class="sidebar-card-item">
                     <div class="sidebar-card-label">Número de Cotización</div>
@@ -120,7 +119,7 @@
         </div>
         
         <div class="sidebar-card purple">
-            <div class="sidebar-card-title">Información del Viaje</div>
+            <div class="sidebar-card-title">INFORMACIÓN DEL VIAJE</div>
             <div class="sidebar-card-content">
                 <div class="sidebar-card-item">
                     <div class="sidebar-card-label">Pasajeros</div>
@@ -145,7 +144,7 @@
         </div>
         
         <div class="sidebar-card blue">
-            <div class="sidebar-card-title">Contacto</div>
+            <div class="sidebar-card-title">CONTACTO</div>
             <div class="sidebar-card-content">
                 <div class="sidebar-card-item">
                     <div class="sidebar-card-label">Cliente</div>

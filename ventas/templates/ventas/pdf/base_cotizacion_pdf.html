@@ -13,16 +13,10 @@
 
 @page {
     size: letter;
-    margin-top: 4.7cm;     /* Margen superior: 0.2cm mínimo para membrete + 4.5cm para 6 saltos de línea */
-    margin-bottom: 2.5cm;  /* Margen inferior para el footer */
-    margin-left: 0.5cm;    /* Margen lateral izquierdo mínimo */
-    margin-right: 0.5cm;   /* Margen lateral derecho mínimo */
-    {% if membrete_base64 %}
-    background-image: url("{{ membrete_base64 }}");
-    background-size: cover;
-    background-position: center -0.2cm; /* Offset negativo para mostrar la parte superior del membrete */
-    background-repeat: no-repeat;
-    {% endif %}
+    margin-top: 1.5cm;     /* Margen superior reducido sin membrete */
+    margin-bottom: 1.5cm;  /* Margen inferior reducido */
+    margin-left: 1.5cm;    /* Margen lateral izquierdo */
+    margin-right: 1.5cm;   /* Margen lateral derecho */
 }
 
 /* Variables de color Movums - Paleta del Brandboard */
@@ -77,15 +71,7 @@ body {
     line-height: 1.5;
     margin: 0;
     padding: 0;
-    {% if membrete_base64 %}
-    background-image: url("{{ membrete_base64 }}");
-    background-size: cover;
-    background-position: center top; /* Posicionar desde arriba para mostrar la parte superior */
-    background-repeat: no-repeat;
-    background-attachment: fixed;
-    {% else %}
-    background: transparent;
-    {% endif %}
+    background: white; /* Fondo blanco sin membrete */
     width: 100%;
     min-height: 100vh;
     box-sizing: border-box;
@@ -102,44 +88,26 @@ body {
     display: none; /* Header oculto, el membrete es fondo */
 }
 
-/* Asegurar que el membrete siempre se vea en TODAS las páginas */
+/* Márgenes consistentes para todas las páginas sin membrete */
 @page :first {
-    margin-top: 4.7cm;     /* Margen superior: 0.2cm mínimo para membrete + 4.5cm para 6 saltos de línea */
-    margin-bottom: 2.5cm;
-    margin-left: 0.5cm;
-    margin-right: 0.5cm;
-    {% if membrete_base64 %}
-    background-image: url("{{ membrete_base64 }}");
-    background-size: cover;
-    background-position: center -0.2cm; /* Offset negativo para mostrar la parte superior del membrete */
-    background-repeat: no-repeat;
-    {% endif %}
+    margin-top: 1.5cm;
+    margin-bottom: 1.5cm;
+    margin-left: 1.5cm;
+    margin-right: 1.5cm;
 }
 
 @page :left {
-    margin-top: 4.7cm;     /* Margen superior: 0.2cm mínimo para membrete + 4.5cm para 6 saltos de línea */
-    margin-bottom: 2.5cm;
-    margin-left: 0.5cm;
-    margin-right: 0.5cm;
-    {% if membrete_base64 %}
-    background-image: url("{{ membrete_base64 }}");
-    background-size: cover;
-    background-position: center -0.2cm; /* Offset negativo para mostrar la parte superior del membrete */
-    background-repeat: no-repeat;
-    {% endif %}
+    margin-top: 1.5cm;
+    margin-bottom: 1.5cm;
+    margin-left: 1.5cm;
+    margin-right: 1.5cm;
 }
 
 @page :right {
-    margin-top: 4.7cm;     /* Margen superior: 0.2cm mínimo para membrete + 4.5cm para 6 saltos de línea */
-    margin-bottom: 2.5cm;
-    margin-left: 0.5cm;
-    margin-right: 0.5cm;
-    {% if membrete_base64 %}
-    background-image: url("{{ membrete_base64 }}");
-    background-size: cover;
-    background-position: center -0.2cm; /* Offset negativo para mostrar la parte superior del membrete */
-    background-repeat: no-repeat;
-    {% endif %}
+    margin-top: 1.5cm;
+    margin-bottom: 1.5cm;
+    margin-left: 1.5cm;
+    margin-right: 1.5cm;
 }
 
 /* ============================================
@@ -149,28 +117,31 @@ body {
     width: 100%;
     max-width: 100%;
     margin: 0;
-    background: transparent;
-    padding: 0 1cm 1cm 1cm; /* Sin padding superior, el espacio viene del @page margin-top (4.7cm) */
+    background: white;
+    padding: 0; /* Sin padding, los márgenes vienen del @page */
     box-sizing: border-box;
     position: relative;
-    z-index: 1; /* Contenido sobre el membrete */
+    z-index: 1;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px; /* Espaciado reducido a la mitad entre elementos (12px → 6px) */
 }
 
-/* Spacer invisible ya no necesario, el espacio viene del @page margin-top */
+/* Spacer eliminado - no necesario sin membrete */
 .spacer-top {
-    height: 0; /* Ya no necesario, el espacio viene del @page margin-top */
-    width: 100%;
-    margin: 0;
-    padding: 0;
-    display: none; /* Oculto porque el espacio viene del @page margin-top */
+    display: none;
 }
 
-/* Asegurar que cuando un elemento aparece al inicio de una nueva página, tenga espacio superior */
-.card,
+/* Evitar que las cards y secciones se partan entre páginas */
+.card {
+    page-break-before: auto;
+    page-break-inside: avoid; /* Evitar que la card se parta */
+    page-break-after: avoid; /* Mantener la card junta con su total */
+    margin-top: 0;
+    margin-bottom: 8px; /* Espaciado reducido a la mitad entre cards (16px → 8px) */
+}
+
 .info-section {
     page-break-before: auto;
     page-break-inside: avoid;
@@ -191,24 +162,24 @@ body {
 }
 
 /* ============================================
-   TÍTULO PRINCIPAL - LLAMATIVO Y MODERNO
+   TÍTULO PRINCIPAL - LLAMATIVO Y MODERNO (BARRA AZUL OSCURO)
    ============================================ */
 .titulo-principal {
     color: white;
-    font-size: 18pt;
+    font-size: 24pt; /* Tamaño reducido */
     font-weight: 700;
-    margin: 0 0 8px 0;
+    margin: 0 0 24px 0;
     text-align: left;
-    letter-spacing: 0.8px;
-    line-height: 1.1;
-    padding: 12px 20px;
+    letter-spacing: 2px;
+    line-height: 1.2;
+    padding: 16px 22px; /* Padding ajustado al tamaño reducido */
     text-transform: uppercase;
     box-sizing: border-box;
-    background: var(--movums-navy);
+    background: #003366; /* Azul más oscuro */
     border-radius: 6px;
-    box-shadow: 0 2px 6px rgba(26, 35, 70, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 51, 102, 0.2);
     page-break-after: avoid;
-    width: 100%; /* Asegurar que ocupe todo el ancho disponible */
+    width: 100%;
 }
 
 /* ============================================
@@ -217,27 +188,35 @@ body {
 .card {
     background: white;
     border: none;
-    border-radius: 6px; /* Reducido de 8px */
+    border-radius: 8px; /* Bordes redondeados para look moderno */
     padding: 0;
-    margin: 0 0 8px 0; /* Reducido aún más para ahorrar papel */
-    box-shadow: 0 1px 4px rgba(26, 35, 70, 0.08);
-    page-break-inside: avoid;
+    margin: 0 0 8px 0; /* Espaciado reducido a la mitad entre cards (16px → 8px) */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); /* Sombra sutil */
+    page-break-inside: avoid; /* Evitar que la card se parta */
     page-break-before: auto;
+    page-break-after: avoid; /* Mantener card y total juntos */
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
-    overflow: hidden;
+    overflow: hidden; /* Asegurar que el contenido respete el border-radius */
 }
 
-/* Permitir que cards muy largas se dividan, pero mantener header y total juntos */
+/* Mantener header y total juntos con la tabla */
 .card-header {
-    page-break-after: avoid;
+    page-break-after: avoid; /* Header no se separa de la tabla */
 }
 
-/* Agregar espacio después del card-header y antes de las tablas (2 saltos de línea = 1.5cm) */
+/* Nota: La definición completa de .data-table está más abajo con todos los estilos compactos */
+
+/* Mantener el total junto con la tabla */
+.total-destacado {
+    page-break-before: avoid; /* Total no se separa de la tabla */
+}
+
+/* Espaciado reducido entre header y tabla */
 .card-header + .data-table,
 .card-header + .info-table {
-    margin-top: 1.5cm !important; /* 2 saltos de línea más */
+    margin-top: 8px !important; /* Espaciado más compacto */
 }
 
 .total-destacado {
@@ -245,23 +224,24 @@ body {
 }
 
 .card-header {
-    background: var(--movums-navy);
+    background: #004a8e; /* Azul oscuro según imagen */
     color: white;
-    font-size: 10.5pt;
-    font-weight: 600;
+    font-size: 14pt; /* Tamaño aumentado según imagen */
+    font-weight: 700; /* Bold según imagen */
     margin: 0;
-    padding: 12px 16px; /* Aumentado aún más el padding vertical para que el icono quepa completamente */
+    padding: 10px 18px; /* Padding reducido para más compacto */
     display: flex;
-    align-items: center; /* Centrar verticalmente icono y texto */
+    align-items: center;
     gap: 12px;
-    letter-spacing: 0.4px;
+    letter-spacing: 1px; /* Letter-spacing ajustado */
     text-transform: uppercase;
     box-sizing: border-box;
     border-bottom: none;
     position: relative;
     flex-direction: row;
-    min-height: 46px; /* Altura mínima aumentada para que el icono quepa completamente dentro */
-    overflow: visible; /* Asegurar que el icono no se corte */
+    min-height: 44px; /* Altura mínima reducida */
+    overflow: visible;
+    border-radius: 6px 6px 0 0; /* Esquinas redondeadas solo arriba */
 }
 
 .card-header::after {
@@ -320,8 +300,8 @@ body {
     display: flex;
     gap: 20px;
     align-items: flex-start;
-    margin-top: 8px;
-    page-break-inside: avoid;
+    margin-top: 0; /* Sin margen superior adicional */
+    page-break-inside: avoid; /* Evitar que el layout se parta */
     justify-content: flex-start;
     max-width: 100%;
     width: 100%;
@@ -346,91 +326,104 @@ body {
 
 .info-card-client {
     background: white !important;
-    border-radius: 12px;
-    box-shadow: 0 4px 16px rgba(26, 35, 70, 0.15);
+    border-radius: 8px; /* Bordes redondeados para look moderno */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); /* Sombra sutil */
     padding: 0 !important;
-    overflow: hidden;
+    overflow: hidden; /* Asegurar que el contenido respete el border-radius */
+    border: none; /* Sin bordes externos */
 }
 
 .info-card-client .info-table {
-    padding: 12px 16px; /* Reducido aún más */
+    padding: 0; /* Sin padding, el padding viene de las celdas */
     margin: 0;
+    border: none; /* Sin bordes externos */
 }
 
-/* Tarjetas laterales con colores */
+/* Tarjetas laterales con colores (con bordes redondeados) */
 .sidebar-card {
-    background: var(--movums-royal);
-    border-radius: 6px; /* Reducido de 8px */
-    padding: 10px 12px; /* Reducido aún más */
-    box-shadow: 0 1px 4px rgba(26, 35, 70, 0.08);
+    background: #3B72F4; /* Azul medio según imagen */
+    border-radius: 6px; /* Bordes ligeramente redondeados */
+    padding: 16px 20px; /* Padding ajustado */
+    box-shadow: 0 2px 6px rgba(59, 114, 244, 0.2);
     color: white;
     page-break-inside: avoid;
     page-break-before: auto;
+    border: none;
 }
 
 .sidebar-card.purple {
-    background: var(--movums-violet);
+    background: #5A429C; /* Púrpura oscuro según imagen */
+    box-shadow: 0 2px 6px rgba(90, 66, 156, 0.2);
 }
 
 .sidebar-card.blue {
-    background: var(--movums-medium);
+    background: #4FC3F7; /* Azul claro/cyan según imagen */
+    box-shadow: 0 2px 6px rgba(79, 195, 247, 0.2);
 }
 
 .sidebar-card-title {
-    font-size: 9.5pt; /* Reducido aún más */
+    font-size: 12pt; /* Tamaño ajustado según imagen */
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 10px; /* Reducido de 14px */
-    padding-bottom: 8px; /* Reducido de 10px */
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    letter-spacing: 1.2px;
+    margin-bottom: 16px; /* Espaciado ajustado */
+    padding-bottom: 0;
+    border-bottom: none;
+    color: white;
+    line-height: 1.3;
 }
 
 .sidebar-card-content {
-    font-size: 8.5pt; /* Reducido aún más */
-    line-height: 1.4; /* Más compacto */
+    font-size: 9pt; /* Tamaño base para contenido */
+    line-height: 1.6;
 }
 
 .sidebar-card-item {
-    margin-bottom: 8px; /* Reducido de 10px */
-    padding-bottom: 8px; /* Reducido de 10px */
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 14px; /* Espaciado ajustado según imagen */
+    padding-bottom: 0;
+    border-bottom: none; /* Sin borde según imagen */
 }
 
 .sidebar-card-item:last-child {
-    border-bottom: none;
     margin-bottom: 0;
-    padding-bottom: 0;
 }
 
 .sidebar-card-label {
-    font-size: 7.5pt; /* Reducido aún más */
-    opacity: 0.9;
+    font-size: 8pt; /* Labels más pequeños según imagen */
+    opacity: 0.95; /* Ligeramente transparente */
     text-transform: uppercase;
-    letter-spacing: 0.4px;
-    margin-bottom: 2px; /* Reducido de 3px */
+    letter-spacing: 1px;
+    margin-bottom: 6px; /* Espaciado entre label y valor */
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.95);
 }
 
 .sidebar-card-value {
-    font-size: 9pt; /* Reducido de 10pt */
-    font-weight: 600;
+    font-size: 10.5pt; /* Valores más grandes según imagen */
+    font-weight: 700; /* Bold según imagen */
     opacity: 1;
+    color: white;
+    line-height: 1.4;
 }
 
 .info-table {
     width: 100%;
-    border-collapse: collapse;
-    margin: 1.5cm 0 0 0; /* 2 saltos de línea más (1.5cm) adicionales a las tablas */
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 0;
     background: white;
     box-sizing: border-box;
-    padding: 20px 28px; /* Reducido de 24px 32px */
-    display: table; /* Asegurar que se comporte como tabla */
+    padding: 0;
+    display: table;
+    border: none; /* Sin bordes externos */
+    page-break-inside: avoid; /* Evitar que la tabla se parta entre páginas */
 }
 
 .info-table tr {
     background: transparent;
-    border-bottom: 1px solid rgba(26, 35, 70, 0.08);
+    border-bottom: 1px solid #e2e8f0; /* Borde más sutil según imagen */
     page-break-inside: avoid;
+    page-break-after: avoid;
 }
 
 .info-table tr:last-child {
@@ -438,37 +431,63 @@ body {
 }
 
 .info-table td {
-    padding: 5px 0; /* Reducido aún más */
+    padding: 10px 8px; /* Padding ajustado según imagen */
     border: none;
     vertical-align: middle;
-    font-size: 8.5pt; /* Reducido aún más */
-    line-height: 1.3; /* Más compacto */
+    font-size: 9.5pt; /* Tamaño de fuente ajustado */
+    line-height: 1.5;
+    page-break-inside: avoid;
 }
 
 .info-table td:first-child {
-    font-weight: 500;
-    color: var(--movums-medium);
-    width: 32%; /* Reducido de 35% */
-    font-size: 8pt; /* Reducido aún más */
+    font-weight: 600; /* Labels en bold */
+    color: #1e3a5f; /* Azul oscuro legible para labels */
+    width: 35%;
+    font-size: 9.5pt;
     text-transform: none;
-    letter-spacing: 0.1px;
+    letter-spacing: 0.2px;
     background: transparent;
-    padding-right: 12px; /* Reducido de 16px */
+    padding-right: 12px;
 }
 
 .info-table td:last-child {
-    color: var(--movums-navy);
-    font-size: 8.5pt; /* Reducido aún más */
-    font-weight: 500;
+    color: #2c5282; /* Azul medio legible para valores */
+    font-size: 9.5pt;
+    font-weight: 400; /* Regular para valores */
     background: transparent;
 }
 
+/* Alternar colores de fondo para mejor legibilidad */
+/* Alternar colores de fondo para mejor legibilidad */
 .info-table tr:nth-child(even) {
-    background: rgba(227, 242, 253, 0.3);
+    background: #f8f9fa; /* Gris muy claro para filas pares */
 }
 
-.info-table tr:nth-child(even) td:first-child {
+.info-table tr:nth-child(even) td {
     background: transparent;
+}
+
+/* Bordes redondeados simulados para tablas usando border-radius */
+.info-table {
+    border-radius: 8px; /* Esquinas redondeadas */
+    overflow: hidden; /* Asegurar que el contenido respete el border-radius */
+}
+
+.data-table {
+    border-radius: 8px; /* Esquinas redondeadas */
+    overflow: hidden; /* Asegurar que el contenido respete el border-radius */
+}
+
+.sidebar-card {
+    border-radius: 8px; /* Esquinas redondeadas para sidebars */
+}
+
+.card {
+    border-radius: 8px; /* Esquinas redondeadas para cards */
+}
+
+.info-card-client {
+    border-radius: 8px; /* Esquinas redondeadas para la tarjeta del cliente */
 }
 
 /* ============================================
@@ -568,32 +587,45 @@ body {
    ============================================ */
 .total-destacado {
     margin: 0;
-    padding: 8px 12px; /* Reducido aún más */
+    padding: 6px 12px; /* Padding reducido para más compacto */
     background: var(--movums-royal);
     text-align: right;
     box-shadow: none;
     box-sizing: border-box;
     width: 100%;
-    border-radius: 0 0 6px 6px; /* Reducido de 8px */
+    border-radius: 0 0 8px 8px; /* Esquinas redondeadas solo abajo */
+}
+
+/* Total del paquete con color morado y más espaciado */
+.total-paquete-card {
+    margin-top: 1.5cm !important; /* 2 saltos de línea más de espaciado (aprox 1.5cm) */
+}
+
+.total-paquete {
+    background: #5A429C !important; /* Color morado/púrpura para destacar */
+}
+
+.total-paquete-text {
+    font-size: 15pt !important; /* Tamaño de letra ligeramente más grande (13pt → 15pt) */
 }
 
 .total-text {
-    font-size: 14pt; /* Reducido aún más */
+    font-size: 13pt; /* Tamaño ajustado según imagen */
     font-weight: 700;
     color: white;
-    letter-spacing: 0.2px;
+    letter-spacing: 0.3px;
     margin: 0;
     text-shadow: none;
     display: inline-flex;
     align-items: center;
-    gap: 6px; /* Reducido de 8px */
+    gap: 8px;
 }
 
 .total-text::before {
     content: 'Total:';
-    font-size: 10pt; /* Reducido de 12pt */
-    font-weight: 500;
-    opacity: 0.9;
+    font-size: 11pt; /* Tamaño ajustado */
+    font-weight: 600;
+    opacity: 0.95;
 }
 
 /* ============================================
@@ -601,18 +633,23 @@ body {
    ============================================ */
 .data-table {
     width: 100%;
-    border-collapse: collapse;
-    margin: 1.5cm 0 0 0; /* 2 saltos de línea más (1.5cm) adicionales a las tablas */
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 8px 0 0 0 !important; /* Espaciado más reducido - importante para paquetes */
     background: white;
     box-sizing: border-box;
-    padding: 8px 12px; /* Reducido aún más para ahorrar papel */
+    padding: 6px 12px !important; /* Padding interno aún más reducido para más compacto */
     display: table; /* Asegurar que se comporte como tabla */
+    border-radius: 8px; /* Esquinas redondeadas */
+    overflow: hidden; /* Asegurar que el contenido respete el border-radius */
+    page-break-inside: avoid; /* Evitar que la tabla se parta entre páginas */
 }
 
 .data-table tr {
     background: transparent;
-    border-bottom: 1px solid rgba(26, 35, 70, 0.08);
+    border-bottom: 1px solid #e2e8f0; /* Borde más sutil según imagen */
     page-break-inside: avoid;
+    page-break-after: avoid;
 }
 
 .data-table tr:last-child {
@@ -632,28 +669,29 @@ body {
 }
 
 .data-table td {
-    padding: 5px 0; /* Reducido aún más */
+    padding: 5px 0 !important; /* Padding vertical aún más reducido para paquetes */
     border: none;
-    font-size: 8.5pt; /* Reducido de 9pt */
+    font-size: 9pt; /* Tamaño de fuente ligeramente reducido */
     vertical-align: middle;
-    line-height: 1.3; /* Más compacto */
+    line-height: 1.3 !important; /* Line-height más compacto para paquetes */
+    page-break-inside: avoid;
 }
 
 .data-table td:first-child {
-    font-weight: 500;
-    color: var(--movums-medium);
-    width: 32%; /* Reducido de 35% */
-    font-size: 8pt; /* Reducido aún más */
+    font-weight: 600; /* Labels en bold */
+    color: #2d3748; /* Dark gray para labels */
+    width: 30% !important; /* Ancho reducido para más compacto (sobrescribe inline styles) */
+    font-size: 9pt; /* Tamaño reducido */
     text-transform: none;
-    letter-spacing: 0.1px;
+    letter-spacing: 0.2px;
     background: transparent;
-    padding-right: 12px; /* Reducido de 16px */
+    padding-right: 10px !important; /* Padding reducido */
 }
 
 .data-table td:last-child {
-    color: var(--movums-navy);
-    font-size: 8.5pt; /* Reducido aún más */
-    font-weight: 500;
+    color: #4a5568; /* Gray más claro para valores */
+    font-size: 9pt; /* Tamaño reducido */
+    font-weight: 400; /* Regular para valores */
     background: transparent;
 }
 
@@ -786,9 +824,43 @@ body {
 .mb-4 { margin-bottom: var(--spacing-lg); }
 
 /* ============================================
-   EVITAR SALTOS DE PÁGINA
+   EVITAR SALTOS DE PÁGINA - REGLAS MEJORADAS
    ============================================ */
-.card, .info-section, .total-destacado {
+/* Mantener cards completas sin partirse */
+.card {
+    page-break-inside: avoid;
+    page-break-after: avoid;
+}
+
+/* Mantener secciones de información juntas */
+.info-section {
+    page-break-inside: avoid;
+}
+
+/* Mantener totales con sus tablas */
+.total-destacado {
+    page-break-inside: avoid;
+    page-break-before: avoid; /* No separar del contenido anterior */
+}
+
+/* Evitar que las tablas se partan */
+table.data-table,
+table.info-table {
+    page-break-inside: avoid;
+}
+
+/* Mantener filas de tabla juntas */
+table.data-table tr,
+table.info-table tr {
+    page-break-inside: avoid;
+    page-break-after: avoid;
+}
+
+/* Mantener celdas de tabla juntas */
+table.data-table td,
+table.data-table th,
+table.info-table td,
+table.info-table th {
     page-break-inside: avoid;
 }
 
@@ -809,7 +881,7 @@ p {
 
 /* Espaciado mejorado entre secciones */
 .card + .card {
-    margin-top: 36px;
+    margin-top: 0; /* El gap del contenedor maneja el espaciado (ya reducido a 6px) */
 }
 
 /* Mejora visual para elementos destacados */

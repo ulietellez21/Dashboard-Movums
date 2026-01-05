@@ -134,16 +134,16 @@
                 <div class="row text-center">
                     <!-- En móviles (col-12), el borde vertical (border-end) se quita usando border-md-end -->
                     <div class="col-12 col-md-4 border-bottom border-md-end pb-3 pb-md-0"> 
-                        <h6 class="text-muted">Costo Venta Final</h6>
-                        <h2 class="text-success">${{ venta.costo_venta_final|floatformat:2|intcomma }}</h2>
+                        <h6 class="text-muted">Total Final</h6>
+                        <h2 class="text-success">${{ total_final|floatformat:2|intcomma }}</h2>
                         {% if venta.costo_modificacion and venta.costo_modificacion > 0 %}
                             <p class="text-muted small mb-0">Modificaciones: +${{ venta.costo_modificacion|floatformat:2|intcomma }}</p>
                         {% endif %}
-                        {% if venta.descuento_promociones_mxn and venta.descuento_promociones_mxn > 0 %}
-                            <p class="text-muted small mb-0">Descuento promo aplicado como abono: -${{ venta.descuento_promociones_mxn|floatformat:2|intcomma }}</p>
-                        {% endif %}
                         {% if venta.aplica_descuento_kilometros %}
-                            <p class="text-muted small mb-0">Descuento Movums aplicado: -${{ venta.descuento_kilometros_mxn|floatformat:2|intcomma }}</p>
+                            <p class="text-muted small mb-0">Descuento Kilómetros Movums: -${{ venta.descuento_kilometros_mxn|floatformat:2|intcomma }}</p>
+                        {% endif %}
+                        {% if venta.descuento_promociones_mxn and venta.descuento_promociones_mxn > 0 %}
+                            <p class="text-muted small mb-0">Descuento Promociones: -${{ venta.descuento_promociones_mxn|floatformat:2|intcomma }}</p>
                         {% endif %}
                     </div>
                     <!-- Aplicamos border-bottom solo en móviles para separar las tarjetas -->
@@ -194,52 +194,331 @@
         <div class="tab-content" id="ventaTabsContent">
             
             <div class="tab-pane fade show active" id="info" role="tabpanel" aria-labelledby="info-tab">
-                <div class="card mb-4 shadow-sm">
-                    <div class="card-header bg-primary text-white">
-                        Datos del Cliente y Viaje
+                <!-- Información General de la Venta -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-12">
+                        <div class="card shadow-sm border-primary">
+                            <div class="card-header bg-primary text-white">
+                                <i class="fas fa-info-circle me-2"></i>Información General de la Venta
+                            </div>
+                            <div class="card-body">
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <strong class="text-muted d-block mb-1">Folio:</strong>
+                                        <span class="badge bg-primary fs-6">{{ venta.folio|default:"Sin folio" }}</span>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong class="text-muted d-block mb-1">Estado:</strong>
+                                        {% if venta.estado == 'ACTIVA' %}
+                                            <span class="badge bg-success fs-6">Activa</span>
+                                        {% else %}
+                                            <span class="badge bg-danger fs-6">Cancelada</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong class="text-muted d-block mb-1">Tipo de Viaje:</strong>
+                                        {% if venta.tipo_viaje == 'INT' %}
+                                            <span class="badge bg-info fs-6"><i class="fas fa-globe me-1"></i>Internacional</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary fs-6"><i class="fas fa-map-marker-alt me-1"></i>Nacional</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong class="text-muted d-block mb-1">Fecha de Creación:</strong>
+                                        <span>{{ venta.fecha_creacion|date:"d/m/Y H:i" }}</span>
+                                    </div>
+                                    {% if venta.cotizacion_origen %}
+                                    <div class="col-md-12">
+                                        <strong class="text-muted d-block mb-1">Cotización Origen:</strong>
+                                        <a href="{% url 'cotizacion_detalle' slug=venta.cotizacion_origen.slug %}" class="text-decoration-none">
+                                            <i class="fas fa-file-invoice me-1"></i>{{ venta.cotizacion_origen.folio|default:"Ver cotización" }}
+                                        </a>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <h5><i class="fas fa-user"></i> Cliente</h5>
-                                <p><strong>Nombre:</strong> 
+                </div>
+
+                <!-- Información del Cliente -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-header bg-info text-white">
+                                <i class="fas fa-user me-2"></i>Información del Cliente
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-2">
+                                    <strong class="text-muted d-block mb-1">Nombre:</strong>
                                     <a href="{% url 'detalle_cliente' pk=venta.cliente.pk %}" class="text-decoration-none">
                                         {% if venta.cliente.tipo_cliente == 'EMPRESA' %}
-                                            <i class="fas fa-building text-info"></i>
-                                            <span class="badge bg-info text-white me-1">Empresa</span>
+                                            <i class="fas fa-building text-info me-1"></i>
+                                            <span class="badge bg-info text-white me-2">Empresa</span>
                                         {% else %}
-                                            <i class="fas fa-user text-success"></i>
-                                            <span class="badge bg-success text-white me-1">Particular</span>
+                                            <i class="fas fa-user text-success me-1"></i>
+                                            <span class="badge bg-success text-white me-2">Particular</span>
                                         {% endif %}
                                         {{ venta.cliente.nombre_completo_display }}
                                     </a>
                                 </p>
-                                <p><strong>Asesor:</strong> {{ venta.vendedor.username }}</p>
-                                <p><strong>Tipo de Viaje:</strong> {{ venta.get_tipo_viaje_display }}</p>
-                            </div>
-                            <div class="col-md-6">
-                                <h5><i class="fas fa-suitcase"></i> Detalles del Viaje</h5>
-                                <p><strong>Servicios:</strong> {{ venta.servicios_seleccionados_display|default:"No especificado" }}</p>
-                                <p><strong>Inicio:</strong> {{ venta.fecha_inicio_viaje|date:"d M Y" }}</p>
-                                <p><strong>Fin:</strong> {{ venta.fecha_fin_viaje|date:"d M Y" }}</p>
-                                <p><strong>Proveedor asignado:</strong> {{ venta.proveedor.nombre|default:"Sin proveedor" }}</p>
-                                <p><strong>Costo Neto (Agencia):</strong> ${{ venta.costo_neto|floatformat:2|intcomma }}</p>
-                                <p><strong>Descuento Movums:</strong>
-                                    {% if venta.aplica_descuento_kilometros %}
-                                        -${{ venta.descuento_kilometros_mxn|floatformat:2|intcomma }} (10%)
+                                {% if venta.cliente.tipo_cliente == 'EMPRESA' and venta.cliente.rfc %}
+                                <p class="mb-2">
+                                    <strong class="text-muted d-block mb-1">RFC:</strong>
+                                    <code>{{ venta.cliente.rfc }}</code>
+                                </p>
+                                {% endif %}
+                                {% if venta.cliente.telefono %}
+                                <p class="mb-2">
+                                    <strong class="text-muted d-block mb-1">Teléfono:</strong>
+                                    <a href="tel:{{ venta.cliente.telefono }}">{{ venta.cliente.telefono }}</a>
+                                </p>
+                                {% endif %}
+                                {% if venta.cliente.email %}
+                                <p class="mb-2">
+                                    <strong class="text-muted d-block mb-1">Email:</strong>
+                                    <a href="mailto:{{ venta.cliente.email }}">{{ venta.cliente.email }}</a>
+                                </p>
+                                {% endif %}
+                                <p class="mb-0">
+                                    <strong class="text-muted d-block mb-1">Asesor/Vendedor:</strong>
+                                    {% if venta.vendedor.get_full_name %}
+                                        {{ venta.vendedor.get_full_name }} <small class="text-muted">({{ venta.vendedor.username }})</small>
                                     {% else %}
-                                        No aplicado
+                                        {{ venta.vendedor.username }}
                                     {% endif %}
                                 </p>
                             </div>
                         </div>
-                <div class="row mt-3">
-                    <div class="col-md-12">
-                        <h5><i class="fas fa-users"></i> Pasajeros</h5>
-                        <p class="mb-1"><strong>Listado:</strong><br>{{ venta.pasajeros|linebreaksbr|default:"No especificado" }}</p>
-                        <p class="mb-0"><strong>Menores (nombre y edad):</strong> {{ venta.edades_menores|default:"No especificado" }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-header bg-success text-white">
+                                <i class="fas fa-suitcase me-2"></i>Información del Viaje
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-2">
+                                    <strong class="text-muted d-block mb-1">Servicios Incluidos:</strong>
+                                    {% if venta.servicios_seleccionados_display %}
+                                        <span class="text-primary fw-semibold">{{ venta.servicios_seleccionados_display }}</span>
+                                    {% else %}
+                                        <span class="text-muted">No especificado</span>
+                                    {% endif %}
+                                </p>
+                                <p class="mb-2">
+                                    <strong class="text-muted d-block mb-1">Fecha de Inicio:</strong>
+                                    <i class="fas fa-calendar-alt me-1 text-primary"></i>{{ venta.fecha_inicio_viaje|date:"l, d F Y" }}
+                                </p>
+                                {% if venta.fecha_fin_viaje %}
+                                <p class="mb-2">
+                                    <strong class="text-muted d-block mb-1">Fecha de Regreso:</strong>
+                                    <i class="fas fa-calendar-check me-1 text-primary"></i>{{ venta.fecha_fin_viaje|date:"l, d F Y" }}
+                                </p>
+                                {% endif %}
+                                {% if venta.fecha_vencimiento_pago %}
+                                <p class="mb-2">
+                                    <strong class="text-muted d-block mb-1">Fecha Límite de Pago:</strong>
+                                    <i class="fas fa-clock me-1 text-warning"></i>{{ venta.fecha_vencimiento_pago|date:"d/m/Y" }}
+                                </p>
+                                {% endif %}
+                                {% if venta.proveedor %}
+                                <p class="mb-0">
+                                    <strong class="text-muted d-block mb-1">Proveedor Asignado:</strong>
+                                    <span><i class="fas fa-building me-1"></i>{{ venta.proveedor.nombre }}</span>
+                                    {% if venta.proveedor.ejecutivo %}
+                                        <br><small class="text-muted">Ejecutivo: {{ venta.proveedor.ejecutivo }}</small>
+                                    {% endif %}
+                                    {% if venta.proveedor.telefono_ejecutivo %}
+                                        <br><small class="text-muted">Tel: {{ venta.proveedor.telefono_ejecutivo }}</small>
+                                    {% endif %}
+                                </p>
+                                {% endif %}
+                            </div>
+                        </div>
                     </div>
                 </div>
+
+                <!-- Información Financiera -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-12">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-warning text-dark">
+                                <i class="fas fa-dollar-sign me-2"></i>Información Financiera
+                            </div>
+                            <div class="card-body">
+                                <div class="row g-3">
+                                    {% if venta.tipo_viaje == 'INT' %}
+                                    <div class="col-md-6">
+                                        <h6 class="text-muted mb-3"><i class="fas fa-coins me-1"></i>Montos en USD</h6>
+                                        {% if venta.tarifa_base_usd %}
+                                        <p class="mb-2">
+                                            <strong class="text-muted d-block mb-1">Tarifa Base:</strong>
+                                            USD ${{ venta.tarifa_base_usd|floatformat:2|intcomma }}
+                                        </p>
+                                        {% endif %}
+                                        {% if venta.impuestos_usd %}
+                                        <p class="mb-2">
+                                            <strong class="text-muted d-block mb-1">Impuestos:</strong>
+                                            USD ${{ venta.impuestos_usd|floatformat:2|intcomma }}
+                                        </p>
+                                        {% endif %}
+                                        {% if venta.suplementos_usd %}
+                                        <p class="mb-2">
+                                            <strong class="text-muted d-block mb-1">Suplementos:</strong>
+                                            USD ${{ venta.suplementos_usd|floatformat:2|intcomma }}
+                                        </p>
+                                        {% endif %}
+                                        {% if venta.tours_usd %}
+                                        <p class="mb-2">
+                                            <strong class="text-muted d-block mb-1">Tours:</strong>
+                                            USD ${{ venta.tours_usd|floatformat:2|intcomma }}
+                                        </p>
+                                        {% endif %}
+                                        {% if venta.tipo_cambio %}
+                                        <p class="mb-2">
+                                            <strong class="text-muted d-block mb-1">Tipo de Cambio:</strong>
+                                            ${{ venta.tipo_cambio|floatformat:4 }} MXN/USD
+                                        </p>
+                                        {% endif %}
+                                        {% if venta.total_usd %}
+                                        <p class="mb-0">
+                                            <strong class="text-muted d-block mb-1">Total USD:</strong>
+                                            <span class="badge bg-info fs-6">USD ${{ venta.total_usd|floatformat:2|intcomma }}</span>
+                                        </p>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6 class="text-muted mb-3"><i class="fas fa-peso-sign me-1"></i>Montos en MXN</h6>
+                                    {% else %}
+                                    <div class="col-md-12">
+                                    {% endif %}
+                                        <!-- 1. Costo Neto (Agencia) -->
+                                        <p class="mb-2">
+                                            <strong class="text-muted d-block mb-1">Costo Neto (Agencia):</strong>
+                                            ${{ venta.costo_neto|floatformat:2|intcomma }} MXN
+                                        </p>
+                                        
+                                        <!-- 2. Costo de Venta Final (sin descuentos) -->
+                                        <p class="mb-2">
+                                            <strong class="text-muted d-block mb-1">Costo de Venta Final (sin descuentos):</strong>
+                                            <span class="text-muted">${{ costo_base|floatformat:2|intcomma }} MXN</span>
+                                            {% if venta.costo_modificacion and venta.costo_modificacion > 0 %}
+                                                <small class="text-muted d-block mt-1">
+                                                    <i class="fas fa-info-circle"></i> Incluye modificaciones: +${{ venta.costo_modificacion|floatformat:2|intcomma }}
+                                                </small>
+                                            {% endif %}
+                                        </p>
+                                        
+                                        <!-- 3. Descuento Kilómetros Movums -->
+                                        {% if venta.aplica_descuento_kilometros %}
+                                        <p class="mb-2">
+                                            <strong class="text-muted d-block mb-1">Descuento Kilómetros Movums:</strong>
+                                            <span class="text-success">-${{ venta.descuento_kilometros_mxn|floatformat:2|intcomma }} MXN</span>
+                                        </p>
+                                        {% endif %}
+                                        
+                                        <!-- 4. Descuento por Promociones -->
+                                        {% if venta.descuento_promociones_mxn and venta.descuento_promociones_mxn > 0 %}
+                                        <p class="mb-2">
+                                            <strong class="text-muted d-block mb-1">Descuento por Promociones:</strong>
+                                            <span class="text-success">-${{ venta.descuento_promociones_mxn|floatformat:2|intcomma }} MXN</span>
+                                        </p>
+                                        {% endif %}
+                                        
+                                        <!-- 5. Total Descuentos -->
+                                        {% if total_descuentos > 0 %}
+                                        <p class="mb-2">
+                                            <strong class="text-muted d-block mb-1">Total Descuentos:</strong>
+                                            <span class="text-danger fw-bold">-${{ total_descuentos|floatformat:2|intcomma }} MXN</span>
+                                        </p>
+                                        {% endif %}
+                                        
+                                        <!-- 6. Total Final (con descuentos) -->
+                                        <p class="mb-2">
+                                            <strong class="text-muted d-block mb-1">Total Final (con descuentos):</strong>
+                                            <span class="badge bg-primary fs-6">${{ total_final|floatformat:2|intcomma }} MXN</span>
+                                        </p>
+                                        
+                                        <!-- 7. Apertura/Anticipo -->
+                                        {% if venta.cantidad_apertura and venta.cantidad_apertura > 0 %}
+                                        <p class="mb-2">
+                                            <strong class="text-muted d-block mb-1">Apertura/Anticipo:</strong>
+                                            ${{ venta.cantidad_apertura|floatformat:2|intcomma }} MXN
+                                            <span class="badge bg-secondary ms-2">{{ venta.get_modo_pago_apertura_display }}</span>
+                                        </p>
+                                        {% endif %}
+                                        
+                                        <!-- 8. Estado de Confirmación -->
+                                        <p class="mb-0">
+                                            <strong class="text-muted d-block mb-1">Estado de Confirmación:</strong>
+                                            {% if venta.estado_confirmacion == 'COMPLETADO' %}
+                                                <span class="badge bg-success fs-6">Completado</span>
+                                            {% elif venta.estado_confirmacion == 'EN_CONFIRMACION' %}
+                                                <span class="badge bg-warning text-dark fs-6">En Confirmación</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary fs-6">Pendiente</span>
+                                            {% endif %}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pasajeros y Detalles Adicionales -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-header bg-secondary text-white">
+                                <i class="fas fa-users me-2"></i>Pasajeros
+                            </div>
+                            <div class="card-body">
+                                {% if venta.pasajeros %}
+                                <p class="mb-3">
+                                    <strong class="text-muted d-block mb-2">Listado de Pasajeros:</strong>
+                                    <div class="bg-light p-3 rounded">{{ venta.pasajeros|linebreaksbr }}</div>
+                                </p>
+                                {% endif %}
+                                {% if venta.edades_menores %}
+                                <p class="mb-0">
+                                    <strong class="text-muted d-block mb-2">Menores (nombre y edad):</strong>
+                                    <div class="bg-light p-3 rounded">{{ venta.edades_menores|linebreaksbr }}</div>
+                                </p>
+                                {% endif %}
+                                {% if not venta.pasajeros and not venta.edades_menores %}
+                                <p class="text-muted mb-0">No se ha registrado información de pasajeros.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-header bg-dark text-white">
+                                <i class="fas fa-info-circle me-2"></i>Detalles Adicionales
+                            </div>
+                            <div class="card-body">
+                                {% if venta.servicios_detalle %}
+                                <p class="mb-3">
+                                    <strong class="text-muted d-block mb-2">Descripción Detallada de Servicios:</strong>
+                                    <div class="bg-light p-3 rounded" style="max-height: 200px; overflow-y: auto;">{{ venta.servicios_detalle|linebreaksbr }}</div>
+                                </p>
+                                {% endif %}
+                                {% if venta.comprobante_apertura_subido_por %}
+                                <p class="mb-2">
+                                    <strong class="text-muted d-block mb-1">Comprobante de Apertura:</strong>
+                                    <span class="badge bg-success me-1">Subido</span>
+                                    {% if venta.comprobante_apertura_subido_en %}
+                                        <small class="text-muted">el {{ venta.comprobante_apertura_subido_en|date:"d/m/Y H:i" }}</small>
+                                    {% endif %}
+                                    <br><small class="text-muted">Por: {{ venta.comprobante_apertura_subido_por.get_full_name|default:venta.comprobante_apertura_subido_por.username }}</small>
+                                </p>
+                                {% endif %}
+                                {% if not venta.servicios_detalle and not venta.comprobante_apertura_subido_por %}
+                                <p class="text-muted mb-0">No hay información adicional disponible.</p>
+                                {% endif %}
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
@@ -320,6 +599,16 @@
                                             {% for error in abono_form.forma_pago.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
                                         </div>
 
+                                        <div class="mb-3">
+                                            <div class="form-check">
+                                                {{ abono_form.requiere_factura }}
+                                                <label class="form-check-label" for="{{ abono_form.requiere_factura.id_for_label }}">
+                                                    Requiere factura por este abono
+                                                </label>
+                                            </div>
+                                            {% for error in abono_form.requiere_factura.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                                        </div>
+
                                         <button type="submit" name="registrar_abono" class="btn btn-success w-100 mt-3">
                                             <i class="fas fa-plus-circle"></i> Registrar Pago
                                         </button>
@@ -339,7 +628,7 @@
                                 Historial de Pagos ({{ abonos|length }})
                             </div>
                             <div class="card-body">
-                                {% if abonos or venta.cantidad_apertura > 0 or venta.descuento_promociones_mxn %}
+                                {% if abonos or venta.cantidad_apertura > 0 or venta.descuento_promociones_mxn or venta.descuento_kilometros_mxn %}
                                     <div class="table-responsive">
                                         <table class="table table-sm table-striped">
                                             <thead class="table-light">
@@ -350,6 +639,7 @@
                                                 <th>Estado</th>
                                                 <th>Comprobante</th>
                                                 <th>Registrado por</th>
+                                                <th>Acciones</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -365,7 +655,7 @@
                                                     <td><span class="badge bg-info">{{ venta.get_modo_pago_apertura_display }}</span></td>
                                                     <td>
                                                         {# Solo está pendiente si la venta está en confirmación Y NO hay otros abonos pendientes #}
-                                                        {% if venta.estado_confirmacion == 'EN_CONFIRMACION' and venta.modo_pago_apertura in 'TRN,TAR,DEP' and not tiene_abonos_pendientes %}
+                                                        {% if venta.estado_confirmacion == 'EN_CONFIRMACION' and venta.modo_pago_apertura in 'TRN,TAR,DEP,CRE' and not tiene_abonos_pendientes %}
                                                             <span class="badge bg-warning text-dark"><i class="fas fa-clock"></i> Pendiente</span>
                                                         {% elif venta.modo_pago_apertura in 'EFE,LIG,PRO' %}
                                                             <span class="badge bg-success"><i class="fas fa-check"></i> Confirmado</span>
@@ -374,7 +664,9 @@
                                                         {% endif %}
                                                     </td>
                                                     <td>
-                                                        {% if venta.modo_pago_apertura in 'TRN,TAR,DEP' %}
+                                                        {% if venta.modo_pago_apertura == 'CRE' %}
+                                                            <span class="badge bg-info">Crédito - Pendiente de validación</span>
+                                                        {% elif venta.modo_pago_apertura in 'TRN,TAR,DEP' %}
                                                             {% if venta.comprobante_apertura_subido and venta.comprobante_apertura %}
                                                                 <a href="{{ venta.comprobante_apertura.url }}" target="_blank" class="btn btn-sm btn-outline-primary" title="Ver comprobante">
                                                                     <i class="fas fa-image"></i> Ver
@@ -431,16 +723,34 @@
                                                             <span class="text-muted">-</span>
                                                         {% endif %}
                                                     </td>
-                                                    <td>{{ abono.registrado_por.username|default:"-" }}</td>
+                                                    <td>
+                                                        {{ abono.registrado_por.username|default:"-" }}
+                                                        {% if abono.requiere_factura %}
+                                                            <br><small class="text-muted"><i class="fas fa-file-invoice text-info"></i> Requiere factura</small>
+                                                        {% endif %}
+                                                    </td>
                                                 </tr>
                                                 {% endfor %}
+                                                {% if venta.descuento_kilometros_mxn and venta.descuento_kilometros_mxn > 0 %}
+                                                <tr class="table-info">
+                                                    <td>{{ venta.fecha_actualizacion|default:venta.fecha_creacion|date:"d/M/y H:i" }}</td>
+                                                    <td><strong>${{ venta.descuento_kilometros_mxn|floatformat:2|intcomma }}</strong></td>
+                                                    <td><span class="badge bg-primary">Descuento Kilómetros Movums</span></td>
+                                                    <td><span class="badge bg-success"><i class="fas fa-check"></i> Confirmado</span></td>
+                                                    <td><span class="text-muted">-</span></td>
+                                                    <td>{{ venta.vendedor.username|default:"Sistema" }}</td>
+                                                    <td><span class="text-muted">-</span></td>
+                                                </tr>
+                                                {% endif %}
                                                 {% if venta.descuento_promociones_mxn and venta.descuento_promociones_mxn > 0 %}
                                                 <tr class="table-info">
                                                     <td>{{ venta.fecha_actualizacion|default:venta.fecha_creacion|date:"d/M/y H:i" }}</td>
                                                     <td><strong>${{ venta.descuento_promociones_mxn|floatformat:2|intcomma }}</strong></td>
-                                                    <td><span class="badge bg-primary">Descuento promo</span></td>
+                                                    <td><span class="badge bg-primary">Descuento Promociones</span></td>
                                                     <td><span class="badge bg-success"><i class="fas fa-check"></i> Confirmado</span></td>
+                                                    <td><span class="text-muted">-</span></td>
                                                     <td>{{ venta.vendedor.username|default:"Sistema" }}</td>
+                                                    <td><span class="text-muted">-</span></td>
                                                 </tr>
                                                 {% endif %}
                                             </tbody>
@@ -468,8 +778,11 @@
                             {% if servicios_logisticos_rows %}
                             <div class="row text-center g-3 mb-4">
                                 <div class="col-12 col-md-3">
-                                    <p class="text-muted mb-1">Total Venta</p>
+                                    <p class="text-muted mb-1">Total Venta (con descuentos)</p>
                                     <h4 class="text-primary mb-0">${{ logistica_finanzas.total_venta|floatformat:2|intcomma }}</h4>
+                                    {% if descuento_km > 0 or descuento_promo > 0 %}
+                                        <small class="text-muted">Base: ${{ costo_base|floatformat:2|intcomma }}</small>
+                                    {% endif %}
                                 </div>
                                 <div class="col-12 col-md-3">
                                     <p class="text-muted mb-1">Total Neto</p>
@@ -527,7 +840,7 @@
                                             <th width="180">Monto Planificado</th>
                                             <th width="200">Estado</th>
                                             <th width="140">Pagado</th>
-                                            <th>Notas</th>
+                                            <th>Nombre del Proveedor</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -543,7 +856,22 @@
                                                 {{ row.form.id }}
                                                 <div class="input-group">
                                                     <span class="input-group-text">$</span>
-                                                    {{ row.form.monto_planeado }}
+                                                    {% if row.servicio.monto_planeado and row.servicio.monto_planeado > 0 %}
+                                                        {# Campo oculto para preservar el valor cuando está deshabilitado #}
+                                                        <input type="hidden" 
+                                                               name="{{ row.form.monto_planeado.name }}" 
+                                                               value="{{ row.servicio.monto_planeado|floatformat:2 }}">
+                                                        <input type="text" 
+                                                               id="{{ row.form.monto_planeado.id_for_label }}_display"
+                                                               value="{{ row.servicio.monto_planeado|floatformat:2 }}" 
+                                                               class="form-control" 
+                                                               disabled 
+                                                               readonly
+                                                               style="background-color: #e9ecef; cursor: not-allowed;"
+                                                               title="Los montos planificados están bloqueados para pruebas">
+                                                    {% else %}
+                                                        {{ row.form.monto_planeado }}
+                                                    {% endif %}
                                                 </div>
                                                 {% for error in row.form.monto_planeado.errors %}
                                                     <div class="text-danger small">{{ error }}</div>
@@ -555,18 +883,35 @@
                                             </td>
                                             <td>
                                                 <div class="form-check">
-                                                    {{ row.form.pagado }}
-                                                    <label class="form-check-label">Pagado</label>
+                                                    {% if row.servicio.pagado %}
+                                                        {# Campo oculto para preservar el valor cuando está deshabilitado #}
+                                                        {# Para checkboxes, Django envía el nombre del campo si está marcado #}
+                                                        <input type="hidden" 
+                                                               name="{{ row.form.pagado.name }}" 
+                                                               value="on">
+                                                        <input type="checkbox" 
+                                                               id="{{ row.form.pagado.id_for_label }}_display"
+                                                               class="form-check-input" 
+                                                               checked 
+                                                               disabled
+                                                               style="cursor: not-allowed;"
+                                                               title="El estado de pago está bloqueado para pruebas">
+                                                        <label class="form-check-label" style="opacity: 0.7;">Pagado</label>
+                                                    {% else %}
+                                                        {{ row.form.pagado }}
+                                                        <label class="form-check-label">Pagado</label>
+                                                    {% endif %}
                                                 </div>
                                                 {% for error in row.form.pagado.errors %}
                                                     <div class="text-danger small">{{ error }}</div>
                                                 {% endfor %}
                                             </td>
                                             <td>
-                                                {{ row.form.notas }}
-                                                {% for error in row.form.notas.errors %}
-                                                    <div class="text-danger small">{{ error }}</div>
-                                                {% endfor %}
+                                                {% if row.opcion_proveedor %}
+                                                    <span class="badge bg-info text-white">{{ row.opcion_proveedor }}</span>
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
                                             </td>
                                         </tr>
                                         {% endfor %}
@@ -933,9 +1278,12 @@
                     const campo = e.target;
                     if (!campo.hasAttribute('data-formato-inicializado')) {
                         campo.setAttribute('data-formato-inicializado', 'true');
+                    }
+                    // Solo formatear si hay valor y no es 0 o 0.00
+                    if (campo.value && campo.value.trim() !== '' && campo.value !== '0' && campo.value !== '0.00') {
                         formatearEnTiempoReal(campo);
-                    } else {
-                        formatearEnTiempoReal(campo);
+                    } else if (campo.value === '0' || campo.value === '0.00') {
+                        campo.value = '';
                     }
                 }
             });
@@ -945,14 +1293,30 @@
             camposMontoPlaneado.forEach(campo => {
                 if (!campo.hasAttribute('data-formato-inicializado')) {
                     campo.setAttribute('data-formato-inicializado', 'true');
-                    if (campo.value && !campo.value.startsWith('$')) {
-                        formatearEnTiempoReal(campo);
+                    // Solo formatear si tiene valor y no es 0.00 o vacío
+                    if (campo.value && campo.value.trim() !== '' && campo.value !== '0.00' && campo.value !== '0' && !campo.value.startsWith('$')) {
+                        // Limpiar el valor primero para verificar si es realmente 0
+                        const valorLimpio = campo.value.replace('$', '').replace(',', '').trim();
+                        if (valorLimpio && valorLimpio !== '0' && valorLimpio !== '0.00') {
+                            formatearEnTiempoReal(campo);
+                        } else {
+                            // Si es 0.00, dejar vacío
+                            campo.value = '';
+                        }
+                    } else if (campo.value === '0.00' || campo.value === '0') {
+                        // Si el valor es 0.00, dejarlo vacío
+                        campo.value = '';
                     }
                     campo.addEventListener('input', function() {
-                        formatearEnTiempoReal(this);
+                        // Solo formatear si hay valor y no es solo 0
+                        if (this.value && this.value.trim() !== '' && this.value !== '0' && this.value !== '0.00') {
+                            formatearEnTiempoReal(this);
+                        }
                     });
                     campo.addEventListener('blur', function() {
-                        if (this.value === '$') this.value = '';
+                        if (this.value === '$' || this.value === '0.00' || this.value === '0') {
+                            this.value = '';
+                        }
                     });
                 }
             });
