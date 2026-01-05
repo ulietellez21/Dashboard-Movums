@@ -492,8 +492,8 @@
                             </label>
                         </div>
                         <p class="text-muted small mb-0">
-                            Disponible como beneficio de fidelidad. El descuento se calcula sobre el costo neto de la
-                            venta (10% del costo neto).
+                            Disponible como beneficio de fidelidad. El descuento se calcula sobre el costo venta final
+                            de la venta (10% del total).
                         </p>
                     </div>
                     {% for error in form.aplica_descuento_kilometros.errors %}
@@ -1231,12 +1231,11 @@
         }
 
         function recalculateDescuento() {
-            // Usar costo_neto para calcular el descuento (10% sobre costo neto, no sobre total)
-            const costoNeto = costoNetoInput ? toNumber(costoNetoInput.value) : 0;
+            // Usar costo_venta_final para calcular el descuento (10% sobre el total de la venta)
             const costoVenta = costoVentaInput ? toNumber(costoVentaInput.value) : 0;
-            const aplica = descuentoCheckbox && descuentoCheckbox.checked && costoNeto > 0;
-            // Calcular el 10% sobre el costo NETO
-            const maxPorRegla = Math.round(costoNeto * 10) / 100;
+            const aplica = descuentoCheckbox && descuentoCheckbox.checked && costoVenta > 0;
+            // Calcular el 10% sobre el costo VENTA FINAL (total)
+            const maxPorRegla = Math.round(costoVenta * 10) / 100;
             const maxPorCredito = Math.max(0, kmCreditoDisponible || 0);
             const descuentoAplicable = Math.min(maxPorRegla, maxPorCredito);
             const descuento = aplica ? descuentoAplicable : 0;
@@ -1277,9 +1276,8 @@
             const baseTotal = costoVenta + costoMod;
             
             // 2. Obtener descuento de kilómetros movums
-            const costoNeto = costoNetoInput ? toNumber(costoNetoInput.value || '0') : 0;
-            const aplicaKm = descuentoCheckbox && descuentoCheckbox.checked && costoNeto > 0;
-            const maxPorRegla = Math.round(costoNeto * 10) / 100;
+            const aplicaKm = descuentoCheckbox && descuentoCheckbox.checked && costoVenta > 0;
+            const maxPorRegla = Math.round(costoVenta * 10) / 100;
             const maxPorCredito = Math.max(0, kmCreditoDisponible || 0);
             const descuentoKm = aplicaKm ? Math.min(maxPorRegla, maxPorCredito) : 0;
             
