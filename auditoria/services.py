@@ -101,9 +101,14 @@ class AuditoriaService:
     @classmethod
     def registrar_cotizacion_creada(cls, cotizacion, usuario, ip_address=None):
         """Registra la creación de una cotización."""
+        # El tipo está en propuestas['tipo'], no es un campo del modelo
+        propuestas = cotizacion.propuestas if isinstance(cotizacion.propuestas, dict) else {}
+        tipo = propuestas.get('tipo', 'N/A')
+        tipo_display = tipo.upper() if tipo != 'N/A' else 'N/A'
+        
         descripcion = (
             f"Cotización '{cotizacion.slug}' creada para el cliente {cotizacion.cliente.nombre_completo_display}. "
-            f"Tipo: {cotizacion.get_tipo_display()}"
+            f"Tipo: {tipo_display}"
         )
         return cls.registrar_evento(
             tipo_evento='COTIZACION_CREADA',
@@ -346,4 +351,13 @@ class AuditoriaService:
             nivel='WARNING',
             ip_address=ip_address
         )
+
+
+
+
+
+
+
+
+
 
