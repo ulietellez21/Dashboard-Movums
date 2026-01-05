@@ -18,7 +18,7 @@
         {% endif %}
         
         {% if paquete.total %}
-        <div class="card">
+        <div class="card total-paquete-card">
             {% if paquete.forma_pago %}
             <table class="data-table">
                 <tr>
@@ -27,8 +27,8 @@
                 </tr>
             </table>
             {% endif %}
-            <div class="total-destacado">
-                <div class="total-text">Total del Paquete MXN ${{ paquete.total|floatformat:2|intcomma }} Pesos</div>
+            <div class="total-destacado total-paquete">
+                <div class="total-text total-paquete-text">Total del Paquete MXN ${{ paquete.total|floatformat:2|intcomma }} Pesos</div>
             </div>
         </div>
         {% endif %}

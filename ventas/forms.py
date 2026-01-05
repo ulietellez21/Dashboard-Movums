@@ -264,6 +264,60 @@ class ProveedorForm(forms.ModelForm):
         return instance
 
 
+class OficinaForm(forms.ModelForm):
+    """Formulario para crear y editar oficinas."""
+    
+    class Meta:
+        from .models import Oficina
+        model = Oficina
+        fields = [
+            'nombre',
+            'direccion',
+            'ubicacion',
+            'responsable',
+            'encargado',
+            'tipo',
+        ]
+        widgets = {
+            'nombre': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej. Oficina Central, Sucursal Norte'
+            }),
+            'direccion': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Calle, número, ciudad, estado, código postal'
+            }),
+            'ubicacion': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej. Local 15, Piso 2, Oficina 201'
+            }),
+            'responsable': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Nombre del responsable'
+            }),
+            'encargado': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Nombre del encargado'
+            }),
+            'tipo': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+        }
+        labels = {
+            'nombre': 'Nombre de la Oficina',
+            'direccion': 'Dirección',
+            'ubicacion': 'Ubicación',
+            'responsable': 'Responsable',
+            'encargado': 'Encargado',
+            'tipo': 'Tipo de Oficina',
+        }
+        help_texts = {
+            'direccion': 'Dirección completa (punto en el mapa)',
+            'ubicacion': 'Descripción de ubicación dentro de plaza/edificio',
+        }
+
+
 class EjecutivoForm(forms.ModelForm):
     # Campo adicional para seleccionar el tipo de usuario/rol
     tipo_usuario = forms.ChoiceField(
@@ -302,7 +356,7 @@ class EjecutivoForm(forms.ModelForm):
             'direccion': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Calle, número, ciudad, estado'}),
             'telefono': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '+52 55 1234 5678'}),
             'email': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'ejecutivo@agencia.com'}),
-            'oficina': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. Oficina Central, Sucursal Norte'}),
+            'oficina': forms.Select(attrs={'class': 'form-select'}),
             'tipo_vendedor': forms.Select(attrs={'class': 'form-select'}),
             'sueldo_base': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'Ej. 12000.00'}),
             'fecha_ingreso': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
@@ -328,6 +382,10 @@ class EjecutivoForm(forms.ModelForm):
         # Hacer el campo tipo_vendedor opcional inicialmente
         # La validación condicional se hará en clean()
         self.fields['tipo_vendedor'].required = False
+        
+        # Actualizar queryset de oficina para mostrar solo oficinas activas
+        from .models import Oficina
+        self.fields['oficina'].queryset = Oficina.objects.filter(activa=True).order_by('nombre')
 
     def clean(self):
         """Validación condicional: tipo_vendedor solo es requerido si tipo_usuario es VENDEDOR."""
@@ -412,9 +470,13 @@ class AbonoPagoForm(forms.ModelForm):
 
     class Meta:
         model = AbonoPago
-        fields = ['monto', 'forma_pago', 'registrado_por'] 
+        fields = ['monto', 'forma_pago', 'registrado_por', 'requiere_factura'] 
         widgets = {
             'forma_pago': forms.Select(attrs={'class': 'form-select'}), 
+            'requiere_factura': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+        labels = {
+            'requiere_factura': 'Requiere factura por este abono',
         }
     
     def clean_monto(self):
@@ -498,15 +560,30 @@ class LogisticaServicioForm(forms.ModelForm):
     
     class Meta:
         model = LogisticaServicio
-        fields = ['monto_planeado', 'pagado', 'notas']
+        fields = ['monto_planeado', 'pagado']  # Eliminado 'notas'
         widgets = {
             'pagado': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'notas': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Notas internas opcionales'}),
         }
         labels = {
             'pagado': 'Marcar como pagado',
-            'notas': 'Notas',
         }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Si el valor inicial es 0.00, mostrarlo como campo vacío
+        if self.instance and self.instance.pk:
+            monto = self.instance.monto_planeado
+            if monto is not None and monto == Decimal('0.00'):
+                self.initial['monto_planeado'] = ''
+        elif 'initial' in kwargs and 'monto_planeado' in kwargs['initial']:
+            monto = kwargs['initial']['monto_planeado']
+            if monto is not None and monto == Decimal('0.00'):
+                kwargs['initial']['monto_planeado'] = ''
+        # También verificar si viene del formulario sin datos (nuevo servicio)
+        if not self.is_bound and not self.instance.pk:
+            # Si es un nuevo servicio sin valor, dejar vacío
+            if 'monto_planeado' not in self.initial or self.initial.get('monto_planeado') == Decimal('0.00'):
+                self.initial['monto_planeado'] = ''
     
     def clean_monto_planeado(self):
         """Limpia el formato de moneda (quita $ y comas) antes de validar."""
@@ -516,6 +593,9 @@ class LogisticaServicioForm(forms.ModelForm):
             if isinstance(monto, str):
                 # Remover símbolos de moneda y formateo
                 monto_limpio = monto.replace('$', '').replace('USD', '').replace(',', '').replace(' ', '').strip()
+                # Si después de limpiar está vacío, retornar None
+                if not monto_limpio:
+                    return None
                 try:
                     monto = Decimal(monto_limpio)
                 except (ValueError, InvalidOperation):
@@ -523,7 +603,8 @@ class LogisticaServicioForm(forms.ModelForm):
             # Validar que el monto sea positivo o cero
             if monto < 0:
                 raise forms.ValidationError("El monto no puede ser negativo.")
-        return monto or Decimal('0.00')
+        # Si no hay monto o es 0, retornar 0.00 para guardar en la BD
+        return monto if monto else Decimal('0.00')
 
 
 LogisticaServicioFormSet = modelformset_factory(
@@ -738,12 +819,24 @@ class VentaViajeForm(forms.ModelForm):
                     if not servicio_linea:
                         continue
                     
-                    # Verificar si la línea tiene el formato con proveedor
+                    # Verificar si la línea tiene el formato con proveedor (y posiblemente opción)
                     if ' - Proveedor: ' in servicio_linea:
+                        # Formato puede ser:
+                        # "Servicio - Proveedor: Nombre"
+                        # "Servicio - Proveedor: Nombre - Opción: Opción elegida"
                         partes = servicio_linea.split(' - Proveedor: ')
                         if len(partes) == 2:
                             nombre_servicio = partes[0].strip()
-                            nombre_proveedor = partes[1].strip()
+                            resto = partes[1].strip()
+                            
+                            # Separar proveedor y opción si existe
+                            if ' - Opción: ' in resto:
+                                proveedor_parte, opcion_parte = resto.split(' - Opción: ', 1)
+                                nombre_proveedor = proveedor_parte.strip()
+                                nombre_opcion = opcion_parte.strip()
+                            else:
+                                nombre_proveedor = resto.strip()
+                                nombre_opcion = None
                             
                             if nombre_servicio in SERVICIO_PROVEEDOR_MAP:
                                 # Servicio con dropdown de proveedores
@@ -751,18 +844,30 @@ class VentaViajeForm(forms.ModelForm):
                                 try:
                                     proveedor_obj = Proveedor.objects.get(nombre=nombre_proveedor)
                                     dynamic_initial[field_name] = proveedor_obj
+                                    # Añadir opción si existe
+                                    if nombre_opcion:
+                                        opcion_field_name = f'{field_name}_opcion'
+                                        dynamic_initial[opcion_field_name] = nombre_opcion
                                 except Proveedor.DoesNotExist:
                                     # Si no se encuentra el proveedor, intentar buscar por nombre similar
                                     try:
                                         proveedor_obj = Proveedor.objects.filter(nombre__icontains=nombre_proveedor).first()
                                         if proveedor_obj:
                                             dynamic_initial[field_name] = proveedor_obj
+                                            # Añadir opción si existe
+                                            if nombre_opcion:
+                                                opcion_field_name = f'{field_name}_opcion'
+                                                dynamic_initial[opcion_field_name] = nombre_opcion
                                     except:
                                         pass
                             else:
                                 # Servicio con campo de texto
                                 field_name = f'proveedor_{nombre_servicio.lower().replace(" ", "_").replace("/", "_")}'
                                 dynamic_initial[field_name] = nombre_proveedor
+                                # Añadir opción si existe
+                                if nombre_opcion:
+                                    opcion_field_name = f'{field_name}_opcion'
+                                    dynamic_initial[opcion_field_name] = nombre_opcion
                     else:
                         # La línea solo tiene el nombre del servicio, sin proveedor
                         # Esto es válido, simplemente no establecemos ningún proveedor
@@ -1047,6 +1152,20 @@ class VentaViajeForm(forms.ModelForm):
                     label=f"Proveedor de {servicio_nombre}",
                     empty_label="Selecciona un proveedor"
                 )
+                
+                # Añadir campo de opción para este proveedor
+                opcion_field_name = f'{field_name}_opcion'
+                self.fields[opcion_field_name] = forms.CharField(
+                    required=False,
+                    widget=forms.TextInput(attrs={
+                        'class': 'form-control proveedor-opcion-input',
+                        'data-proveedor-field': field_name,
+                        'data-servicio': servicio_nombre,
+                        'placeholder': f'Opción elegida (ej. Aerolínea, Hotel, Agencia, etc.)'
+                    }),
+                    label=f"Opción de {servicio_nombre}",
+                    help_text=f"Especifica la opción elegida del proveedor (ej. nombre de aerolínea, hotel, etc.)"
+                )
         
         # Crear campos de texto para otros servicios
         otros_servicios = ['Traslado', 'Circuito Int', 'Renta Auto', 'Paquete Todo Incluido', 
@@ -1063,14 +1182,28 @@ class VentaViajeForm(forms.ModelForm):
                     }),
                     label=f"Proveedor de {servicio_nombre}"
                 )
+                
+                # Añadir campo de opción para este proveedor (texto)
+                opcion_field_name = f'{field_name}_opcion'
+                self.fields[opcion_field_name] = forms.CharField(
+                    required=False,
+                    widget=forms.TextInput(attrs={
+                        'class': 'form-control proveedor-opcion-input',
+                        'data-proveedor-field': field_name,
+                        'data-servicio': servicio_nombre,
+                        'placeholder': f'Opción elegida (ej. Aerolínea, Hotel, Agencia, etc.)'
+                    }),
+                    label=f"Opción de {servicio_nombre}",
+                    help_text=f"Especifica la opción elegida del proveedor (ej. nombre de aerolínea, hotel, etc.)"
+                )
         
         # IMPORTANTE: Después de crear los campos dinámicos, establecer sus valores iniciales
         # Aplicar tanto para ventas existentes como para nuevas ventas (desde cotización)
         if not self.is_bound:
-            # 1. Establecer valores iniciales para campos dinámicos de proveedores
+            # 1. Establecer valores iniciales para campos dinámicos de proveedores y opciones
             # IMPORTANTE: Asegurarse de que los valores se establezcan ANTES de que el template los acceda
             for key, value in self._dynamic_initial.items():
-                if key.startswith('proveedor_') and key in self.fields:
+                if (key.startswith('proveedor_') or key.endswith('_opcion')) and key in self.fields:
                     # Establecer el valor en form.initial (esto es lo que el template accede)
                     self.initial[key] = value
                     # También establecer el valor en el campo directamente
@@ -1370,30 +1503,57 @@ class VentaViajeForm(forms.ModelForm):
             aceptadas = []
             resumen_list = []
             total_desc = Decimal('0.00')
-            for p in promos:
-                promo = p['promo']
-                requiere = p.get('requiere_confirmacion', False)
-                aplicar = True
-                if requiere:
-                    aplicar = self.data.get(f"aplicar_promo_{promo.id}", "on") in ["on", "true", "1"]
-                if not aplicar:
-                    continue
-                aceptadas.append(p)
-                total_desc += p['monto_descuento']
-                if p.get('km_bono') and p['km_bono'] > 0:
-                    self.promos_km.append({'promo': promo, 'km_bono': p['km_bono']})
-                    resumen_list.append(f"{promo.nombre} (+{p['km_bono']} km)")
-                else:
-                    resumen_list.append(f"{promo.nombre} (-${p['monto_descuento']})")
+            
+            # Obtener la promoción seleccionada del radio button (solo una promoción puede estar seleccionada)
+            promocion_seleccionada_id = self.data.get('promocion_seleccionada', '').strip()
+            
+            # Si hay una promoción seleccionada, aplicar solo esa
+            if promocion_seleccionada_id:
+                try:
+                    promocion_seleccionada_id = int(promocion_seleccionada_id)
+                    for p in promos:
+                        promo = p['promo']
+                        # Solo aplicar la promoción seleccionada
+                        if promo.id == promocion_seleccionada_id:
+                            aceptadas.append(p)
+                            # Solo sumar el descuento si es de tipo DESCUENTO
+                            if p.get('monto_descuento') and p['monto_descuento'] > 0:
+                                total_desc += p['monto_descuento']
+                            if p.get('km_bono') and p['km_bono'] > 0:
+                                self.promos_km.append({'promo': promo, 'km_bono': p['km_bono']})
+                                resumen_list.append(f"{promo.nombre} (+{p['km_bono']} km)")
+                            else:
+                                resumen_list.append(f"{promo.nombre} (-${p['monto_descuento']})")
+                            break  # Solo una promoción seleccionada
+                except (ValueError, TypeError):
+                    # Si el ID no es válido, no aplicar ninguna promoción
+                    pass
+            else:
+                # Si no hay promoción seleccionada explícitamente, aplicar solo las que no requieren confirmación
+                # (comportamiento de respaldo para compatibilidad)
+                for p in promos:
+                    promo = p['promo']
+                    requiere = p.get('requiere_confirmacion', False)
+                    # Solo aplicar si no requiere confirmación (automáticas)
+                    if not requiere:
+                        aceptadas.append(p)
+                        if p.get('monto_descuento') and p['monto_descuento'] > 0:
+                            total_desc += p['monto_descuento']
+                        if p.get('km_bono') and p['km_bono'] > 0:
+                            self.promos_km.append({'promo': promo, 'km_bono': p['km_bono']})
+                            resumen_list.append(f"{promo.nombre} (+{p['km_bono']} km)")
+                        else:
+                            resumen_list.append(f"{promo.nombre} (-${p['monto_descuento']})")
+                        # Solo aplicar la primera automática (para mantener compatibilidad con el comportamiento anterior)
+                        break
 
             self.promos_aplicadas_aceptadas = aceptadas
             self.total_descuento_promos = total_desc
             self.resumen_promos_text = "; ".join(resumen_list)
 
-            if total_desc > 0:
-                # Ajustar el costo_venta_final para reflejar el descuento, sin tocar costo_modificacion
-                nuevo_total = (cleaned_data.get('costo_venta_final') or Decimal('0.00')) - total_desc
-                cleaned_data['costo_venta_final'] = max(Decimal('0.00'), nuevo_total)
+            # Nota: El descuento de promociones se guarda en descuento_promociones_mxn
+            # y se aplica junto con el descuento de kilómetros al calcular el total final.
+            # No restamos aquí del costo_venta_final para mantener la transparencia del cálculo.
 
         # ------------------- Kilómetros Movums -------------------
         cleaned_data['aplica_descuento_kilometros'] = aplica_descuento
@@ -1436,20 +1596,31 @@ class VentaViajeForm(forms.ModelForm):
             if codigo:
                 servicios_codigos.append(codigo)
                 
-                # Obtener proveedor para este servicio
+                # Obtener proveedor y opción para este servicio
                 proveedor_info = ""
+                opcion_info = ""
                 if nombre in SERVICIO_PROVEEDOR_MAP:
                     # Servicio con dropdown de proveedores
                     field_name = f'proveedor_{nombre.lower().replace(" ", "_")}'
                     proveedor = self.cleaned_data.get(field_name)
                     if proveedor:
                         proveedor_info = f" - Proveedor: {proveedor.nombre}"
+                        # Obtener opción si existe
+                        opcion_field_name = f'{field_name}_opcion'
+                        opcion_texto = self.cleaned_data.get(opcion_field_name, '').strip()
+                        if opcion_texto:
+                            opcion_info = f" - Opción: {opcion_texto}"
                 else:
                     # Servicio con campo de texto
                     field_name = f'proveedor_{nombre.lower().replace(" ", "_").replace("/", "_")}'
                     proveedor_texto = self.cleaned_data.get(field_name, '').strip()
                     if proveedor_texto:
                         proveedor_info = f" - Proveedor: {proveedor_texto}"
+                        # Obtener opción si existe
+                        opcion_field_name = f'{field_name}_opcion'
+                        opcion_texto = self.cleaned_data.get(opcion_field_name, '').strip()
+                        if opcion_texto:
+                            opcion_info = f" - Opción: {opcion_texto}"
                 
                 # Si es "Trámites de Documentación", agregar el tipo de trámite
                 tipo_tramite_info = ""
@@ -1459,7 +1630,7 @@ class VentaViajeForm(forms.ModelForm):
                         tipo_tramite_display = "Visa" if tipo_tramite == "VISA" else "Pasaporte"
                         tipo_tramite_info = f" - Tipo: {tipo_tramite_display}"
                 
-                servicios_detalle_list.append(f"{nombre}{tipo_tramite_info}{proveedor_info}")
+                servicios_detalle_list.append(f"{nombre}{tipo_tramite_info}{proveedor_info}{opcion_info}")
         
         # Guardar códigos separados por coma en 'servicios_seleccionados' (ej: "VUE,HOS,SEG")
         instance.servicios_seleccionados = ','.join(servicios_codigos) if servicios_codigos else ''

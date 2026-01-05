@@ -7,7 +7,7 @@
     
     <div class="d-flex justify-content-between align-items-center mb-4">
         <!-- Cambio de text-dark a text-black para mayor contraste -->
-        <h1 class="display-5 fw-bold text-black"> 
+        <h1 class="h2 fw-bold text-black mb-0"> 
             <!-- Se mantiene la corrección del nombre -->
             {% if cliente.tipo_cliente == 'EMPRESA' %}
                 <i class="fas fa-building text-info"></i>
@@ -18,16 +18,16 @@
             {% endif %}
             Cliente: {{ cliente }} 
         </h1>
-        <div>
+        <div class="d-flex gap-2">
             {% with user.perfil.rol|default:""|upper as user_rol %}
                 {% if "CONTADOR" not in user_rol %}
                     <!-- Botón de Edición -->
-                    <a href="{% url 'editar_cliente' pk=cliente.pk %}" class="btn btn-warning me-2 shadow-sm">
+                    <a href="{% url 'editar_cliente' pk=cliente.pk %}" class="btn btn-warning shadow-sm">
                         <i class="fas fa-pencil-alt"></i> Editar Datos
                     </a>
                     
                     <!-- Botón de Abrir Venta -->
-                    <a href="{% url 'crear_venta' %}?cliente_pk={{ cliente.pk }}" class="btn btn-success me-2 shadow-sm">
+                    <a href="{% url 'crear_venta' %}?cliente_pk={{ cliente.pk }}" class="btn btn-success shadow-sm">
                         <i class="fas fa-plane"></i> Abrir Nueva Venta
                     </a>
                 {% endif %}
@@ -44,10 +44,10 @@
 
     {% if kilometros %}
     <div class="row mb-4">
-        <div class="col-lg-6">
+        <div class="col-lg-4 col-md-6 mb-3 mb-lg-0">
             <div class="card shadow border-0 h-100">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
                         <h5 class="text-primary mb-0"><i class="fas fa-route me-2"></i>Kilómetros Movums</h5>
                         {% if kilometros.participa %}
                             <span class="badge bg-success">Activo</span>
@@ -55,17 +55,17 @@
                             <span class="badge bg-secondary">Inactivo</span>
                         {% endif %}
                     </div>
-                    <div class="row text-black">
-                        <div class="col-6">
-                            <p class="text-muted mb-1">Disponibles</p>
-                            <p class="fs-4 fw-bold">{{ kilometros.disponible|floatformat:2|intcomma }} km</p>
+                    <div class="row text-black mb-3">
+                        <div class="col-12 mb-2">
+                            <p class="text-muted mb-1 small">Disponibles</p>
+                            <p class="fs-3 fw-bold mb-0">{{ kilometros.disponible|floatformat:2|intcomma }} km</p>
                         </div>
-                        <div class="col-6 text-end">
-                            <p class="text-muted mb-1">Equivalente</p>
-                            <p class="fs-4 fw-bold">${{ kilometros.valor_equivalente|floatformat:2|intcomma }} MXN</p>
+                        <div class="col-12">
+                            <p class="text-muted mb-1 small">Equivalente</p>
+                            <p class="fs-3 fw-bold mb-0 text-success">${{ kilometros.valor_equivalente|floatformat:2|intcomma }} MXN</p>
                         </div>
                     </div>
-                    <div class="small text-muted">
+                    <div class="small text-muted border-top pt-2">
                         <p class="mb-1"><strong>Total histórico:</strong> {{ kilometros.total_acumulado|floatformat:2|intcomma }} km</p>
                         {% if kilometros.ultima_fecha %}
                             <p class="mb-1"><strong>Última acumulación:</strong> {{ kilometros.ultima_fecha|date:"d M Y H:i" }}</p>
@@ -81,24 +81,73 @@
                 </div>
             </div>
         </div>
-        <div class="col-lg-6">
+        <div class="col-lg-8 col-md-6">
             <div class="card shadow border-0 h-100">
-                <div class="card-body">
+                <div class="card-body p-4">
                     <h6 class="text-primary mb-3"><i class="fas fa-history me-2"></i>Últimos movimientos</h6>
                     {% if kilometros.historial_reciente %}
-                        <ul class="list-unstyled mb-0 text-black">
-                            {% for movimiento in kilometros.historial_reciente %}
-                                <li class="d-flex justify-content-between small border-bottom py-2">
-                                    <span>
-                                        <strong>{{ movimiento.get_tipo_evento_display }}</strong>
-                                        {% if movimiento.descripcion %}<br><span class="text-muted">{{ movimiento.descripcion }}</span>{% endif %}
-                                    </span>
-                                    <span class="{% if movimiento.kilometros < 0 %}text-danger{% else %}text-success{% endif %} fw-bold">
-                                        {{ movimiento.kilometros|floatformat:2|intcomma }} km
-                                    </span>
-                                </li>
-                            {% endfor %}
-                        </ul>
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0 text-black">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 15%;" class="small">Fecha</th>
+                                        <th style="width: 20%;" class="small">Tipo</th>
+                                        <th style="width: 35%;" class="small">Descripción</th>
+                                        <th style="width: 15%;" class="text-end small">Kilómetros</th>
+                                        <th style="width: 15%;" class="text-end small">Equivalente</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for movimiento in kilometros.historial_reciente %}
+                                        <tr class="{% if movimiento.kilometros < 0 %}table-danger{% elif movimiento.kilometros > 0 %}table-success{% endif %}">
+                                            <td class="small">
+                                                <i class="fas fa-calendar-alt me-1 text-muted"></i>
+                                                {{ movimiento.fecha_registro|date:"d/M/y" }}<br>
+                                                <small class="text-muted">{{ movimiento.fecha_registro|date:"H:i" }}</small>
+                                            </td>
+                                            <td>
+                                                <span class="badge {% if movimiento.kilometros < 0 %}bg-danger{% elif movimiento.tipo_evento == 'COMPRA' %}bg-primary{% elif movimiento.tipo_evento == 'REDENCION' %}bg-warning text-dark{% else %}bg-success{% endif %} small">
+                                                    {% if movimiento.kilometros < 0 %}
+                                                        <i class="fas fa-minus-circle"></i>
+                                                    {% elif movimiento.kilometros > 0 %}
+                                                        <i class="fas fa-plus-circle"></i>
+                                                    {% endif %}
+                                                    {{ movimiento.get_tipo_evento_display }}
+                                                </span>
+                                            </td>
+                                            <td class="small">
+                                                {% if movimiento.descripcion %}
+                                                    {{ movimiento.descripcion|truncatewords:8 }}
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-end fw-bold {% if movimiento.kilometros < 0 %}text-danger{% else %}text-success{% endif %}">
+                                                {% if movimiento.kilometros < 0 %}
+                                                    <i class="fas fa-arrow-down"></i> {{ movimiento.kilometros|floatformat:2|intcomma }}
+                                                {% else %}
+                                                    <i class="fas fa-arrow-up"></i> +{{ movimiento.kilometros|floatformat:2|intcomma }}
+                                                {% endif %}
+                                                <br><small class="text-muted">km</small>
+                                            </td>
+                                            <td class="text-end fw-bold {% if movimiento.kilometros < 0 %}text-danger{% else %}text-success{% endif %}">
+                                                {% if movimiento.kilometros < 0 %}
+                                                    <i class="fas fa-arrow-down"></i> 
+                                                    {% widthratio movimiento.kilometros 1 -1 as km_positivo %}
+                                                    {% widthratio km_positivo 20 1 as valor_positivo %}
+                                                    ${{ valor_positivo|floatformat:2|intcomma }}
+                                                {% else %}
+                                                    <i class="fas fa-arrow-up"></i> 
+                                                    {% widthratio movimiento.kilometros 20 1 as valor_positivo %}
+                                                    +${{ valor_positivo|floatformat:2|intcomma }}
+                                                {% endif %}
+                                                <br><small class="text-muted">MXN</small>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
                     {% else %}
                         <p class="text-muted mb-0">Sin movimientos registrados.</p>
                     {% endif %}

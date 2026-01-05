@@ -133,6 +133,7 @@ class VentaViaje(models.Model):
         ('DEP', 'Depósito'),
         ('LIG', 'Liga de Pago'),
         ('PRO', 'Directo a Proveedor'),
+        ('CRE', 'Crédito'),
     ]
     modo_pago_apertura = models.CharField(
         max_length=3,
@@ -148,7 +149,7 @@ class VentaViaje(models.Model):
         blank=True,
         null=True,
         verbose_name="Comprobante de Apertura (Imagen)",
-        help_text="Imagen del comprobante del pago de apertura. Obligatorio para Transferencia, Tarjeta y Depósito."
+        help_text="Imagen del comprobante del pago de apertura. Obligatorio para Transferencia, Tarjeta y Depósito. No aplica para Crédito."
     )
     comprobante_apertura_subido = models.BooleanField(
         default=False,
@@ -467,13 +468,13 @@ class VentaViaje(models.Model):
             # Si la apertura es efectivo, liga de pago o directo a proveedor, se cuenta automáticamente
             if self.modo_pago_apertura in ['EFE', 'LIG', 'PRO']:
                 monto_apertura = self.cantidad_apertura
-            # Si la apertura es transferencia/tarjeta/depósito:
+            # Si la apertura es transferencia/tarjeta/depósito/crédito:
             # - Si está en 'EN_CONFIRMACION', NO se cuenta (pendiente de confirmación del contador)
             # - Si el estado NO es 'EN_CONFIRMACION', se cuenta (significa que ya fue confirmada)
             # IMPORTANTE: Una vez que el contador confirma la apertura, el estado cambia temporalmente 
             # a 'COMPLETADO' y luego puede cambiar a 'PENDIENTE' si aún falta pagar. En ambos casos,
             # la apertura debe contarse porque ya fue confirmada.
-            elif self.modo_pago_apertura in ['TRN', 'TAR', 'DEP']:
+            elif self.modo_pago_apertura in ['TRN', 'TAR', 'DEP', 'CRE']:
                 # IMPORTANTE: La lógica es simple:
                 # - Si está en 'EN_CONFIRMACION', NO se cuenta (pendiente de confirmación del contador)
                 # - Si NO está en 'EN_CONFIRMACION', se cuenta porque:
@@ -518,9 +519,16 @@ class VentaViaje(models.Model):
     @property
     def saldo_restante(self):
         """
-        Calcula el saldo restante usando el costo total incluyendo modificaciones.
+        Calcula el saldo restante usando el total final con descuentos (kilómetros y promociones).
         """
-        saldo = self.costo_total_con_modificacion - self.total_pagado
+        # Calcular el total final con descuentos
+        costo_base = (self.costo_venta_final or Decimal('0.00')) + (self.costo_modificacion or Decimal('0.00'))
+        descuento_km = self.descuento_kilometros_mxn or Decimal('0.00')
+        descuento_promo = self.descuento_promociones_mxn or Decimal('0.00')
+        total_descuentos = descuento_km + descuento_promo
+        total_final = costo_base - total_descuentos
+        
+        saldo = total_final - self.total_pagado
         # Crucial para la estabilidad del dashboard: el saldo nunca es negativo
         return max(Decimal('0.00'), saldo)
     
@@ -623,10 +631,15 @@ class VentaViaje(models.Model):
         tiene_abonos_confirmados = self.abonos.filter(confirmado=True, confirmado_en__isnull=False).exists()
         
         # Apertura confirmada: tiene comprobante subido y modo de pago que requiere confirmación
+        # Para crédito: no requiere comprobante, solo que el estado no sea EN_CONFIRMACION
         # IMPORTANTE: No depender del estado actual, solo verificar si la apertura fue confirmada
-        apertura_confirmada = (self.cantidad_apertura > 0 and 
-                              self.modo_pago_apertura in ['TRN', 'TAR', 'DEP'] and
-                              self.comprobante_apertura_subido)
+        if self.modo_pago_apertura == 'CRE':
+            # Para crédito: se considera confirmada si el estado no es EN_CONFIRMACION
+            apertura_confirmada = (self.estado_confirmacion != 'EN_CONFIRMACION')
+        else:
+            apertura_confirmada = (self.cantidad_apertura > 0 and 
+                                  self.modo_pago_apertura in ['TRN', 'TAR', 'DEP'] and
+                                  self.comprobante_apertura_subido)
         
         # Si hay una apertura confirmada, el estado debe ser COMPLETADO (fue confirmada por el contador)
         # y NO debe cambiar, independientemente del total pagado
@@ -760,6 +773,13 @@ class AbonoPago(models.Model):
         blank=True,
         related_name='comprobantes_subidos',
         verbose_name="Comprobante Subido Por"
+    )
+    
+    # Campo para indicar si se requiere factura por el abono
+    requiere_factura = models.BooleanField(
+        default=False,
+        verbose_name="Requiere Factura",
+        help_text="Indica si el cliente requiere factura por este abono."
     )
     
     def comprimir_comprobante(self):
@@ -1149,6 +1169,64 @@ class ConfirmacionVenta(models.Model):
 
 # ------------------- MODELO: Ejecutivo -------------------
 
+class Oficina(models.Model):
+    """
+    Representa una oficina física de la agencia.
+    Puede ser propia o franquicia.
+    """
+    TIPO_CHOICES = [
+        ('PROPIA', 'Propia'),
+        ('FRANQUICIA', 'Franquicia'),
+    ]
+    
+    nombre = models.CharField(
+        max_length=255,
+        unique=True,
+        verbose_name="Nombre de la Oficina",
+        help_text="Nombre único que identifica la oficina"
+    )
+    direccion = models.TextField(
+        verbose_name="Dirección",
+        help_text="Dirección completa (punto en el mapa)"
+    )
+    ubicacion = models.CharField(
+        max_length=255,
+        verbose_name="Ubicación",
+        help_text="Descripción de ubicación dentro de plaza/edificio (ej: Local 15, Piso 2, Oficina 201)"
+    )
+    responsable = models.CharField(
+        max_length=255,
+        verbose_name="Responsable",
+        help_text="Nombre del responsable de la oficina"
+    )
+    encargado = models.CharField(
+        max_length=255,
+        verbose_name="Encargado",
+        help_text="Nombre del encargado de la oficina"
+    )
+    tipo = models.CharField(
+        max_length=20,
+        choices=TIPO_CHOICES,
+        verbose_name="Tipo de Oficina",
+        help_text="Indica si la oficina es propia o franquicia"
+    )
+    fecha_creacion = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Creación")
+    fecha_actualizacion = models.DateTimeField(auto_now=True, verbose_name="Fecha de Actualización")
+    activa = models.BooleanField(
+        default=True,
+        verbose_name="Activa",
+        help_text="Indica si la oficina está activa"
+    )
+    
+    class Meta:
+        verbose_name = "Oficina"
+        verbose_name_plural = "Oficinas"
+        ordering = ['nombre']
+    
+    def __str__(self):
+        return f"{self.nombre} ({self.get_tipo_display()})"
+
+
 class Ejecutivo(models.Model):
     """
     Representa a los ejecutivos/vendedores gestionados por el usuario Jefe.
@@ -1169,7 +1247,15 @@ class Ejecutivo(models.Model):
         null=True,
         help_text="Será usado para crear sus credenciales."
     )
-    oficina = models.CharField(max_length=150, verbose_name="Oficina", blank=True, null=True)
+    oficina = models.ForeignKey(
+        'Oficina',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ejecutivos',
+        verbose_name="Oficina",
+        help_text="Oficina a la que pertenece el ejecutivo"
+    )
     tipo_vendedor = models.CharField(
         max_length=10,
         choices=TIPO_VENDEDOR_CHOICES,

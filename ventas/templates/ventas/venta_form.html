@@ -307,54 +307,90 @@
                             <div class="row g-3" id="proveedoresContainer">
                                 {# Campos de proveedor - Renderizados manualmente según tipo #}
                                 {% for field_name, field in form.fields.items %}
-                                {% if "proveedor_" in field_name %}
+                                {% if "proveedor_" in field_name and "_opcion" not in field_name %}
                                 {# Extraer el nombre del servicio del label (ej: "Proveedor de Vuelo" -> "Vuelo") #}
                                 {% with servicio_nombre=field.label|slice:"12:"|striptags %}
-                                <div class="col-md-6 proveedor-field" data-servicio="{{ servicio_nombre|striptags }}"
+                                <div class="col-md-6 proveedor-field-wrapper" data-servicio="{{ servicio_nombre|striptags }}"
                                     data-field-name="{{ field_name }}" style="display: none;">
-                                    <label for="id_{{ field_name }}" class="form-label fw-bold text-secondary">
-                                        {{ field.label }}
-                                    </label>
-                                    {# Renderizar según el tipo de campo #}
-                                    {% if "proveedor-select" in field.widget.attrs.class %}
-                                    {# Campo de selección (dropdown) para Vuelo, Hospedaje, Tour #}
-                                    {# Obtener el valor inicial del proveedor - usar field.initial o form.initial #}
-                                    {% with selected_proveedor=form.initial|get_item:field_name|default:field.initial %}
-                                    <select name="{{ field_name }}" id="id_{{ field_name }}"
-                                        class="form-select proveedor-select">
-                                        <option value="">Selecciona un proveedor</option>
-                                        {% for proveedor in field.queryset %}
-                                        {% if selected_proveedor %}
-                                        {% if selected_proveedor.pk == proveedor.pk %}
-                                        <option value="{{ proveedor.pk }}" selected>{{ proveedor.nombre }}</option>
+                                    <div class="proveedor-field" data-servicio="{{ servicio_nombre|striptags }}"
+                                        data-field-name="{{ field_name }}">
+                                        <label for="id_{{ field_name }}" class="form-label fw-bold text-secondary">
+                                            {{ field.label }}
+                                        </label>
+                                        {# Renderizar según el tipo de campo #}
+                                        {% if "proveedor-select" in field.widget.attrs.class %}
+                                        {# Campo de selección (dropdown) para Vuelo, Hospedaje, Tour #}
+                                        {# Obtener el valor inicial del proveedor - usar field.initial o form.initial #}
+                                        {% with selected_proveedor=form.initial|get_item:field_name|default:field.initial %}
+                                        <select name="{{ field_name }}" id="id_{{ field_name }}"
+                                            class="form-select proveedor-select">
+                                            <option value="">Selecciona un proveedor</option>
+                                            {% for proveedor in field.queryset %}
+                                            {% if selected_proveedor %}
+                                            {% if selected_proveedor.pk == proveedor.pk %}
+                                            <option value="{{ proveedor.pk }}" selected>{{ proveedor.nombre }}</option>
+                                            {% else %}
+                                            <option value="{{ proveedor.pk }}">{{ proveedor.nombre }}</option>
+                                            {% endif %}
+                                            {% else %}
+                                            <option value="{{ proveedor.pk }}">{{ proveedor.nombre }}</option>
+                                            {% endif %}
+                                            {% endfor %}
+                                        </select>
+                                        {% endwith %}
                                         {% else %}
-                                        <option value="{{ proveedor.pk }}">{{ proveedor.nombre }}</option>
+                                        {# Campo de texto para otros servicios #}
+                                        {% with text_value=form.initial|get_item:field_name %}
+                                        <input type="text" name="{{ field_name }}" id="id_{{ field_name }}"
+                                            class="form-control" {% if text_value %}value="{{ text_value }}" {% endif %}
+                                            placeholder="{{ field.widget.attrs.placeholder|default:'' }}">
+                                        {% endwith %}
                                         {% endif %}
-                                        {% else %}
-                                        <option value="{{ proveedor.pk }}">{{ proveedor.nombre }}</option>
+                                        {# Mostrar errores si existen #}
+                                        {% if form.errors %}
+                                        {% for error_key, error_list in form.errors.items %}
+                                        {% if error_key == field_name %}
+                                        {% for error in error_list %}
+                                        <div class="invalid-feedback d-block"><i class="fas fa-exclamation-circle me-1"></i>
+                                            {{ error }}</div>
+                                        {% endfor %}
                                         {% endif %}
                                         {% endfor %}
-                                    </select>
+                                        {% endif %}
+                                    </div>
+                                    {# Campo de opción que aparece cuando se selecciona un proveedor #}
+                                    {% with opcion_field_name=field_name|add:"_opcion" %}
+                                    {% if opcion_field_name in form.fields %}
+                                    {% with opcion_field=form.fields|get_item:opcion_field_name %}
+                                    {% with opcion_value=form.initial|get_item:opcion_field_name %}
+                                    <div class="proveedor-opcion-field mt-3" data-proveedor-field="{{ field_name }}" 
+                                         style="display: none;">
+                                        <label for="id_{{ opcion_field_name }}" class="form-label fw-semibold text-muted">
+                                            {{ opcion_field.label }}
+                                        </label>
+                                        <input type="text" name="{{ opcion_field_name }}" id="id_{{ opcion_field_name }}"
+                                            class="form-control proveedor-opcion-input" 
+                                            {% if opcion_value %}value="{{ opcion_value }}" {% endif %}
+                                            placeholder="{{ opcion_field.widget.attrs.placeholder|default:'Ej. Nombre del hotel, aerolínea, etc.' }}">
+                                        {% if opcion_field.help_text %}
+                                        <small class="form-text text-muted">{{ opcion_field.help_text }}</small>
+                                        {% endif %}
+                                        {# Mostrar errores si existen #}
+                                        {% if form.errors %}
+                                        {% for error_key, error_list in form.errors.items %}
+                                        {% if error_key == opcion_field_name %}
+                                        {% for error in error_list %}
+                                        <div class="invalid-feedback d-block"><i class="fas fa-exclamation-circle me-1"></i>
+                                            {{ error }}</div>
+                                        {% endfor %}
+                                        {% endif %}
+                                        {% endfor %}
+                                        {% endif %}
+                                    </div>
                                     {% endwith %}
-                                    {% else %}
-                                    {# Campo de texto para otros servicios #}
-                                    {% with text_value=form.initial|get_item:field_name %}
-                                    <input type="text" name="{{ field_name }}" id="id_{{ field_name }}"
-                                        class="form-control" {% if text_value %}value="{{ text_value }}" {% endif %}
-                                        placeholder="{{ field.widget.attrs.placeholder|default:'' }}">
                                     {% endwith %}
                                     {% endif %}
-                                    {# Mostrar errores si existen #}
-                                    {% if form.errors %}
-                                    {% for error_key, error_list in form.errors.items %}
-                                    {% if error_key == field_name %}
-                                    {% for error in error_list %}
-                                    <div class="invalid-feedback d-block"><i class="fas fa-exclamation-circle me-1"></i>
-                                        {{ error }}</div>
-                                    {% endfor %}
-                                    {% endif %}
-                                    {% endfor %}
-                                    {% endif %}
+                                    {% endwith %}
                                 </div>
                                 {% endwith %}
                                 {% endif %}
@@ -927,27 +963,46 @@
 
         function fetchKilometrosCliente(clienteId) {
             if (!kmContainer || !kmConfig || !kmConfig.apiTemplate) {
+                console.warn('Configuración de kilómetros no disponible');
+                return;
+            }
+            if (!clienteId || clienteId === '' || clienteId === '0') {
+                renderDefaultKmBanner();
                 return;
             }
             const endpoint = kmConfig.apiTemplate.replace('/0/', `/${clienteId}/`);
+            if (!endpoint || endpoint === kmConfig.apiTemplate) {
+                console.error('No se pudo construir el endpoint de kilómetros');
+                renderKmError('Error en la configuración del endpoint de Kilómetros.');
+                return;
+            }
             kmContainer.classList.add('opacity-50');
             fetch(endpoint, {
+                method: 'GET',
                 headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                },
+                credentials: 'same-origin'
             }).then(response => {
                 if (!response.ok) {
-                    throw new Error('Error al solicitar el saldo');
+                    // Intentar leer el mensaje de error del JSON si está disponible
+                    return response.json().then(errData => {
+                        throw new Error(errData.message || `Error ${response.status}: ${response.statusText}`);
+                    }).catch(() => {
+                        throw new Error(`Error ${response.status}: ${response.statusText}`);
+                    });
                 }
                 return response.json();
             }).then(data => {
-                if (data.success) {
+                if (data && data.success === true && data.data) {
                     renderKilometrosBanner(data.data);
                 } else {
-                    renderKmError(data.message || 'No se pudo obtener el saldo de Kilómetros.');
+                    renderKmError(data?.message || 'No se pudo obtener el saldo de Kilómetros.');
                 }
-            }).catch(() => {
-                renderKmError('No se pudo obtener el saldo de Kilómetros.');
+            }).catch(error => {
+                console.error('Error al obtener kilómetros:', error);
+                renderKmError(error.message || 'No se pudo obtener el saldo de Kilómetros.');
             }).finally(() => {
                 kmContainer.classList.remove('opacity-50');
             });
@@ -986,12 +1041,12 @@
         function actualizarProveedores() {
             const checkboxes = document.querySelectorAll('input[name="servicios_seleccionados"]:checked');
             const proveedoresSection = document.getElementById('proveedoresSection');
-            const proveedorFields = document.querySelectorAll('.proveedor-field');
+            const proveedorWrappers = document.querySelectorAll('.proveedor-field-wrapper');
 
             const serviciosSeleccionados = Array.from(checkboxes).map(cb => cb.value);
 
             console.log('Servicios seleccionados:', serviciosSeleccionados);
-            console.log('Campos de proveedor encontrados:', proveedorFields.length);
+            console.log('Campos de proveedor encontrados:', proveedorWrappers.length);
 
             const servicioToFieldMap = {
                 'Vuelo': 'proveedor_vuelo',
@@ -1008,56 +1063,54 @@
                 'Otros Servicios': 'proveedor_otros_servicios'
             };
 
-            proveedorFields.forEach(field => {
-                field.style.display = 'none';
+            // Ocultar todos los wrappers de proveedores
+            proveedorWrappers.forEach(wrapper => {
+                wrapper.style.display = 'none';
             });
 
             let hayProveedores = false;
             serviciosSeleccionados.forEach(servicioNombre => {
-                let field = document.querySelector(`.proveedor-field[data-servicio="${servicioNombre}"]`);
+                let wrapper = document.querySelector(`.proveedor-field-wrapper[data-servicio="${servicioNombre}"]`);
 
-                if (!field) {
-                    field = document.querySelector(`.proveedor-field[data-servicio=" ${servicioNombre}"]`);
+                if (!wrapper) {
+                    wrapper = document.querySelector(`.proveedor-field-wrapper[data-servicio=" ${servicioNombre}"]`);
                 }
 
-                if (!field) {
-                    const allFields = document.querySelectorAll('.proveedor-field');
-                    allFields.forEach(f => {
-                        const dataServicio = f.getAttribute('data-servicio');
+                if (!wrapper) {
+                    const allWrappers = document.querySelectorAll('.proveedor-field-wrapper');
+                    allWrappers.forEach(w => {
+                        const dataServicio = w.getAttribute('data-servicio');
                         if (dataServicio && dataServicio.trim() === servicioNombre) {
-                            field = f;
+                            wrapper = w;
                         }
                     });
                 }
 
-                if (!field && servicioToFieldMap[servicioNombre]) {
-                    field = document.querySelector(`.proveedor-field[data-field-name="${servicioToFieldMap[servicioNombre]}"]`);
+                if (!wrapper && servicioToFieldMap[servicioNombre]) {
+                    wrapper = document.querySelector(`.proveedor-field-wrapper[data-field-name="${servicioToFieldMap[servicioNombre]}"]`);
                 }
 
-                console.log(`Buscando campo para servicio: ${servicioNombre}`, field);
-                if (field) {
-                    const dataServicio = field.getAttribute('data-servicio');
+                console.log(`Buscando campo para servicio: ${servicioNombre}`, wrapper);
+                if (wrapper) {
+                    const dataServicio = wrapper.getAttribute('data-servicio');
                     if (dataServicio && dataServicio.trim() !== dataServicio) {
-                        field.setAttribute('data-servicio', dataServicio.trim());
+                        wrapper.setAttribute('data-servicio', dataServicio.trim());
                     }
 
-                    field.style.display = 'block';
-                    field.style.visibility = 'visible';
-                    field.style.opacity = '1';
-                    field.style.position = 'relative';
-                    field.style.zIndex = '1';
-                    field.removeAttribute('hidden');
+                    wrapper.style.display = 'block';
+                    wrapper.style.visibility = 'visible';
+                    wrapper.style.opacity = '1';
+                    wrapper.style.position = 'relative';
+                    wrapper.style.zIndex = '1';
+                    wrapper.removeAttribute('hidden');
                     hayProveedores = true;
-                    console.log(`Campo mostrado para: ${servicioNombre}`, field);
-                    console.log(`Estilo del campo:`, field.style.cssText);
-                    console.log(`Data-servicio:`, field.getAttribute('data-servicio'));
+                    
+                    // Actualizar visibilidad del campo de opción según el proveedor seleccionado
+                    actualizarCampoOpcionProveedor(wrapper);
+                    
+                    console.log(`Campo mostrado para: ${servicioNombre}`, wrapper);
                 } else {
                     console.warn(`No se encontró campo para servicio: ${servicioNombre}`);
-                    const allFields = document.querySelectorAll('.proveedor-field');
-                    console.log('Todos los campos de proveedor:', allFields);
-                    allFields.forEach(f => {
-                        console.log(`Campo: ${f.getAttribute('data-field-name')}, servicio: ${f.getAttribute('data-servicio')}`);
-                    });
                 }
             });
 
@@ -1068,13 +1121,51 @@
                 proveedoresSection.style.position = 'relative';
                 proveedoresSection.removeAttribute('hidden');
                 console.log('Sección de proveedores mostrada', proveedoresSection);
-                console.log('Estilo de la sección:', proveedoresSection.style.cssText);
-                console.log('Altura de la sección:', proveedoresSection.offsetHeight);
-                console.log('Ancho de la sección:', proveedoresSection.offsetWidth);
             } else if (proveedoresSection) {
                 proveedoresSection.style.display = 'none';
                 console.log('Sección de proveedores oculta');
             }
+        }
+
+        // Función para mostrar/ocultar el campo de opción cuando se selecciona un proveedor
+        function actualizarCampoOpcionProveedor(wrapper) {
+            const proveedorSelect = wrapper.querySelector('.proveedor-select');
+            const opcionField = wrapper.querySelector('.proveedor-opcion-field');
+            
+            if (!proveedorSelect || !opcionField) {
+                return;
+            }
+            
+            // Función para mostrar/ocultar según el valor seleccionado
+            function toggleOpcionField() {
+                if (proveedorSelect.value && proveedorSelect.value !== '') {
+                    opcionField.style.display = 'block';
+                    opcionField.style.visibility = 'visible';
+                } else {
+                    opcionField.style.display = 'none';
+                    const opcionInput = opcionField.querySelector('input');
+                    if (opcionInput) {
+                        opcionInput.value = ''; // Limpiar el valor cuando no hay proveedor seleccionado
+                    }
+                }
+            }
+            
+            // Actualizar estado inicial
+            toggleOpcionField();
+            
+            // Agregar listener si no existe
+            if (!proveedorSelect.hasAttribute('data-opcion-listener')) {
+                proveedorSelect.setAttribute('data-opcion-listener', 'true');
+                proveedorSelect.addEventListener('change', toggleOpcionField);
+            }
+        }
+
+        // Inicializar listeners para campos de opción de proveedor cuando se carga la página
+        function inicializarCamposOpcionProveedor() {
+            const proveedorWrappers = document.querySelectorAll('.proveedor-field-wrapper');
+            proveedorWrappers.forEach(wrapper => {
+                actualizarCampoOpcionProveedor(wrapper);
+            });
         }
 
         // Función para mostrar/ocultar el campo de tipo de trámite
@@ -1114,16 +1205,30 @@
 
         setTimeout(function () {
             actualizarProveedores();
+            inicializarCamposOpcionProveedor();
         }, 100);
 
-        // Cambiar: usar costo_neto en lugar de costo_venta_final para calcular el descuento
+        // ===================== DEFINIR TODAS LAS VARIABLES PRIMERO =====================
+        // Variables para cálculos de descuentos y totales
         const costoNetoInput = document.getElementById('id_costo_neto');
         const costoVentaInput = document.getElementById('id_costo_venta_final');
+        const costoModInputEl = document.getElementById('id_costo_modificacion');
         const descuentoCheckbox = document.getElementById('id_aplica_descuento_kilometros');
         const descuentoHidden = document.getElementById('id_descuento_kilometros_mxn');
         const subtotalLabel = document.getElementById('subtotalVenta');
         const descuentoLabel = document.getElementById('descuentoCalculado');
         const totalLabel = document.getElementById('totalConDescuento');
+        
+        // Variables para promociones (definir aquí para que estén disponibles en todas las funciones)
+        const promoContainer = document.getElementById('promoPreviewContainer');
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+        const clienteSelectEl = document.getElementById('id_cliente');
+        const tipoViajeSelectEl = document.getElementById('id_tipo_viaje');
+        
+        // Variable global para almacenar el descuento de promociones
+        if (typeof window.totalDescuentoPromociones === 'undefined') {
+            window.totalDescuentoPromociones = 0;
+        }
 
         function recalculateDescuento() {
             // Usar costo_neto para calcular el descuento (10% sobre costo neto, no sobre total)
@@ -1154,6 +1259,125 @@
                 const total = Math.max(0, costoVenta - descuento);
                 totalLabel.textContent = `${currencyFormatter.format(total)} MXN`;
             }
+            
+            // Actualizar el resumen total que incluye ambos descuentos
+            // Usar setTimeout para asegurar que updateTotalFinal esté definida
+            setTimeout(function() {
+                if (typeof updateTotalFinal === 'function') {
+                    updateTotalFinal();
+                }
+            }, 0);
+        }
+        
+        // Función para actualizar el total final considerando ambos descuentos
+        function updateTotalFinal() {
+            // 1. Obtener valores base (usando toNumber para limpiar formato)
+            const costoVenta = costoVentaInput ? toNumber(costoVentaInput.value || '0') : 0;
+            const costoMod = costoModInputEl ? toNumber(costoModInputEl.value || '0') : 0;
+            const baseTotal = costoVenta + costoMod;
+            
+            // 2. Obtener descuento de kilómetros movums
+            const costoNeto = costoNetoInput ? toNumber(costoNetoInput.value || '0') : 0;
+            const aplicaKm = descuentoCheckbox && descuentoCheckbox.checked && costoNeto > 0;
+            const maxPorRegla = Math.round(costoNeto * 10) / 100;
+            const maxPorCredito = Math.max(0, kmCreditoDisponible || 0);
+            const descuentoKm = aplicaKm ? Math.min(maxPorRegla, maxPorCredito) : 0;
+            
+            // 3. Obtener descuento de promociones (de window.totalDescuentoPromociones)
+            // Verificar también si hay un radio button seleccionado (por si acaso)
+            let descuentoPromos = window.totalDescuentoPromociones || 0;
+            
+            // Verificar si hay un radio button seleccionado y obtener su monto
+            const radioSeleccionado = document.querySelector('.promo-radio:checked');
+            if (radioSeleccionado) {
+                const montoRadio = parseFloat(radioSeleccionado.getAttribute('data-monto') || '0');
+                if (montoRadio > 0) {
+                    descuentoPromos = montoRadio;
+                    // Sincronizar window.totalDescuentoPromociones
+                    window.totalDescuentoPromociones = montoRadio;
+                }
+            }
+            
+            console.log('updateTotalFinal - descuentoPromos:', descuentoPromos, 'window.totalDescuentoPromociones:', window.totalDescuentoPromociones);
+            
+            // 4. Calcular totales
+            const totalDescuentos = descuentoKm + descuentoPromos;
+            const totalFinal = Math.max(0, baseTotal - totalDescuentos);
+            
+            // 5. Crear/actualizar resumen unificado al final del formulario
+            let resumenContainer = document.getElementById('resumenDescuentosTotal');
+            if (!resumenContainer) {
+                // Crear el contenedor si no existe
+                resumenContainer = document.createElement('div');
+                resumenContainer.id = 'resumenDescuentosTotal';
+                resumenContainer.className = 'card p-4 shadow-sm border-success mb-4';
+                
+                // Insertar justo antes de la sección de botones
+                const ventaForm = document.getElementById('ventaForm');
+                if (ventaForm) {
+                    // Buscar el div que contiene los botones (tiene clase "d-flex justify-content-between mt-4")
+                    const buttonSection = ventaForm.querySelector('.d-flex.justify-content-between.mt-4');
+                    if (buttonSection && buttonSection.parentElement) {
+                        // Insertar antes de la sección de botones
+                        buttonSection.parentElement.insertBefore(resumenContainer, buttonSection);
+                    } else {
+                        // Fallback: buscar el botón de submit y su contenedor
+                        const submitButton = ventaForm.querySelector('button[type="submit"]');
+                        if (submitButton) {
+                            let buttonContainer = submitButton.closest('.d-flex');
+                            if (!buttonContainer) {
+                                buttonContainer = submitButton.parentElement;
+                            }
+                            if (buttonContainer && buttonContainer.parentElement) {
+                                buttonContainer.parentElement.insertBefore(resumenContainer, buttonContainer);
+                            } else {
+                                ventaForm.insertBefore(resumenContainer, submitButton);
+                            }
+                        } else {
+                            // Último fallback: insertar antes del cierre del form
+                            ventaForm.insertBefore(resumenContainer, ventaForm.lastElementChild);
+                        }
+                    }
+                }
+            }
+            
+            // Construir HTML del resumen
+            resumenContainer.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"><i class="fas fa-calculator me-2 text-success"></i>Resumen de Descuentos</h5>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6 mb-3 mb-md-0">
+                        <p class="text-muted small mb-1">Subtotal venta</p>
+                        <h4 class="fw-bold text-secondary mb-0">${currencyFormatter.format(baseTotal)} MXN</h4>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="text-muted small mb-1">Total final</p>
+                        <h4 class="fw-bold text-success mb-0">${currencyFormatter.format(totalFinal)} MXN</h4>
+                    </div>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-md-6 mb-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted small">Descuento Promociones:</span>
+                            <span class="fw-semibold ${descuentoPromos > 0 ? 'text-danger' : 'text-muted'}">-${currencyFormatter.format(descuentoPromos)} MXN</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted small">Descuento Kilómetros Movums:</span>
+                            <span class="fw-semibold ${descuentoKm > 0 ? 'text-danger' : 'text-muted'}">-${currencyFormatter.format(descuentoKm)} MXN</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3 pt-3 border-top">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="fw-bold">Total descuentos:</span>
+                        <h5 class="fw-bold text-danger mb-0">-${currencyFormatter.format(totalDescuentos)} MXN</h5>
+                    </div>
+                </div>
+            `;
         }
 
         // Escuchar cambios en costo_neto (para calcular descuento) y costo_venta_final (para mostrar total)
@@ -1346,28 +1570,49 @@
         setTimeout(agregarSeparadorSelect, 100);
 
         // ===================== PREVIEW PROMOS EN TIEMPO REAL =====================
-        const promoContainer = document.getElementById('promoPreviewContainer');
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
-        const clienteSelectEl = document.getElementById('id_cliente');
-        const tipoViajeSelectEl = document.getElementById('id_tipo_viaje');
-        const costoVentaInputEl = document.getElementById('id_costo_venta_final');
-        const costoModInputEl = document.getElementById('id_costo_modificacion');
+        // Nota: Las variables ya están definidas arriba
 
         async function fetchPromosPreview() {
-            if (!promoContainer) return;
-            const clienteId = clienteSelectEl?.value;
-            const tipoViaje = tipoViajeSelectEl?.value;
-            const costo = costoVentaInputEl?.value || 0;
-            const costoMod = costoModInputEl?.value || 0;
-            if (!clienteId || !tipoViaje) {
-                promoContainer.innerHTML = '';
+            if (!promoContainer) {
+                console.warn('promoContainer no encontrado');
                 return;
             }
+            
+            // Obtener valores y limpiarlos
+            const clienteId = clienteSelectEl?.value;
+            const tipoViaje = tipoViajeSelectEl?.value;
+            
+            // Limpiar formato de moneda antes de enviar
+            const costoRaw = costoVentaInput?.value || '0';
+            const costoModRaw = costoModInputEl?.value || '0';
+            const costo = toNumber(costoRaw).toFixed(2);
+            const costoMod = toNumber(costoModRaw).toFixed(2);
+            
+            console.log('fetchPromosPreview - clienteId:', clienteId, 'tipoViaje:', tipoViaje, 'costo:', costo, 'costoMod:', costoMod);
+            
+            if (!clienteId || clienteId === '' || clienteId === '0' || !tipoViaje || tipoViaje === '') {
+                console.log('Faltan parámetros requeridos, limpiando promociones');
+                promoContainer.innerHTML = '';
+                window.totalDescuentoPromociones = 0;
+                if (typeof updateTotalFinal === 'function') {
+                    updateTotalFinal();
+                }
+                return;
+            }
+            
             const formData = new FormData();
-            formData.append('cliente_id', clienteId);
-            formData.append('tipo_viaje', tipoViaje);
-            formData.append('costo_venta_final', costo || '0');
-            formData.append('costo_modificacion', costoMod || '0');
+            formData.append('cliente_id', clienteId.toString());
+            formData.append('tipo_viaje', tipoViaje.toString());
+            formData.append('costo_venta_final', costo);
+            formData.append('costo_modificacion', costoMod);
+            
+            console.log('Enviando petición a preview_promociones con:', {
+                cliente_id: clienteId,
+                tipo_viaje: tipoViaje,
+                costo_venta_final: costo,
+                costo_modificacion: costoMod
+            });
+            
             try {
                 const resp = await fetch("{% url 'preview_promociones' %}", {
                     method: 'POST',
@@ -1376,63 +1621,150 @@
                     },
                     body: formData
                 });
+                
+                console.log('Respuesta recibida, status:', resp.status);
                 if (!resp.ok) {
-                    promoContainer.innerHTML = '';
+                    const errorText = await resp.text();
+                    console.error('Error en respuesta:', resp.status, errorText);
+                    promoContainer.innerHTML = `<div class="alert alert-warning">Error al obtener promociones: ${resp.status}</div>`;
+                    window.totalDescuentoPromociones = 0;
+                    if (typeof updateTotalFinal === 'function') {
+                        updateTotalFinal();
+                    }
                     return;
                 }
+                
                 const data = await resp.json();
+                console.log('Datos recibidos del backend:', data);
+                
                 if (!data.ok) {
+                    console.warn('Backend devolvió ok: false', data);
                     promoContainer.innerHTML = '';
+                    window.totalDescuentoPromociones = 0;
+                    if (typeof updateTotalFinal === 'function') {
+                        updateTotalFinal();
+                    }
                     return;
                 }
+                
                 if (!data.promos || data.promos.length === 0) {
+                    console.log('No hay promociones aplicables');
                     promoContainer.innerHTML = '';
+                    window.totalDescuentoPromociones = 0;
+                    if (typeof updateTotalFinal === 'function') {
+                        updateTotalFinal();
+                    }
                     return;
                 }
-                let totalDesc = 0;
-                const baseTotal = parseFloat(costo || '0') + parseFloat(costoMod || '0');
+                
+                console.log('Promociones encontradas:', data.promos.length, data.promos);
+                // Validar promociones personales en frontend
+                let promosValidas = [];
+                data.promos.forEach(p => {
+                    promosValidas.push(p);
+                });
+                
                 let html = `
                       <div class="card p-3 shadow-sm border-primary-subtle mb-4">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                           <div>
                             <h6 class="mb-0">Promociones aplicables</h6>
-                            <small class="text-muted">Aplican sobre el total de la venta. Si hay más de una, se acumulan.</small>
+                            <small class="text-muted">Selecciona UNA promoción para aplicar. Puedes combinarla con el descuento de Kilómetros Movums.</small>
                           </div>
-                          <div class="text-end">`;
-                data.promos.forEach(p => { totalDesc += parseFloat(p.monto_descuento || '0'); });
-                const totalConDesc = Math.max(0, baseTotal - (totalDesc || 0));
-                html += `<div class="mb-1"><span class="badge bg-primary">Total descuento: $${(totalDesc || 0).toFixed(2)}</span></div>`;
-                html += `<div><span class="badge bg-info text-dark">Total estimado: $${totalConDesc.toFixed(2)}</span></div>`;
-                if (data.promos.length > 1) {
-                    html += `<div class="small text-warning">Hay más de una promoción aplicable.</div>`;
+                        </div>`;
+                
+                if (promosValidas.length > 1) {
+                    html += `<div class="alert alert-warning mb-3">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Hay ${promosValidas.length} promociones aplicables.</strong> Solo puedes seleccionar una. Elige la que ofrezca el mejor descuento.
+                    </div>`;
                 }
-                html += `</div></div><div class="list-group">`;
-                data.promos.forEach(p => {
+                
+                html += `<div class="list-group">`;
+                promosValidas.forEach((p, index) => {
                     const isDesc = p.tipo === 'DESCUENTO';
-                    html += `<div class="list-group-item d-flex justify-content-between align-items-center">
-                        <div>
-                          <div class="fw-semibold">${p.nombre}</div>
-                          <div class="small text-muted">`;
+                    const isPersonal = p.alcance === 'CLIENTE_ESPECIFICO';
+                    const montoDesc = parseFloat(p.monto_descuento || '0');
+                    html += `<div class="list-group-item">
+                        <div class="form-check">
+                          <input class="form-check-input promo-radio" type="radio" 
+                                 name="promocion_seleccionada" 
+                                 id="promo_radio_${p.id}" 
+                                 value="${p.id}"
+                                 data-monto="${montoDesc}"
+                                 ${index === 0 ? 'checked' : ''}>
+                          <label class="form-check-label w-100" for="promo_radio_${p.id}">
+                            <div class="fw-semibold">
+                              ${p.nombre}
+                              ${isPersonal ? '<span class="badge bg-info text-white ms-2">Personal</span>' : ''}
+                            </div>
+                            <div class="small text-muted">`;
                     if (isDesc) {
-                        html += `${parseFloat(p.porcentaje || '0').toFixed(2)}% (-$${parseFloat(p.monto_descuento || '0').toFixed(2)})`;
+                        html += `${parseFloat(p.porcentaje || '0').toFixed(2)}% de descuento (-$${montoDesc.toFixed(2)})`;
                     } else {
                         html += `+${parseFloat(p.km_bono || '0').toFixed(0)} km Movums`;
                     }
-                    html += ` • Condición: ${p.condicion}</div></div><div>`;
+                    html += ` • Condición: ${p.condicion}`;
                     if (p.requiere_confirmacion) {
-                        html += `<div class="form-check">
-                          <input class="form-check-input" type="checkbox" name="aplicar_promo_${p.id}" id="aplicar_promo_${p.id}" checked>
-                          <label class="form-check-label small" for="aplicar_promo_${p.id}">Aplicar</label>
-                        </div>`;
-                    } else {
-                        html += `<span class="badge bg-success">Automática</span>`;
+                        html += ` • <span class="text-warning">Requiere confirmación</span>`;
                     }
-                    html += `</div></div>`;
+                    html += `</div></label></div></div>`;
                 });
                 html += `</div></div>`;
                 promoContainer.innerHTML = html;
+                
+                // Inicializar descuento con la primera promoción (si está seleccionada)
+                const primeraPromo = promosValidas[0];
+                if (primeraPromo && primeraPromo.tipo === 'DESCUENTO') {
+                    const montoInicial = parseFloat(primeraPromo.monto_descuento || '0');
+                    window.totalDescuentoPromociones = montoInicial;
+                    console.log('Promoción inicial seleccionada:', primeraPromo.nombre, 'Monto:', montoInicial);
+                } else {
+                    window.totalDescuentoPromociones = 0;
+                    console.log('No hay promoción de descuento inicial');
+                }
+                
+                // Agregar event listeners a los radio buttons (usar setTimeout para asegurar que el DOM esté listo)
+                setTimeout(function() {
+                    document.querySelectorAll('.promo-radio').forEach(radio => {
+                        // Remover listeners previos para evitar duplicados
+                        const newRadio = radio.cloneNode(true);
+                        radio.parentNode.replaceChild(newRadio, radio);
+                        
+                        newRadio.addEventListener('change', function() {
+                            if (this.checked) {
+                                const monto = parseFloat(this.getAttribute('data-monto') || '0');
+                                window.totalDescuentoPromociones = monto;
+                                console.log('Promoción seleccionada, monto:', monto);
+                                if (typeof updateTotalFinal === 'function') {
+                                    updateTotalFinal();
+                                }
+                            }
+                        });
+                        
+                        // Si está marcado inicialmente, disparar el evento para actualizar
+                        if (newRadio.checked) {
+                            const monto = parseFloat(newRadio.getAttribute('data-monto') || '0');
+                            window.totalDescuentoPromociones = monto;
+                            console.log('Promoción inicial marcada, monto:', monto);
+                        }
+                    });
+                }, 100);
+                
+                // Llamar a updateTotalFinal después de actualizar las promociones
+                setTimeout(function() {
+                    if (typeof updateTotalFinal === 'function') {
+                        console.log('Llamando updateTotalFinal, descuento promos:', window.totalDescuentoPromociones);
+                        updateTotalFinal();
+                    }
+                }, 200);
             } catch (e) {
-                promoContainer.innerHTML = '';
+                console.error('Error al obtener promociones:', e);
+                promoContainer.innerHTML = `<div class="alert alert-danger">Error al cargar promociones: ${e.message}</div>`;
+                window.totalDescuentoPromociones = 0;
+                if (typeof updateTotalFinal === 'function') {
+                    updateTotalFinal();
+                }
             }
         }
 
@@ -1445,13 +1777,80 @@
         }
 
         const debouncedFetch = debounce(fetchPromosPreview, 400);
-        clienteSelectEl?.addEventListener('change', fetchPromosPreview);
-        tipoViajeSelectEl?.addEventListener('change', fetchPromosPreview);
-        costoVentaInputEl?.addEventListener('input', debouncedFetch);
-        costoModInputEl?.addEventListener('input', debouncedFetch);
-        costoVentaInputEl?.addEventListener('input', debouncedFetch);
-        costoModInputEl?.addEventListener('input', debouncedFetch);
-        fetchPromosPreview();
+        if (clienteSelectEl) {
+            clienteSelectEl.addEventListener('change', fetchPromosPreview);
+        }
+        if (tipoViajeSelectEl) {
+            tipoViajeSelectEl.addEventListener('change', fetchPromosPreview);
+        }
+        if (costoVentaInput) {
+            costoVentaInput.addEventListener('input', function() {
+                debouncedFetch();
+                if (typeof updateTotalFinal === 'function') {
+                    updateTotalFinal();
+                }
+            });
+        }
+        if (costoModInputEl) {
+            costoModInputEl.addEventListener('input', function() {
+                debouncedFetch();
+                if (typeof updateTotalFinal === 'function') {
+                    updateTotalFinal();
+                }
+            });
+        }
+        
+        // Inicializar promociones y resumen al cargar la página
+        function inicializarPromocionesYResumen() {
+            // Verificar que todos los elementos necesarios estén disponibles
+            if (!promoContainer) {
+                console.warn('promoPreviewContainer no encontrado, reintentando...');
+                setTimeout(inicializarPromocionesYResumen, 200);
+                return;
+            }
+            
+            if (clienteSelectEl && clienteSelectEl.value && tipoViajeSelectEl && tipoViajeSelectEl.value) {
+                console.log('Inicializando promociones con cliente y tipo de viaje existentes');
+                fetchPromosPreview();
+            }
+            
+            // Inicializar resumen
+            setTimeout(function() {
+                if (typeof updateTotalFinal === 'function') {
+                    updateTotalFinal();
+                }
+            }, 300);
+        }
+        
+        // Esperar a que el DOM esté completamente listo
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                setTimeout(inicializarPromocionesYResumen, 500);
+            });
+        } else {
+            setTimeout(inicializarPromocionesYResumen, 500);
+        }
+        
+        // También llamar cuando cambie el cliente (para actualizar el resumen)
+        if (clienteSelectEl) {
+            // Ya hay un listener para fetchPromosPreview, agregar uno adicional para updateTotalFinal
+            clienteSelectEl.addEventListener('change', function() {
+                setTimeout(function() {
+                    if (typeof updateTotalFinal === 'function') {
+                        updateTotalFinal();
+                    }
+                }, 300);
+            });
+        }
+        
+        // Inicializar resumen al cargar completamente la página
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                if (typeof updateTotalFinal === 'function') {
+                    updateTotalFinal();
+                }
+            }, 800);
+        });
 
         // --- DEBUG PROBE ANTIGRAVITY ---
         // Este bloque imprime en la consola los datos que llegan desde el servidor (Sesión)

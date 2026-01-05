@@ -45,8 +45,10 @@ from .models import (
     Proveedor,
     ConfirmacionVenta,
     Ejecutivo,
+    Oficina,
     PlantillaConfirmacion,
     Cotizacion,
+    VentaPromocionAplicada,
 )
 from crm.models import Cliente
 from crm.services import KilometrosService
@@ -59,6 +61,7 @@ from .forms import (
     ProveedorForm,
     ConfirmacionVentaForm,
     EjecutivoForm,
+    OficinaForm,
     CotizacionForm,
 )
 from .utils import numero_a_texto
@@ -508,6 +511,7 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
         venta = self.object
         user_rol = get_user_role(self.request.user)
         context['user_rol'] = user_rol
+        context['es_jefe'] = (user_rol == 'JEFE')
         
         # Marcar notificaciones pendientes como vistas al entrar al detalle
         # Esto hace que al hacer clic en "Ver Venta" la notificación se marque automáticamente
@@ -571,6 +575,19 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
         context['confirmacion_form'] = ConfirmacionVentaForm()
         context['puede_subir_confirmaciones'] = self._puede_subir_confirmaciones(self.request.user, venta)
         
+        # Calcular descuentos para el contexto
+        descuento_km = venta.descuento_kilometros_mxn or Decimal('0.00')
+        descuento_promo = venta.descuento_promociones_mxn or Decimal('0.00')
+        total_descuentos = descuento_km + descuento_promo
+        costo_base = (venta.costo_venta_final or Decimal('0.00')) + (venta.costo_modificacion or Decimal('0.00'))
+        total_final = costo_base - total_descuentos
+        
+        context['total_descuentos'] = total_descuentos
+        context['costo_base'] = costo_base
+        context['total_final'] = total_final
+        context['descuento_km'] = descuento_km
+        context['descuento_promo'] = descuento_promo
+        
         return context
 
     # ----------------------------------------------------------------------
@@ -596,21 +613,60 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
             )
 
             if formset.is_valid():
+                # TEMPORAL PARA PRUEBAS: Bloquear todos los cambios una vez asignados (incluido gerente)
+                # TODO: Ajustar permisos por tipo de usuario más adelante
                 total_pagado = self.object.total_pagado
                 total_marcado_pagado = Decimal('0.00')
+                errores_permisos = []
+                
+                originales = {serv.pk: serv for serv in servicios_qs}
+                
                 for form in formset.forms:
                     cleaned = form.cleaned_data
                     if not cleaned:
                         continue
+                    
+                    servicio_id = form.instance.pk if form.instance.pk else None
+                    original = originales.get(servicio_id) if servicio_id else None
+                    
+                    if original:
+                        # TEMPORAL: Bloquear modificación de monto_planeado si ya tiene valor (para todos)
+                        nuevo_monto = cleaned.get('monto_planeado') or Decimal('0.00')
+                        if original.monto_planeado and original.monto_planeado > Decimal('0.00'):
+                            if nuevo_monto != original.monto_planeado:
+                                errores_permisos.append(
+                                    f"Los montos planificados están bloqueados para pruebas. No se puede modificar el monto de '{original.nombre_servicio}'."
+                                )
+                                # Restaurar el valor original
+                                form.cleaned_data['monto_planeado'] = original.monto_planeado
+                        
+                        # TEMPORAL: Bloquear modificación de estado pagado si está marcado (para todos)
+                        nuevo_pagado = cleaned.get('pagado', False)
+                        if original.pagado:
+                            # Si intenta desmarcarlo, bloquear
+                            if not nuevo_pagado:
+                                errores_permisos.append(
+                                    f"El estado de pago está bloqueado para pruebas. No se puede desmarcar como pagado el servicio '{original.nombre_servicio}'."
+                                )
+                                # Restaurar el valor original
+                                form.cleaned_data['pagado'] = True
+                    
                     if cleaned.get('pagado'):
                         total_marcado_pagado += cleaned.get('monto_planeado') or Decimal('0.00')
-
+                
+                # Si hay errores de permisos, mostrar mensaje y no guardar
+                if errores_permisos:
+                    for error in errores_permisos:
+                        messages.error(request, error)
+                    context = self.get_context_data()
+                    self._prepare_logistica_finanzas_context(context, self.object, formset=formset, servicios_qs=servicios_qs)
+                    return self.render_to_response(context)
+                
                 if total_marcado_pagado > total_pagado + Decimal('0.01'):
                     formset._non_form_errors = formset.error_class([
                         f"No puedes marcar como pagados ${total_marcado_pagado:,.2f} cuando solo hay ${total_pagado:,.2f} registrados en abonos y apertura."
                     ])
                 else:
-                    originales = {serv.pk: serv for serv in servicios_qs}
                     for form in formset.forms:
                         servicio = form.save(commit=False)
                         original = originales.get(servicio.pk)
@@ -629,7 +685,7 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                         else:
                             servicio.fecha_pagado = original.fecha_pagado
 
-                        servicio.save(update_fields=['monto_planeado', 'pagado', 'fecha_pagado', 'notas', 'orden', 'codigo_servicio', 'nombre_servicio'])
+                        servicio.save(update_fields=['monto_planeado', 'pagado', 'fecha_pagado', 'orden', 'codigo_servicio', 'nombre_servicio'])
 
                     messages.success(request, "Control por servicio actualizado correctamente.")
                     return redirect(reverse('detalle_venta', kwargs={'pk': self.object.pk, 'slug': self.object.slug_safe}) + '?tab=logistica')
@@ -844,13 +900,32 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
         if formset is None:
             formset = LogisticaServicioFormSet(queryset=servicios_qs, prefix='servicios')
 
+        # Determinar si el usuario es JEFE
+        user_rol = get_user_role(self.request.user)
+        es_jefe = (user_rol == 'JEFE')
+        context['es_jefe'] = es_jefe
+        
+        # TEMPORAL PARA PRUEBAS: Bloquear todos los campos una vez asignados (incluido gerente)
+        # TODO: Ajustar permisos por tipo de usuario más adelante
         if not context.get('puede_editar_servicios_financieros'):
             for form in formset.forms:
                 for field in form.fields.values():
                     field.widget.attrs['disabled'] = 'disabled'
+        else:
+            # Bloquear campos una vez asignados (TEMPORAL: para todos, incluido gerente)
+            for form in formset.forms:
+                if form.instance and form.instance.pk:
+                    # Bloquear monto_planeado si tiene valor (TEMPORAL: para todos)
+                    if form.instance.monto_planeado and form.instance.monto_planeado > Decimal('0.00'):
+                        form.fields['monto_planeado'].widget.attrs['disabled'] = 'disabled'
+                        form.fields['monto_planeado'].widget.attrs['readonly'] = 'readonly'
+                    
+                    # Bloquear checkbox pagado si está marcado (TEMPORAL: para todos)
+                    if form.instance.pagado:
+                        form.fields['pagado'].widget.attrs['disabled'] = 'disabled'
 
         resumen = build_financial_summary(venta, servicios_qs)
-        filas = build_service_rows(servicios_qs, resumen, list(formset.forms))
+        filas = build_service_rows(servicios_qs, resumen, list(formset.forms), venta=venta)
 
         context['servicios_financieros_formset'] = formset
         context['logistica_finanzas'] = resumen
@@ -1337,8 +1412,45 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
                     if registro_acumulacion:
                         km_acumulados = monto_para_acumular * KilometrosService.KM_POR_PESO
                         logger.info(f"✅ Kilómetros acumulados para venta {self.object.pk}: {km_acumulados} km (por ${monto_para_acumular:,.2f} MXN)")
+            
+            # ACUMULAR BONOS DE PROMOCIONES (tipo 'KM')
+            # Obtener promociones aplicadas con bonos de kilómetros
+            promociones_aplicadas = getattr(form, 'promos_km', [])
+            bonos_acumulados = 0
+            for promo_data in promociones_aplicadas:
+                km_bono = promo_data.get('km_bono', Decimal('0.00'))
+                promocion = promo_data.get('promo')
+                if km_bono and km_bono > 0 and promocion:
+                    registro_bono = KilometrosService.acumular_bono_promocion(
+                        cliente=self.object.cliente,
+                        kilometros=km_bono,
+                        venta=self.object,
+                        promocion=promocion,
+                        descripcion=f"Bono de promoción: {promocion.nombre}"
+                    )
+                    if registro_bono:
+                        bonos_acumulados += km_bono
+                        logger.info(
+                            f"✅ Bono de kilómetros acumulado para venta {self.object.pk}: "
+                            f"{km_bono} km (Promoción: {promocion.nombre}, Cliente: {self.object.cliente.pk})"
+                        )
+                    else:
+                        logger.warning(
+                            f"⚠️ No se pudo acumular bono de promoción para venta {self.object.pk}: "
+                            f"{km_bono} km (Promoción: {promocion.nombre if promocion else 'N/A'})"
+                        )
+            
+            if bonos_acumulados > 0:
+                logger.info(
+                    f"📊 RESUMEN VENTA {self.object.pk}: "
+                    f"Total bonos acumulados: {bonos_acumulados:,.2f} km, "
+                    f"Cliente: {self.object.cliente.pk if self.object.cliente else 'N/A'}"
+                )
         except Exception:
-            logger.exception("❌ Error procesando kilómetros Movums para la venta %s", self.object.pk)
+            logger.exception(
+                f"❌ Error procesando kilómetros Movums para la venta {self.object.pk} "
+                f"(Cliente: {self.object.cliente.pk if self.object.cliente else 'N/A'})"
+            )
     
         # 5.1. Lógica de notificaciones para apertura con Transferencia/Tarjeta
         # ✅ NUEVO FLUJO: NO se crean notificaciones automáticas
@@ -1346,7 +1458,12 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         modo_pago = form.cleaned_data.get('modo_pago_apertura', 'EFE')
         cantidad_apertura = form.cleaned_data.get('cantidad_apertura', Decimal('0.00'))
         
-        if cantidad_apertura > 0 and modo_pago in ['TRN', 'TAR', 'DEP']:
+        if modo_pago == 'CRE':
+            # Para crédito: estado EN_CONFIRMACION y cantidad_apertura = 0
+            self.object.estado_confirmacion = 'EN_CONFIRMACION'
+            self.object.cantidad_apertura = Decimal('0.00')
+            self.object.save(update_fields=['estado_confirmacion', 'cantidad_apertura'])
+        elif cantidad_apertura > 0 and modo_pago in ['TRN', 'TAR', 'DEP']:
             # Cambiar estado a "En confirmación"
             self.object.estado_confirmacion = 'EN_CONFIRMACION'
             self.object.save(update_fields=['estado_confirmacion'])
@@ -1380,8 +1497,15 @@ class ClienteKilometrosResumenView(LoginRequiredMixin, View):
     """Devuelve el resumen de Kilómetros Movums del cliente para el formulario de ventas."""
 
     def get(self, request, cliente_id, *args, **kwargs):
-        cliente = get_object_or_404(Cliente, pk=cliente_id)
-        resumen = KilometrosService.resumen_cliente(cliente)
+        try:
+            cliente = get_object_or_404(Cliente, pk=cliente_id)
+            resumen = KilometrosService.resumen_cliente(cliente)
+        except Exception as e:
+            logger.error(f"Error al obtener resumen de kilómetros para cliente {cliente_id}: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'message': 'Error al obtener los datos de Kilómetros.'
+            }, status=500)
 
         if not resumen:
             return JsonResponse({
@@ -1415,12 +1539,12 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
         if user_rol == 'CONTADOR':
             return False
+        return venta.vendedor == self.request.user or user_rol == 'JEFE'
     
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['request'] = self.request
         return kwargs
-        return venta.vendedor == self.request.user or user_rol == 'JEFE'
 
     def handle_no_permission(self):
         venta = self.get_object()
@@ -1513,6 +1637,118 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
             except Exception:
                 logger.exception("❌ Error procesando redención de kilómetros en actualización de venta %s", self.object.pk)
         
+        # Manejar cambios en promociones con bonos de kilómetros
+        if self.object.cliente and self.object.cliente.participa_kilometros:
+            try:
+                # Obtener promociones anteriores (con bonos de kilómetros)
+                promociones_anteriores = {
+                    vpa.promocion_id: vpa.km_bono 
+                    for vpa in venta_anterior.promociones_aplicadas.filter(km_bono__gt=0)
+                }
+                
+                # Obtener promociones nuevas (con bonos de kilómetros)
+                promociones_nuevas = {}
+                promociones_aplicadas_actuales_qs = self.object.promociones_aplicadas.filter(km_bono__gt=0)
+                promociones_aplicadas_actuales_dict = {vpa.promocion_id: vpa for vpa in promociones_aplicadas_actuales_qs}
+                for vpa in promociones_aplicadas_actuales_qs:
+                    promociones_nuevas[vpa.promocion_id] = vpa.km_bono
+                
+                # Identificar promociones agregadas, eliminadas y modificadas
+                promociones_agregadas = set(promociones_nuevas.keys()) - set(promociones_anteriores.keys())
+                promociones_eliminadas = set(promociones_anteriores.keys()) - set(promociones_nuevas.keys())
+                promociones_modificadas = {
+                    promo_id: (promociones_anteriores[promo_id], promociones_nuevas[promo_id])
+                    for promo_id in set(promociones_anteriores.keys()) & set(promociones_nuevas.keys())
+                    if promociones_anteriores[promo_id] != promociones_nuevas[promo_id]
+                }
+                
+                # Acumular bonos de promociones nuevas
+                for promo_id in promociones_agregadas:
+                    vpa = promociones_aplicadas_actuales_dict.get(promo_id)
+                    if vpa and vpa.km_bono > 0:
+                        registro_bono = KilometrosService.acumular_bono_promocion(
+                            cliente=self.object.cliente,
+                            kilometros=vpa.km_bono,
+                            venta=self.object,
+                            promocion=vpa.promocion,
+                            descripcion=f"Bono de promoción agregado: {vpa.nombre_promocion}"
+                        )
+                        if registro_bono:
+                            logger.info(
+                                f"✅ Bono de promoción acumulado en actualización de venta {self.object.pk}: "
+                                f"{vpa.km_bono} km ({vpa.nombre_promocion}, Cliente: {self.object.cliente.pk})"
+                            )
+                
+                # Revertir bonos de promociones eliminadas
+                for promo_id in promociones_eliminadas:
+                    km_bono_anterior = promociones_anteriores[promo_id]
+                    if km_bono_anterior > 0:
+                        # Buscar el registro original en HistorialKilometros para obtener la promoción
+                        from crm.models import HistorialKilometros
+                        movimiento_original = HistorialKilometros.objects.filter(
+                            venta=self.object,
+                            tipo_evento='BONO_PROMOCION',
+                            kilometros=km_bono_anterior
+                        ).first()
+                        
+                        promocion_obj = None
+                        if movimiento_original and 'promoción' in movimiento_original.descripcion.lower():
+                            # Intentar obtener la promoción desde el nombre en la descripción
+                            try:
+                                from crm.models import PromocionKilometros
+                                nombre_promo = movimiento_original.descripcion.split(':')[-1].strip()
+                                promocion_obj = PromocionKilometros.objects.filter(nombre=nombre_promo).first()
+                            except:
+                                pass
+                        
+                        registro_reversion = KilometrosService.revertir_bono_promocion(
+                            cliente=self.object.cliente,
+                            kilometros=km_bono_anterior,
+                            venta=self.object,
+                            promocion=promocion_obj,
+                            descripcion=f"Reversión de bono de promoción eliminada: {km_bono_anterior} km"
+                        )
+                        if registro_reversion:
+                            logger.info(
+                                f"✅ Bono de promoción revertido en actualización de venta {self.object.pk}: "
+                                f"{km_bono_anterior} km (Cliente: {self.object.cliente.pk})"
+                            )
+                
+                # Ajustar bonos de promociones modificadas
+                for promo_id, (km_anterior, km_nuevo) in promociones_modificadas.items():
+                    vpa = promociones_aplicadas_actuales_dict.get(promo_id)
+                    diferencia = km_nuevo - km_anterior
+                    if diferencia > 0:
+                        # El bono aumentó, acumular la diferencia
+                        registro_bono = KilometrosService.acumular_bono_promocion(
+                            cliente=self.object.cliente,
+                            kilometros=diferencia,
+                            venta=self.object,
+                            promocion=vpa.promocion if vpa else None,
+                            descripcion=f"Ajuste de bono de promoción: {vpa.nombre_promocion if vpa else 'Promoción'} (+{diferencia} km)"
+                        )
+                        if registro_bono:
+                            logger.info(
+                                f"✅ Bono de promoción ajustado (aumento) en venta {self.object.pk}: "
+                                f"+{diferencia} km (Cliente: {self.object.cliente.pk})"
+                            )
+                    elif diferencia < 0:
+                        # El bono disminuyó, revertir la diferencia
+                        registro_reversion = KilometrosService.revertir_bono_promocion(
+                            cliente=self.object.cliente,
+                            kilometros=abs(diferencia),
+                            venta=self.object,
+                            promocion=vpa.promocion if vpa else None,
+                            descripcion=f"Ajuste de bono de promoción: {vpa.nombre_promocion if vpa else 'Promoción'} (-{abs(diferencia)} km)"
+                        )
+                        if registro_reversion:
+                            logger.info(
+                                f"✅ Bono de promoción ajustado (disminución) en venta {self.object.pk}: "
+                                f"-{abs(diferencia)} km (Cliente: {self.object.cliente.pk})"
+                            )
+            except Exception:
+                logger.exception("❌ Error procesando bonos de promociones en actualización de venta %s", self.object.pk)
+        
         self.object.actualizar_estado_financiero()
         messages.success(self.request, mensaje)
         return super().form_valid(form)
@@ -1539,8 +1775,46 @@ class CancelarVentaView(LoginRequiredMixin, UserPassesTestMixin, View):
     
     def post(self, request, *args, **kwargs):
         venta = get_object_or_404(VentaViaje, pk=self.kwargs['pk'])
+        
+        # Verificar si la venta ya estaba cancelada
+        ya_estaba_cancelada = venta.estado == 'CANCELADA'
+        
         venta.estado = 'CANCELADA'
         venta.save(update_fields=['estado'])
+        
+        # Revertir kilómetros Movums si la venta no estaba previamente cancelada
+        if not ya_estaba_cancelada:
+            try:
+                resultado = KilometrosService.revertir_por_cancelacion(venta)
+                if resultado['revertidos'] > 0:
+                    mensaje_reversion = f"La venta #{venta.pk} ha sido cancelada exitosamente."
+                    detalles = []
+                    if resultado['km_totales'] > 0:
+                        detalles.append(f"Se revirtieron {resultado['km_totales']:,.2f} km acumulados")
+                    if resultado.get('km_devueltos', 0) > 0:
+                        detalles.append(f"Se devolvieron {resultado['km_devueltos']:,.2f} km redimidos")
+                    
+                    if detalles:
+                        mensaje_reversion += " " + " y ".join(detalles) + "."
+                    
+                    logger.info(
+                        f"✅ Kilómetros procesados por cancelación de venta {venta.pk}: "
+                        f"{resultado['km_totales']:,.2f} km revertidos, "
+                        f"{resultado.get('km_devueltos', 0):,.2f} km devueltos "
+                        f"({resultado['revertidos']} movimientos)"
+                    )
+                    messages.success(request, mensaje_reversion)
+                else:
+                    messages.success(request, f"La venta #{venta.pk} ha sido cancelada exitosamente.")
+            except Exception as e:
+                logger.exception(f"❌ Error al revertir kilómetros por cancelación de venta {venta.pk}: {e}")
+                messages.warning(
+                    request, 
+                    f"La venta #{venta.pk} ha sido cancelada, pero hubo un error al revertir los kilómetros Movums. "
+                    "Por favor, verifica manualmente el historial de kilómetros del cliente."
+                )
+        else:
+            messages.info(request, f"La venta #{venta.pk} ya estaba cancelada.")
         
         # Crear notificación para JEFE sobre la cancelación
         jefes = User.objects.filter(perfil__rol='JEFE')
@@ -1555,7 +1829,6 @@ class CancelarVentaView(LoginRequiredMixin, UserPassesTestMixin, View):
                 confirmado=False
             )
         
-        messages.success(request, f"La venta #{venta.pk} ha sido cancelada exitosamente.")
         return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
 
 
@@ -2808,9 +3081,12 @@ class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['ejecutivos'] = Ejecutivo.objects.all().select_related('usuario', 'usuario__perfil')
+        context['ejecutivos'] = Ejecutivo.objects.all().select_related('usuario', 'usuario__perfil', 'oficina')
         context['ejecutivo_form'] = kwargs.get('ejecutivo_form') or EjecutivoForm()
         context['mostrar_modal_ejecutivo'] = kwargs.get('mostrar_modal_ejecutivo', False)
+        context['oficinas'] = Oficina.objects.filter(activa=True).order_by('nombre')
+        context['oficina_form'] = kwargs.get('oficina_form') or OficinaForm()
+        context['mostrar_modal_oficina'] = kwargs.get('mostrar_modal_oficina', False)
         return context
     
     def _generar_username_unico(self, nombre_base):
@@ -2885,7 +3161,12 @@ class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         return user, password_plano
     
     def post(self, request, *args, **kwargs):
-        """Maneja las acciones de crear, editar y eliminar ejecutivos."""
+        """Maneja las acciones de crear, editar y eliminar ejecutivos y oficinas."""
+        # Verificar si es una acción de oficina
+        if 'oficina_action' in request.POST:
+            return self._handle_oficina_action(request)
+        
+        # Acción de ejecutivo
         action = request.POST.get('ejecutivo_action', 'crear')
         ejecutivo_id = request.POST.get('ejecutivo_id')
         
@@ -2968,6 +3249,51 @@ class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         
         context = self.get_context_data(ejecutivo_form=form, mostrar_modal_ejecutivo=True)
         return self.render_to_response(context)
+    
+    def _handle_oficina_action(self, request):
+        """Maneja las acciones de crear, editar y eliminar oficinas."""
+        action = request.POST.get('oficina_action', 'crear')
+        oficina_id = request.POST.get('oficina_id')
+        
+        if action == 'eliminar':
+            if not oficina_id:
+                messages.error(request, "No se pudo identificar la oficina a eliminar.")
+                return redirect('gestion_roles')
+            oficina = get_object_or_404(Oficina, pk=oficina_id)
+            nombre = oficina.nombre
+            # Marcar como inactiva en lugar de eliminar físicamente
+            oficina.activa = False
+            oficina.save()
+            messages.success(request, f"Oficina '{nombre}' eliminada correctamente.")
+            return redirect('gestion_roles')
+        
+        instance = None
+        if action == 'editar':
+            if not oficina_id:
+                messages.error(request, "No se pudo identificar la oficina a editar.")
+                return redirect('gestion_roles')
+            instance = get_object_or_404(Oficina, pk=oficina_id)
+        
+        form = OficinaForm(request.POST, instance=instance)
+        if form.is_valid():
+            try:
+                oficina = form.save()
+                if action == 'editar':
+                    messages.success(request, f"Oficina '{oficina.nombre}' actualizada correctamente.")
+                else:
+                    messages.success(request, f"Oficina '{oficina.nombre}' creada correctamente.")
+                return redirect('gestion_roles')
+            except Exception as e:
+                messages.error(request, f"Error al guardar la oficina: {str(e)}")
+        else:
+            messages.error(request, "Por favor, corrige los errores en el formulario.")
+            # Retornar con el formulario con errores
+            context = self.get_context_data()
+            context['oficina_form'] = form
+            context['mostrar_modal_oficina'] = True
+            return self.render_to_response(context)
+        
+        return redirect('gestion_roles')
 
 
 class EjecutivoDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
@@ -2989,7 +3315,7 @@ class EjecutivoDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         return redirect('gestion_roles')
     
     def post(self, request, *args, **kwargs):
-        """Maneja las acciones desde la vista de detalle: eliminar, cambiar contraseña, cambiar sueldo."""
+        """Maneja las acciones desde la vista de detalle: eliminar, cambiar contraseña, cambiar sueldo, desactivar/activar."""
         ejecutivo = self.get_object()
         action = request.POST.get('action')
         
@@ -3004,6 +3330,23 @@ class EjecutivoDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
                 return redirect(reverse('ejecutivo_detail', kwargs={'pk': ejecutivo.pk}) + '?contrasena_actualizada=1')
             else:
                 messages.error(request, "No se pudo actualizar la contraseña. Verifica que el ejecutivo tenga un usuario asociado.")
+            return redirect('ejecutivo_detail', pk=ejecutivo.pk)
+        
+        elif action == 'desactivar' or action == 'activar':
+            # Desactivar o activar el usuario
+            if not ejecutivo.usuario:
+                messages.error(request, "El ejecutivo no tiene un usuario asociado.")
+                return redirect('ejecutivo_detail', pk=ejecutivo.pk)
+            
+            if action == 'desactivar':
+                ejecutivo.usuario.is_active = False
+                ejecutivo.usuario.save()
+                messages.warning(request, f"Usuario '{ejecutivo.usuario.username}' desactivado correctamente. No podrá iniciar sesión hasta que sea reactivado.")
+            else:  # activar
+                ejecutivo.usuario.is_active = True
+                ejecutivo.usuario.save()
+                messages.success(request, f"Usuario '{ejecutivo.usuario.username}' activado correctamente. Ya puede iniciar sesión.")
+            
             return redirect('ejecutivo_detail', pk=ejecutivo.pk)
         
         elif action == 'eliminar' or not action:
@@ -5234,27 +5577,50 @@ def preview_promociones(request):
     Espera: cliente_id, tipo_viaje, costo_venta_final (opcional), costo_modificacion (opcional).
     """
     try:
-        cliente_id = int(request.POST.get('cliente_id') or 0)
-        tipo_viaje = request.POST.get('tipo_viaje')
-        costo_venta_final = Decimal(request.POST.get('costo_venta_final') or '0')
-        costo_mod = Decimal(request.POST.get('costo_modificacion') or '0')
-    except Exception:
-        return JsonResponse({'ok': False, 'error': 'Parámetros inválidos'}, status=400)
-
-    if not cliente_id or not tipo_viaje:
-        return JsonResponse({'ok': True, 'promos': []})
+        cliente_id_str = request.POST.get('cliente_id', '').strip()
+        tipo_viaje = request.POST.get('tipo_viaje', '').strip()
+        costo_venta_final_str = request.POST.get('costo_venta_final', '0').strip()
+        costo_mod_str = request.POST.get('costo_modificacion', '0').strip()
+        
+        logger.info(f"preview_promociones recibido - cliente_id: '{cliente_id_str}', tipo_viaje: '{tipo_viaje}', costo_venta_final: '{costo_venta_final_str}', costo_mod: '{costo_mod_str}'")
+        
+        if not cliente_id_str or not tipo_viaje:
+            logger.warning(f"Parámetros faltantes - cliente_id: '{cliente_id_str}', tipo_viaje: '{tipo_viaje}'")
+            return JsonResponse({'ok': True, 'promos': []})
+        
+        cliente_id = int(cliente_id_str)
+        costo_venta_final = Decimal(costo_venta_final_str or '0')
+        costo_mod = Decimal(costo_mod_str or '0')
+        
+    except (ValueError, InvalidOperation) as e:
+        logger.error(f"Error al parsear parámetros: {str(e)}")
+        return JsonResponse({'ok': False, 'error': f'Parámetros inválidos: {str(e)}'}, status=400)
+    except Exception as e:
+        logger.error(f"Error inesperado al procesar parámetros: {str(e)}")
+        return JsonResponse({'ok': False, 'error': 'Error al procesar parámetros'}, status=400)
 
     try:
         cliente = Cliente.objects.get(pk=cliente_id)
+        logger.info(f"Cliente encontrado: {cliente.nombre_completo_display} (ID: {cliente_id})")
     except Cliente.DoesNotExist:
+        logger.warning(f"Cliente no encontrado con ID: {cliente_id}")
         return JsonResponse({'ok': True, 'promos': []})
+    except Exception as e:
+        logger.error(f"Error al buscar cliente: {str(e)}")
+        return JsonResponse({'ok': False, 'error': 'Error al buscar cliente'}, status=500)
 
     total_base = costo_venta_final + costo_mod
+    logger.info(f"Buscando promociones - cliente: {cliente_id}, tipo_viaje: {tipo_viaje}, total_base: {total_base}")
+    
     promos = PromocionesService.obtener_promos_aplicables(
         cliente=cliente,
         tipo_viaje=tipo_viaje,
         total_base_mxn=total_base
     )
+    
+    logger.info(f"Promociones encontradas: {len(promos)}")
+    for p in promos:
+        logger.info(f"  - {p['promo'].nombre} (tipo: {p['promo'].tipo}, alcance: {p['promo'].alcance}, monto: {p.get('monto_descuento', 0)})")
     promos_serialized = []
     for p in promos:
         promo = p['promo']
@@ -5267,6 +5633,7 @@ def preview_promociones(request):
             'km_bono': str(p.get('km_bono') or '0'),
             'requiere_confirmacion': p.get('requiere_confirmacion', False),
             'condicion': promo.get_condicion_display(),
+            'alcance': promo.alcance,  # Agregar alcance para validación frontend
         })
 
     return JsonResponse({'ok': True, 'promos': promos_serialized})
@@ -5667,7 +6034,11 @@ class SubirComprobanteAperturaView(LoginRequiredMixin, View):
             messages.error(request, "No tienes permiso para subir comprobantes.")
             return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
         
-        # Verificar que la venta tenga apertura y requiera comprobante
+        # Verificar que la venta tenga apertura y requiera comprobante (no aplica para crédito)
+        if venta.modo_pago_apertura == 'CRE':
+            messages.error(request, "El crédito no requiere comprobante. El contador validará el crédito directamente.")
+            return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+        
         if not venta.cantidad_apertura or venta.cantidad_apertura <= 0:
             messages.error(request, "Esta venta no tiene pago de apertura.")
             return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
@@ -5761,13 +6132,18 @@ class PagosPorConfirmarView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
             Q(comprobante_subido=True)
         ).select_related('venta', 'venta__cliente', 'venta__vendedor', 'registrado_por').order_by('-fecha_pago')
         
-        # Ventas con apertura pendiente y comprobante subido
+        # Ventas con apertura pendiente
+        # Para TRN/TAR/DEP: requiere comprobante subido
+        # Para CRE: no requiere comprobante, solo estar en EN_CONFIRMACION
         # IMPORTANTE: Solo mostrar las que están en 'EN_CONFIRMACION' (no las confirmadas)
         ventas_apertura_pendiente = VentaViaje.objects.filter(
-            Q(cantidad_apertura__gt=0) &
-            Q(modo_pago_apertura__in=['TRN', 'TAR', 'DEP']) &
             Q(estado_confirmacion='EN_CONFIRMACION') &  # Solo las que están en confirmación
-            Q(comprobante_apertura_subido=True)
+            (
+                # Transferencia, Tarjeta, Depósito: requieren comprobante
+                (Q(modo_pago_apertura__in=['TRN', 'TAR', 'DEP']) & Q(cantidad_apertura__gt=0) & Q(comprobante_apertura_subido=True)) |
+                # Crédito: no requiere comprobante ni cantidad_apertura > 0
+                Q(modo_pago_apertura='CRE')
+            )
         ).exclude(
             estado_confirmacion='COMPLETADO'  # Excluir explícitamente las ya confirmadas
         ).select_related('cliente', 'vendedor').order_by('-fecha_creacion')
@@ -5793,12 +6169,17 @@ class PagosPorConfirmarView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
         ).select_related('venta', 'venta__cliente', 'confirmado_por')
         
         # Ventas con apertura confirmada - SOLO las que tienen modo_pago que requiere confirmación
-        # y que fueron confirmadas (estado_confirmacion='COMPLETADO' y tienen comprobante subido)
+        # y que fueron confirmadas (estado_confirmacion='COMPLETADO')
+        # Para TRN/TAR/DEP: requieren comprobante subido
+        # Para CRE: no requiere comprobante, solo que estado no sea EN_CONFIRMACION
         ventas_apertura_confirmada = VentaViaje.objects.filter(
-            Q(cantidad_apertura__gt=0) &
-            Q(modo_pago_apertura__in=['TRN', 'TAR', 'DEP']) &
             Q(estado_confirmacion='COMPLETADO') &
-            Q(comprobante_apertura_subido=True)  # Asegurar que fue confirmada
+            (
+                # Transferencia, Tarjeta, Depósito: requieren comprobante subido
+                (Q(modo_pago_apertura__in=['TRN', 'TAR', 'DEP']) & Q(cantidad_apertura__gt=0) & Q(comprobante_apertura_subido=True)) |
+                # Crédito: no requiere comprobante
+                Q(modo_pago_apertura='CRE')
+            )
         ).select_related('cliente', 'vendedor')
         
         # Aplicar filtros de fecha a abonos confirmados
@@ -5967,8 +6348,8 @@ class ConfirmarPagoDesdeListaView(LoginRequiredMixin, UserPassesTestMixin, View)
         elif tipo == 'apertura':
             venta = get_object_or_404(VentaViaje, pk=pk)
             
-            # Verificar que tenga comprobante subido
-            if not venta.comprobante_apertura_subido:
+            # Verificar que tenga comprobante subido (solo para TRN/TAR/DEP, no para crédito)
+            if venta.modo_pago_apertura in ['TRN', 'TAR', 'DEP'] and not venta.comprobante_apertura_subido:
                 messages.error(request, "Este pago de apertura no tiene comprobante subido.")
                 return redirect('pagos_por_confirmar')
             
@@ -6000,7 +6381,10 @@ class ConfirmarPagoDesdeListaView(LoginRequiredMixin, UserPassesTestMixin, View)
             # Actualizar notificaciones del JEFE
             jefes = User.objects.filter(perfil__rol='JEFE')
             modo_pago_display = dict(VentaViaje.MODO_PAGO_CHOICES).get(venta.modo_pago_apertura, venta.modo_pago_apertura)
-            mensaje_jefe = f"✅ Pago de apertura confirmado por el contador: ${venta.cantidad_apertura:,.2f} ({modo_pago_display}) - Venta #{venta.pk}"
+            if venta.modo_pago_apertura == 'CRE':
+                mensaje_jefe = f"✅ Crédito confirmado por el contador ({modo_pago_display}) - Venta #{venta.pk}"
+            else:
+                mensaje_jefe = f"✅ Pago de apertura confirmado por el contador: ${venta.cantidad_apertura:,.2f} ({modo_pago_display}) - Venta #{venta.pk}"
             
             for jefe in jefes:
                 # Actualizar notificaciones pendientes
@@ -6675,8 +7059,12 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
             logging.error(f"Error obteniendo cotización: {e}")
             return HttpResponse(f"Error: No se pudo obtener la cotización. {str(e)}", status=400)
         
+        # Verificar disponibilidad de WeasyPrint
         if not WEASYPRINT_AVAILABLE:
-            return HttpResponse("Error: WeasyPrint no está disponible. Instala las dependencias necesarias.", status=500)
+            return HttpResponse(
+                "Error: WeasyPrint no está disponible. Por favor instálalo con: pip install weasyprint", 
+                status=500
+            )
         
         # Cache deshabilitado temporalmente para forzar regeneración con nuevos estilos
         # TODO: Re-habilitar cache una vez que los estilos estén estabilizados
@@ -6762,7 +7150,9 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
         }
     
     def _generar_pdf(self, cotizacion):
-        """Genera el PDF usando WeasyPrint."""
+        """
+        Genera el PDF usando WeasyPrint para mejor control de diseño y formato con HTML/CSS.
+        """
         from django.template.loader import render_to_string
         from weasyprint import HTML
         from io import BytesIO
