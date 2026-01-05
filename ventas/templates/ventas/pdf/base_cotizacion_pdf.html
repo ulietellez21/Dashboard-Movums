@@ -10,14 +10,25 @@
    DISEÑO MINIMALISTA MODERNO Y LLAMATIVO
    Generados con WeasyPrint
    ============================================ */
-
-@page {
-    size: letter;
-    margin-top: 1.5cm;     /* Margen superior reducido sin membrete */
-    margin-bottom: 1.5cm;  /* Margen inferior reducido */
-    margin-left: 1.5cm;    /* Margen lateral izquierdo */
-    margin-right: 1.5cm;   /* Margen lateral derecho */
-}
+{% if membrete_url %}
+    /* CONFIGURACIÓN CON MEMBRETE (FONDO COMPLETO) */
+    @page {
+        size: letter;
+        margin: 0; /* IMPORTANTE: Margen 0 para que la imagen toque los bordes */
+        
+        /* Imagen de fondo cubriendo toda la hoja */
+        background-image: url("{{ membrete_url }}");
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: cover; /* cover asegura que llene toda la hoja sin deformarse */
+    }
+{% else %}
+    /* CONFIGURACIÓN SIN MEMBRETE (DEFAULT) */
+    @page {
+        size: letter;
+        margin: 1.5cm;
+    }
+{% endif %}
 
 /* Variables de color Movums - Paleta del Brandboard */
 :root {
@@ -69,68 +80,59 @@ body {
     font-size: 9pt;
     color: var(--text-primary);
     line-height: 1.5;
-    margin: 0;
-    padding: 0;
-    background: white; /* Fondo blanco sin membrete */
+    background: transparent;
     width: 100%;
     min-height: 100vh;
     box-sizing: border-box;
-    position: relative;
-    z-index: 0;
+    
+    /* NUEVO: Padding para proteger el contenido de tocar los bordes del membrete */
+    /* Ajusta estos valores según qué tan gruesos sean los bordes de tu imagen */
+    padding-top: 3.5cm;    /* Espacio para el logo superior */
+    padding-bottom: 2.5cm; /* Espacio para el pie de página */
+    padding-left: 2.0cm;   /* Espacio lateral */
+    padding-right: 2.0cm;  /* Espacio lateral */
 }
 
 /* ============================================
-   MEMBRETE COMO FONDO DE PÁGINA COMPLETO
-   El membrete ahora es background-image del body
+   MEMBRETE COMO FONDO DE PÁGINA
+   El membrete se aplica como background-image en @page
    ============================================ */
 
 .header {
     display: none; /* Header oculto, el membrete es fondo */
 }
 
-/* Márgenes consistentes para todas las páginas sin membrete */
-@page :first {
-    margin-top: 1.5cm;
-    margin-bottom: 1.5cm;
-    margin-left: 1.5cm;
-    margin-right: 1.5cm;
-}
-
-@page :left {
-    margin-top: 1.5cm;
-    margin-bottom: 1.5cm;
-    margin-left: 1.5cm;
-    margin-right: 1.5cm;
-}
-
-@page :right {
-    margin-top: 1.5cm;
-    margin-bottom: 1.5cm;
-    margin-left: 1.5cm;
-    margin-right: 1.5cm;
-}
 
 /* ============================================
    CONTENEDOR PRINCIPAL
    ============================================ */
 .cotizacion-container {
     width: 100%;
-    max-width: 100%;
     margin: 0;
-    background: white;
-    padding: 0; /* Sin padding, los márgenes vienen del @page */
-    box-sizing: border-box;
+    padding: 0; /* Ya no necesitamos padding aquí, lo tiene el body */
+    background: transparent;
     position: relative;
-    z-index: 1;
-    min-height: 100vh;
     display: flex;
     flex-direction: column;
-    gap: 6px; /* Espaciado reducido a la mitad entre elementos (12px → 6px) */
+    gap: 6px;
 }
 
-/* Spacer eliminado - no necesario sin membrete */
+/* Spacer para separar el contenido del membrete */
 .spacer-top {
-    display: none;
+    height: 48px; /* 2 saltos de línea adicionales (24px cada uno) */
+    display: block;
+}
+
+/* Wrapper para el contenido (vuelos, hoteles, etc.) con espacio superior */
+.content-wrapper {
+    page-break-before: always; /* Forzar salto de página antes del wrapper */
+    padding-top: 168px; /* 7 saltos de línea (24px cada uno = 168px) */
+    box-sizing: border-box;
+}
+
+/* Ajuste específico para cotizaciones de paquetes: menos espacio en la segunda página */
+.cotizacion-paquete .content-wrapper {
+    padding-top: 144px; /* 6 saltos de línea (quitar 1 salto = 24px menos) */
 }
 
 /* Evitar que las cards y secciones se partan entre páginas */
@@ -150,7 +152,6 @@ body {
 
 /* Agregar espacio superior cuando una card/info-section aparece después de un salto de página */
 /* Usamos margin-top en lugar de ::before para mejor compatibilidad con WeasyPrint */
-.card:first-of-type,
 .info-section:first-of-type {
     margin-top: 0; /* El spacer-top ya proporciona el espacio en la primera página */
 }
@@ -161,26 +162,6 @@ body {
     margin-top: 0; /* El gap del contenedor maneja el espaciado normal */
 }
 
-/* ============================================
-   TÍTULO PRINCIPAL - LLAMATIVO Y MODERNO (BARRA AZUL OSCURO)
-   ============================================ */
-.titulo-principal {
-    color: white;
-    font-size: 24pt; /* Tamaño reducido */
-    font-weight: 700;
-    margin: 0 0 24px 0;
-    text-align: left;
-    letter-spacing: 2px;
-    line-height: 1.2;
-    padding: 16px 22px; /* Padding ajustado al tamaño reducido */
-    text-transform: uppercase;
-    box-sizing: border-box;
-    background: #003366; /* Azul más oscuro */
-    border-radius: 6px;
-    box-shadow: 0 2px 8px rgba(0, 51, 102, 0.2);
-    page-break-after: avoid;
-    width: 100%;
-}
 
 /* ============================================
    CARDS - DISEÑO MODERNO Y LLAMATIVO
@@ -598,7 +579,7 @@ body {
 
 /* Total del paquete con color morado y más espaciado */
 .total-paquete-card {
-    margin-top: 1.5cm !important; /* 2 saltos de línea más de espaciado (aprox 1.5cm) */
+    margin-top: 0.25cm !important; /* Espaciado reducido (quitados 2 saltos de línea = 48px) */
 }
 
 .total-paquete {
@@ -772,26 +753,25 @@ body {
    FOOTER - MINIMALISTA
    ============================================ */
 .footer {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 2cm;
-    width: 100%;
-    margin: 0;
-    padding: 12px 0;
-    border-top: 1px solid #E5E7EB;
-    font-size: 9pt;
-    color: var(--text-muted);
+    margin-top: 24px;
+    padding-top: 16px;
+    padding-bottom: 8px;
     text-align: center;
-    line-height: 1.6;
-    box-sizing: border-box;
-    background: transparent; /* Transparente para ver el membrete */
-    z-index: 1000;
+    color: var(--text-muted);
+    font-size: 7pt;
+    line-height: 1.5;
 }
 
-.footer p {
-    margin: 10px 0;
+.footer-text {
+    margin: 0;
+    font-size: 7pt;
+    color: #718096;
+    line-height: 1.4;
+}
+
+/* Ocultar footer en cotizaciones de paquetes (solo se muestra en primera página si es necesario) */
+.cotizacion-paquete .footer {
+    display: none;
 }
 
 /* ============================================
@@ -835,7 +815,9 @@ body {
 /* Mantener secciones de información juntas */
 .info-section {
     page-break-inside: avoid;
+    page-break-after: auto; /* Permitir salto natural, el wrapper lo controla */
 }
+
 
 /* Mantener totales con sus tablas */
 .total-destacado {
@@ -891,18 +873,23 @@ strong {
 }
     </style>
 </head>
-<body>
+<body{% if tipo == 'paquete' %} class="cotizacion-paquete"{% endif %}>
     {% include "ventas/pdf/components/header.html" %}
     
     <div class="cotizacion-container">
-        <!-- Spacer invisible para mantener espacio de 6 saltos de línea en todas las páginas -->
+        <!-- Spacer para separar el contenido del membrete (2 saltos de línea) -->
         <div class="spacer-top"></div>
         
         {% include "ventas/pdf/components/info_cliente.html" %}
         
-        {% block content %}{% endblock %}
+        <!-- Wrapper para las cards de vuelo/hoteles con espacio superior -->
+        <div class="content-wrapper">
+            {% block content %}{% endblock %}
+        </div>
         
-        {% include "ventas/pdf/components/footer.html" %}
+        {% if tipo != 'paquete' %}
+            {% include "ventas/pdf/components/footer.html" %}
+        {% endif %}
     </div>
 </body>
 </html>
