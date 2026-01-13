@@ -6,10 +6,16 @@ from django.utils import timezone
 
 
 def build_financial_summary(venta, servicios_qs):
-    total_venta = venta.costo_total_con_modificacion or Decimal('0.00')
+    # Calcular total_venta incluyendo modificaciones y restando ambos descuentos
+    costo_base = venta.costo_venta_final or Decimal('0.00')
+    modificaciones = venta.costo_modificacion or Decimal('0.00')
+    descuento_km = venta.descuento_kilometros_mxn or Decimal('0.00')
+    descuento_promo = venta.descuento_promociones_mxn or Decimal('0.00')
+    total_venta = costo_base + modificaciones - descuento_km - descuento_promo
+    total_venta = max(Decimal('0.00'), total_venta)  # Asegurar que no sea negativo
+    
     total_neto = venta.costo_neto or Decimal('0.00')
     total_pagado = venta.total_pagado or Decimal('0.00')
-    modificaciones = venta.costo_modificacion or Decimal('0.00')
 
     total_servicios_planeados = servicios_qs.aggregate(
         total=Coalesce(Sum('monto_planeado'), Decimal('0.00'))
@@ -38,13 +44,49 @@ def build_financial_summary(venta, servicios_qs):
     }
 
 
-def build_service_rows(servicios_qs, summary, formset_forms=None):
+def build_service_rows(servicios_qs, summary, formset_forms=None, venta=None):
     saldo_disponible = summary['saldo_disponible_servicios']
     badge_map = {
         'paid': ('success', 'Pagado'),
         'ready': ('warning text-dark', 'Listo para pagar'),
         'pending': ('danger', 'Pendiente'),
     }
+
+    # Mapeo de códigos de servicio a nombres para buscar en servicios_detalle
+    SERVICIOS_MAP = {
+        'VUE': 'Vuelo',
+        'HOS': 'Hospedaje',
+        'ALO': 'Alojamiento Alterno',
+        'TRA': 'Traslado',
+        'TOU': 'Tour y Actividades',
+        'CIR': 'Circuito Internacional',
+        'REN': 'Renta de Auto',
+        'PAQ': 'Paquete',
+        'CRU': 'Crucero',
+        'SEG': 'Seguro de Viaje',
+        'DOC': 'Trámites de Documentación',
+        'OTR': 'Otros Servicios',
+    }
+    
+    # Extraer opciones de proveedor desde servicios_detalle si está disponible
+    opciones_proveedor = {}
+    if venta and venta.servicios_detalle:
+        servicios_detalle = venta.servicios_detalle.split('\n')
+        for linea in servicios_detalle:
+            linea = linea.strip()
+            if not linea:
+                continue
+            # Formato: "Servicio - Proveedor: Nombre - Opción: Opción elegida"
+            if ' - Opción: ' in linea:
+                # Extraer la opción
+                partes = linea.split(' - Opción: ')
+                if len(partes) == 2:
+                    servicio_parte = partes[0].strip()
+                    opcion = partes[1].strip()
+                    # Extraer el nombre del servicio (antes de " - Proveedor:")
+                    if ' - Proveedor: ' in servicio_parte:
+                        nombre_servicio = servicio_parte.split(' - Proveedor: ')[0].strip()
+                        opciones_proveedor[nombre_servicio] = opcion
 
     filas = []
     forms = formset_forms or []
@@ -63,6 +105,13 @@ def build_service_rows(servicios_qs, summary, formset_forms=None):
             hint = f"Faltan ${faltante:,.2f} para cubrir este servicio."
 
         badge_class, status_label = badge_map[status]
+        
+        # Obtener la opción del proveedor para este servicio
+        opcion_proveedor = ''
+        nombre_servicio = servicio.nombre_servicio
+        if nombre_servicio in opciones_proveedor:
+            opcion_proveedor = opciones_proveedor[nombre_servicio]
+        
         filas.append({
             'form': forms[idx] if use_forms else None,
             'servicio': servicio,
@@ -70,6 +119,7 @@ def build_service_rows(servicios_qs, summary, formset_forms=None):
             'badge_class': badge_class,
             'status_label': status_label,
             'status_hint': hint,
+            'opcion_proveedor': opcion_proveedor,
         })
 
     return filas
