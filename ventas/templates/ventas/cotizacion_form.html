@@ -242,11 +242,6 @@
                                 <textarea class="form-control form-control-sm" rows="2" name="paquete_vuelo_incluye"
                                     placeholder="Equipaje, tiempos, etc."></textarea>
                             </div>
-                            <div class="mb-2">
-                                <label class="form-label small fw-semibold">Total MXN</label>
-                                <input type="text" class="form-control form-control-sm" name="paquete_vuelo_total"
-                                    placeholder="Ej: 24,909.00">
-                            </div>
                             <div>
                                 <label class="form-label small fw-semibold">Forma de pago <span
                                         class="text-muted">(Opcional)</span></label>
@@ -282,11 +277,6 @@
                                 <label class="form-label small fw-semibold">Notas</label>
                                 <textarea class="form-control form-control-sm" rows="2" name="paquete_hotel_notas"
                                     placeholder="Ej: Incluye traslado redondo"></textarea>
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label small fw-semibold">Total MXN</label>
-                                <input type="text" class="form-control form-control-sm" name="paquete_hotel_total"
-                                    placeholder="Ej: 28,349.00">
                             </div>
                             <div>
                                 <label class="form-label small fw-semibold">Forma de pago <span
@@ -336,12 +326,7 @@
                                         <small class="text-muted">Incluye toda la información relevante del
                                             tour.</small>
                                     </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-semibold">Total MXN</label>
-                                        <input type="text" class="form-control" name="paquete_tour_total_1"
-                                            placeholder="Ej: 1,500.00">
-                                    </div>
-                                    <div class="col-md-6">
+                                    <div class="col-md-12">
                                         <label class="form-label fw-semibold">Forma de pago <span
                                                 class="text-muted">(Opcional)</span></label>
                                         <input type="text" class="form-control" name="paquete_tour_forma_pago_1"
@@ -549,8 +534,6 @@
                                 <label class="form-label fw-bold text-secondary">Total del Paquete MXN</label>
                                 <input type="text" class="form-control" name="paquete_total"
                                     placeholder="Ej: 53,258.00">
-                                <small class="text-muted">Total combinado del paquete (Vuelo + Hospedaje + Tours si
-                                    aplica)</small>
                             </div>
                             <div>
                                 <label class="form-label fw-semibold">Forma de pago del Paquete <span
@@ -800,10 +783,6 @@
             if (paqueteTotalSection) {
                 if (tipo === 'paquete') {
                     paqueteTotalSection.classList.remove('d-none');
-                    // Inicializar el cálculo automático del total cuando se muestra la sección de paquete
-                    setTimeout(function() {
-                        inicializarCalculoTotalPaquete();
-                    }, 200);
                 } else {
                     paqueteTotalSection.classList.add('d-none');
                 }
@@ -988,11 +967,6 @@
                         if (form.elements['paquete_vuelo_salida']) form.elements['paquete_vuelo_salida'].value = data.paquete.vuelo.salida || '';
                         if (form.elements['paquete_vuelo_regreso']) form.elements['paquete_vuelo_regreso'].value = data.paquete.vuelo.regreso || '';
                         if (form.elements['paquete_vuelo_incluye']) form.elements['paquete_vuelo_incluye'].value = data.paquete.vuelo.incluye || '';
-                        if (form.elements['paquete_vuelo_total']) {
-                            const campoTotal = form.elements['paquete_vuelo_total'];
-                            campoTotal.value = data.paquete.vuelo.total || '';
-                            aplicarFormatoMoneda(campoTotal);
-                        }
                         if (form.elements['paquete_vuelo_forma_pago']) form.elements['paquete_vuelo_forma_pago'].value = data.paquete.vuelo.forma_pago || '';
                     }
                     if (data.paquete.hotel) {
@@ -1001,11 +975,6 @@
                         if (form.elements['paquete_hotel_direccion']) form.elements['paquete_hotel_direccion'].value = data.paquete.hotel.direccion || '';
                         if (form.elements['paquete_hotel_plan']) form.elements['paquete_hotel_plan'].value = data.paquete.hotel.plan || '';
                         if (form.elements['paquete_hotel_notas']) form.elements['paquete_hotel_notas'].value = data.paquete.hotel.notas || '';
-                        if (form.elements['paquete_hotel_total']) {
-                            const campoTotal = form.elements['paquete_hotel_total'];
-                            campoTotal.value = data.paquete.hotel.total || '';
-                            aplicarFormatoMoneda(campoTotal);
-                        }
                         if (form.elements['paquete_hotel_forma_pago']) form.elements['paquete_hotel_forma_pago'].value = data.paquete.hotel.forma_pago || '';
                     }
                     if (form.elements['paquete_total']) {
@@ -1034,11 +1003,6 @@
                             const primerTour = data.paquete.tours[0];
                             if (form.elements['paquete_tour_nombre_1']) form.elements['paquete_tour_nombre_1'].value = primerTour.nombre || '';
                             if (form.elements['paquete_tour_especificaciones_1']) form.elements['paquete_tour_especificaciones_1'].value = primerTour.especificaciones || '';
-                            if (form.elements['paquete_tour_total_1']) {
-                                const campoTotal = form.elements['paquete_tour_total_1'];
-                                campoTotal.value = primerTour.total || '';
-                                aplicarFormatoMoneda(campoTotal);
-                            }
                             if (form.elements['paquete_tour_forma_pago_1']) form.elements['paquete_tour_forma_pago_1'].value = primerTour.forma_pago || '';
                         }
 
@@ -1073,11 +1037,6 @@
                                     if (form.elements[`paquete_tour_especificaciones_${tourIndex}`]) {
                                         form.elements[`paquete_tour_especificaciones_${tourIndex}`].value = tour.especificaciones || '';
                                     }
-                                    if (form.elements[`paquete_tour_total_${tourIndex}`]) {
-                                        const campoTotal = form.elements[`paquete_tour_total_${tourIndex}`];
-                                        campoTotal.value = tour.total || '';
-                                        aplicarFormatoMoneda(campoTotal);
-                                    }
                                     if (form.elements[`paquete_tour_forma_pago_${tourIndex}`]) {
                                         form.elements[`paquete_tour_forma_pago_${tourIndex}`].value = tour.forma_pago || '';
                                     }
@@ -1099,7 +1058,7 @@
                     } else {
                         toursArray = [data.tours];
                     }
-                    
+
                     // --- MEJORA 1: Filtro Estricto (Ignora "$" y ceros) ---
                     toursArray = toursArray.filter(t => {
                         // Limpiar el total de símbolos y espacios para verificar si está vacío
@@ -1112,9 +1071,9 @@
                     });
                     
                     // Restaurar el primer tour (Siempre existe en el HTML base)
-                    if (toursArray.length > 0) {
-                        const primerTour = toursArray[0];
-                        if (form.elements['tour_nombre_1']) form.elements['tour_nombre_1'].value = primerTour.nombre || '';
+                        if (toursArray.length > 0) {
+                            const primerTour = toursArray[0];
+                            if (form.elements['tour_nombre_1']) form.elements['tour_nombre_1'].value = primerTour.nombre || '';
                         if (form.elements['tour_especificaciones_1']) form.elements['tour_especificaciones_1'].value = primerTour.especificaciones || '';
                         if (form.elements['tour_total_1']) {
                             const campoTotal = form.elements['tour_total_1'];
@@ -1123,7 +1082,7 @@
                         }
                         if (form.elements['tour_forma_pago_1']) form.elements['tour_forma_pago_1'].value = primerTour.forma_pago || '';
                     }
-                    
+
                     // Si hay tours adicionales
                     if (toursArray.length > 1) {
                         // --- MEJORA 2: Anti-Duplicados (Verificar DOM antes de crear) ---
@@ -1136,10 +1095,10 @@
                             
                             // Insertar al final
                             toursContainer.insertAdjacentHTML('beforeend', nuevoTour);
-                        }
-                        
+                            }
+
                         // Llenar datos (con timeout para asegurar DOM)
-                        setTimeout(() => {
+                            setTimeout(() => {
                             for (let i = 1; i < toursArray.length; i++) {
                                 const tour = toursArray[i];
                                 const tourIndex = i + 1;
@@ -1157,11 +1116,11 @@
                                     if (totalF) {
                                         totalF.value = tour.total || '';
                                         aplicarFormatoMoneda(totalF);
-                                    }
+                                }
                                     if (pagoF) pagoF.value = tour.forma_pago || '';
                                 }
-                            }
-                            
+                        }
+
                             // Finalización
                             actualizarNumerosTour();
                             
@@ -1287,7 +1246,6 @@
                     salida: (data.paquete_vuelo_salida || '').trim(),
                     regreso: (data.paquete_vuelo_regreso || '').trim(),
                     incluye: (data.paquete_vuelo_incluye || '').trim(),
-                    total: limpiarFormatoMoneda((data.paquete_vuelo_total || '').trim()),
                     forma_pago: (data.paquete_vuelo_forma_pago || '').trim(),
                 },
                 hotel: {
@@ -1296,7 +1254,6 @@
                     direccion: (data.paquete_hotel_direccion || '').trim(),
                     plan: (data.paquete_hotel_plan || '').trim(),
                     notas: (data.paquete_hotel_notas || '').trim(),
-                    total: limpiarFormatoMoneda((data.paquete_hotel_total || '').trim()),
                     forma_pago: (data.paquete_hotel_forma_pago || '').trim(),
                 },
                 total: limpiarFormatoMoneda((data.paquete_total || '').trim()),
@@ -1311,20 +1268,17 @@
                             // Buscar campos dentro del tourItem usando selectores más flexibles
                             const nombreField = tourItem.querySelector('input[name*="paquete_tour_nombre"], textarea[name*="paquete_tour_nombre"]');
                             const especificacionesField = tourItem.querySelector('textarea[name*="paquete_tour_especificaciones"]');
-                            const totalField = tourItem.querySelector('input[name*="paquete_tour_total"]');
                             const formaPagoField = tourItem.querySelector('input[name*="paquete_tour_forma_pago"]');
 
                             const nombre = nombreField ? (nombreField.value || '').trim() : '';
                             const especificaciones = especificacionesField ? (especificacionesField.value || '').trim() : '';
-                            const total = totalField ? limpiarFormatoMoneda((totalField.value || '').trim()) : '';
                             const forma_pago = formaPagoField ? (formaPagoField.value || '').trim() : '';
 
                             // Si hay al menos un campo con datos, agregar el tour
-                            if (nombre || especificaciones || total || forma_pago) {
+                            if (nombre || especificaciones || forma_pago) {
                                 toursArray.push({
                                     nombre: nombre,
                                     especificaciones: especificaciones,
-                                    total: total,
                                     forma_pago: forma_pago
                                 });
                             }
@@ -1335,15 +1289,13 @@
                         while (true) {
                             const nombre = (data[`paquete_tour_nombre_${tourIndex}`] || '').trim();
                             const especificaciones = (data[`paquete_tour_especificaciones_${tourIndex}`] || '').trim();
-                            const total = limpiarFormatoMoneda((data[`paquete_tour_total_${tourIndex}`] || '').trim());
                             const forma_pago = (data[`paquete_tour_forma_pago_${tourIndex}`] || '').trim();
 
                             // Si hay al menos un campo con datos, agregar el tour
-                            if (nombre || especificaciones || total || forma_pago) {
+                            if (nombre || especificaciones || forma_pago) {
                                 toursArray.push({
                                     nombre: nombre,
                                     especificaciones: especificaciones,
-                                    total: total,
                                     forma_pago: forma_pago
                                 });
                                 tourIndex++;
@@ -1455,7 +1407,7 @@
                         };
                     }
                 }
-                
+
                 // Guardar el JSON en el campo hidden
                 const jsonString = JSON.stringify(propuestas);
                 propuestasInput.value = jsonString;
@@ -1734,35 +1686,35 @@
                     const nuevoTour = crearNuevoTour(tourCounter);
                     const tourItem = e.target.closest('.tour-item');
                     if (tourItem) {
-                        tourItem.insertAdjacentHTML('afterend', nuevoTour);
+                    tourItem.insertAdjacentHTML('afterend', nuevoTour);
 
-                        // Desmarcar el checkbox que generó el nuevo tour
-                        e.target.checked = false;
+                    // Desmarcar el checkbox que generó el nuevo tour
+                    e.target.checked = false;
                         e.target.removeAttribute('checked');
 
-                        // Actualizar números
-                        actualizarNumerosTour();
+                    // Actualizar números
+                    actualizarNumerosTour();
 
                         // Inicializar formato de moneda en el nuevo campo de total y agregar listeners
-                        setTimeout(function () {
+                    setTimeout(function () {
                             // Buscar el campo recién creado usando el contenedor del tour
                             const tourItemCreado = tourItem.nextElementSibling;
                             if (tourItemCreado) {
                                 const nuevoCampoTotal = tourItemCreado.querySelector(`input[name^="tour_total_"]`);
-                                if (nuevoCampoTotal) {
-                                    // Aplicar formato si hay un valor
-                                    if (nuevoCampoTotal.value) {
-                                        aplicarFormatoMoneda(nuevoCampoTotal);
-                                    }
-                                    // Agregar event listeners para formato automático
-                                    // EVENTO CLAVE: 'input' para formatear mientras escribes
-                                    nuevoCampoTotal.addEventListener('input', function () {
-                                        formatearEnTiempoReal(this);
-                                    });
-                                    // Blur limpia entradas inválidas como "$" solo
-                                    nuevoCampoTotal.addEventListener('blur', function () {
-                                        if (this.value === '$') this.value = '';
-                                    });
+                        if (nuevoCampoTotal) {
+                            // Aplicar formato si hay un valor
+                            if (nuevoCampoTotal.value) {
+                                aplicarFormatoMoneda(nuevoCampoTotal);
+                            }
+                            // Agregar event listeners para formato automático
+                            // EVENTO CLAVE: 'input' para formatear mientras escribes
+                            nuevoCampoTotal.addEventListener('input', function () {
+                                formatearEnTiempoReal(this);
+                            });
+                            // Blur limpia entradas inválidas como "$" solo
+                            nuevoCampoTotal.addEventListener('blur', function () {
+                                if (this.value === '$') this.value = '';
+                            });
                                     
                                     // Agregar listener para calcular el total de tours en tiempo real
                                     agregarListenerATour(nuevoCampoTotal);
@@ -1957,30 +1909,6 @@
                         // Actualizar números
                         actualizarNumerosPaqueteTour();
 
-                        // Inicializar formato de moneda en el nuevo campo de total
-                        setTimeout(function () {
-                            const nuevoCampoTotal = form.elements[`paquete_tour_total_${paqueteTourCounter}`];
-                            if (nuevoCampoTotal) {
-                                // Aplicar formato si hay un valor
-                                if (nuevoCampoTotal.value) {
-                                    aplicarFormatoMoneda(nuevoCampoTotal);
-                                }
-                                // Agregar event listeners para formato automático
-                                // EVENTO CLAVE: 'input' para formatear mientras escribes
-                                nuevoCampoTotal.addEventListener('input', function () {
-                                    formatearEnTiempoReal(this);
-                                    // Calcular el total del paquete cuando cambia el total del tour
-                                    clearTimeout(this._timeoutCalculo);
-                                    this._timeoutCalculo = setTimeout(calcularTotalPaquete, 300);
-                                });
-                                // Blur limpia entradas inválidas como "$" solo
-                                nuevoCampoTotal.addEventListener('blur', function () {
-                                    if (this.value === '$') this.value = '';
-                                    // Calcular el total del paquete cuando sale del campo
-                                    setTimeout(calcularTotalPaquete, 100);
-                                });
-                            }
-                        }, 50);
                     }
                 }
             });
@@ -2068,9 +1996,6 @@
                 'input[name^="vuelo_total_"]',
                 'input[name^="hotel_total_"]',
                 'input[name="paquete_total"]',
-                'input[name="paquete_vuelo_total"]',
-                'input[name="paquete_hotel_total"]',
-                'input[name^="paquete_tour_total_"]',
                 'input[name^="tour_total_"]',
                 'input[name="tours_total"]',
                 'input[name="traslado_total"]',
@@ -2085,121 +2010,6 @@
             return campos;
         }
 
-        // ========== CÁLCULO AUTOMÁTICO DEL TOTAL DEL PAQUETE ==========
-        function calcularTotalPaquete() {
-            const campoTotalPaquete = document.querySelector('input[name="paquete_total"]');
-            if (!campoTotalPaquete) return;
-
-            let total = 0;
-
-            // Sumar total del vuelo
-            const campoVueloTotal = document.querySelector('input[name="paquete_vuelo_total"]');
-            if (campoVueloTotal && campoVueloTotal.value) {
-                const valorVuelo = parseFloat(limpiarFormatoMoneda(campoVueloTotal.value)) || 0;
-                total += valorVuelo;
-            }
-
-            // Sumar total del hospedaje
-            const campoHotelTotal = document.querySelector('input[name="paquete_hotel_total"]');
-            if (campoHotelTotal && campoHotelTotal.value) {
-                const valorHotel = parseFloat(limpiarFormatoMoneda(campoHotelTotal.value)) || 0;
-                total += valorHotel;
-            }
-
-            // Sumar todos los totales de tours (puede haber múltiples)
-            const camposTourTotal = document.querySelectorAll('input[name^="paquete_tour_total_"]');
-            camposTourTotal.forEach(campo => {
-                if (campo && campo.value) {
-                    const valorTour = parseFloat(limpiarFormatoMoneda(campo.value)) || 0;
-                    total += valorTour;
-                }
-            });
-
-            // Actualizar el campo de total del paquete con el formato correcto
-            if (total > 0) {
-                const totalFormateado = formatearMonedaMexicana(total.toString());
-                campoTotalPaquete.value = totalFormateado;
-            } else {
-                campoTotalPaquete.value = '';
-            }
-        }
-
-        // Función para inicializar el cálculo automático del total del paquete
-        function inicializarCalculoTotalPaquete() {
-            // Obtener todos los campos que afectan el total
-            const campoVueloTotal = document.querySelector('input[name="paquete_vuelo_total"]');
-            const campoHotelTotal = document.querySelector('input[name="paquete_hotel_total"]');
-            const campoTotalPaquete = document.querySelector('input[name="paquete_total"]');
-
-            if (!campoTotalPaquete) return;
-
-            // Función para agregar listeners a un campo
-            function agregarListenerACampo(campo) {
-                if (!campo) return;
-                
-                // Evitar agregar listeners duplicados
-                if (campo.hasAttribute('data-total-paquete-listener')) return;
-                campo.setAttribute('data-total-paquete-listener', 'true');
-                
-                // Listener para cuando cambia el valor (blur = cuando sale del campo)
-                campo.addEventListener('blur', function() {
-                    // Esperar un poco para que el formato se aplique primero
-                    setTimeout(calcularTotalPaquete, 100);
-                });
-
-                // Listener para cuando se escribe (input = en tiempo real)
-                campo.addEventListener('input', function() {
-                    // Calcular después de un pequeño delay para permitir que el usuario termine de escribir
-                    clearTimeout(campo._timeoutCalculo);
-                    campo._timeoutCalculo = setTimeout(calcularTotalPaquete, 300);
-                });
-            }
-
-            // Agregar listeners a vuelo y hospedaje
-            agregarListenerACampo(campoVueloTotal);
-            agregarListenerACampo(campoHotelTotal);
-
-            // Agregar listeners a todos los campos de tour existentes
-            const camposTourTotal = document.querySelectorAll('input[name^="paquete_tour_total_"]');
-            camposTourTotal.forEach(campo => {
-                agregarListenerACampo(campo);
-            });
-
-            // Usar MutationObserver para detectar cuando se agregan nuevos tours dinámicamente
-            const paqueteToursContainer = document.getElementById('paqueteToursContainer');
-            if (paqueteToursContainer) {
-                const observer = new MutationObserver(function(mutations) {
-                    mutations.forEach(function(mutation) {
-                        if (mutation.addedNodes.length > 0) {
-                            // Se agregaron nuevos nodos, buscar nuevos campos de tour total
-                            mutation.addedNodes.forEach(function(node) {
-                                if (node.nodeType === 1) { // Es un elemento
-                                    const nuevosCampos = node.querySelectorAll ? 
-                                        node.querySelectorAll('input[name^="paquete_tour_total_"]') : [];
-                                    nuevosCampos.forEach(campo => {
-                                        agregarListenerACampo(campo);
-                                    });
-                                }
-                            });
-                            // Recalcular el total después de agregar tours
-                            setTimeout(calcularTotalPaquete, 100);
-                        }
-                        if (mutation.removedNodes.length > 0) {
-                            // Se eliminaron nodos, recalcular el total
-                            setTimeout(calcularTotalPaquete, 100);
-                        }
-                    });
-                });
-
-                observer.observe(paqueteToursContainer, {
-                    childList: true,
-                    subtree: true
-                });
-            }
-
-            // Calcular el total inicial si hay valores
-            setTimeout(calcularTotalPaquete, 500);
-        }
 
         // ========== CÁLCULO AUTOMÁTICO DEL TOTAL DE TOURS ==========
         // Función para calcular el total de tours
