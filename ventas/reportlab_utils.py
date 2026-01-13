@@ -16,7 +16,10 @@ from reportlab.platypus import (
     KeepTogether, PageBreak, PageTemplate, Frame
 )
 import os
+import logging
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 
 # ==================== CONSTANTES DE COLOR ====================
