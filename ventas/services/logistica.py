@@ -52,42 +52,6 @@ def build_service_rows(servicios_qs, summary, formset_forms=None, venta=None):
         'pending': ('danger', 'Pendiente'),
     }
 
-    # Mapeo de códigos de servicio a nombres para buscar en servicios_detalle
-    SERVICIOS_MAP = {
-        'VUE': 'Vuelo',
-        'HOS': 'Hospedaje',
-        'ALO': 'Alojamiento Alterno',
-        'TRA': 'Traslado',
-        'TOU': 'Tour y Actividades',
-        'CIR': 'Circuito Internacional',
-        'REN': 'Renta de Auto',
-        'PAQ': 'Paquete',
-        'CRU': 'Crucero',
-        'SEG': 'Seguro de Viaje',
-        'DOC': 'Trámites de Documentación',
-        'OTR': 'Otros Servicios',
-    }
-    
-    # Extraer opciones de proveedor desde servicios_detalle si está disponible
-    opciones_proveedor = {}
-    if venta and venta.servicios_detalle:
-        servicios_detalle = venta.servicios_detalle.split('\n')
-        for linea in servicios_detalle:
-            linea = linea.strip()
-            if not linea:
-                continue
-            # Formato: "Servicio - Proveedor: Nombre - Opción: Opción elegida"
-            if ' - Opción: ' in linea:
-                # Extraer la opción
-                partes = linea.split(' - Opción: ')
-                if len(partes) == 2:
-                    servicio_parte = partes[0].strip()
-                    opcion = partes[1].strip()
-                    # Extraer el nombre del servicio (antes de " - Proveedor:")
-                    if ' - Proveedor: ' in servicio_parte:
-                        nombre_servicio = servicio_parte.split(' - Proveedor: ')[0].strip()
-                        opciones_proveedor[nombre_servicio] = opcion
-
     filas = []
     forms = formset_forms or []
     use_forms = len(forms) == len(servicios_qs)
@@ -106,12 +70,6 @@ def build_service_rows(servicios_qs, summary, formset_forms=None, venta=None):
 
         badge_class, status_label = badge_map[status]
         
-        # Obtener la opción del proveedor para este servicio
-        opcion_proveedor = ''
-        nombre_servicio = servicio.nombre_servicio
-        if nombre_servicio in opciones_proveedor:
-            opcion_proveedor = opciones_proveedor[nombre_servicio]
-        
         filas.append({
             'form': forms[idx] if use_forms else None,
             'servicio': servicio,
@@ -119,7 +77,6 @@ def build_service_rows(servicios_qs, summary, formset_forms=None, venta=None):
             'badge_class': badge_class,
             'status_label': status_label,
             'status_hint': hint,
-            'opcion_proveedor': opcion_proveedor,
         })
 
     return filas

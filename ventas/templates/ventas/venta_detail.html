@@ -907,11 +907,10 @@
                                                 {% endfor %}
                                             </td>
                                             <td>
-                                                {% if row.opcion_proveedor %}
-                                                    <span class="badge bg-info text-white">{{ row.opcion_proveedor }}</span>
-                                                {% else %}
-                                                    <span class="text-muted">-</span>
-                                                {% endif %}
+                                                {{ row.form.opcion_proveedor }}
+                                                {% for error in row.form.opcion_proveedor.errors %}
+                                                    <div class="text-danger small">{{ error }}</div>
+                                                {% endfor %}
                                             </td>
                                         </tr>
                                         {% endfor %}

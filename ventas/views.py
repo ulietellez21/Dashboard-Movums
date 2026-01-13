@@ -669,24 +669,32 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                     ])
                 else:
                     for form in formset.forms:
-                        servicio = form.save(commit=False)
-                        original = originales.get(servicio.pk)
+                        if not form.cleaned_data:
+                            continue
+                        
+                        servicio_id = form.instance.pk if form.instance.pk else None
+                        original = originales.get(servicio_id) if servicio_id else None
                         if not original:
                             continue
-                        servicio.venta = self.object
-                        servicio.codigo_servicio = original.codigo_servicio
-                        servicio.nombre_servicio = original.nombre_servicio
-                        servicio.orden = original.orden
-
-                        marcado_pagado = form.cleaned_data.get('pagado')
-                        if marcado_pagado and not original.pagado:
-                            servicio.fecha_pagado = timezone.now()
-                        elif not marcado_pagado and original.pagado:
-                            servicio.fecha_pagado = None
-                        else:
-                            servicio.fecha_pagado = original.fecha_pagado
-
-                        servicio.save(update_fields=['monto_planeado', 'pagado', 'fecha_pagado', 'orden', 'codigo_servicio', 'nombre_servicio'])
+                        
+                        # Obtener valores desde cleaned_data
+                        nuevo_opcion_proveedor = form.cleaned_data.get('opcion_proveedor', '')
+                        nuevo_monto = form.cleaned_data.get('monto_planeado', Decimal('0.00'))
+                        nuevo_pagado = form.cleaned_data.get('pagado', False)
+                        
+                        # Actualizar el objeto original directamente
+                        original.opcion_proveedor = nuevo_opcion_proveedor
+                        original.monto_planeado = nuevo_monto
+                        
+                        # Manejar pagado y fecha_pagado
+                        original.pagado = nuevo_pagado
+                        if nuevo_pagado and not original.pagado:
+                            original.fecha_pagado = timezone.now()
+                        elif not nuevo_pagado and original.pagado:
+                            original.fecha_pagado = None
+                        
+                        # Guardar todos los campos
+                        original.save(update_fields=['monto_planeado', 'pagado', 'fecha_pagado', 'opcion_proveedor'])
 
                     messages.success(request, "Control por servicio actualizado correctamente.")
                     return redirect(reverse('detalle_venta', kwargs={'pk': self.object.pk, 'slug': self.object.slug_safe}) + '?tab=logistica')
@@ -867,22 +875,55 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
         choices = dict(VentaViaje.SERVICIOS_CHOICES)
         existentes = {serv.codigo_servicio: serv for serv in venta.servicios_logisticos.all()}
 
+        # Extraer opciones de proveedor desde servicios_detalle
+        opciones_proveedor = {}
+        if venta.servicios_detalle:
+            servicios_detalle = venta.servicios_detalle.split('\n')
+            for linea in servicios_detalle:
+                linea = linea.strip()
+                if not linea:
+                    continue
+                # Formato: "Servicio - Proveedor: Nombre - Opción: Opción elegida"
+                if ' - Opción: ' in linea:
+                    partes = linea.split(' - Opción: ')
+                    if len(partes) == 2:
+                        servicio_parte = partes[0].strip()
+                        opcion = partes[1].strip()
+                        # Extraer el nombre del servicio (antes de " - Proveedor:")
+                        if ' - Proveedor: ' in servicio_parte:
+                            nombre_servicio = servicio_parte.split(' - Proveedor: ')[0].strip()
+                        else:
+                            nombre_servicio = servicio_parte.strip()
+                        opciones_proveedor[nombre_servicio] = opcion
+
         for idx, code in enumerate(servicios_codes):
             nombre = choices.get(code)
             if not nombre:
                 continue
+            opcion_proveedor = opciones_proveedor.get(nombre, '')
             if code not in existentes:
+                # Para registros nuevos, asignar el valor parseado inicial
                 LogisticaServicio.objects.create(
                     venta=venta,
                     codigo_servicio=code,
                     nombre_servicio=nombre,
-                    orden=idx
+                    orden=idx,
+                    opcion_proveedor=opcion_proveedor
                 )
             else:
                 serv = existentes[code]
+                update_fields = []
                 if serv.orden != idx:
                     serv.orden = idx
-                    serv.save(update_fields=['orden'])
+                    update_fields.append('orden')
+                # Solo actualizar opcion_proveedor si el campo en BD está vacío
+                # Esto permite que las ediciones manuales del usuario persistan
+                if not serv.opcion_proveedor or serv.opcion_proveedor.strip() == '':
+                    if opcion_proveedor:  # Solo actualizar si hay un valor parseado
+                        serv.opcion_proveedor = opcion_proveedor
+                        update_fields.append('opcion_proveedor')
+                if update_fields:
+                    serv.save(update_fields=update_fields)
 
         # Eliminar servicios que ya no están contratados
         if servicios_codes:
