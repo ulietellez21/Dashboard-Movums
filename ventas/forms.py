@@ -560,12 +560,17 @@ class LogisticaServicioForm(forms.ModelForm):
     
     class Meta:
         model = LogisticaServicio
-        fields = ['monto_planeado', 'pagado']  # Eliminado 'notas'
+        fields = ['monto_planeado', 'pagado', 'opcion_proveedor']  # Eliminado 'notas'
         widgets = {
             'pagado': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'opcion_proveedor': forms.TextInput(attrs={
+                'class': 'form-control form-control-sm',
+                'placeholder': 'Ej: Aeroméxico, Hotel Fiesta Inn, etc.'
+            }),
         }
         labels = {
             'pagado': 'Marcar como pagado',
+            'opcion_proveedor': 'Opción del proveedor',
         }
     
     def __init__(self, *args, **kwargs):

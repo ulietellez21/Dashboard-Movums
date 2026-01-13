@@ -949,6 +949,12 @@ class LogisticaServicio(models.Model):
     fecha_pagado = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de pago")
     notas = models.CharField(max_length=255, blank=True, verbose_name="Notas internas")
     orden = models.PositiveIntegerField(default=0, verbose_name="Orden de visualización")
+    opcion_proveedor = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="Opción elegida del proveedor",
+        help_text="Ej: Aerolínea, Hotel, etc."
+    )
 
     class Meta:
         verbose_name = "Servicio logístico"
