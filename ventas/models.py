@@ -1,5 +1,6 @@
 import os
 import json
+import logging
 
 from django.db import models
 from django.db.models import Sum, Q
@@ -17,6 +18,8 @@ from PIL import Image
 from io import BytesIO
 from django.core.files.uploadedfile import InMemoryUploadedFile
 import sys
+
+logger = logging.getLogger(__name__)
 
 # ------------------- MODELO CENTRAL: VentaViaje -------------------
 
@@ -389,8 +392,7 @@ class VentaViaje(models.Model):
 
                 generar_contrato_para_venta(self.pk)
             except Exception as e:
-                # Se mantiene la impresión de advertencia
-                print(f"Advertencia: Falló la generación del contrato para Venta {self.pk}: {e}")
+                logger.warning(f"Falló la generación del contrato para Venta {self.pk}: {e}", exc_info=True)
     
     def _generar_folio(self):
         """

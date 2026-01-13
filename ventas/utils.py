@@ -1,4 +1,5 @@
 import os # Necesario para la manipulación de rutas de archivos (para PDF)
+import logging
 from datetime import datetime
 from django.template.loader import render_to_string # Necesario para renderizar la plantilla HTML a PDF
 from django.template import Template, Context 
@@ -11,6 +12,8 @@ from .models import VentaViaje, ContratoPlantilla, ContratoGenerado
 
 # Importamos el modelo Cliente (asumo que está en crm.models)
 from crm.models import Cliente
+
+logger = logging.getLogger(__name__)
 
 # --- Función para convertir números a texto en español ---
 
@@ -124,7 +127,7 @@ try:
     from weasyprint import HTML
     WEASYPRINT_INSTALLED = True
 except ImportError:
-    print("ADVERTENCIA: WeasyPrint no está instalado. Los PDF no se generarán.")
+    logger.warning("WeasyPrint no está instalado. Los PDF no se generarán.")
     WEASYPRINT_INSTALLED = False
 
 # --- Función para GENERAR PDF (Si aplica) ---
@@ -196,7 +199,7 @@ def generar_pdf_contrato(contrato_generado):
         return ruta_relativa
 
     except Exception as e:
-        print(f"Error CRÍTICO al generar el PDF o guardar el archivo: {e}")
+        logger.error(f"Error crítico al generar el PDF o guardar el archivo: {e}", exc_info=True)
         return None
 
 # --- Función principal: Generación de Contrato y PDF ---
@@ -221,13 +224,13 @@ def generar_contrato_para_venta(venta_viaje_id):
         plantilla = ContratoPlantilla.objects.get(tipo=venta.tipo_viaje)
         
     except VentaViaje.DoesNotExist:
-        print(f"Error: VentaViaje con ID {venta_viaje_id} no encontrada.")
+        logger.error(f"VentaViaje con ID {venta_viaje_id} no encontrada.")
         return None
     except ContratoPlantilla.DoesNotExist:
-        print(f"Error: Plantilla de contrato para tipo {venta.tipo_viaje} no encontrada.")
+        logger.error(f"Plantilla de contrato para tipo {venta.tipo_viaje} no encontrada.")
         return None
     except Exception as e:
-        print(f"Error al obtener datos o plantilla: {e}")
+        logger.error(f"Error al obtener datos o plantilla: {e}", exc_info=True)
         return None
 
     # 3. Preparar el diccionario de contexto para la plantilla de BD
@@ -300,7 +303,7 @@ def generar_contrato_para_venta(venta_viaje_id):
         contenido_final = template.render(context)
         
     except Exception as e:
-        print(f"Error al renderizar la plantilla de Django: {e}")
+        logger.error(f"Error al renderizar la plantilla de Django: {e}", exc_info=True)
         contenido_final = (
             f"<p>**ERROR DE RENDERIZADO EN PLANTILLA. REVISAR LA SINTAXIS DE DJANGO.**</p>"
             f"<p>Detalle del error: {e}</p>"
