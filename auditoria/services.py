@@ -239,7 +239,9 @@ class AuditoriaService:
     @classmethod
     def registrar_proveedor_creado(cls, proveedor, usuario, ip_address=None):
         """Registra la creación de un proveedor."""
-        descripcion = f"Proveedor '{proveedor.nombre}' creado. Servicio: {proveedor.get_servicio_display()}"
+        # El campo es 'servicios' (plural) y es un TextField que almacena valores separados por comas
+        servicios_str = proveedor.servicios if proveedor.servicios else 'Sin servicios'
+        descripcion = f"Proveedor '{proveedor.nombre}' creado. Servicios: {servicios_str}"
         return cls.registrar_evento(
             tipo_evento='PROVEEDOR_CREADO',
             descripcion=descripcion,
@@ -351,6 +353,7 @@ class AuditoriaService:
             nivel='WARNING',
             ip_address=ip_address
         )
+
 
 
 
