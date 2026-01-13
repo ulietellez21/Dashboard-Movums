@@ -22,12 +22,14 @@ import math, re, logging, secrets, json, io, os
 import datetime # Necesario para el contexto del PDF (campo now)
 from decimal import Decimal, InvalidOperation # Importar Decimal para asegurar precisión en cálculos financieros
 
+logger = logging.getLogger(__name__)
+
 # Intento cargar WeasyPrint; si falla (por dependencias GTK), defino placeholders.
 try:
     from weasyprint import HTML, CSS 
     WEASYPRINT_AVAILABLE = True
 except ImportError:
-    print("ADVERTENCIA: WeasyPrint no está disponible. La generación de PDF fallará.")
+    logger.warning("WeasyPrint no está disponible. La generación de PDF fallará.")
     class HTML:
         def __init__(self, string, base_url=None): pass
         def write_pdf(self): return b''
@@ -70,7 +72,6 @@ from .services.logistica import (
     build_service_rows,
     build_logistica_card,
 )
-logger = logging.getLogger(__name__)
 
 # Función auxiliar para obtener el rol, reutilizada en la nueva lógica
 def get_user_role(user):
@@ -4512,7 +4513,7 @@ class CrearPlantillaConfirmacionView(LoginRequiredMixin, View):
                 datos.pop('imagen_hospedaje_base64', None)
             except Exception as e:
                 # Si hay error, no guardar la imagen pero continuar
-                print(f"Error al procesar imagen base64: {e}")
+                logger.error(f"Error al procesar imagen base64: {e}", exc_info=True)
                 datos.pop('imagen_hospedaje_base64', None)
         
         # Si no se subió nueva imagen pero ya existe una, preservarla
@@ -7127,18 +7128,17 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
         
         template_name = template_map.get(tipo, 'ventas/pdf/cotizacion_vuelos_pdf.html')
         
-        # Convertir membrete a base64 para incluirlo directamente en el HTML
-        membrete_base64 = None
-        membrete_path = os.path.join(settings.BASE_DIR, 'static', 'img', 'membrete1.jpg')
+        # Preparar ruta absoluta file:// para el membrete (WeasyPrint necesita URL absoluta)
+        membrete_path = os.path.join(settings.BASE_DIR, 'static', 'img', 'membrete_movums.jpg')
+        membrete_url = None
         if os.path.exists(membrete_path):
-            try:
-                import base64
-                with open(membrete_path, 'rb') as img_file:
-                    img_data = img_file.read()
-                    img_base64 = base64.b64encode(img_data).decode('utf-8')
-                    membrete_base64 = f"data:image/jpeg;base64,{img_base64}"
-            except Exception as e:
-                logging.warning(f"Error convirtiendo membrete a base64: {e}")
+            # Crear URL file:// absoluta para WeasyPrint
+            membrete_abs_path = os.path.abspath(membrete_path)
+            # En Windows, necesitamos ajustar el formato de la ruta
+            if os.name == 'nt':
+                membrete_url = f"file:///{membrete_abs_path.replace(os.sep, '/')}"
+            else:
+                membrete_url = f"file://{membrete_abs_path}"
         
         return {
             'cotizacion': cotizacion,
@@ -7146,7 +7146,7 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
             'tipo': tipo,
             'template_name': template_name,
             'STATIC_URL': settings.STATIC_URL,
-            'membrete_base64': membrete_base64,  # Imagen en base64 para inclusión directa
+            'membrete_url': membrete_url,  # URL absoluta file:// para WeasyPrint
         }
     
     def _generar_pdf(self, cotizacion):
