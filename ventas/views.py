@@ -2131,6 +2131,13 @@ class ComprobanteAbonoPDFView(LoginRequiredMixin, DetailView):
         total_pagado = venta.total_pagado
         saldo_restante = venta.saldo_restante
         
+        # Calcular descuentos y totales igual que en VentaViajeDetailView
+        descuento_km = venta.descuento_kilometros_mxn or Decimal('0.00')
+        descuento_promo = venta.descuento_promociones_mxn or Decimal('0.00')
+        total_descuentos = descuento_km + descuento_promo
+        costo_base = (venta.costo_venta_final or Decimal('0.00')) + (venta.costo_modificacion or Decimal('0.00'))
+        total_final = costo_base - total_descuentos
+        
         # Preparar ruta absoluta file:// para el membrete (WeasyPrint necesita URL absoluta)
         membrete_path = os.path.join(settings.BASE_DIR, 'static', 'img', 'membrete_movums.jpg')
         membrete_url = None
@@ -2153,6 +2160,12 @@ class ComprobanteAbonoPDFView(LoginRequiredMixin, DetailView):
             'abonos': venta.abonos.all().order_by('fecha_pago'),
             'membrete_url': membrete_url,  # URL absoluta file:// para WeasyPrint
             'STATIC_URL': settings.STATIC_URL,
+            # Información financiera completa igual que en detalle de venta
+            'total_descuentos': total_descuentos,
+            'costo_base': costo_base,
+            'total_final': total_final,
+            'descuento_km': descuento_km,
+            'descuento_promo': descuento_promo,
         }
 
         # 1. Renderizar la plantilla HTML
