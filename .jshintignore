@@ -1,0 +1,13 @@
+# Ignorar archivos de templates Django con JavaScript embebido
+ventas/templates/
+crm/templates/
+templates/
+*.html
+
+
+
+
+
+
+
+

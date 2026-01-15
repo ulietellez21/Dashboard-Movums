@@ -28,3 +28,12 @@ class HistorialMovimientoAdmin(admin.ModelAdmin):
         }),
     )
 
+
+
+
+
+
+
+
+
+

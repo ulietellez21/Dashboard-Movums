@@ -5,7 +5,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comprobante de Abonos - Venta #{{ venta.pk }}</title>
+    <title>Comprobante de Abonos - Venta {{ venta.folio|default:venta.id }}</title>
     <style>
         /* Configuración de página para PDF (WeasyPrint) */
         @page {
@@ -123,7 +123,7 @@
 
     <section>
         <div class="info-line">
-            <strong>Número de Venta:</strong> #{{ venta.pk }}
+            <strong>Número de Venta:</strong> {{ venta.folio|default:venta.id }}
         </div>
         <div class="info-line">
             <strong>Fecha de Viaje:</strong> {{ venta.fecha_inicio_viaje|date:"d/m/Y" }}
@@ -195,7 +195,7 @@
                         {% endif %}
                         <td>{{ venta.get_modo_pago_apertura_display }}</td>
                         <td>
-                            {% if venta.modo_pago_apertura in 'TRN,TAR,DEP' and venta.estado_confirmacion == 'EN_CONFIRMACION' %}
+                            {% if venta.modo_pago_apertura in 'TRN,TAR,DEP,CRE' and venta.estado_confirmacion == 'EN_CONFIRMACION' %}
                                 <span style="color: #856404;">Pendiente</span>
                             {% else %}
                                 <span style="color: #155724;">Confirmado</span>

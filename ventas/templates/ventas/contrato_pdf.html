@@ -19,7 +19,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contrato de Servicios Turísticos - Venta #{{ venta.id }}</title>
+    <title>Contrato de Servicios Turísticos - Venta {{ venta.folio|default:venta.id }}</title>
     <style>
         /* Configuración de página para PDF (WeasyPrint) */
         @page {

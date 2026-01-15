@@ -60,10 +60,24 @@ class PromocionesService:
         for promo in qs:
             if not cls._en_rango_fecha(promo, fecha_ref):
                 continue
+            
+            # Validar alcance de la promoción
             if promo.alcance == 'NAC' and tipo_viaje != 'NAC':
                 continue
             if promo.alcance == 'INT' and tipo_viaje != 'INT':
                 continue
+            if promo.alcance == 'CLIENTE_ESPECIFICO':
+                # Si es promoción personal, solo aplicar si el cliente está en la lista
+                if not cliente:
+                    continue
+                # Verificar si el cliente está en la lista de clientes específicos de la promoción
+                clientes_especificos = promo.clientes.all()
+                if not clientes_especificos.exists():
+                    # Si la promoción es CLIENTE_ESPECIFICO pero no tiene clientes asignados, no aplica
+                    continue
+                if not clientes_especificos.filter(pk=cliente.pk).exists():
+                    # El cliente no está en la lista de clientes específicos
+                    continue
 
             aplica = False
             if promo.condicion == 'SIEMPRE':

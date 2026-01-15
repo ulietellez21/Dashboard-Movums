@@ -219,3 +219,12 @@ class HistorialMovimientosAjaxView(LoginRequiredMixin, UserPassesTestMixin, View
             'total_pages': (total + per_page - 1) // per_page,
         })
 
+
+
+
+
+
+
+
+
+

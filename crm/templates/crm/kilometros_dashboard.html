@@ -95,6 +95,7 @@
                   <th>Tope</th>
                   <th>Condición</th>
                   <th>Alcance</th>
+                  <th>Clientes</th>
                   <th>Vigencia</th>
                   <th>Estado</th>
                   {% if request.user.perfil.rol == 'JEFE' %}<th>Acciones</th>{% endif %}
@@ -109,7 +110,27 @@
                     <td>{{ promo.kilometros_bono|floatformat:0 }}</td>
                     <td>${{ promo.monto_tope_mxn|floatformat:2 }}</td>
                     <td>{{ promo.get_condicion_display }}</td>
-                    <td>{{ promo.get_alcance_display }}</td>
+                    <td>
+                      {{ promo.get_alcance_display }}
+                      {% if promo.alcance == 'CLIENTE_ESPECIFICO' %}
+                        <span class="badge bg-info text-white ms-1" title="Promoción personal">Personal</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if promo.alcance == 'CLIENTE_ESPECIFICO' %}
+                        {% if promo.clientes.all %}
+                          <div class="d-flex flex-wrap gap-1">
+                            {% for cliente in promo.clientes.all %}
+                              <span class="badge bg-primary">{{ cliente.nombre_completo_display|default:cliente.nombre|default:cliente.nombre_empresa|truncatewords:2 }}</span>
+                            {% endfor %}
+                          </div>
+                        {% else %}
+                          <span class="text-muted small">Sin clientes asignados</span>
+                        {% endif %}
+                      {% else %}
+                        <span class="text-muted">-</span>
+                      {% endif %}
+                    </td>
                     <td>
                       {% if promo.fecha_inicio %}{{ promo.fecha_inicio }}{% else %}-{% endif %} /
                       {% if promo.fecha_fin %}{{ promo.fecha_fin }}{% else %}-{% endif %}
@@ -128,7 +149,7 @@
                     {% endif %}
                   </tr>
                 {% empty %}
-                  <tr><td colspan="9" class="text-center text-muted py-3">Sin promociones registradas.</td></tr>
+                  <tr><td colspan="10" class="text-center text-muted py-3">Sin promociones registradas.</td></tr>
                 {% endfor %}
               </tbody>
             </table>
@@ -194,6 +215,41 @@
                 <label class="form-label mb-1">Alcance</label>
                 {{ promocion_form.alcance }}
                 {{ promocion_form.alcance.errors }}
+              </div>
+              <div class="col-12 d-none" id="clientesEspecificosContainer">
+                <label class="form-label mb-1">
+                  {{ promocion_form.clientes.label }} <span class="text-danger">*</span>
+                </label>
+                <!-- Select original oculto para Django -->
+                <div style="display: none;">
+                  {{ promocion_form.clientes }}
+                </div>
+                <!-- Componente personalizado con dropdown y checkboxes -->
+                <div class="position-relative">
+                  <button type="button" class="btn btn-outline-secondary w-100 text-start d-flex justify-content-between align-items-center" id="clientesDropdownBtn" style="min-height: 38px;">
+                    <span id="clientesSelectedText" class="text-muted">Selecciona uno o más clientes</span>
+                    <i class="fas fa-chevron-down ms-auto"></i>
+                  </button>
+                  <div class="dropdown-menu w-100 p-0 border shadow-sm" id="clientesDropdownMenu" style="max-height: 300px; overflow-y: auto; display: none; position: absolute; z-index: 1000; background: white;">
+                    <div class="p-2">
+                      {% for cliente in promocion_form.clientes.field.queryset %}
+                      <div class="form-check py-2 px-3 border-bottom">
+                        <input class="form-check-input cliente-checkbox" type="checkbox" 
+                               value="{{ cliente.pk }}" 
+                               id="cliente_checkbox_{{ cliente.pk }}"
+                               data-cliente-id="{{ cliente.pk }}">
+                        <label class="form-check-label w-100" for="cliente_checkbox_{{ cliente.pk }}">
+                          {{ cliente.nombre_completo_display|default:cliente.nombre|default:cliente.nombre_empresa|default:"Sin nombre" }}
+                        </label>
+                      </div>
+                      {% endfor %}
+                    </div>
+                  </div>
+                </div>
+                {% if promocion_form.clientes.help_text %}
+                <div class="form-text mt-1">{{ promocion_form.clientes.help_text }}</div>
+                {% endif %}
+                {{ promocion_form.clientes.errors }}
               </div>
               <div class="col-6 d-flex align-items-end">
                 <div class="form-check mt-3">
@@ -405,44 +461,206 @@
     </div>
   </div>
 </div>
+<style>
+  #clientesDropdownMenu {
+    min-width: 100%;
+  }
+  #clientesDropdownMenu .form-check {
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  #clientesDropdownMenu .form-check:hover {
+    background-color: #f8f9fa;
+  }
+  #clientesDropdownMenu .form-check-input {
+    cursor: pointer;
+  }
+  #clientesDropdownMenu .form-check-label {
+    cursor: pointer;
+    user-select: none;
+  }
+</style>
 <script>
   (function() {
-    const tipoSelect = document.getElementById("id_tipo");
-    const condicionSelect = document.getElementById("id_condicion");
-    const fieldKm = document.querySelector('[data-field="km_bono"]');
-    const fieldPorc = document.querySelector('[data-field="porcentaje"]');
-    const fieldTope = document.querySelector('[data-field="tope"]');
-    const valorCond = document.getElementById("id_valor_condicion")?.closest('.col-6');
+    function initPromocionForm() {
+      const tipoSelect = document.getElementById("id_tipo");
+      const condicionSelect = document.getElementById("id_condicion");
+      const alcanceSelect = document.getElementById("id_alcance");
+      const fieldKm = document.querySelector('[data-field="km_bono"]');
+      const fieldPorc = document.querySelector('[data-field="porcentaje"]');
+      const fieldTope = document.querySelector('[data-field="tope"]');
+      const valorCond = document.getElementById("id_valor_condicion")?.closest('.col-6');
+      const clientesContainer = document.getElementById("clientesEspecificosContainer");
+      const clientesSelect = document.getElementById("id_clientes");
 
-    function toggleTipo() {
-      const tipo = tipoSelect?.value;
-      if (tipo === 'KM') {
-        fieldKm?.classList.remove('d-none');
-        fieldPorc?.classList.add('d-none');
-        fieldTope?.classList.add('d-none');
-      } else {
-        fieldKm?.classList.add('d-none');
-        fieldPorc?.classList.remove('d-none');
-        fieldTope?.classList.remove('d-none');
+      if (!alcanceSelect) {
+        console.warn('Campo de alcance no encontrado, reintentando...');
+        setTimeout(initPromocionForm, 100);
+        return;
+      }
+
+      function toggleTipo() {
+        const tipo = tipoSelect?.value;
+        if (tipo === 'KM') {
+          fieldKm?.classList.remove('d-none');
+          fieldPorc?.classList.add('d-none');
+          fieldTope?.classList.add('d-none');
+        } else {
+          fieldKm?.classList.add('d-none');
+          fieldPorc?.classList.remove('d-none');
+          fieldTope?.classList.remove('d-none');
+        }
+      }
+
+      function toggleCondicion() {
+        const cond = condicionSelect?.value;
+        if (!valorCond) return;
+        if (cond === 'MES') {
+          valorCond.classList.remove('d-none');
+          const label = valorCond.querySelector('.form-label');
+          if (label) label.textContent = "Mes (1-12)";
+        } else {
+          valorCond.classList.add('d-none');
+        }
+      }
+
+      function toggleAlcance() {
+        const alcance = alcanceSelect.value;
+        
+        if (alcance === 'CLIENTE_ESPECIFICO') {
+          if (clientesContainer) {
+            clientesContainer.classList.remove('d-none');
+            clientesContainer.style.display = '';
+          }
+          if (clientesSelect) {
+            clientesSelect.required = true;
+          }
+          initClientesDropdown();
+        } else {
+          if (clientesContainer) {
+            clientesContainer.classList.add('d-none');
+            clientesContainer.style.display = 'none';
+          }
+          if (clientesSelect) {
+            clientesSelect.required = false;
+            // Limpiar selección si no es cliente específico
+            if (clientesSelect.selectedOptions) {
+              Array.from(clientesSelect.selectedOptions).forEach(option => {
+                option.selected = false;
+              });
+            }
+            // Limpiar checkboxes
+            document.querySelectorAll('.cliente-checkbox').forEach(cb => {
+              cb.checked = false;
+            });
+            updateClientesButtonText();
+          }
+        }
+      }
+
+      function initClientesDropdown() {
+        const dropdownBtn = document.getElementById('clientesDropdownBtn');
+        const dropdownMenu = document.getElementById('clientesDropdownMenu');
+        const clientesCheckboxes = document.querySelectorAll('.cliente-checkbox');
+        const clientesSelect = document.getElementById('id_clientes');
+
+        if (!dropdownBtn || !dropdownMenu || !clientesSelect) return;
+
+        // Sincronizar checkboxes con el select oculto al cargar
+        Array.from(clientesSelect.options).forEach(option => {
+          if (option.selected) {
+            const checkbox = document.getElementById(`cliente_checkbox_${option.value}`);
+            if (checkbox) checkbox.checked = true;
+          }
+        });
+        updateClientesButtonText();
+
+        // Toggle dropdown al hacer click en el botón
+        dropdownBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          const isVisible = dropdownMenu.style.display === 'block';
+          dropdownMenu.style.display = isVisible ? 'none' : 'block';
+          const icon = dropdownBtn.querySelector('i');
+          if (icon) {
+            icon.classList.toggle('fa-chevron-down', !isVisible);
+            icon.classList.toggle('fa-chevron-up', isVisible);
+          }
+        });
+
+        // Manejar cambios en los checkboxes
+        clientesCheckboxes.forEach(checkbox => {
+          checkbox.addEventListener('change', function() {
+            const clienteId = this.value;
+            const option = Array.from(clientesSelect.options).find(opt => opt.value === clienteId);
+            
+            if (this.checked) {
+              if (option) option.selected = true;
+            } else {
+              if (option) option.selected = false;
+            }
+            
+            updateClientesButtonText();
+          });
+        });
+
+        // Cerrar dropdown al hacer click fuera
+        document.addEventListener('click', function(e) {
+          if (!dropdownBtn.contains(e.target) && !dropdownMenu.contains(e.target)) {
+            dropdownMenu.style.display = 'none';
+            const icon = dropdownBtn.querySelector('i');
+            if (icon) {
+              icon.classList.remove('fa-chevron-up');
+              icon.classList.add('fa-chevron-down');
+            }
+          }
+        });
+
+        function updateClientesButtonText() {
+          const selectedCheckboxes = document.querySelectorAll('.cliente-checkbox:checked');
+          const selectedText = document.getElementById('clientesSelectedText');
+          
+          if (selectedCheckboxes.length === 0) {
+            selectedText.textContent = 'Selecciona uno o más clientes';
+            selectedText.classList.add('text-muted');
+          } else {
+            const nombres = Array.from(selectedCheckboxes).map(cb => {
+              const label = document.querySelector(`label[for="${cb.id}"]`);
+              return label ? label.textContent.trim() : '';
+            });
+            if (selectedCheckboxes.length === 1) {
+              selectedText.textContent = nombres[0];
+            } else {
+              selectedText.textContent = `${selectedCheckboxes.length} clientes seleccionados`;
+            }
+            selectedText.classList.remove('text-muted');
+          }
+        }
+      }
+
+      // Inicializar eventos
+      if (tipoSelect) {
+        tipoSelect.addEventListener('change', toggleTipo);
+        toggleTipo();
+      }
+      
+      if (condicionSelect) {
+        condicionSelect.addEventListener('change', toggleCondicion);
+        toggleCondicion();
+      }
+      
+      if (alcanceSelect) {
+        alcanceSelect.addEventListener('change', toggleAlcance);
+        toggleAlcance();
       }
     }
 
-    function toggleCondicion() {
-      const cond = condicionSelect?.value;
-      if (!valorCond) return;
-      if (cond === 'MES') {
-        valorCond.classList.remove('d-none');
-        const label = valorCond.querySelector('.form-label');
-        if (label) label.textContent = "Mes (1-12)";
-      } else {
-        valorCond.classList.add('d-none');
-      }
+    // Intentar inicializar inmediatamente si el DOM ya está listo
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initPromocionForm);
+    } else {
+      // Si el DOM ya está listo, usar un pequeño delay para asegurar que el formulario esté renderizado
+      setTimeout(initPromocionForm, 50);
     }
-
-    tipoSelect?.addEventListener('change', toggleTipo);
-    condicionSelect?.addEventListener('change', toggleCondicion);
-    toggleTipo();
-    toggleCondicion();
   })();
 </script>
 {% endblock %}

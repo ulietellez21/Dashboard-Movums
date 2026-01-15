@@ -83,3 +83,13 @@ def formato_moneda_mx(value):
     except (ValueError, TypeError, AttributeError):
         # Si no se puede convertir, retornar el valor original
         return str(value) if value else '-'
+
+@register.filter
+def substract(value, arg):
+    """Resta arg de value."""
+    try:
+        if value is None or arg is None:
+            return value
+        return float(value) - float(arg)
+    except (ValueError, TypeError):
+        return value

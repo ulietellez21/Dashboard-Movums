@@ -42,12 +42,12 @@ class ClienteForm(forms.ModelForm):
             'email': forms.EmailInput(attrs={'class': 'form-control rounded-3', 'placeholder': 'contacto@ejemplo.com'}),
             'fuente_contacto': forms.Select(attrs={'class': 'form-select rounded-3'}),
             'notas': forms.Textarea(attrs={'class': 'form-control rounded-3', 'rows': 3}),
-            'fecha_nacimiento': forms.DateInput(attrs={'class': 'form-control rounded-3', 'type': 'date'}),
+            'fecha_nacimiento': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control rounded-3', 'type': 'date'}),
             'ine_imagen': forms.ClearableFileInput(attrs={'class': 'form-control rounded-3', 'accept': 'image/*'}),
             'visa_numero': forms.TextInput(attrs={'class': 'form-control rounded-3', 'placeholder': 'Número de visa'}),
-            'visa_vigencia': forms.DateInput(attrs={'class': 'form-control rounded-3', 'type': 'date'}),
+            'visa_vigencia': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control rounded-3', 'type': 'date'}),
             'pasaporte_numero': forms.TextInput(attrs={'class': 'form-control rounded-3', 'placeholder': 'Número de pasaporte'}),
-            'pasaporte_vigencia': forms.DateInput(attrs={'class': 'form-control rounded-3', 'type': 'date'}),
+            'pasaporte_vigencia': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control rounded-3', 'type': 'date'}),
             'empresa_asociada': forms.Select(attrs={'class': 'form-select rounded-3'}),
             'preferencias_viaje': forms.Textarea(attrs={'class': 'form-control rounded-3', 'rows': 3}),
         }
@@ -129,6 +129,13 @@ class ClienteForm(forms.ModelForm):
 
 
 class PromocionKilometrosForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Ordenar clientes por nombre o nombre_empresa
+        if 'clientes' in self.fields:
+            from crm.models import Cliente
+            self.fields['clientes'].queryset = Cliente.objects.all().order_by('nombre', 'nombre_empresa')
+    
     class Meta:
         model = PromocionKilometros
         fields = [
@@ -140,6 +147,7 @@ class PromocionKilometrosForm(forms.ModelForm):
             'condicion',
             'valor_condicion',
             'alcance',
+            'clientes',
             'requiere_confirmacion',
             'kilometros_bono',
             'fecha_inicio',
@@ -154,12 +162,24 @@ class PromocionKilometrosForm(forms.ModelForm):
             'monto_tope_mxn': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0.00'}),
             'condicion': forms.Select(attrs={'class': 'form-select'}),
             'valor_condicion': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 2 para mes, 14-02 para cumple'}),
-            'alcance': forms.Select(attrs={'class': 'form-select'}),
+            'alcance': forms.Select(attrs={'class': 'form-select', 'id': 'id_alcance'}),
+            'clientes': forms.SelectMultiple(attrs={
+                'class': 'form-select',
+                'id': 'id_clientes',
+                'size': '8',
+                'style': 'min-height: 200px; width: 100%; display: none;'
+            }),
             'requiere_confirmacion': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'kilometros_bono': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0.00'}),
             'fecha_inicio': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'fecha_fin': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'activa': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+        labels = {
+            'clientes': 'Clientes específicos',
+        }
+        help_texts = {
+            'clientes': 'Selecciona uno o más clientes. Solo aplica si el alcance es "Cliente(s) específico(s)".',
         }
 
     def clean(self):
@@ -175,5 +195,12 @@ class PromocionKilometrosForm(forms.ModelForm):
         km = cleaned.get('kilometros_bono') or Decimal('0.00')
         if tipo == 'KM' and km <= 0:
             self.add_error('kilometros_bono', 'Ingresa kilómetros mayores a 0 para bonificar.')
-        return cleaned
+        
+        # Validar que si el alcance es CLIENTE_ESPECIFICO, se seleccione al menos un cliente
+        alcance = cleaned.get('alcance')
+        clientes = cleaned.get('clientes')
+        if alcance == 'CLIENTE_ESPECIFICO':
+            if not clientes or len(clientes) == 0:
+                self.add_error('clientes', 'Debes seleccionar al menos un cliente cuando el alcance es "Cliente(s) específico(s)".')
+        
         return cleaned

@@ -27,7 +27,7 @@
 {% if tablero_logistica %}
     <div class="row g-3 mb-4">
         <div class="col-md-4">
-            <div class="card shadow-sm border-start border-danger border-4 h-100">
+            <div class="card shadow-sm border-start border-danger border-4 h-100 filter-card" data-filter-status="pending" style="cursor: pointer; transition: all 0.3s;">
                 <div class="card-body">
                     <p class="text-muted mb-1">Servicios pendientes</p>
                     <h3 class="text-danger mb-0">{{ stats_servicios.pending }}</h3>
@@ -36,7 +36,7 @@
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card shadow-sm border-start border-warning border-4 h-100">
+            <div class="card shadow-sm border-start border-warning border-4 h-100 filter-card" data-filter-status="ready" style="cursor: pointer; transition: all 0.3s;">
                 <div class="card-body">
                     <p class="text-muted mb-1">Listos para pagar</p>
                     <h3 class="text-warning mb-0">{{ stats_servicios.ready }}</h3>
@@ -45,7 +45,7 @@
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card shadow-sm border-start border-success border-4 h-100">
+            <div class="card shadow-sm border-start border-success border-4 h-100 filter-card" data-filter-status="paid" style="cursor: pointer; transition: all 0.3s;">
                 <div class="card-body">
                     <p class="text-muted mb-1">Servicios pagados</p>
                     <h3 class="text-success mb-0">{{ stats_servicios.paid }}</h3>
@@ -55,14 +55,14 @@
         </div>
     </div>
 
-    <div class="row g-4">
+    <div class="row g-4" id="cards-container">
         {% for card in tablero_logistica %}
-        <div class="col-12 col-xl-6">
-            <div class="card shadow-sm h-100 border-start border-{{ card.estado_border }} border-4 card-logistica">
+        <div class="col-12 col-xl-6 logistica-card-wrapper" data-card-id="{{ card.venta.id }}">
+            <div class="card shadow-sm h-100 border-start border-{{ card.estado_border }} border-4 card-logistica" data-venta-id="{{ card.venta.id }}">
                 <div class="card-header d-flex justify-content-between align-items-start flex-wrap">
                     <div>
                         <h5 class="mb-1">
-                            #{{ card.venta.id }} · 
+                            {{ card.venta.folio|default:card.venta.id }} · 
                             {% if card.venta.cliente.tipo_cliente == 'EMPRESA' %}
                                 <i class="fas fa-building text-info"></i>
                                 <span class="badge bg-info text-white me-1">Empresa</span>
@@ -129,14 +129,16 @@
                                 <small>{{ card.resumen.progreso_neto }}%</small>
                             </div>
                             <div class="progress" style="height: 6px;">
-                                <div class="progress-bar bg-{{ card.estado_badge }}" role="progressbar" style="width: {{ card.resumen.progreso_neto }}%;" aria-valuenow="{{ card.resumen.progreso_neto }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                {% with progreso=card.resumen.progreso_neto|default:0|floatformat:0 %}
+                                <div class="progress-bar bg-{{ card.estado_badge }}" role="progressbar" style="width: {{ progreso }}%;" aria-valuenow="{{ progreso }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                {% endwith %}
                             </div>
                         </div>
 
                         {% if card.servicios %}
-                        <ul class="list-group list-group-flush">
+                        <ul class="list-group list-group-flush servicios-list" data-venta-id="{{ card.venta.id }}">
                             {% for servicio in card.servicios %}
-                            <li class="list-group-item d-flex justify-content-between align-items-start logistica-servicio">
+                            <li class="list-group-item d-flex justify-content-between align-items-start logistica-servicio servicio-item" data-servicio-status="{{ servicio.status }}">
                                 <div class="me-3">
                                     <strong>{{ servicio.nombre }}</strong>
                                     <div class="text-muted small">Monto: ${{ servicio.monto|floatformat:2|intcomma }}</div>
@@ -183,5 +185,98 @@
         .card-logistica .list-group-item:first-child {
             border-top: none;
         }
+        .filter-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+        }
+        .filter-card.active {
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.25);
+        }
+        .logistica-card-wrapper.hidden {
+            display: none;
+        }
+        .servicio-item.hidden {
+            display: none;
+        }
     </style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const filterCards = document.querySelectorAll('.filter-card');
+    const cardWrappers = document.querySelectorAll('.logistica-card-wrapper');
+    let currentFilter = null;
+
+    // Función para aplicar filtro
+    function applyFilter(status) {
+        currentFilter = status;
+        
+        // Actualizar estado visual de las tarjetas de filtro
+        filterCards.forEach(card => {
+            if (card.dataset.filterStatus === status) {
+                card.classList.add('active');
+            } else {
+                card.classList.remove('active');
+            }
+        });
+
+        // Si no hay filtro (click en el mismo), mostrar todos
+        if (!status) {
+            cardWrappers.forEach(wrapper => {
+                wrapper.classList.remove('hidden');
+                const serviciosList = wrapper.querySelector('.servicios-list');
+                if (serviciosList) {
+                    const servicios = serviciosList.querySelectorAll('.servicio-item');
+                    servicios.forEach(s => s.classList.remove('hidden'));
+                }
+            });
+            return;
+        }
+
+        // Filtrar cards y servicios
+        cardWrappers.forEach(wrapper => {
+            const serviciosList = wrapper.querySelector('.servicios-list');
+            if (!serviciosList) {
+                // Si no hay servicios, ocultar la card si el filtro no es 'all'
+                wrapper.classList.add('hidden');
+                return;
+            }
+
+            const servicios = serviciosList.querySelectorAll('.servicio-item');
+            let hasVisibleServices = false;
+
+            servicios.forEach(servicio => {
+                if (servicio.dataset.servicioStatus === status) {
+                    servicio.classList.remove('hidden');
+                    hasVisibleServices = true;
+                } else {
+                    servicio.classList.add('hidden');
+                }
+            });
+
+            // Mostrar u ocultar la card según si tiene servicios visibles
+            if (hasVisibleServices) {
+                wrapper.classList.remove('hidden');
+                // Mantener el collapse cerrado - el usuario lo expandirá manualmente si lo desea
+            } else {
+                wrapper.classList.add('hidden');
+            }
+        });
+    }
+
+    // Event listeners para las tarjetas de filtro
+    filterCards.forEach(card => {
+        card.addEventListener('click', function() {
+            const status = this.dataset.filterStatus;
+            // Si ya está activo, desactivar (mostrar todos)
+            if (currentFilter === status) {
+                applyFilter(null);
+            } else {
+                applyFilter(status);
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

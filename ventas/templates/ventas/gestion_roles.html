@@ -49,9 +49,15 @@
                     </thead>
                     <tbody>
                         {% for ejecutivo in ejecutivos %}
-                        <tr>
+                        <tr {% if ejecutivo.usuario and not ejecutivo.usuario.is_active %}class="table-warning opacity-75" style="background-color: #fff3cd !important;"{% endif %}>
                             <td>
-                                <strong>{{ ejecutivo.nombre_completo }}</strong><br>
+                                <strong>{{ ejecutivo.nombre_completo }}</strong>
+                                {% if ejecutivo.usuario and not ejecutivo.usuario.is_active %}
+                                    <span class="badge bg-warning text-dark ms-2">
+                                        <i class="fas fa-user-slash"></i> Deshabilitado
+                                    </span>
+                                {% endif %}
+                                <br>
                                 <small class="text-muted">{{ ejecutivo.direccion|linebreaksbr }}</small>
                             </td>
                             <td>{{ ejecutivo.telefono }}</td>
@@ -84,7 +90,13 @@
                                     {% endif %}
                                 {% endwith %}
                             </td>
-                            <td>{{ ejecutivo.oficina|default:"-" }}</td>
+                            <td>
+                                {% if ejecutivo.oficina %}
+                                    {{ ejecutivo.oficina.nombre }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
                             <td>
                                 {% if ejecutivo.email %}
                                     <a href="mailto:{{ ejecutivo.email }}">{{ ejecutivo.email }}</a>
@@ -106,7 +118,7 @@
                                     data-email="{{ ejecutivo.email|default_if_none:''|escape }}"
                                     data-sueldo="{{ ejecutivo.sueldo_base }}"
                                     data-tipo-vendedor="{{ ejecutivo.tipo_vendedor }}"
-                                    data-oficina="{{ ejecutivo.oficina|escape }}"
+                                    data-oficina="{% if ejecutivo.oficina %}{{ ejecutivo.oficina.id }}{% endif %}"
                                     data-fecha-ingreso="{{ ejecutivo.fecha_ingreso|date:'Y-m-d' }}"
                                     data-fecha-nacimiento="{{ ejecutivo.fecha_nacimiento|date:'Y-m-d' }}"
                                     data-tipo-usuario="{% if ejecutivo.usuario.perfil %}{{ ejecutivo.usuario.perfil.rol }}{% else %}VENDEDOR{% endif %}"
@@ -131,8 +143,92 @@
     </div>
 </div>
 
+<!-- Tabla de Oficinas -->
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="h5 mb-0">Oficinas</h2>
+            <small class="text-muted">Administra las oficinas de la agencia.</small>
+        </div>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#oficinaModal" data-mode="create">
+            <i class="fas fa-building me-2"></i>Agregar Nueva Oficina
+        </button>
+    </div>
+    <div class="card-body">
+        {% if oficinas %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Dirección</th>
+                            <th>Ubicación</th>
+                            <th>Responsable</th>
+                            <th>Encargado</th>
+                            <th>Tipo</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for oficina in oficinas %}
+                        <tr>
+                            <td>
+                                <strong>{{ oficina.nombre }}</strong>
+                            </td>
+                            <td>
+                                <small>{{ oficina.direccion|truncatewords:10 }}</small>
+                            </td>
+                            <td>{{ oficina.ubicacion }}</td>
+                            <td>{{ oficina.responsable }}</td>
+                            <td>{{ oficina.encargado }}</td>
+                            <td>
+                                {% if oficina.tipo == 'PROPIA' %}
+                                    <span class="badge bg-primary">Propia</span>
+                                {% else %}
+                                    <span class="badge bg-info text-dark">Franquicia</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <button
+                                    type="button"
+                                    class="btn btn-outline-secondary btn-sm me-2"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#oficinaModal"
+                                    data-mode="edit"
+                                    data-id="{{ oficina.id }}"
+                                    data-nombre="{{ oficina.nombre|escape }}"
+                                    data-direccion="{{ oficina.direccion|escape }}"
+                                    data-ubicacion="{{ oficina.ubicacion|escape }}"
+                                    data-responsable="{{ oficina.responsable|escape }}"
+                                    data-encargado="{{ oficina.encargado|escape }}"
+                                    data-tipo="{{ oficina.tipo }}"
+                                >
+                                    <i class="fas fa-edit"></i> Editar
+                                </button>
+                                <form method="post" action="{% url 'gestion_roles' %}" class="d-inline" onsubmit="return confirm('¿Estás seguro de que deseas eliminar la oficina {{ oficina.nombre }}? Los ejecutivos asociados mantendrán su información.');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="oficina_action" value="eliminar">
+                                    <input type="hidden" name="oficina_id" value="{{ oficina.id }}">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                                        <i class="fas fa-trash"></i> Eliminar
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-light border">
+                <i class="fas fa-building"></i> Aún no hay oficinas registradas.
+            </div>
+        {% endif %}
+    </div>
+</div>
+
 <!-- Variable para controlar si se debe mostrar el modal automáticamente -->
-<div id="modal-config" data-mostrar-modal="{% if mostrar_modal_ejecutivo %}true{% else %}false{% endif %}" style="display: none;"></div>
+<div id="modal-config" data-mostrar-modal="{% if mostrar_modal_ejecutivo %}true{% else %}false{% endif %}" data-mostrar-modal-oficina="{% if mostrar_modal_oficina %}true{% else %}false{% endif %}" style="display: none;"></div>
 
 {% endblock %}
 
@@ -267,6 +363,122 @@
         </div>
     </div>
 </div>
+
+<!-- Modal para crear/editar oficinas -->
+<div class="modal fade" id="oficinaModal" tabindex="-1" aria-labelledby="oficinaModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="oficinaModalLabel">Agregar Nueva Oficina</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <form method="post" action="{% url 'gestion_roles' %}">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <input type="hidden" name="oficina_action" id="oficinaAction" value="crear">
+                    <input type="hidden" name="oficina_id" id="oficinaId">
+                    {% if oficina_form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ oficina_form.non_field_errors }}
+                        </div>
+                    {% endif %}
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label for="{{ oficina_form.nombre.id_for_label }}" class="form-label fw-semibold">Nombre de la Oficina <span class="text-danger">*</span></label>
+                            <input type="text" 
+                                   name="nombre" 
+                                   id="{{ oficina_form.nombre.id_for_label }}"
+                                   class="form-control" 
+                                   placeholder="Ej. Oficina Central, Sucursal Norte"
+                                   maxlength="255"
+                                   required
+                                   value="{{ oficina_form.nombre.value|default:'' }}">
+                            {% for error in oficina_form.nombre.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-12">
+                            <label for="{{ oficina_form.direccion.id_for_label }}" class="form-label fw-semibold">Dirección <span class="text-danger">*</span></label>
+                            <textarea name="direccion" 
+                                      id="{{ oficina_form.direccion.id_for_label }}"
+                                      class="form-control" 
+                                      rows="3"
+                                      placeholder="Calle, número, ciudad, estado, código postal"
+                                      required>{{ oficina_form.direccion.value|default:'' }}</textarea>
+                            <div class="form-text">{{ oficina_form.direccion.help_text }}</div>
+                            {% for error in oficina_form.direccion.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-12">
+                            <label for="{{ oficina_form.ubicacion.id_for_label }}" class="form-label fw-semibold">Ubicación <span class="text-danger">*</span></label>
+                            <input type="text" 
+                                   name="ubicacion" 
+                                   id="{{ oficina_form.ubicacion.id_for_label }}"
+                                   class="form-control" 
+                                   placeholder="Ej. Local 15, Piso 2, Oficina 201"
+                                   maxlength="255"
+                                   required
+                                   value="{{ oficina_form.ubicacion.value|default:'' }}">
+                            <div class="form-text">{{ oficina_form.ubicacion.help_text }}</div>
+                            {% for error in oficina_form.ubicacion.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ oficina_form.responsable.id_for_label }}" class="form-label fw-semibold">Responsable <span class="text-danger">*</span></label>
+                            <input type="text" 
+                                   name="responsable" 
+                                   id="{{ oficina_form.responsable.id_for_label }}"
+                                   class="form-control" 
+                                   placeholder="Nombre del responsable"
+                                   maxlength="255"
+                                   required
+                                   value="{{ oficina_form.responsable.value|default:'' }}">
+                            {% for error in oficina_form.responsable.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ oficina_form.encargado.id_for_label }}" class="form-label fw-semibold">Encargado <span class="text-danger">*</span></label>
+                            <input type="text" 
+                                   name="encargado" 
+                                   id="{{ oficina_form.encargado.id_for_label }}"
+                                   class="form-control" 
+                                   placeholder="Nombre del encargado"
+                                   maxlength="255"
+                                   required
+                                   value="{{ oficina_form.encargado.value|default:'' }}">
+                            {% for error in oficina_form.encargado.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-12">
+                            <label for="{{ oficina_form.tipo.id_for_label }}" class="form-label fw-semibold">Tipo de Oficina <span class="text-danger">*</span></label>
+                            <select name="tipo" 
+                                    id="{{ oficina_form.tipo.id_for_label }}"
+                                    class="form-select" 
+                                    required>
+                                <option value="">---------</option>
+                                <option value="PROPIA" {% if oficina_form.tipo.value == 'PROPIA' %}selected{% endif %}>Propia</option>
+                                <option value="FRANQUICIA" {% if oficina_form.tipo.value == 'FRANQUICIA' %}selected{% endif %}>Franquicia</option>
+                            </select>
+                            {% for error in oficina_form.tipo.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="submitOficinaBtn">
+                        Guardar Oficina
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_head %}
@@ -279,7 +491,7 @@
             display: block !important;
             visibility: visible !important;
             opacity: 1 !important;
-            z-index: 1055 !important;
+            z-index: 1060 !important;
             pointer-events: auto !important;
         }
         
@@ -289,21 +501,67 @@
             pointer-events: auto !important;
         }
         
-        /* Asegurar que el overlay nunca bloquee el modal */
+        /* Asegurar que el overlay nunca bloquee los modales */
         body.modal-open #pageTransitionOverlay,
         #ejecutivoModal.show ~ #pageTransitionOverlay,
-        #ejecutivoModal.show + #pageTransitionOverlay {
+        #ejecutivoModal.show + #pageTransitionOverlay,
+        #oficinaModal.show ~ #pageTransitionOverlay,
+        #oficinaModal.show + #pageTransitionOverlay {
             display: none !important;
             opacity: 0 !important;
             visibility: hidden !important;
             pointer-events: none !important;
             z-index: -1 !important;
         }
+        
+        /* Estilos para el modal de oficinas */
+        #oficinaModal.show,
+        #oficinaModal.show.show {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            z-index: 1060 !important;
+            pointer-events: auto !important;
+        }
+        
+        #oficinaModal.show .modal-dialog,
+        #oficinaModal.show .modal-content {
+            pointer-events: auto !important;
+        }
     </style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+// Función global para forzar el ocultamiento del overlay (debe estar fuera de funciones anónimas)
+function forceHideOverlayGestionRoles() {
+    var overlay = document.getElementById('pageTransitionOverlay');
+    if (overlay) {
+        overlay.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -9999 !important;';
+        overlay.classList.remove('active');
+        overlay.removeAttribute('class');
+        try {
+            overlay.remove();
+        } catch(e) {
+            // Si no se puede remover, al menos está oculto
+        }
+    }
+    window._modalIsOpening = true;
+    // También llamar a la función global de base.html si existe
+    if (typeof forceHideOverlay === 'function') {
+        forceHideOverlay();
+    }
+}
+
+// Ocultar overlay inmediatamente al cargar la página
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+        forceHideOverlayGestionRoles();
+    });
+} else {
+    forceHideOverlayGestionRoles();
+}
+
 (function() {
     'use strict';
     
@@ -379,32 +637,27 @@
             setTimeout(toggleTipoVendedorVisibility, 150);
         });
         
-        // Ocultar overlay
-        var overlay = document.getElementById('pageTransitionOverlay');
-        if (overlay) {
-            overlay.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -1 !important;';
-            overlay.classList.remove('active');
-        }
+        // Ocultar overlay completamente al inicializar
+        forceHideOverlay();
         
-        // Ocultar overlay en mousedown de botones
+        // Ocultar overlay en mousedown/click de botones ANTES de que se abra el modal
         var modalButtons = document.querySelectorAll('[data-bs-toggle="modal"][data-bs-target="#ejecutivoModal"]');
         modalButtons.forEach(function(button) {
+            // Usar capture phase para ejecutar ANTES que otros handlers
             button.addEventListener('mousedown', function(e) {
-                var overlay = document.getElementById('pageTransitionOverlay');
-                if (overlay) {
-                    overlay.style.cssText = 'display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; z-index: -9999 !important;';
-                    overlay.classList.remove('active');
-                }
-                window._modalIsOpening = true;
+                forceHideOverlay();
+            }, true);
+            
+            // También en click como respaldo
+            button.addEventListener('click', function(e) {
+                forceHideOverlay();
             }, true);
         });
         
         // Llenar formulario cuando se abre el modal
         modalEl.addEventListener('show.bs.modal', function(event) {
-            var overlay = document.getElementById('pageTransitionOverlay');
-            if (overlay) {
-                overlay.remove();
-            }
+            // Forzar ocultamiento del overlay
+            forceHideOverlay();
             
             var nombreInput = modalEl.querySelector('[name="nombre_completo"]');
             var direccionInput = modalEl.querySelector('[name="direccion"]');
@@ -514,6 +767,119 @@
         document.addEventListener('DOMContentLoaded', initModalEjecutivo);
     } else {
         initModalEjecutivo();
+    }
+})();
+
+// Inicialización del modal de oficinas
+(function() {
+    'use strict';
+    
+    function initModalOficina() {
+        var modalEl = document.getElementById('oficinaModal');
+        if (!modalEl) {
+            return;
+        }
+        
+        // Mover el modal fuera del #main-content al body si es necesario
+        if (modalEl.parentElement && modalEl.parentElement.id === 'main-content') {
+            document.body.appendChild(modalEl);
+        }
+        
+        if (typeof bootstrap === 'undefined') {
+            alert('Error: Bootstrap no está disponible. Recarga la página.');
+            return;
+        }
+        
+        var actionInput = document.getElementById('oficinaAction');
+        var idInput = document.getElementById('oficinaId');
+        var titleEl = document.getElementById('oficinaModalLabel');
+        var submitBtn = document.getElementById('submitOficinaBtn');
+        
+        // Ocultar overlay completamente al inicializar
+        forceHideOverlayGestionRoles();
+        
+        // Ocultar overlay en mousedown/click de botones ANTES de que se abra el modal
+        var modalButtons = document.querySelectorAll('[data-bs-toggle="modal"][data-bs-target="#oficinaModal"]');
+        modalButtons.forEach(function(button) {
+            // Usar capture phase para ejecutar ANTES que otros handlers
+            button.addEventListener('mousedown', function(e) {
+                forceHideOverlayGestionRoles();
+            }, true);
+            
+            // También en click como respaldo
+            button.addEventListener('click', function(e) {
+                forceHideOverlayGestionRoles();
+            }, true);
+        });
+        
+        modalEl.addEventListener('show.bs.modal', function(event) {
+            // Forzar ocultamiento del overlay cuando se abre el modal
+            forceHideOverlayGestionRoles();
+            
+            var button = event.relatedTarget;
+            
+            if (!button || button.getAttribute('data-mode') === 'create') {
+                // Modo crear
+                if (actionInput) actionInput.value = 'crear';
+                if (idInput) idInput.value = '';
+                if (titleEl) titleEl.textContent = 'Agregar Nueva Oficina';
+                if (submitBtn) submitBtn.textContent = 'Guardar Oficina';
+                
+                // Limpiar formulario
+                var form = modalEl.querySelector('form');
+                if (form) form.reset();
+                return;
+            }
+            
+            // Modo editar
+            if (actionInput) actionInput.value = 'editar';
+            if (idInput) idInput.value = button.getAttribute('data-id') || '';
+            if (titleEl) titleEl.textContent = 'Editar Oficina';
+            if (submitBtn) submitBtn.textContent = 'Actualizar Oficina';
+            
+            // Llenar campos del formulario
+            var nombreInput = modalEl.querySelector('input[name="nombre"]');
+            var direccionInput = modalEl.querySelector('textarea[name="direccion"]');
+            var ubicacionInput = modalEl.querySelector('input[name="ubicacion"]');
+            var responsableInput = modalEl.querySelector('input[name="responsable"]');
+            var encargadoInput = modalEl.querySelector('input[name="encargado"]');
+            var tipoInput = modalEl.querySelector('select[name="tipo"]');
+            
+            if (nombreInput) nombreInput.value = button.getAttribute('data-nombre') || '';
+            if (direccionInput) direccionInput.value = button.getAttribute('data-direccion') || '';
+            if (ubicacionInput) ubicacionInput.value = button.getAttribute('data-ubicacion') || '';
+            if (responsableInput) responsableInput.value = button.getAttribute('data-responsable') || '';
+            if (encargadoInput) encargadoInput.value = button.getAttribute('data-encargado') || '';
+            if (tipoInput) tipoInput.value = button.getAttribute('data-tipo') || 'PROPIA';
+        });
+        
+        // Limpiar formulario al cerrar
+        modalEl.addEventListener('hidden.bs.modal', function() {
+            var form = modalEl.querySelector('form');
+            if (form) form.reset();
+        });
+        
+        // Mostrar modal automáticamente si hay errores
+        var modalConfigEl = document.getElementById('modal-config');
+        var mostrarModalOficina = modalConfigEl && modalConfigEl.getAttribute('data-mostrar-modal-oficina') === 'true';
+        
+        if (mostrarModalOficina) {
+            setTimeout(function() {
+                try {
+                    var bootstrapModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                    bootstrapModal.show();
+                } catch (err) {
+                    console.error('Error al abrir modal de oficina:', err);
+                }
+            }, 300);
+        }
+    }
+    
+    // Ejecutar cuando el DOM esté listo
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initModalOficina);
+    } else {
+        initModalOficina();
     }
 })();
 </script>

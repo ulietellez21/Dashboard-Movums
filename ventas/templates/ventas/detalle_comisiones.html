@@ -110,7 +110,7 @@
                     <tr>
                         <td>
                             <a href="{% url 'detalle_venta' detalle.venta.slug detalle.venta.pk %}" class="text-decoration-none">
-                                #{{ detalle.venta.pk }}
+                                {{ detalle.venta.folio|default:detalle.venta.id }}
                             </a>
                         </td>
                         <td>{{ detalle.venta.cliente }}</td>
@@ -170,7 +170,7 @@
                     <tr>
                         <td>
                             <a href="{% url 'detalle_venta' detalle.venta.slug detalle.venta.pk %}" class="text-decoration-none">
-                                #{{ detalle.venta.pk }}
+                                {{ detalle.venta.folio|default:detalle.venta.id }}
                             </a>
                         </td>
                         <td>{{ detalle.venta.cliente }}</td>

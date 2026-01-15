@@ -147,3 +147,12 @@ class HistorialMovimiento(models.Model):
             return self.descripcion[:100] + "..."
         return self.descripcion
 
+
+
+
+
+
+
+
+
+

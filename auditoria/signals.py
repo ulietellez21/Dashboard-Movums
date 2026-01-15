@@ -230,3 +230,12 @@ def registrar_confirmacion_eliminada(sender, instance, **kwargs):
         usuario=usuario
     )
 
+
+
+
+
+
+
+
+
+

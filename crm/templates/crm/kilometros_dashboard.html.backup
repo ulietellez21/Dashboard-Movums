@@ -1,0 +1,667 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4">
+    <div>
+      <h4 class="mb-1 fw-bold text-primary"><i class="fas fa-route me-2"></i>Kilómetros Movums</h4>
+      <p class="text-muted mb-0">Panel de promociones, socios, movimientos y ventas con promo</p>
+    </div>
+    <div class="d-flex gap-2 mt-3 mt-md-0">
+      <a class="btn btn-outline-primary btn-sm" href="{% url 'dashboard' %}"><i class="fas fa-home me-1"></i>Dashboard</a>
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'lista_clientes' %}"><i class="fas fa-users me-1"></i>Clientes</a>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm border-0 rounded-4" role="alert">
+        {% if message.tags == 'success' %}
+          <i class="fas fa-check-circle me-2"></i>
+        {% elif message.tags == 'error' %}
+          <i class="fas fa-exclamation-circle me-2"></i>
+        {% elif message.tags == 'warning' %}
+          <i class="fas fa-exclamation-triangle me-2"></i>
+        {% elif message.tags == 'info' %}
+          <i class="fas fa-info-circle me-2"></i>
+        {% endif %}
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Km acumulados</p>
+          <h5 class="mb-0">{{ total_km_acumulados|floatformat:0|intcomma }}</h5>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Km disponibles</p>
+          <h5 class="mb-0">{{ total_km_disponibles|floatformat:0|intcomma }}</h5>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Km canjeados</p>
+          <h5 class="mb-0">{{ total_km_canjeados|floatformat:0|intcomma }}</h5>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Km expirados</p>
+          <h5 class="mb-0">{{ total_km_expirados|floatformat:0|intcomma }}</h5>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Acordeón de secciones -->
+  <div class="accordion" id="kilometrosAccordion">
+    <!-- Sección 1: Promociones -->
+    <div class="accordion-item shadow-sm border-0 mb-3">
+      <h2 class="accordion-header" id="headingPromociones">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePromociones" aria-expanded="false" aria-controls="collapsePromociones">
+          <div class="d-flex justify-content-between align-items-center w-100 me-3">
+            <div>
+              <i class="fas fa-bullhorn me-2 text-primary"></i>
+              <strong class="text-primary">Promociones</strong>
+            </div>
+            <span class="badge bg-primary">{{ promociones|length }}</span>
+          </div>
+        </button>
+      </h2>
+      <div id="collapsePromociones" class="accordion-collapse collapse" aria-labelledby="headingPromociones" data-bs-parent="#kilometrosAccordion">
+        <div class="accordion-body p-0">
+          <div class="table-responsive">
+            <table class="table mb-0 align-middle table-hover table-striped">
+              <thead class="table-light">
+                <tr>
+                  <th>Nombre</th>
+                  <th>Tipo</th>
+                  <th>% Desc</th>
+                  <th>Km Bono</th>
+                  <th>Tope</th>
+                  <th>Condición</th>
+                  <th>Alcance</th>
+                  <th>Clientes</th>
+                  <th>Vigencia</th>
+                  <th>Estado</th>
+                  {% if request.user.perfil.rol == 'JEFE' %}<th>Acciones</th>{% endif %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for promo in promociones %}
+                  <tr>
+                    <td>{{ promo.nombre }}</td>
+                    <td>{{ promo.get_tipo_display }}</td>
+                    <td>{{ promo.porcentaje_descuento|floatformat:2 }}%</td>
+                    <td>{{ promo.kilometros_bono|floatformat:0 }}</td>
+                    <td>${{ promo.monto_tope_mxn|floatformat:2 }}</td>
+                    <td>{{ promo.get_condicion_display }}</td>
+                    <td>
+                      {{ promo.get_alcance_display }}
+                      {% if promo.alcance == 'CLIENTE_ESPECIFICO' %}
+                        <span class="badge bg-info text-white ms-1" title="Promoción personal">Personal</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if promo.alcance == 'CLIENTE_ESPECIFICO' %}
+                        {% if promo.clientes.all %}
+                          <div class="d-flex flex-wrap gap-1">
+                            {% for cliente in promo.clientes.all %}
+                              <span class="badge bg-primary">{{ cliente.nombre_completo_display|truncatewords:2 }}</span>
+                            {% endfor %}
+                          </div>
+                        {% else %}
+                          <span class="text-muted small">Sin clientes asignados</span>
+                        {% endif %}
+                      {% else %}
+                        <span class="text-muted">-</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if promo.fecha_inicio %}{{ promo.fecha_inicio }}{% else %}-{% endif %} /
+                      {% if promo.fecha_fin %}{{ promo.fecha_fin }}{% else %}-{% endif %}
+                    </td>
+                    <td>
+                      {% if promo.activa %}
+                        <span class="badge bg-success">Activa</span>
+                      {% else %}
+                        <span class="badge bg-secondary">Inactiva</span>
+                      {% endif %}
+                    </td>
+                    {% if request.user.perfil.rol == 'JEFE' %}
+                    <td>
+                      <a class="btn btn-outline-primary btn-sm" href="{% url 'editar_promocion_km' promo.pk %}"><i class="fas fa-pen"></i></a>
+                    </td>
+                    {% endif %}
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="10" class="text-center text-muted py-3">Sin promociones registradas.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+          {% if request.user.perfil.rol == 'JEFE' %}
+          <div class="card-footer bg-light">
+            {% with tipo_actual=promocion_form.initial.tipo|default:promocion_form.instance.tipo|default:"" %}
+            <form method="post" class="row g-2">
+              {% csrf_token %}
+              {{ promocion_form.non_field_errors }}
+              <div class="col-12">
+                <label class="form-label mb-1">Nombre</label>
+                {{ promocion_form.nombre }}
+                {{ promocion_form.nombre.errors }}
+              </div>
+              <div class="col-12">
+                <label class="form-label mb-1">Descripción</label>
+                {{ promocion_form.descripcion }}
+                {{ promocion_form.descripcion.errors }}
+              </div>
+              <div class="col-6">
+                <label class="form-label mb-1">Tipo</label>
+                {{ promocion_form.tipo }}
+                {{ promocion_form.tipo.errors }}
+              </div>
+              <div class="col-3 {% if tipo_actual == 'KM' %}d-none{% endif %}" data-field="porcentaje">
+                <label class="form-label mb-1">% Descuento</label>
+                {{ promocion_form.porcentaje_descuento }}
+                {{ promocion_form.porcentaje_descuento.errors }}
+              </div>
+              <div class="col-3 {% if tipo_actual == 'KM' %}d-none{% endif %}" data-field="tope">
+                <label class="form-label mb-1">Tope MXN</label>
+                {{ promocion_form.monto_tope_mxn }}
+                {{ promocion_form.monto_tope_mxn.errors }}
+              </div>
+              <div class="col-3 {% if tipo_actual != 'KM' %}d-none{% endif %}" data-field="km_bono">
+                <label class="form-label mb-1">Km a bonificar</label>
+                {{ promocion_form.kilometros_bono }}
+                {{ promocion_form.kilometros_bono.errors }}
+              </div>
+              <div class="col-6">
+                <label class="form-label mb-1">Inicio</label>
+                {{ promocion_form.fecha_inicio }}
+                {{ promocion_form.fecha_inicio.errors }}
+              </div>
+              <div class="col-6">
+                <label class="form-label mb-1">Fin</label>
+                {{ promocion_form.fecha_fin }}
+                {{ promocion_form.fecha_fin.errors }}
+              </div>
+              <div class="col-6">
+                <label class="form-label mb-1">Condición</label>
+                {{ promocion_form.condicion }}
+                {{ promocion_form.condicion.errors }}
+              </div>
+              <div class="col-6">
+                <label class="form-label mb-1">Valor condición</label>
+                {{ promocion_form.valor_condicion }}
+                {{ promocion_form.valor_condicion.errors }}
+              </div>
+              <div class="col-6">
+                <label class="form-label mb-1">Alcance</label>
+                {{ promocion_form.alcance }}
+                {{ promocion_form.alcance.errors }}
+              </div>
+              <div class="col-6 d-flex align-items-end">
+                <div class="form-check mt-3">
+                  {{ promocion_form.requiere_confirmacion }} <label class="form-check-label">Requiere confirmación</label>
+                </div>
+              </div>
+              <div class="col-12 d-none" id="clientesEspecificosContainer">
+                <label class="form-label mb-1">
+                  {{ promocion_form.clientes.label }} <span class="text-danger">*</span>
+                </label>
+                <!-- Select original oculto para Django -->
+                <div style="display: none;">
+                  {{ promocion_form.clientes }}
+                </div>
+                <!-- Componente personalizado con dropdown y checkboxes -->
+                <div class="position-relative">
+                  <button type="button" class="btn btn-outline-secondary w-100 text-start d-flex justify-content-between align-items-center" id="clientesDropdownBtn" style="min-height: 38px;">
+                    <span id="clientesSelectedText" class="text-muted">Selecciona uno o más clientes</span>
+                    <i class="fas fa-chevron-down ms-auto"></i>
+                  </button>
+                  <div class="dropdown-menu w-100 p-0 border shadow-sm" id="clientesDropdownMenu" style="max-height: 300px; overflow-y: auto; display: none; position: absolute; z-index: 1000; background: white;">
+                    <div class="p-2">
+                      {% for cliente in promocion_form.clientes.field.queryset %}
+                      <div class="form-check py-2 px-3 border-bottom">
+                        <input class="form-check-input cliente-checkbox" type="checkbox" 
+                               value="{{ cliente.pk }}" 
+                               id="cliente_checkbox_{{ cliente.pk }}"
+                               data-cliente-id="{{ cliente.pk }}">
+                        <label class="form-check-label w-100" for="cliente_checkbox_{{ cliente.pk }}">
+                          {{ cliente.nombre_completo_display|default:cliente.nombre|default:cliente.nombre_empresa|default:"Sin nombre" }}
+                        </label>
+                      </div>
+                      {% endfor %}
+                    </div>
+                  </div>
+                </div>
+                {% if promocion_form.clientes.help_text %}
+                <div class="form-text mt-1">{{ promocion_form.clientes.help_text }}</div>
+                {% endif %}
+                {{ promocion_form.clientes.errors }}
+              </div>
+              <div class="col-12 d-flex align-items-center">
+                <div class="form-check">
+                  {{ promocion_form.activa }} <label class="form-check-label">Activa</label>
+                </div>
+              </div>
+              <div class="col-12 text-end">
+                <button class="btn btn-primary btn-sm" type="submit">Guardar promoción</button>
+              </div>
+            </form>
+            {% endwith %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+    <!-- Sección 2: Ventas con promociones aplicadas -->
+    <div class="accordion-item shadow-sm border-0 mb-3">
+      <h2 class="accordion-header" id="headingVentas">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseVentas" aria-expanded="false" aria-controls="collapseVentas">
+          <div class="d-flex justify-content-between align-items-center w-100 me-3">
+            <div>
+              <i class="fas fa-receipt me-2 text-success"></i>
+              <strong class="text-success">Ventas con promociones aplicadas</strong>
+            </div>
+            <span class="badge bg-success">{{ ventas_con_promos|length }}</span>
+          </div>
+        </button>
+      </h2>
+      <div id="collapseVentas" class="accordion-collapse collapse" aria-labelledby="headingVentas" data-bs-parent="#kilometrosAccordion">
+        <div class="accordion-body p-0">
+          <div class="table-responsive">
+            <table class="table mb-0 align-middle table-hover table-striped">
+              <thead class="table-light">
+                <tr>
+                  <th>ID</th>
+                  <th>Cliente</th>
+                  <th>Fecha viaje</th>
+                  <th>Promo</th>
+                  <th>Pagado</th>
+                  <th>Saldo</th>
+                  <th>Estado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for v in ventas_con_promos %}
+                <tr>
+                  <td>#{{ v.id }}</td>
+                  <td><a href="{% url 'detalle_cliente' pk=v.cliente.pk %}" class="text-decoration-none">{{ v.cliente }}</a></td>
+                  <td>{{ v.fecha_inicio_viaje|date:"d M Y" }}</td>
+                  <td>${{ v.descuento_promociones_mxn|floatformat:2|intcomma }}</td>
+                  <td>${{ v.total_pagado|floatformat:2|intcomma }}</td>
+                  <td>
+                    {% if v.saldo_restante > 0 %}
+                      <span class="badge bg-danger">${{ v.saldo_restante|floatformat:2|intcomma }}</span>
+                    {% else %}
+                      <span class="badge bg-success">Pagado</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if v.estado_confirmacion == 'EN_CONFIRMACION' %}
+                      <span class="badge bg-warning text-dark">En confirmación</span>
+                    {% elif v.saldo_restante > 0 %}
+                      <span class="badge bg-info text-dark">Pendiente</span>
+                    {% else %}
+                      <span class="badge bg-success">Completado</span>
+                    {% endif %}
+                  </td>
+                  <td><a href="{% url 'detalle_venta' slug=v.slug_safe pk=v.pk %}" class="btn btn-sm btn-outline-primary">Ver</a></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" class="text-center text-muted py-3">Sin ventas con promociones.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sección 3: Top socios -->
+    <div class="accordion-item shadow-sm border-0 mb-3">
+      <h2 class="accordion-header" id="headingSocios">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSocios" aria-expanded="false" aria-controls="collapseSocios">
+          <div class="d-flex justify-content-between align-items-center w-100 me-3">
+            <div>
+              <i class="fas fa-users me-2 text-info"></i>
+              <strong class="text-info">Top socios (km disponibles)</strong>
+            </div>
+            <span class="badge bg-info">{{ socios_count }} socios</span>
+          </div>
+        </button>
+      </h2>
+      <div id="collapseSocios" class="accordion-collapse collapse" aria-labelledby="headingSocios" data-bs-parent="#kilometrosAccordion">
+        <div class="accordion-body p-0">
+          <div class="table-responsive">
+            <table class="table mb-0 align-middle table-hover">
+              <thead class="table-light">
+                <tr>
+                  <th>Cliente</th>
+                  <th>Km disp.</th>
+                  <th>Km acum.</th>
+                  <th>Valor disponible</th>
+                  <th>Último mov.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for c in socios %}
+                  <tr>
+                    <td><a href="{% url 'detalle_cliente' pk=c.pk %}" class="text-decoration-none fw-bold">{{ c }}</a></td>
+                    <td><span class="badge bg-success">{{ c.kilometros_disponibles|floatformat:0|intcomma }}</span></td>
+                    <td>{{ c.kilometros_acumulados|floatformat:0|intcomma }}</td>
+                    <td><strong class="text-success">${{ c.valor_disponible_mxn|floatformat:2|intcomma }}</strong></td>
+                    <td>{% if c.ultima_fecha_km %}{{ c.ultima_fecha_km|date:"d/m/Y H:i" }}{% else %}-{% endif %}</td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="5" class="text-center text-muted py-3">Sin socios registrados.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sección 4: Movimientos recientes -->
+    <div class="accordion-item shadow-sm border-0 mb-3">
+      <h2 class="accordion-header" id="headingMovimientos">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMovimientos" aria-expanded="false" aria-controls="collapseMovimientos">
+          <div class="d-flex justify-content-between align-items-center w-100 me-3">
+            <div>
+              <i class="fas fa-history me-2 text-warning"></i>
+              <strong class="text-warning">Movimientos recientes</strong>
+            </div>
+            <span class="badge bg-warning text-dark">{{ movimientos|length }}</span>
+          </div>
+        </button>
+      </h2>
+      <div id="collapseMovimientos" class="accordion-collapse collapse" aria-labelledby="headingMovimientos" data-bs-parent="#kilometrosAccordion">
+        <div class="accordion-body p-0">
+          <div class="table-responsive">
+            <table class="table mb-0 align-middle table-hover">
+              <thead class="table-light">
+                <tr>
+                  <th>Fecha</th>
+                  <th>Cliente</th>
+                  <th>Kilómetros</th>
+                  <th>Pesos MXN</th>
+                  <th>Descripción</th>
+                  <th class="text-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for mov in movimientos %}
+                  <tr>
+                    <td>{{ mov.fecha_registro|date:"d/m/Y H:i" }}</td>
+                    <td><a href="{% url 'detalle_cliente' pk=mov.cliente.pk %}" class="text-decoration-none">{{ mov.cliente }}</a></td>
+                    <td>
+                      {% if mov.es_redencion %}<span class="text-danger">-{{ mov.kilometros|floatformat:0|intcomma }}</span>
+                      {% else %}<span class="text-success">+{{ mov.kilometros|floatformat:0|intcomma }}</span>{% endif %}
+                    </td>
+                    <td>
+                      {% if mov.es_redencion %}
+                        <span class="text-danger">-${{ mov.valor_equivalente|floatformat:2|intcomma }}</span>
+                      {% else %}
+                        <span class="text-success">${{ mov.valor_equivalente|floatformat:2|intcomma }}</span>
+                      {% endif %}
+                    </td>
+                    <td>{{ mov.descripcion|default:"-" }}</td>
+                    <td class="text-center">
+                      {% if mov.venta %}
+                        <a href="{% url 'detalle_venta' slug=mov.venta.slug_safe pk=mov.venta.pk %}" class="btn btn-sm btn-outline-primary" title="Ver detalle de la venta">
+                          <i class="fas fa-eye me-1"></i>Ver Venta
+                        </a>
+                      {% else %}
+                        <span class="text-muted small">-</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="6" class="text-center text-muted py-3">Sin movimientos.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% if is_paginated %}
+          <div class="card-footer bg-light">
+            <nav aria-label="Paginación">
+              <ul class="pagination pagination-sm mb-0 justify-content-end">
+                {% if page_obj.has_previous %}
+                  <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a></li>
+                {% endif %}
+                <li class="page-item disabled"><span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span></li>
+                {% if page_obj.has_next %}
+                  <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Siguiente</a></li>
+                {% endif %}
+              </ul>
+            </nav>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  #clientesDropdownMenu {
+    min-width: 100%;
+  }
+  #clientesDropdownMenu .form-check {
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  #clientesDropdownMenu .form-check:hover {
+    background-color: #f8f9fa;
+  }
+  #clientesDropdownMenu .form-check-input {
+    cursor: pointer;
+  }
+  #clientesDropdownMenu .form-check-label {
+    cursor: pointer;
+    user-select: none;
+  }
+</style>
+<script>
+  (function() {
+    function initPromocionForm() {
+      const tipoSelect = document.getElementById("id_tipo");
+      const condicionSelect = document.getElementById("id_condicion");
+      const alcanceSelect = document.getElementById("id_alcance");
+      const fieldKm = document.querySelector('[data-field="km_bono"]');
+      const fieldPorc = document.querySelector('[data-field="porcentaje"]');
+      const fieldTope = document.querySelector('[data-field="tope"]');
+      const valorCond = document.getElementById("id_valor_condicion")?.closest('.col-6');
+      const clientesContainer = document.getElementById("clientesEspecificosContainer");
+      const clientesSelect = document.getElementById("id_clientes");
+
+      if (!alcanceSelect) {
+        console.warn('Campo de alcance no encontrado, reintentando...');
+        setTimeout(initPromocionForm, 100);
+        return;
+      }
+
+      function toggleTipo() {
+        const tipo = tipoSelect?.value;
+        if (tipo === 'KM') {
+          fieldKm?.classList.remove('d-none');
+          fieldPorc?.classList.add('d-none');
+          fieldTope?.classList.add('d-none');
+        } else {
+          fieldKm?.classList.add('d-none');
+          fieldPorc?.classList.remove('d-none');
+          fieldTope?.classList.remove('d-none');
+        }
+      }
+
+      function toggleCondicion() {
+        const cond = condicionSelect?.value;
+        if (!valorCond) return;
+        if (cond === 'MES') {
+          valorCond.classList.remove('d-none');
+          const label = valorCond.querySelector('.form-label');
+          if (label) label.textContent = "Mes (1-12)";
+        } else {
+          valorCond.classList.add('d-none');
+        }
+      }
+
+      function toggleAlcance() {
+        const alcance = alcanceSelect.value;
+        
+        if (alcance === 'CLIENTE_ESPECIFICO') {
+          if (clientesContainer) {
+            clientesContainer.classList.remove('d-none');
+            clientesContainer.style.display = '';
+          }
+          if (clientesSelect) {
+            clientesSelect.required = true;
+          }
+          initClientesDropdown();
+        } else {
+          if (clientesContainer) {
+            clientesContainer.classList.add('d-none');
+            clientesContainer.style.display = 'none';
+          }
+          if (clientesSelect) {
+            clientesSelect.required = false;
+            // Limpiar selección si no es cliente específico
+            if (clientesSelect.selectedOptions) {
+              Array.from(clientesSelect.selectedOptions).forEach(option => {
+                option.selected = false;
+              });
+            }
+            // Limpiar checkboxes
+            document.querySelectorAll('.cliente-checkbox').forEach(cb => {
+              cb.checked = false;
+            });
+            updateClientesButtonText();
+          }
+        }
+      }
+
+      function initClientesDropdown() {
+        const dropdownBtn = document.getElementById('clientesDropdownBtn');
+        const dropdownMenu = document.getElementById('clientesDropdownMenu');
+        const clientesCheckboxes = document.querySelectorAll('.cliente-checkbox');
+        const clientesSelect = document.getElementById('id_clientes');
+
+        if (!dropdownBtn || !dropdownMenu || !clientesSelect) return;
+
+        // Sincronizar checkboxes con el select oculto al cargar
+        Array.from(clientesSelect.options).forEach(option => {
+          if (option.selected) {
+            const checkbox = document.getElementById(`cliente_checkbox_${option.value}`);
+            if (checkbox) checkbox.checked = true;
+          }
+        });
+        updateClientesButtonText();
+
+        // Toggle dropdown al hacer click en el botón
+        dropdownBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          const isVisible = dropdownMenu.style.display === 'block';
+          dropdownMenu.style.display = isVisible ? 'none' : 'block';
+          const icon = dropdownBtn.querySelector('i');
+          if (icon) {
+            icon.classList.toggle('fa-chevron-down', !isVisible);
+            icon.classList.toggle('fa-chevron-up', isVisible);
+          }
+        });
+
+        // Manejar cambios en los checkboxes
+        clientesCheckboxes.forEach(checkbox => {
+          checkbox.addEventListener('change', function() {
+            const clienteId = this.value;
+            const option = Array.from(clientesSelect.options).find(opt => opt.value === clienteId);
+            
+            if (this.checked) {
+              if (option) option.selected = true;
+            } else {
+              if (option) option.selected = false;
+            }
+            
+            updateClientesButtonText();
+          });
+        });
+
+        // Cerrar dropdown al hacer click fuera
+        document.addEventListener('click', function(e) {
+          if (!dropdownBtn.contains(e.target) && !dropdownMenu.contains(e.target)) {
+            dropdownMenu.style.display = 'none';
+            const icon = dropdownBtn.querySelector('i');
+            if (icon) {
+              icon.classList.remove('fa-chevron-up');
+              icon.classList.add('fa-chevron-down');
+            }
+          }
+        });
+
+        function updateClientesButtonText() {
+          const selectedCheckboxes = document.querySelectorAll('.cliente-checkbox:checked');
+          const selectedText = document.getElementById('clientesSelectedText');
+          
+          if (selectedCheckboxes.length === 0) {
+            selectedText.textContent = 'Selecciona uno o más clientes';
+            selectedText.classList.add('text-muted');
+          } else {
+            const nombres = Array.from(selectedCheckboxes).map(cb => {
+              const label = document.querySelector(`label[for="${cb.id}"]`);
+              return label ? label.textContent.trim() : '';
+            });
+            if (selectedCheckboxes.length === 1) {
+              selectedText.textContent = nombres[0];
+            } else {
+              selectedText.textContent = `${selectedCheckboxes.length} clientes seleccionados`;
+            }
+            selectedText.classList.remove('text-muted');
+          }
+        }
+      }
+
+      // Inicializar eventos
+      if (tipoSelect) {
+        tipoSelect.addEventListener('change', toggleTipo);
+        toggleTipo();
+      }
+      
+      if (condicionSelect) {
+        condicionSelect.addEventListener('change', toggleCondicion);
+        toggleCondicion();
+      }
+      
+      if (alcanceSelect) {
+        alcanceSelect.addEventListener('change', toggleAlcance);
+        toggleAlcance();
+      }
+    }
+
+    // Intentar inicializar inmediatamente si el DOM ya está listo
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initPromocionForm);
+    } else {
+      // Si el DOM ya está listo, usar un pequeño delay para asegurar que el formulario esté renderizado
+      setTimeout(initPromocionForm, 50);
+    }
+  })();
+</script>
+{% endblock %}
+
