@@ -606,6 +606,13 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                 messages.error(request, "No tienes permiso para actualizar el control financiero de esta venta.")
                 return redirect(reverse('detalle_venta', kwargs={'pk': self.object.pk, 'slug': self.object.slug_safe}) + '?tab=logistica')
 
+            # [NUEVO] Paso 1: Obtener una COPIA LIMPIA de los originales para referencia
+            # Es vital hacer esto ANTES de validar el formset y en una variable separada
+            # Usamos list() para asegurar que se traigan de la BD ahora mismo
+            servicios_db_list = list(self.object.servicios_logisticos.all())
+            originales_limpios = {s.pk: s for s in servicios_db_list}
+            
+            # Paso 2: Crear el formset normalmente
             servicios_qs = self.object.servicios_logisticos.all().order_by('orden', 'pk')
             formset = LogisticaServicioFormSet(
                 request.POST,
@@ -620,25 +627,33 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                 total_marcado_pagado = Decimal('0.00')
                 errores_permisos = []
                 
-                originales = {serv.pk: serv for serv in servicios_qs}
-                
                 for form in formset.forms:
                     cleaned = form.cleaned_data
                     if not cleaned:
                         continue
                     
                     servicio_id = form.instance.pk if form.instance.pk else None
-                    original = originales.get(servicio_id) if servicio_id else None
+                    # [CAMBIO] Usar el diccionario de LIMPIOS para obtener los valores originales reales de la BD
+                    original = originales_limpios.get(servicio_id) if servicio_id else None
                     
                     if original:
-                        # TEMPORAL: Bloquear modificación de monto_planeado si ya tiene valor (para todos)
-                        nuevo_monto = cleaned.get('monto_planeado') or Decimal('0.00')
+                        # TEMPORAL: Bloquear modificación de monto_planeado si ya tiene valor
+                        nuevo_monto = cleaned.get('monto_planeado')
+                        
+                        # Si el monto original existe y es mayor a 0
                         if original.monto_planeado and original.monto_planeado > Decimal('0.00'):
+                            # CORRECCIÓN: Si nuevo_monto es None o 0, asumimos que el campo estaba disabled e intentamos preservar el original
+                            if not nuevo_monto or nuevo_monto == Decimal('0.00'):
+                                nuevo_monto = original.monto_planeado
+                                # Importante: Actualizar cleaned_data para que el siguiente paso tenga el valor correcto
+                                form.cleaned_data['monto_planeado'] = original.monto_planeado
+                                cleaned['monto_planeado'] = original.monto_planeado
+                            # Validamos si hubo cambio real (intento de hack o error)
                             if nuevo_monto != original.monto_planeado:
                                 errores_permisos.append(
                                     f"Los montos planificados están bloqueados para pruebas. No se puede modificar el monto de '{original.nombre_servicio}'."
                                 )
-                                # Restaurar el valor original
+                                # Restaurar para el formulario
                                 form.cleaned_data['monto_planeado'] = original.monto_planeado
                         
                         # TEMPORAL: Bloquear modificación de estado pagado si está marcado (para todos)
@@ -673,14 +688,26 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                             continue
                         
                         servicio_id = form.instance.pk if form.instance.pk else None
-                        original = originales.get(servicio_id) if servicio_id else None
+                        # [CAMBIO] Usar el diccionario de LIMPIOS para obtener los valores originales reales de la BD
+                        original = originales_limpios.get(servicio_id) if servicio_id else None
                         if not original:
                             continue
                         
                         # Obtener valores desde cleaned_data
                         nuevo_opcion_proveedor = form.cleaned_data.get('opcion_proveedor', '')
-                        nuevo_monto = form.cleaned_data.get('monto_planeado', Decimal('0.00'))
+                        nuevo_monto = form.cleaned_data.get('monto_planeado')
                         nuevo_pagado = form.cleaned_data.get('pagado', False)
+                        
+                        # Preservar el monto_planeado original si el campo estaba bloqueado (deshabilitado)
+                        # Si el servicio ya tenía un monto planificado y el nuevo viene vacío o es 0,
+                        # significa que el campo estaba deshabilitado y debemos preservar el original
+                        if original.monto_planeado and original.monto_planeado > Decimal('0.00'):
+                            if not nuevo_monto or nuevo_monto == Decimal('0.00'):
+                                # El campo estaba bloqueado, preservar el valor original
+                                nuevo_monto = original.monto_planeado
+                        else:
+                            # Si no había monto original, asegurar que sea 0.00 si está vacío
+                            nuevo_monto = nuevo_monto or Decimal('0.00')
                         
                         # Actualizar el objeto original directamente
                         original.opcion_proveedor = nuevo_opcion_proveedor
@@ -6147,7 +6174,7 @@ class SubirComprobanteAperturaView(LoginRequiredMixin, View):
             )
         
         messages.success(request, "Comprobante de apertura subido exitosamente. El contador ha sido notificado.")
-        return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+        return redirect(reverse('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}) + '?tab=abonos')
 
 
 class PagosPorConfirmarView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):

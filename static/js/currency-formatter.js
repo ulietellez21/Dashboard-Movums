@@ -100,3 +100,12 @@ function inicializarFormatoMonedaEnCampos(selectores) {
 
 
 
+
+
+
+
+
+
+
+
+

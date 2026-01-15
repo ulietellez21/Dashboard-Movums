@@ -189,4 +189,3 @@ def eliminar_comprobantes_venta_liquidada(sender, instance, **kwargs):
             # Si hay algún error, no hacer nada
             pass
 
-

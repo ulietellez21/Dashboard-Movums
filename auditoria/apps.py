@@ -10,3 +10,12 @@ class AuditoriaConfig(AppConfig):
         """Importa las señales cuando la app está lista."""
         import auditoria.signals  # noqa
 
+
+
+
+
+
+
+
+
+

@@ -11,7 +11,7 @@
                     <h4 class="mb-0"><i class="fas fa-exclamation-triangle"></i> ¡Advertencia de Seguridad!</h4>
                 </div>
                 <div class="card-body">
-                    <h5 class="card-title text-danger">Eliminación Permanente de Venta #{{ object.pk }}</h5>
+                    <h5 class="card-title text-danger">Eliminación Permanente de Venta {{ object.folio|default:object.id }}</h5>
                     
                     <p class="lead">
                         Estás a punto de eliminar la venta del cliente: 

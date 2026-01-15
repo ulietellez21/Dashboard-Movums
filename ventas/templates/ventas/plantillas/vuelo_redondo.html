@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load humanize %}
 
-{% block title %}Vuelo Redondo - Venta #{{ venta.id }}{% endblock %}
+{% block title %}Vuelo Redondo - Venta {{ venta.folio|default:venta.id }}{% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap">
@@ -72,7 +72,7 @@
 <div class="row">
     <div class="col-12">
         <h1 class="mb-4">
-            <i class="fas fa-plane-departure"></i> Plantilla: Vuelo Redondo - Venta #{{ venta.id }}
+            <i class="fas fa-plane-departure"></i> Plantilla: Vuelo Redondo - Venta {{ venta.folio|default:venta.id }}
         </h1>
         
         <div class="mb-4">
@@ -266,17 +266,14 @@ document.addEventListener('DOMContentLoaded', function() {
     let escalaIdaCount = 0;
     
     // Datos de escalas existentes para ida (si hay)
+    // eslint-disable-next-line
+    var escalasIdaExistentesRaw = {% if escalas_ida_json %}{{ escalas_ida_json|safe }}{% else %}[]{% endif %};
     let escalasIdaExistentes = [];
-    {% if escalas_ida_json %}
-        try {
-            escalasIdaExistentes = {{ escalas_ida_json|safe }};
-            if (!Array.isArray(escalasIdaExistentes)) {
-                escalasIdaExistentes = [];
-            }
-        } catch(e) {
-            escalasIdaExistentes = [];
-        }
-    {% endif %}
+    try {
+        escalasIdaExistentes = Array.isArray(escalasIdaExistentesRaw) ? escalasIdaExistentesRaw : [];
+    } catch(e) {
+        escalasIdaExistentes = [];
+    }
     
     // Función para mostrar/ocultar sección de escalas ida
     function toggleEscalasIda() {
@@ -375,17 +372,14 @@ document.addEventListener('DOMContentLoaded', function() {
     let escalaRegresoCount = 0;
     
     // Datos de escalas existentes para regreso (si hay)
+    // eslint-disable-next-line
+    var escalasRegresoExistentesRaw = {% if escalas_regreso_json %}{{ escalas_regreso_json|safe }}{% else %}[]{% endif %};
     let escalasRegresoExistentes = [];
-    {% if escalas_regreso_json %}
-        try {
-            escalasRegresoExistentes = {{ escalas_regreso_json|safe }};
-            if (!Array.isArray(escalasRegresoExistentes)) {
-                escalasRegresoExistentes = [];
-            }
-        } catch(e) {
-            escalasRegresoExistentes = [];
-        }
-    {% endif %}
+    try {
+        escalasRegresoExistentes = Array.isArray(escalasRegresoExistentesRaw) ? escalasRegresoExistentesRaw : [];
+    } catch(e) {
+        escalasRegresoExistentes = [];
+    }
     
     // Función para mostrar/ocultar sección de escalas regreso
     function toggleEscalasRegreso() {

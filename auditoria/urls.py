@@ -8,3 +8,12 @@ urlpatterns = [
     path('historial/ajax/', HistorialMovimientosAjaxView.as_view(), name='historial_movimientos_ajax'),
 ]
 
+
+
+
+
+
+
+
+
+

@@ -2,10 +2,10 @@
 {% load humanize %}
 {% load widget_tweaks %} 
 
-{% block title %}Editar Venta #{{ ventaviaje.id }}{% endblock %}
+{% block title %}Editar Venta {{ ventaviaje.folio|default:ventaviaje.id }}{% endblock %}
 
 {% block content %}
-    <h1 class="mb-4">✏️ Editar Venta de Viaje #{{ ventaviaje.id }}</h1>
+    <h1 class="mb-4">✏️ Editar Venta de Viaje {{ ventaviaje.folio|default:ventaviaje.id }}</h1>
 
     <div class="alert alert-warning">
         <strong>Cliente:</strong> 

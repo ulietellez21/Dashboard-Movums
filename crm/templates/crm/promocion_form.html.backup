@@ -1,0 +1,368 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-12 col-lg-8 col-xl-6">
+      <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong>Editar promoción: {{ promocion.nombre }}</strong>
+          <a class="btn btn-outline-secondary btn-sm" href="{% url 'kilometros_dashboard' %}">Volver</a>
+        </div>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+            <div class="mb-3">
+              <label class="form-label">Nombre</label>
+              {{ form.nombre }}
+              {{ form.nombre.errors }}
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Descripción</label>
+              {{ form.descripcion }}
+              {{ form.descripcion.errors }}
+            </div>
+            <div class="row">
+              <div class="col-6 mb-3">
+                <label class="form-label">Tipo</label>
+                {{ form.tipo }}
+                {{ form.tipo.errors }}
+              </div>
+              <div class="col-6 mb-3 d-flex align-items-end">
+                <div class="form-check">
+                  {{ form.activa }} <label class="form-check-label">Activa</label>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Campos condicionales según tipo -->
+            <div class="row" id="campos-descuento">
+              <div class="col-6 mb-3">
+                <label class="form-label">% Descuento</label>
+                {{ form.porcentaje_descuento }}
+                {{ form.porcentaje_descuento.errors }}
+              </div>
+              <div class="col-6 mb-3">
+                <label class="form-label">Tope MXN</label>
+                {{ form.monto_tope_mxn }}
+                {{ form.monto_tope_mxn.errors }}
+              </div>
+            </div>
+            
+            <div class="row d-none" id="campos-km">
+              <div class="col-12 mb-3">
+                <label class="form-label">Km a bonificar</label>
+                {{ form.kilometros_bono }}
+                {{ form.kilometros_bono.errors }}
+              </div>
+            </div>
+            
+            <div class="row">
+              <div class="col-6 mb-3">
+                <label class="form-label">Condición</label>
+                {{ form.condicion }}
+                {{ form.condicion.errors }}
+              </div>
+              <div class="col-6 mb-3" id="campo-valor-condicion">
+                <label class="form-label">Valor condición</label>
+                {{ form.valor_condicion }}
+                {{ form.valor_condicion.errors }}
+              </div>
+            </div>
+            
+            <div class="row">
+              <div class="col-6 mb-3">
+                <label class="form-label">Alcance</label>
+                {{ form.alcance }}
+                {{ form.alcance.errors }}
+              </div>
+              <div class="col-6 mb-3 d-flex align-items-end">
+                <div class="form-check">
+                  {{ form.requiere_confirmacion }} <label class="form-check-label">Requiere confirmación</label>
+                </div>
+              </div>
+            </div>
+            <div class="row" id="clientesEspecificosContainer" style="display: none;">
+              <div class="col-12 mb-3">
+                <label class="form-label">
+                  {{ form.clientes.label }} <span class="text-danger">*</span>
+                </label>
+                <!-- Select original oculto para Django -->
+                <div style="display: none;">
+                  {{ form.clientes }}
+                </div>
+                <!-- Componente personalizado con dropdown y checkboxes -->
+                <div class="position-relative">
+                  <button type="button" class="btn btn-outline-secondary w-100 text-start d-flex justify-content-between align-items-center" id="clientesDropdownBtn" style="min-height: 38px;">
+                    <span id="clientesSelectedText" class="text-muted">Selecciona uno o más clientes</span>
+                    <i class="fas fa-chevron-down ms-auto"></i>
+                  </button>
+                  <div class="dropdown-menu w-100 p-0 border shadow-sm" id="clientesDropdownMenu" style="max-height: 300px; overflow-y: auto; display: none; position: absolute; z-index: 1000; background: white;">
+                    <div class="p-2">
+                      {% for cliente in form.clientes.field.queryset %}
+                      <div class="form-check py-2 px-3 border-bottom">
+                        <input class="form-check-input cliente-checkbox" type="checkbox" 
+                               value="{{ cliente.pk }}" 
+                               id="cliente_checkbox_{{ cliente.pk }}"
+                               data-cliente-id="{{ cliente.pk }}">
+                        <label class="form-check-label w-100" for="cliente_checkbox_{{ cliente.pk }}">
+                          {{ cliente.nombre_completo_display|default:cliente.nombre|default:cliente.nombre_empresa|default:"Sin nombre" }}
+                        </label>
+                      </div>
+                      {% endfor %}
+                    </div>
+                  </div>
+                </div>
+                {% if form.clientes.help_text %}
+                <div class="form-text mt-1">{{ form.clientes.help_text }}</div>
+                {% endif %}
+                {{ form.clientes.errors }}
+              </div>
+            </div>
+            
+            <div class="row">
+              <div class="col-6 mb-3">
+                <label class="form-label">Fecha inicio</label>
+                {{ form.fecha_inicio }}
+                {{ form.fecha_inicio.errors }}
+              </div>
+              <div class="col-6 mb-3">
+                <label class="form-label">Fecha fin</label>
+                {{ form.fecha_fin }}
+                {{ form.fecha_fin.errors }}
+              </div>
+            </div>
+            
+            <hr class="my-4">
+            
+            <!-- Botones de acción -->
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="d-flex gap-2">
+                {% if promocion.activa %}
+                  <a href="{% url 'desactivar_promocion_km' promocion.pk %}" class="btn btn-outline-warning" onclick="return confirm('¿Estás seguro de que deseas desactivar esta promoción?');">
+                    <i class="fas fa-pause me-1"></i>Desactivar
+                  </a>
+                {% else %}
+                  <a href="{% url 'activar_promocion_km' promocion.pk %}" class="btn btn-outline-success" onclick="return confirm('¿Estás seguro de que deseas activar esta promoción?');">
+                    <i class="fas fa-play me-1"></i>Activar
+                  </a>
+                {% endif %}
+                <a href="{% url 'eliminar_promocion_km' promocion.pk %}" class="btn btn-outline-danger" onclick="return confirm('¿Estás seguro de que deseas ELIMINAR esta promoción? Esta acción no se puede deshacer.');">
+                  <i class="fas fa-trash me-1"></i>Eliminar
+                </a>
+              </div>
+              <button class="btn btn-primary" type="submit">
+                <i class="fas fa-save me-1"></i>Guardar cambios
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  #clientesDropdownMenu {
+    min-width: 100%;
+  }
+  #clientesDropdownMenu .form-check {
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  #clientesDropdownMenu .form-check:hover {
+    background-color: #f8f9fa;
+  }
+  #clientesDropdownMenu .form-check-input {
+    cursor: pointer;
+  }
+  #clientesDropdownMenu .form-check-label {
+    cursor: pointer;
+    user-select: none;
+  }
+</style>
+<script>
+  (function() {
+    function initPromocionForm() {
+      const tipoSelect = document.getElementById("id_tipo");
+      const condicionSelect = document.getElementById("id_condicion");
+      const alcanceSelect = document.getElementById("id_alcance");
+      const camposDescuento = document.getElementById("campos-descuento");
+      const camposKm = document.getElementById("campos-km");
+      const campoValorCond = document.getElementById("campo-valor-condicion");
+      const clientesContainer = document.getElementById("clientesEspecificosContainer");
+      const clientesSelect = document.getElementById("id_clientes");
+
+      if (!alcanceSelect) {
+        console.warn('Campo de alcance no encontrado, reintentando...');
+        setTimeout(initPromocionForm, 100);
+        return;
+      }
+
+      function toggleTipo() {
+        const tipo = tipoSelect?.value;
+        if (tipo === 'KM') {
+          camposKm?.classList.remove('d-none');
+          camposDescuento?.classList.add('d-none');
+        } else {
+          camposKm?.classList.add('d-none');
+          camposDescuento?.classList.remove('d-none');
+        }
+      }
+
+      function toggleCondicion() {
+        const cond = condicionSelect?.value;
+        if (!campoValorCond) return;
+        if (cond === 'MES' || cond === 'RANGO' || cond === 'CUMPLE') {
+          campoValorCond.classList.remove('d-none');
+          const label = campoValorCond.querySelector('.form-label');
+          if (label) {
+            if (cond === 'MES') label.textContent = "Mes (1-12)";
+            else if (cond === 'RANGO') label.textContent = "Rango (dd-mm a dd-mm)";
+            else if (cond === 'CUMPLE') label.textContent = "Día/Mes (dd-mm)";
+          }
+        } else {
+          campoValorCond.classList.add('d-none');
+        }
+      }
+
+      function toggleAlcance() {
+        const alcance = alcanceSelect.value;
+        
+        if (alcance === 'CLIENTE_ESPECIFICO') {
+          if (clientesContainer) {
+            clientesContainer.classList.remove('d-none');
+            clientesContainer.style.display = '';
+          }
+          if (clientesSelect) {
+            clientesSelect.required = true;
+          }
+          initClientesDropdown();
+        } else {
+          if (clientesContainer) {
+            clientesContainer.classList.add('d-none');
+            clientesContainer.style.display = 'none';
+          }
+          if (clientesSelect) {
+            clientesSelect.required = false;
+            // Limpiar selección si no es cliente específico
+            if (clientesSelect.selectedOptions) {
+              Array.from(clientesSelect.selectedOptions).forEach(option => {
+                option.selected = false;
+              });
+            }
+            // Limpiar checkboxes
+            document.querySelectorAll('.cliente-checkbox').forEach(cb => {
+              cb.checked = false;
+            });
+            updateClientesButtonText();
+          }
+        }
+      }
+
+      function initClientesDropdown() {
+        const dropdownBtn = document.getElementById('clientesDropdownBtn');
+        const dropdownMenu = document.getElementById('clientesDropdownMenu');
+        const clientesCheckboxes = document.querySelectorAll('.cliente-checkbox');
+        const clientesSelect = document.getElementById('id_clientes');
+
+        if (!dropdownBtn || !dropdownMenu || !clientesSelect) return;
+
+        // Sincronizar checkboxes con el select oculto al cargar
+        Array.from(clientesSelect.options).forEach(option => {
+          if (option.selected) {
+            const checkbox = document.getElementById(`cliente_checkbox_${option.value}`);
+            if (checkbox) checkbox.checked = true;
+          }
+        });
+        updateClientesButtonText();
+
+        // Toggle dropdown al hacer click en el botón
+        dropdownBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          const isVisible = dropdownMenu.style.display === 'block';
+          dropdownMenu.style.display = isVisible ? 'none' : 'block';
+          const icon = dropdownBtn.querySelector('i');
+          if (icon) {
+            icon.classList.toggle('fa-chevron-down', !isVisible);
+            icon.classList.toggle('fa-chevron-up', isVisible);
+          }
+        });
+
+        // Manejar cambios en los checkboxes
+        clientesCheckboxes.forEach(checkbox => {
+          checkbox.addEventListener('change', function() {
+            const clienteId = this.value;
+            const option = Array.from(clientesSelect.options).find(opt => opt.value === clienteId);
+            
+            if (this.checked) {
+              if (option) option.selected = true;
+            } else {
+              if (option) option.selected = false;
+            }
+            
+            updateClientesButtonText();
+          });
+        });
+
+        // Cerrar dropdown al hacer click fuera
+        document.addEventListener('click', function(e) {
+          if (!dropdownBtn.contains(e.target) && !dropdownMenu.contains(e.target)) {
+            dropdownMenu.style.display = 'none';
+            const icon = dropdownBtn.querySelector('i');
+            if (icon) {
+              icon.classList.remove('fa-chevron-up');
+              icon.classList.add('fa-chevron-down');
+            }
+          }
+        });
+
+        function updateClientesButtonText() {
+          const selectedCheckboxes = document.querySelectorAll('.cliente-checkbox:checked');
+          const selectedText = document.getElementById('clientesSelectedText');
+          
+          if (selectedCheckboxes.length === 0) {
+            selectedText.textContent = 'Selecciona uno o más clientes';
+            selectedText.classList.add('text-muted');
+          } else {
+            const nombres = Array.from(selectedCheckboxes).map(cb => {
+              const label = document.querySelector(`label[for="${cb.id}"]`);
+              return label ? label.textContent.trim() : '';
+            });
+            if (selectedCheckboxes.length === 1) {
+              selectedText.textContent = nombres[0];
+            } else {
+              selectedText.textContent = `${selectedCheckboxes.length} clientes seleccionados`;
+            }
+            selectedText.classList.remove('text-muted');
+          }
+        }
+      }
+
+      if (tipoSelect) {
+        tipoSelect.addEventListener('change', toggleTipo);
+        toggleTipo();
+      }
+      
+      if (condicionSelect) {
+        condicionSelect.addEventListener('change', toggleCondicion);
+        toggleCondicion();
+      }
+      
+      if (alcanceSelect) {
+        alcanceSelect.addEventListener('change', toggleAlcance);
+        toggleAlcance();
+      }
+    }
+
+    // Intentar inicializar inmediatamente si el DOM ya está listo
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initPromocionForm);
+    } else {
+      // Si el DOM ya está listo, usar un pequeño delay para asegurar que el formulario esté renderizado
+      setTimeout(initPromocionForm, 50);
+    }
+  })();
+</script>
+{% endblock %}

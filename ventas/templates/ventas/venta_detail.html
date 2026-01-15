@@ -639,7 +639,9 @@
                                                 <th>Estado</th>
                                                 <th>Comprobante</th>
                                                 <th>Registrado por</th>
+                                                {% if user_rol == 'CONTADOR' %}
                                                 <th>Acciones</th>
+                                                {% endif %}
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -668,9 +670,13 @@
                                                             <span class="badge bg-info">Crédito - Pendiente de validación</span>
                                                         {% elif venta.modo_pago_apertura in 'TRN,TAR,DEP' %}
                                                             {% if venta.comprobante_apertura_subido and venta.comprobante_apertura %}
-                                                                <a href="{{ venta.comprobante_apertura.url }}" target="_blank" class="btn btn-sm btn-outline-primary" title="Ver comprobante">
-                                                                    <i class="fas fa-image"></i> Ver
-                                                                </a>
+                                                                {% if venta.estado_confirmacion == 'EN_CONFIRMACION' %}
+                                                                <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalEditarComprobanteApertura" title="Editar comprobante">
+                                                                    <i class="fas fa-edit"></i> Editar
+                                                                </button>
+                                                                {% else %}
+                                                                <span class="text-muted">-</span>
+                                                                {% endif %}
                                                             {% elif venta.estado_confirmacion == 'EN_CONFIRMACION' %}
                                                                 <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#modalComprobanteApertura" title="Subir comprobante">
                                                                     <i class="fas fa-upload"></i> Subir
@@ -709,9 +715,13 @@
                                                     <td>
                                                         {% if abono.forma_pago in 'TRN,TAR,DEP' %}
                                                             {% if abono.comprobante_subido and abono.comprobante_imagen %}
-                                                                <a href="{{ abono.comprobante_imagen.url }}" target="_blank" class="btn btn-sm btn-outline-primary" title="Ver comprobante">
-                                                                    <i class="fas fa-image"></i> Ver
-                                                                </a>
+                                                                {% if not abono.confirmado %}
+                                                                <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalEditarComprobanteAbono{{ abono.pk }}" title="Editar comprobante">
+                                                                    <i class="fas fa-edit"></i> Editar
+                                                                </button>
+                                                                {% else %}
+                                                                <span class="text-muted">-</span>
+                                                                {% endif %}
                                                             {% elif not abono.confirmado %}
                                                                 <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#modalComprobanteAbono{{ abono.pk }}" title="Subir comprobante">
                                                                     <i class="fas fa-upload"></i> Subir
@@ -729,6 +739,20 @@
                                                             <br><small class="text-muted"><i class="fas fa-file-invoice text-info"></i> Requiere factura</small>
                                                         {% endif %}
                                                     </td>
+                                                    {% if user_rol == 'CONTADOR' %}
+                                                    <td>
+                                                        {% if abono.forma_pago in 'TRN,TAR,DEP' and not abono.confirmado and abono.comprobante_subido %}
+                                                            <form method="post" action="{% url 'confirmar_abono' abono_id=abono.pk %}" style="display: inline;">
+                                                                {% csrf_token %}
+                                                                <button type="submit" class="btn btn-sm btn-success" title="Confirmar abono">
+                                                                    <i class="fas fa-check"></i> Confirmar
+                                                                </button>
+                                                            </form>
+                                                        {% else %}
+                                                            <span class="text-muted">-</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    {% endif %}
                                                 </tr>
                                                 {% endfor %}
                                                 {% if venta.descuento_kilometros_mxn and venta.descuento_kilometros_mxn > 0 %}
@@ -739,7 +763,9 @@
                                                     <td><span class="badge bg-success"><i class="fas fa-check"></i> Confirmado</span></td>
                                                     <td><span class="text-muted">-</span></td>
                                                     <td>{{ venta.vendedor.username|default:"Sistema" }}</td>
+                                                    {% if user_rol == 'CONTADOR' %}
                                                     <td><span class="text-muted">-</span></td>
+                                                    {% endif %}
                                                 </tr>
                                                 {% endif %}
                                                 {% if venta.descuento_promociones_mxn and venta.descuento_promociones_mxn > 0 %}
@@ -750,7 +776,9 @@
                                                     <td><span class="badge bg-success"><i class="fas fa-check"></i> Confirmado</span></td>
                                                     <td><span class="text-muted">-</span></td>
                                                     <td>{{ venta.vendedor.username|default:"Sistema" }}</td>
+                                                    {% if user_rol == 'CONTADOR' %}
                                                     <td><span class="text-muted">-</span></td>
+                                                    {% endif %}
                                                 </tr>
                                                 {% endif %}
                                             </tbody>
@@ -860,7 +888,7 @@
                                                         {# Campo oculto para preservar el valor cuando está deshabilitado #}
                                                         <input type="hidden" 
                                                                name="{{ row.form.monto_planeado.name }}" 
-                                                               value="{{ row.servicio.monto_planeado|floatformat:2 }}">
+                                                               value="{{ row.servicio.monto_planeado|stringformat:'.2f' }}">
                                                         <input type="text" 
                                                                id="{{ row.form.monto_planeado.id_for_label }}_display"
                                                                value="{{ row.servicio.monto_planeado|floatformat:2 }}" 
@@ -1071,6 +1099,50 @@
     </div>
 </div>
 
+<!-- Modal para editar comprobante de apertura (cuando ya está subido pero no confirmado) -->
+{% if venta.modo_pago_apertura in 'TRN,TAR,DEP' and venta.estado_confirmacion == 'EN_CONFIRMACION' and venta.comprobante_apertura_subido and venta.comprobante_apertura %}
+<div class="modal fade" id="modalEditarComprobanteApertura" tabindex="-1" aria-labelledby="modalEditarComprobanteAperturaLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="modalEditarComprobanteAperturaLabel">
+                    <i class="fas fa-edit"></i> Editar Comprobante de Apertura
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'subir_comprobante_apertura' pk=venta.pk %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <p class="text-muted">Apertura: <strong>${{ venta.cantidad_apertura|floatformat:2|intcomma }}</strong> - {{ venta.get_modo_pago_apertura_display }}</p>
+                    {% if venta.comprobante_apertura %}
+                    <div class="mb-3">
+                        <label class="form-label">Comprobante actual:</label>
+                        <div>
+                            <a href="{{ venta.comprobante_apertura.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-image"></i> Ver actual
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <p class="text-muted">Sube una nueva imagen del comprobante para reemplazar la actual.</p>
+                    <div class="mb-3">
+                        <label for="comprobante_apertura_editar" class="form-label">Nueva Imagen del Comprobante <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" id="comprobante_apertura_editar" name="comprobante_apertura" accept="image/*,.pdf" required>
+                        <div class="form-text">Formatos aceptados: JPG, PNG, PDF. La imagen se comprimirá automáticamente.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-save"></i> Actualizar Comprobante
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Modales para subir comprobante de abonos (uno por cada abono pendiente) -->
 {% for abono in abonos %}
     {% if abono.forma_pago in 'TRN,TAR,DEP' and not abono.confirmado and not abono.comprobante_subido %}
@@ -1098,6 +1170,50 @@
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                         <button type="submit" class="btn btn-warning">
                             <i class="fas fa-upload"></i> Subir Comprobante
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Modal para editar comprobante (cuando ya está subido pero no confirmado) -->
+    {% if abono.forma_pago in 'TRN,TAR,DEP' and not abono.confirmado and abono.comprobante_subido %}
+    <div class="modal fade" id="modalEditarComprobanteAbono{{ abono.pk }}" tabindex="-1" aria-labelledby="modalEditarComprobanteAbonoLabel{{ abono.pk }}" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title" id="modalEditarComprobanteAbonoLabel{{ abono.pk }}">
+                        <i class="fas fa-edit"></i> Editar Comprobante de Abono
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" action="{% url 'subir_comprobante_abono' pk=abono.pk %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <p class="text-muted">Abono: <strong>${{ abono.monto|floatformat:2|intcomma }}</strong> - {{ abono.get_forma_pago_display }}</p>
+                        {% if abono.comprobante_imagen %}
+                        <div class="mb-3">
+                            <label class="form-label">Comprobante actual:</label>
+                            <div>
+                                <a href="{{ abono.comprobante_imagen.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-image"></i> Ver actual
+                                </a>
+                            </div>
+                        </div>
+                        {% endif %}
+                        <p class="text-muted">Sube una nueva imagen del comprobante para reemplazar la actual.</p>
+                        <div class="mb-3">
+                            <label for="comprobante_imagen_editar{{ abono.pk }}" class="form-label">Nueva Imagen del Comprobante <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control" id="comprobante_imagen_editar{{ abono.pk }}" name="comprobante_imagen" accept="image/*,.pdf" required>
+                            <div class="form-text">Formatos aceptados: JPG, PNG, PDF. La imagen se comprimirá automáticamente.</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-warning">
+                            <i class="fas fa-save"></i> Actualizar Comprobante
                         </button>
                     </div>
                 </form>

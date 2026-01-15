@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load humanize %}
 
-{% block title %}Hospedaje - Venta #{{ venta.id }}{% endblock %}
+{% block title %}Hospedaje - Venta {{ venta.folio|default:venta.id }}{% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap">
@@ -76,6 +76,7 @@
     /* Para Firefox */
     input[type="number"] {
         -moz-appearance: textfield;
+        appearance: textfield;
     }
     
     input[type="number"]::-webkit-inner-spin-button {
@@ -104,7 +105,7 @@
 <div class="row">
     <div class="col-12">
         <h1 class="mb-4">
-            <i class="fas fa-hotel"></i> Plantilla: Hospedaje - Venta #{{ venta.id }}
+            <i class="fas fa-hotel"></i> Plantilla: Hospedaje - Venta {{ venta.folio|default:venta.id }}
         </h1>
         
         <div class="mb-4">

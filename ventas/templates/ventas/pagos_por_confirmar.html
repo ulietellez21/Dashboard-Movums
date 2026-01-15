@@ -69,7 +69,7 @@
                                                 <td>{{ abono.fecha_pago|date:"d/M/y H:i" }}</td>
                                                 <td>
                                                     <a href="{% url 'detalle_venta' pk=abono.venta.pk slug=abono.venta.slug_safe %}" class="text-decoration-none">
-                                                        #{{ abono.venta.pk }}
+                                                        {{ abono.venta.folio|default:abono.venta.id }}
                                                     </a>
                                                 </td>
                                                 <td>{{ abono.venta.cliente.nombre_completo_display }}</td>
@@ -147,13 +147,13 @@
                                                 <td>{{ venta.fecha_creacion|date:"d/M/y H:i" }}</td>
                                                 <td>
                                                     <a href="{% url 'detalle_venta' pk=venta.pk slug=venta.slug_safe %}" class="text-decoration-none">
-                                                        #{{ venta.pk }}
+                                                        {{ venta.folio|default:venta.id }}
                                                     </a>
                                                 </td>
                                                 <td>{{ venta.cliente.nombre_completo_display }}</td>
                                                 <td><strong>${{ venta.cantidad_apertura|floatformat:2|intcomma }}</strong></td>
                                                 <td>
-                                                    <span class="badge {% if venta.modo_pago_apertura == 'TRN' %}bg-primary{% elif venta.modo_pago_apertura == 'TAR' %}bg-info{% elif venta.modo_pago_apertura == 'DEP' %}bg-secondary{% elif venta.modo_pago_apertura == 'EFE' %}bg-success{% else %}bg-secondary{% endif %}">
+                                                    <span class="badge {% if venta.modo_pago_apertura == 'TRN' %}bg-primary{% elif venta.modo_pago_apertura == 'TAR' %}bg-info{% elif venta.modo_pago_apertura == 'DEP' %}bg-secondary{% elif venta.modo_pago_apertura == 'CRE' %}bg-warning{% elif venta.modo_pago_apertura == 'EFE' %}bg-success{% else %}bg-secondary{% endif %}">
                                                         {{ venta.get_modo_pago_apertura_display }}
                                                     </span>
                                                 </td>
@@ -280,7 +280,7 @@
                                                 <td>{{ abono.confirmado_en|date:"d/M/y H:i" }}</td>
                                                 <td>
                                                     <a href="{% url 'detalle_venta' pk=abono.venta.pk slug=abono.venta.slug_safe %}" class="text-decoration-none">
-                                                        #{{ abono.venta.pk }}
+                                                        {{ abono.venta.folio|default:abono.venta.id }}
                                                     </a>
                                                 </td>
                                                 <td>{{ abono.venta.cliente.nombre_completo_display }}</td>
@@ -332,13 +332,13 @@
                                                 <td>{{ venta.fecha_creacion|date:"d/M/y H:i" }}</td>
                                                 <td>
                                                     <a href="{% url 'detalle_venta' pk=venta.pk slug=venta.slug_safe %}" class="text-decoration-none">
-                                                        #{{ venta.pk }}
+                                                        {{ venta.folio|default:venta.id }}
                                                     </a>
                                                 </td>
                                                 <td>{{ venta.cliente.nombre_completo_display }}</td>
                                                 <td><strong>${{ venta.cantidad_apertura|floatformat:2|intcomma }}</strong></td>
                                                 <td>
-                                                    <span class="badge {% if venta.modo_pago_apertura == 'TRN' %}bg-primary{% elif venta.modo_pago_apertura == 'TAR' %}bg-info{% elif venta.modo_pago_apertura == 'DEP' %}bg-secondary{% elif venta.modo_pago_apertura == 'EFE' %}bg-success{% else %}bg-secondary{% endif %}">
+                                                    <span class="badge {% if venta.modo_pago_apertura == 'TRN' %}bg-primary{% elif venta.modo_pago_apertura == 'TAR' %}bg-info{% elif venta.modo_pago_apertura == 'DEP' %}bg-secondary{% elif venta.modo_pago_apertura == 'CRE' %}bg-warning{% elif venta.modo_pago_apertura == 'EFE' %}bg-success{% else %}bg-secondary{% endif %}">
                                                         {{ venta.get_modo_pago_apertura_display }}
                                                     </span>
                                                 </td>

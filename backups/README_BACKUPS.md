@@ -74,3 +74,13 @@ tar -czf backup_codigo_$(date +%Y%m%d_%H%M%S).tar.gz .
 
 
 
+
+
+
+
+
+
+
+
+
+

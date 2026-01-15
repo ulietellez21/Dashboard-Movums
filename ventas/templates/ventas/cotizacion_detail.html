@@ -409,7 +409,7 @@
                 }
             });
         }
-
+        
         // Agregar event listeners para las opciones de vuelo
         document.querySelectorAll('.opcion-vuelo').forEach(card => {
             card.addEventListener('click', function() {
@@ -423,8 +423,8 @@
             card.addEventListener('click', function() {
                 const index = parseInt(this.getAttribute('data-opcion-index'));
                 seleccionarOpcionHotel(index);
+                    });
             });
-        });
 
         // Inicializar: seleccionar la primera opción por defecto para vuelos y hospedaje
         const primeraOpcionVuelo = document.querySelector('.opcion-vuelo');

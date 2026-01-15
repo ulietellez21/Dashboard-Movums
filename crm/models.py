@@ -246,8 +246,11 @@ class HistorialKilometros(models.Model):
         ('REFERIDO', 'Bonificación por referido'),
         ('CUMPLE', 'Bonificación por cumpleaños'),
         ('CAMPANIA', 'Campaña especial'),
+        ('BONO_PROMOCION', 'Bono de promoción'),
         ('AJUSTE', 'Ajuste manual'),
         ('REDENCION', 'Redención aplicada'),
+        ('REVERSION_CANCELACION', 'Reversión por cancelación'),
+        ('REVERSION_REDENCION', 'Reversión de redención'),
         ('EXPIRACION', 'Expiración de kilómetros'),
     ]
 
@@ -256,7 +259,7 @@ class HistorialKilometros(models.Model):
         on_delete=models.CASCADE,
         related_name='historial_kilometros'
     )
-    tipo_evento = models.CharField(max_length=12, choices=TIPO_EVENTO)
+    tipo_evento = models.CharField(max_length=25, choices=TIPO_EVENTO)
     descripcion = models.CharField(max_length=255, blank=True, null=True)
     kilometros = models.DecimalField(max_digits=12, decimal_places=2)
     multiplicador = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal('1.00'))
@@ -301,6 +304,7 @@ class PromocionKilometros(models.Model):
         ('TODAS', 'Todas las ventas'),
         ('NAC', 'Solo ventas nacionales'),
         ('INT', 'Solo ventas internacionales'),
+        ('CLIENTE_ESPECIFICO', 'Cliente(s) específico(s)'),
     ]
 
     nombre = models.CharField(max_length=150)
@@ -312,7 +316,16 @@ class PromocionKilometros(models.Model):
 
     condicion = models.CharField(max_length=20, choices=CONDICION_CHOICES, default='SIEMPRE')
     valor_condicion = models.CharField(max_length=20, blank=True, null=True, help_text="Ej: mes=2, o día/mes 14-02")
-    alcance = models.CharField(max_length=10, choices=ALCANCE_CHOICES, default='TODAS')
+    alcance = models.CharField(max_length=20, choices=ALCANCE_CHOICES, default='TODAS')
+    
+    # Clientes específicos para promociones personales (solo aplica si alcance == 'CLIENTE_ESPECIFICO')
+    clientes = models.ManyToManyField(
+        'Cliente',
+        blank=True,
+        related_name='promociones_personales',
+        verbose_name="Clientes específicos",
+        help_text="Selecciona uno o más clientes. Solo aplica si el alcance es 'Cliente(s) específico(s)'."
+    )
 
     requiere_confirmacion = models.BooleanField(default=False)
 
