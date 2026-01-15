@@ -3313,6 +3313,9 @@ class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                     nueva_password=nueva_contrasena if nueva_contrasena else None
                 )
                 
+                # Refrescar el ejecutivo desde la base de datos para asegurar que las relaciones estén cargadas
+                ejecutivo.refresh_from_db()
+                
                 if password:
                     if action == 'editar':
                         messages.success(

@@ -62,33 +62,37 @@
                             </td>
                             <td>{{ ejecutivo.telefono }}</td>
                             <td>
-                                {% with ejecutivo.usuario.perfil.rol|default:""|upper as rol_ej %}
-                                    {% if rol_ej == 'JEFE' %}
-                                        <span class="badge bg-danger text-white">Jefe</span>
-                                    {% elif rol_ej == 'DIRECTOR_GENERAL' %}
-                                        <span class="badge bg-primary text-white">Director General</span>
-                                    {% elif rol_ej == 'DIRECTOR_VENTAS' %}
-                                        <span class="badge bg-primary text-white">Director de Ventas</span>
-                                    {% elif rol_ej == 'DIRECTOR_ADMINISTRATIVO' %}
-                                        <span class="badge bg-primary text-white">Director Administrativo</span>
-                                    {% elif rol_ej == 'GERENTE' %}
-                                        <span class="badge bg-info text-white">Gerente</span>
-                                    {% elif rol_ej == 'CONTADOR' %}
-                                        <span class="badge bg-secondary text-white">Contador</span>
-                                    {% elif rol_ej == 'VENDEDOR' %}
-                                        {% if ejecutivo.tipo_vendedor == 'MOSTRADOR' %}
-                                            <span class="badge bg-info text-white">Asesor de Mostrador</span>
-                                        {% elif ejecutivo.tipo_vendedor == 'CAMPO' %}
-                                            <span class="badge bg-warning text-dark">Asesor de Campo</span>
-                                        {% elif ejecutivo.tipo_vendedor == 'ISLA' %}
-                                            <span class="badge bg-success text-white">Asesor de Isla</span>
+                                {% if ejecutivo.usuario and ejecutivo.usuario.perfil %}
+                                    {% with ejecutivo.usuario.perfil.rol|default:""|upper as rol_ej %}
+                                        {% if rol_ej == 'JEFE' %}
+                                            <span class="badge bg-danger text-white">Jefe</span>
+                                        {% elif rol_ej == 'DIRECTOR_GENERAL' %}
+                                            <span class="badge bg-primary text-white">Director General</span>
+                                        {% elif rol_ej == 'DIRECTOR_VENTAS' %}
+                                            <span class="badge bg-primary text-white">Director de Ventas</span>
+                                        {% elif rol_ej == 'DIRECTOR_ADMINISTRATIVO' %}
+                                            <span class="badge bg-primary text-white">Director Administrativo</span>
+                                        {% elif rol_ej == 'GERENTE' %}
+                                            <span class="badge bg-info text-white">Gerente</span>
+                                        {% elif rol_ej == 'CONTADOR' %}
+                                            <span class="badge bg-secondary text-white">Contador</span>
+                                        {% elif rol_ej == 'VENDEDOR' %}
+                                            {% if ejecutivo.tipo_vendedor == 'MOSTRADOR' %}
+                                                <span class="badge bg-info text-white">Asesor de Mostrador</span>
+                                            {% elif ejecutivo.tipo_vendedor == 'CAMPO' %}
+                                                <span class="badge bg-warning text-dark">Asesor de Campo</span>
+                                            {% elif ejecutivo.tipo_vendedor == 'ISLA' %}
+                                                <span class="badge bg-success text-white">Asesor de Isla</span>
+                                            {% else %}
+                                                <span class="badge bg-success text-white">Asesor</span>
+                                            {% endif %}
                                         {% else %}
-                                            <span class="badge bg-success text-white">Asesor</span>
+                                            <span class="badge bg-secondary">{{ ejecutivo.usuario.perfil.get_rol_display|default:"N/A" }}</span>
                                         {% endif %}
-                                    {% else %}
-                                        <span class="badge bg-secondary">{{ ejecutivo.usuario.perfil.get_rol_display|default:"N/A" }}</span>
-                                    {% endif %}
-                                {% endwith %}
+                                    {% endwith %}
+                                {% else %}
+                                    <span class="badge bg-warning text-dark">Sin Usuario</span>
+                                {% endif %}
                             </td>
                             <td>
                                 {% if ejecutivo.oficina %}
