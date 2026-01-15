@@ -3226,13 +3226,18 @@ class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                 
                 username = self._generar_username_unico(ejecutivo.nombre_completo)
                 password_plano = secrets.token_urlsafe(10)
-                user = User.objects.create_user(
-                    username=username,
-                    password=password_plano,
-                    email=ejecutivo.email,
-                    first_name=first_name,
-                    last_name=last_name
-                )
+                try:
+                    user = User.objects.create_user(
+                        username=username,
+                        password=password_plano,
+                        email=ejecutivo.email,
+                        first_name=first_name,
+                        last_name=last_name
+                    )
+                except Exception as e:
+                    logger.error(f"Error al crear usuario para ejecutivo {ejecutivo.pk}: {str(e)}", exc_info=True)
+                    return None, None
+                
                 # Refrescar el usuario desde la base de datos para asegurar que la señal se haya ejecutado
                 user.refresh_from_db()
                 ejecutivo.usuario = user
@@ -3241,15 +3246,27 @@ class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             else:
                 # Si ya existe usuario, actualizarlo
                 user = ejecutivo.usuario
-                if ejecutivo.email:
+                if not user:
+                    logger.error(f"Ejecutivo {ejecutivo.pk} tiene referencia a usuario pero el usuario es None")
+                    return None, None
+                
+                # Actualizar email solo si se proporciona y es diferente
+                if ejecutivo.email and user.email != ejecutivo.email:
                     user.email = ejecutivo.email
+                
                 user.first_name = first_name
                 user.last_name = last_name
                 if forzar_password:
                     # Si se proporciona una nueva contraseña, usarla; si no, generar una aleatoria
                     password_plano = nueva_password if nueva_password else secrets.token_urlsafe(10)
                     user.set_password(password_plano)
-                user.save()
+                
+                try:
+                    user.save()
+                except Exception as e:
+                    logger.error(f"Error al guardar usuario {user.pk}: {str(e)}", exc_info=True)
+                    raise
+                
                 if password_plano:
                     Ejecutivo.objects.filter(pk=ejecutivo.pk).update(ultima_contrasena=password_plano)
             
@@ -3274,8 +3291,10 @@ class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             
             return user, password_plano
         except Exception as e:
-            logger.error(f"Error al crear/actualizar usuario para ejecutivo {ejecutivo.pk}: {str(e)}", exc_info=True)
-            return None, None
+            error_msg = str(e)
+            logger.error(f"Error al crear/actualizar usuario para ejecutivo {ejecutivo.pk}: {error_msg}", exc_info=True)
+            # Re-raise la excepción para que el código que llama pueda manejarla mejor
+            raise
     
     def post(self, request, *args, **kwargs):
         """Maneja las acciones de crear, editar y eliminar ejecutivos y oficinas."""
@@ -3323,20 +3342,44 @@ class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                     # En creación, siempre generar nueva contraseña
                     regenerar_password = True
                 
-                user, password = self._crear_o_actualizar_usuario(
-                    ejecutivo,
-                    tipo_usuario=tipo_usuario,
-                    forzar_password=regenerar_password,
-                    nueva_password=nueva_contrasena if nueva_contrasena else None
-                )
-                
-                # Verificar que el usuario se creó correctamente
-                if not user:
-                    messages.error(request, "Error al crear/actualizar el usuario. Por favor, intenta nuevamente.")
+                try:
+                    user, password = self._crear_o_actualizar_usuario(
+                        ejecutivo,
+                        tipo_usuario=tipo_usuario,
+                        forzar_password=regenerar_password,
+                        nueva_password=nueva_contrasena if nueva_contrasena else None
+                    )
+                except Exception as e:
+                    # Capturar el error específico de _crear_o_actualizar_usuario
+                    error_msg = str(e)
+                    if "email" in error_msg.lower() or "correo" in error_msg.lower() or "unique" in error_msg.lower():
+                        error_msg = "Error con el correo electrónico. Verifica que sea válido y único."
+                    elif "username" in error_msg.lower():
+                        error_msg = "Error al generar el nombre de usuario. Intenta nuevamente."
+                    else:
+                        error_msg = f"Error al crear/actualizar el usuario: {error_msg}"
+                    messages.error(request, error_msg)
+                    logger.error(f"Error en _crear_o_actualizar_usuario para ejecutivo {ejecutivo.pk}: {error_msg}", exc_info=True)
                     # Mantener el formulario con errores para que se muestren
                     context = self.get_context_data()
                     context['ejecutivo_form'] = form
                     context['mostrar_modal_ejecutivo'] = True
+                    # Pasar el ejecutivo_id para que el modal se abra en modo edición
+                    if action == 'editar' and ejecutivo_id:
+                        context['ejecutivo_id_editar'] = ejecutivo_id
+                    return self.render_to_response(context)
+                
+                # Verificar que el usuario se creó correctamente
+                if not user:
+                    error_msg = "Error al crear/actualizar el usuario. Por favor, verifica que el correo electrónico sea válido y único."
+                    messages.error(request, error_msg)
+                    # Mantener el formulario con errores para que se muestren
+                    context = self.get_context_data()
+                    context['ejecutivo_form'] = form
+                    context['mostrar_modal_ejecutivo'] = True
+                    # Pasar el ejecutivo_id para que el modal se abra en modo edición
+                    if action == 'editar' and ejecutivo_id:
+                        context['ejecutivo_id_editar'] = ejecutivo_id
                     return self.render_to_response(context)
                 
                 # Refrescar el ejecutivo desde la base de datos para asegurar que las relaciones estén cargadas
@@ -3364,9 +3407,18 @@ class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                 return redirect('gestion_roles')
             except Exception as e:
                 # Si hay un error al crear el usuario o perfil, agregarlo al formulario
-                messages.error(request, f"Error al guardar el ejecutivo: {str(e)}")
+                error_msg = f"Error al guardar el ejecutivo: {str(e)}"
+                messages.error(request, error_msg)
                 import traceback
-                logging.error(f"Error al crear ejecutivo: {traceback.format_exc()}")
+                logger.error(f"Error al crear ejecutivo: {traceback.format_exc()}")
+                # Mantener el formulario con errores para que se muestren
+                context = self.get_context_data()
+                context['ejecutivo_form'] = form
+                context['mostrar_modal_ejecutivo'] = True
+                # Pasar el ejecutivo_id para que el modal se abra en modo edición
+                if action == 'editar' and ejecutivo_id:
+                    context['ejecutivo_id_editar'] = ejecutivo_id
+                return self.render_to_response(context)
         else:
             # Si el formulario no es válido, mostrar los errores
             error_messages = []
