@@ -407,10 +407,23 @@ class EjecutivoForm(forms.ModelForm):
 
     def clean_email(self):
         email = self.cleaned_data.get('email')
-        if not email:
-            raise forms.ValidationError("El correo electrónico es obligatorio para generar las credenciales.")
+        tipo_usuario = self.cleaned_data.get('tipo_usuario')
         
-        # Verificar que el email no esté en uso por otro ejecutivo
+        # El email es obligatorio si:
+        # 1. Es un ejecutivo nuevo (no tiene pk), O
+        # 2. Es un ejecutivo existente que no tiene usuario (necesita crear uno)
+        requiere_email = False
+        if not self.instance or not self.instance.pk:
+            # Es un ejecutivo nuevo
+            requiere_email = True
+        elif not self.instance.usuario:
+            # Es un ejecutivo existente pero sin usuario (se necesita crear uno)
+            requiere_email = True
+        
+        if requiere_email and not email:
+            raise forms.ValidationError("El correo electrónico es obligatorio para generar las credenciales del usuario.")
+        
+        # Verificar que el email no esté en uso por otro ejecutivo (solo si se proporciona un email)
         if email:
             from .models import Ejecutivo
             ejecutivos_con_email = Ejecutivo.objects.filter(email=email)

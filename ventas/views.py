@@ -3216,49 +3216,66 @@ class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         password_plano = None
         first_name, last_name = self._split_nombre(ejecutivo.nombre_completo)
         
-        if not ejecutivo.usuario:
-            username = self._generar_username_unico(ejecutivo.nombre_completo)
-            password_plano = secrets.token_urlsafe(10)
-            user = User.objects.create_user(
-                username=username,
-                password=password_plano,
-                email=ejecutivo.email or '',
-                first_name=first_name,
-                last_name=last_name
-            )
-            # Refrescar el usuario desde la base de datos para asegurar que la señal se haya ejecutado
-            user.refresh_from_db()
-            ejecutivo.usuario = user
-            ejecutivo.ultima_contrasena = password_plano
-            ejecutivo.save(update_fields=['usuario', 'ultima_contrasena'])
-        else:
-            user = ejecutivo.usuario
-            user.email = ejecutivo.email or ''
-            user.first_name = first_name
-            user.last_name = last_name
-            if forzar_password:
-                # Si se proporciona una nueva contraseña, usarla; si no, generar una aleatoria
-                password_plano = nueva_password if nueva_password else secrets.token_urlsafe(10)
-                user.set_password(password_plano)
-            user.save()
-            if password_plano:
-                Ejecutivo.objects.filter(pk=ejecutivo.pk).update(ultima_contrasena=password_plano)
-        
-        # Asegurar que el Perfil exista (puede no haberse creado por la señal si hubo algún problema)
         try:
-            perfil = user.perfil
-        except Perfil.DoesNotExist:
-            # Si no existe, crearlo manualmente
-            perfil = Perfil.objects.create(user=user, rol='VENDEDOR')
-        
-        # Asegurar el rol seleccionado
-        roles_validos = ['JEFE', 'DIRECTOR_GENERAL', 'DIRECTOR_VENTAS', 'DIRECTOR_ADMINISTRATIVO', 'GERENTE', 'CONTADOR', 'VENDEDOR']
-        rol_final = tipo_usuario if tipo_usuario in roles_validos else 'VENDEDOR'
-        if perfil.rol != rol_final:
-            perfil.rol = rol_final
-            perfil.save(update_fields=['rol'])
-        
-        return user, password_plano
+            if not ejecutivo.usuario:
+                # Si no hay usuario, crear uno nuevo
+                # Verificar que haya email para crear el usuario (email es necesario para crear credenciales)
+                if not ejecutivo.email:
+                    logger.error(f"No se puede crear usuario para ejecutivo {ejecutivo.pk} sin email")
+                    return None, None
+                
+                username = self._generar_username_unico(ejecutivo.nombre_completo)
+                password_plano = secrets.token_urlsafe(10)
+                user = User.objects.create_user(
+                    username=username,
+                    password=password_plano,
+                    email=ejecutivo.email,
+                    first_name=first_name,
+                    last_name=last_name
+                )
+                # Refrescar el usuario desde la base de datos para asegurar que la señal se haya ejecutado
+                user.refresh_from_db()
+                ejecutivo.usuario = user
+                ejecutivo.ultima_contrasena = password_plano
+                ejecutivo.save(update_fields=['usuario', 'ultima_contrasena'])
+            else:
+                # Si ya existe usuario, actualizarlo
+                user = ejecutivo.usuario
+                if ejecutivo.email:
+                    user.email = ejecutivo.email
+                user.first_name = first_name
+                user.last_name = last_name
+                if forzar_password:
+                    # Si se proporciona una nueva contraseña, usarla; si no, generar una aleatoria
+                    password_plano = nueva_password if nueva_password else secrets.token_urlsafe(10)
+                    user.set_password(password_plano)
+                user.save()
+                if password_plano:
+                    Ejecutivo.objects.filter(pk=ejecutivo.pk).update(ultima_contrasena=password_plano)
+            
+            # Verificar que user no sea None antes de continuar
+            if not user:
+                logger.error(f"Error: user es None después de crear/actualizar para ejecutivo {ejecutivo.pk}")
+                return None, None
+            
+            # Asegurar que el Perfil exista (puede no haberse creado por la señal si hubo algún problema)
+            try:
+                perfil = user.perfil
+            except Perfil.DoesNotExist:
+                # Si no existe, crearlo manualmente
+                perfil = Perfil.objects.create(user=user, rol='VENDEDOR')
+            
+            # Asegurar el rol seleccionado
+            roles_validos = ['JEFE', 'DIRECTOR_GENERAL', 'DIRECTOR_VENTAS', 'DIRECTOR_ADMINISTRATIVO', 'GERENTE', 'CONTADOR', 'VENDEDOR']
+            rol_final = tipo_usuario if tipo_usuario in roles_validos else 'VENDEDOR'
+            if perfil.rol != rol_final:
+                perfil.rol = rol_final
+                perfil.save(update_fields=['rol'])
+            
+            return user, password_plano
+        except Exception as e:
+            logger.error(f"Error al crear/actualizar usuario para ejecutivo {ejecutivo.pk}: {str(e)}", exc_info=True)
+            return None, None
     
     def post(self, request, *args, **kwargs):
         """Maneja las acciones de crear, editar y eliminar ejecutivos y oficinas."""
@@ -3313,6 +3330,15 @@ class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                     nueva_password=nueva_contrasena if nueva_contrasena else None
                 )
                 
+                # Verificar que el usuario se creó correctamente
+                if not user:
+                    messages.error(request, "Error al crear/actualizar el usuario. Por favor, intenta nuevamente.")
+                    # Mantener el formulario con errores para que se muestren
+                    context = self.get_context_data()
+                    context['ejecutivo_form'] = form
+                    context['mostrar_modal_ejecutivo'] = True
+                    return self.render_to_response(context)
+                
                 # Refrescar el ejecutivo desde la base de datos para asegurar que las relaciones estén cargadas
                 ejecutivo.refresh_from_db()
                 
@@ -3330,7 +3356,7 @@ class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                             request,
                             (
                                 f"Ejecutivo '{ejecutivo.nombre_completo}' agregado. "
-                                f"Credenciales -> Usuario: {user.username} / Contraseña: {password}"
+                                f"Credenciales -> Usuario: {user.username if user else 'N/A'} / Contraseña: {password}"
                             )
                         )
                 else:
