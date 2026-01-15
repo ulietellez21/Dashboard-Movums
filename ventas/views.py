@@ -2131,6 +2131,18 @@ class ComprobanteAbonoPDFView(LoginRequiredMixin, DetailView):
         total_pagado = venta.total_pagado
         saldo_restante = venta.saldo_restante
         
+        # Preparar ruta absoluta file:// para el membrete (WeasyPrint necesita URL absoluta)
+        membrete_path = os.path.join(settings.BASE_DIR, 'static', 'img', 'membrete_movums.jpg')
+        membrete_url = None
+        if os.path.exists(membrete_path):
+            # Crear URL file:// absoluta para WeasyPrint
+            membrete_abs_path = os.path.abspath(membrete_path)
+            # En Windows, necesitamos ajustar el formato de la ruta
+            if os.name == 'nt':
+                membrete_url = f"file:///{membrete_abs_path.replace(os.sep, '/')}"
+            else:
+                membrete_url = f"file://{membrete_abs_path}"
+        
         # Obtener el contexto para la plantilla HTML
         context = {
             'venta': venta,
@@ -2138,15 +2150,21 @@ class ComprobanteAbonoPDFView(LoginRequiredMixin, DetailView):
             'total_pagado': total_pagado,
             'saldo_restante': saldo_restante,
             # Incluir TODOS los abonos para el detalle en el PDF (mostrar todos, incluso pendientes)
-            'abonos': venta.abonos.all().order_by('fecha_pago') 
+            'abonos': venta.abonos.all().order_by('fecha_pago'),
+            'membrete_url': membrete_url,  # URL absoluta file:// para WeasyPrint
+            'STATIC_URL': settings.STATIC_URL,
         }
 
         # 1. Renderizar la plantilla HTML
-        # Se usa request.build_absolute_uri() para manejar las rutas absolutas de CSS/Imágenes
         html_string = render_to_string('ventas/comprobante_abonos_pdf.html', context, request=request)
         
         # 2. Generar el PDF con WeasyPrint
-        html = HTML(string=html_string, base_url=request.build_absolute_uri())
+        # Obtener rutas de archivos estáticos para recursos como imágenes
+        static_dir = os.path.join(settings.BASE_DIR, 'static')
+        static_dir_abs = os.path.abspath(static_dir)
+        base_url = f"file://{static_dir_abs}/"
+        
+        html = HTML(string=html_string, base_url=base_url)
         pdf_file = html.write_pdf(stylesheets=[]) # Dejar la lista vacía a menos que se necesite un CSS específico
 
         # 3. Preparar la respuesta HTTP

@@ -1,178 +1,575 @@
-{% load humanize %}
 {% load static %}
+{% load humanize %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comprobante de Abonos - Venta {{ venta.folio|default:venta.id }}</title>
     <style>
-        /* Configuración de página para PDF (WeasyPrint) */
-        @page {
-            size: A4;
-            margin: 1.2cm 0.8cm 2.0cm 0.8cm;
-            background: url("{% static 'img/image1.png' %}") no-repeat top center;
-            background-size: cover;
-        }
-        body {
-            font-family: 'Roboto', Arial, sans-serif;
-            font-size: 12pt;
-            line-height: 1.6;
-            color: #2f2f2f;
-            margin: 0;
-            padding: 150px 30px 60px 30px;
-            background-image: url("{% static 'img/image1.png' %}");
-            background-repeat: no-repeat;
-            background-position: top center;
-            background-size: cover;
-        }
-        .container {
-            max-width: 100%;
-            padding: 0;
-        }
-        .table-wrapper {
-            page-break-inside: avoid;
-            padding-top: 80px;
-        }
-        /* Título principal centrado (tamaño 18) */
-        .titulo-principal {
-            text-align: center;
-            font-family: 'Roboto', Arial, sans-serif;
-            font-size: 18pt;
-            font-weight: bold;
-            color: #004a8e;
-            margin: 10px 0 12px 0;
-            padding: 0;
-        }
-        /* Información de cliente y fecha en la misma línea */
-        .info-venta {
-            text-align: center;
-            font-family: 'Roboto', Arial, sans-serif;
-            font-size: 12pt;
-            margin: 0 0 18px 0;
-            padding: 0;
-        }
-        .info-venta strong {
-            font-weight: bold;
-        }
-        section {
-            margin-bottom: 18px;
-        }
-        section p {
-            margin: 8px 0;
-            font-family: 'Roboto', Arial, sans-serif;
-            font-size: 12pt;
-        }
-        h3 {
-            font-family: 'Roboto', Arial, sans-serif;
-            font-size: 14pt;
-            font-weight: bold;
-            color: #004a8e;
-            border-bottom: 2px solid #004a8e;
-            padding-bottom: 5px;
-            margin-top: 20px;
-            margin-bottom: 12px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-            font-family: 'Roboto', Arial, sans-serif;
-            font-size: 12pt;
-            page-break-inside: avoid;
-        }
-        th {
-            background-color: #004a8e;
-            color: white;
-            font-weight: bold;
-            padding: 10px 8px;
-            text-align: left;
-            border: 1px solid #004a8e;
-        }
-        td {
-            border: 1px solid #dfe3e8;
-            padding: 8px;
-            text-align: left;
-        }
-        tr:nth-child(even) {
-            background-color: #f8f9fb;
-        }
-        .total-pendiente {
-            color: #dc3545;
-            font-weight: bold;
-        }
-        .info-line {
-            margin: 10px 0;
-            font-family: 'Roboto', Arial, sans-serif;
-            font-size: 12pt;
-        }
-        .info-line strong {
-            font-weight: bold;
-        }
+/* ============================================
+   ESTILOS PARA PDFs DE COMPROBANTE DE ABONOS
+   DISEÑO MINIMALISTA MODERNO Y LLAMATIVO
+   Generados con WeasyPrint
+   ============================================ */
+{% if membrete_url %}
+    /* CONFIGURACIÓN CON MEMBRETE (FONDO COMPLETO) */
+    @page {
+        size: letter;
+        margin: 0; /* IMPORTANTE: Margen 0 para que la imagen toque los bordes */
+        
+        /* Imagen de fondo cubriendo toda la hoja */
+        background-image: url("{{ membrete_url }}");
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: cover; /* cover asegura que llene toda la hoja sin deformarse */
+    }
+{% else %}
+    /* CONFIGURACIÓN SIN MEMBRETE (DEFAULT) */
+    @page {
+        size: letter;
+        margin: 1.5cm;
+    }
+{% endif %}
+
+/* Variables de color Movums - Paleta del Brandboard */
+:root {
+    /* Colores principales del brandboard */
+    --movums-navy: #1A2346;            /* Deep Navy Blue */
+    --movums-violet: #5A429C;          /* Violet/Dark Purple */
+    --movums-royal: #3B72F4;           /* Royal Blue */
+    --movums-medium: #2C96EB;          /* Medium Blue */
+    --movums-light: #4FC3F7;           /* Light Blue/Cyan */
+    --movums-pale: #E3F2FD;            /* Very Light Blue */
+    --movums-green: #8BC34A;           /* Lime Green/Accent */
+    --movums-charcoal: #202124;        /* Dark Charcoal/Black */
+    
+    /* Colores funcionales */
+    --movums-primary: var(--movums-navy);
+    --movums-secondary: var(--movums-royal);
+    --movums-blue-corp: var(--movums-navy);
+    --movums-blue: var(--movums-navy);
+    
+    /* Texto y fondos */
+    --text-primary: var(--movums-charcoal);
+    --text-secondary: #4a5568;
+    --text-muted: #718096;
+    --border-light: #E5E7EB;
+    --border-medium: #CBD5E0;
+    --bg-section: #F9FAFB;
+    --bg-white: #ffffff;
+    --accent-blue: var(--movums-royal);
+    --accent-light: var(--movums-pale);
+    --success: var(--movums-green);
+    
+    /* Espaciado */
+    --spacing-xs: 6px;
+    --spacing-sm: 12px;
+    --spacing-md: 20px;
+    --spacing-lg: 32px;
+    --spacing-xl: 48px;
+}
+
+/* Reset y base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Pangea', 'Arial', 'Helvetica', 'Segoe UI', sans-serif;
+    font-size: 9pt;
+    color: var(--text-primary);
+    line-height: 1.5;
+    background: transparent;
+    width: 100%;
+    min-height: 100vh;
+    box-sizing: border-box;
+    
+    /* Padding para proteger el contenido de tocar los bordes del membrete */
+    padding-top: 3.5cm;    /* Espacio para el logo superior */
+    padding-bottom: 2.5cm; /* Espacio para el pie de página */
+    padding-left: 2.0cm;   /* Espacio lateral */
+    padding-right: 2.0cm;  /* Espacio lateral */
+}
+
+/* ============================================
+   CONTENEDOR PRINCIPAL
+   ============================================ */
+.comprobante-container {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* Spacer para separar el contenido del membrete */
+.spacer-top {
+    height: 48px;
+    display: block;
+}
+
+/* Evitar que las cards y secciones se partan entre páginas */
+.card {
+    page-break-before: auto;
+    page-break-inside: avoid;
+    page-break-after: avoid;
+    margin-top: 0;
+    margin-bottom: 8px;
+}
+
+.info-section {
+    page-break-before: auto;
+    page-break-inside: avoid;
+    margin-top: 0;
+}
+
+/* ============================================
+   CARDS - DISEÑO MODERNO Y LLAMATIVO
+   ============================================ */
+.card {
+    background: white;
+    border: none;
+    border-radius: 8px;
+    padding: 0;
+    margin: 0 0 8px 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    page-break-inside: avoid;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.card-header {
+    background: #004a8e;
+    color: white;
+    font-size: 14pt;
+    font-weight: 700;
+    margin: 0;
+    padding: 10px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    box-sizing: border-box;
+    border-bottom: none;
+    position: relative;
+    flex-direction: row;
+    min-height: 44px;
+    overflow: visible;
+    border-radius: 6px 6px 0 0;
+}
+
+/* ============================================
+   INFORMACIÓN DE CLIENTE Y VENTA
+   ============================================ */
+.info-section {
+    margin-bottom: 0;
+    width: 100%;
+    box-sizing: border-box;
+    background: transparent;
+    padding: 0;
+}
+
+.info-section-layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    margin-top: 0;
+    page-break-inside: avoid;
+    justify-content: flex-start;
+    max-width: 100%;
+    width: 100%;
+}
+
+.info-section-main {
+    flex: 2;
+    min-width: 0;
+    max-width: 58%;
+}
+
+.info-section-sidebar {
+    flex: 1;
+    min-width: 300px;
+    max-width: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-left: -180px;
+    align-items: stretch;
+}
+
+.info-card-client {
+    background: white !important;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    padding: 0 !important;
+    overflow: hidden;
+    border: none;
+}
+
+.info-card-client .info-table {
+    padding: 0;
+    margin: 0;
+    border: none;
+}
+
+/* Tarjetas laterales con colores */
+.sidebar-card {
+    background: #3B72F4;
+    border-radius: 6px;
+    padding: 18px 22px;
+    box-shadow: 0 2px 6px rgba(59, 114, 244, 0.2);
+    color: white;
+    page-break-inside: avoid;
+    border: none;
+    overflow: visible;
+    box-sizing: border-box;
+}
+
+.sidebar-card.purple {
+    background: #5A429C;
+    box-shadow: 0 2px 6px rgba(90, 66, 156, 0.2);
+}
+
+.sidebar-card.blue {
+    background: #4FC3F7;
+    box-shadow: 0 2px 6px rgba(79, 195, 247, 0.2);
+}
+
+.sidebar-card-title {
+    font-size: 12pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-bottom: 16px;
+    padding-bottom: 0;
+    border-bottom: none;
+    color: white;
+    line-height: 1.4;
+}
+
+.sidebar-card-content {
+    font-size: 9pt;
+    line-height: 1.7;
+}
+
+.sidebar-card-item {
+    margin-bottom: 14px;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.sidebar-card-item:last-child {
+    margin-bottom: 0;
+}
+
+.sidebar-card-label {
+    font-size: 8pt;
+    opacity: 0.95;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.sidebar-card-value {
+    font-size: 10.5pt;
+    font-weight: 700;
+    opacity: 1;
+    color: white;
+    line-height: 1.5;
+    word-wrap: break-word;
+}
+
+.info-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 0;
+    background: white;
+    box-sizing: border-box;
+    padding: 0;
+    display: table;
+    border: none;
+    page-break-inside: avoid;
+}
+
+.info-table tr {
+    background: transparent;
+    border-bottom: 1px solid #e2e8f0;
+    page-break-inside: avoid;
+    page-break-after: avoid;
+}
+
+.info-table tr:last-child {
+    border-bottom: none;
+}
+
+.info-table td {
+    padding: 10px 8px;
+    border: none;
+    vertical-align: middle;
+    font-size: 9.5pt;
+    line-height: 1.5;
+    page-break-inside: avoid;
+}
+
+.info-table td:first-child {
+    font-weight: 600;
+    color: #1e3a5f;
+    width: 35%;
+    font-size: 9.5pt;
+    text-transform: none;
+    letter-spacing: 0.2px;
+    background: transparent;
+    padding-right: 12px;
+}
+
+.info-table td:last-child {
+    color: #2c5282;
+    font-size: 9.5pt;
+    font-weight: 400;
+    background: transparent;
+}
+
+.info-table tr:nth-child(even) {
+    background: #f8f9fa;
+}
+
+.info-table tr:nth-child(even) td {
+    background: transparent;
+}
+
+.info-table {
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* ============================================
+   TABLAS DE DATOS
+   ============================================ */
+.data-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 8px 0 0 0 !important;
+    background: white;
+    box-sizing: border-box;
+    padding: 6px 12px !important;
+    display: table;
+    border-radius: 8px;
+    overflow: hidden;
+    page-break-inside: avoid;
+}
+
+.data-table tr {
+    background: transparent;
+    border-bottom: 1px solid #e2e8f0;
+    page-break-inside: avoid;
+    page-break-after: avoid;
+}
+
+.data-table tr:last-child {
+    border-bottom: none;
+}
+
+.data-table th {
+    background: transparent;
+    color: var(--movums-navy);
+    padding: 12px 0;
+    text-align: left;
+    font-weight: 600;
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    border: none;
+}
+
+.data-table td {
+    padding: 8px 0 !important;
+    border: none;
+    font-size: 9pt;
+    vertical-align: middle;
+    line-height: 1.4 !important;
+    page-break-inside: avoid;
+}
+
+.data-table tr:nth-child(even) {
+    background: rgba(227, 242, 253, 0.3);
+}
+
+.data-table tr:nth-child(even) td {
+    background: transparent;
+}
+
+/* Estados */
+.estado-pendiente {
+    color: #856404;
+    font-weight: 600;
+}
+
+.estado-confirmado {
+    color: #155724;
+    font-weight: 600;
+}
+
+.total-pendiente {
+    color: #dc3545;
+    font-weight: 700;
+    font-size: 11pt;
+}
+
+/* ============================================
+   SUBTÍTULOS
+   ============================================ */
+.subtitulo-vineta {
+    color: var(--movums-blue-corp);
+    font-size: 14pt;
+    font-weight: 700;
+    margin: 20px 0 15px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    letter-spacing: -0.3px;
+    text-transform: uppercase;
+    box-sizing: border-box;
+    line-height: 1.6;
+}
+
+.subtitulo-vineta::before {
+    content: "▸";
+    color: var(--movums-blue-corp);
+    font-size: 18pt;
+    font-weight: bold;
+    margin-right: 6px;
+}
+
+/* ============================================
+   UTILIDADES
+   ============================================ */
+.text-center {
+    text-align: center;
+}
+
+.text-right {
+    text-align: right;
+}
+
+.text-bold {
+    font-weight: 700;
+}
+
+.text-muted {
+    color: var(--text-muted);
+}
+
+.separator {
+    height: 2px;
+    background: linear-gradient(to right, transparent, var(--border-medium), transparent);
+    margin: 36px 0;
+}
+
+.spacer {
+    height: 28px;
+}
     </style>
 </head>
 <body>
-<div class="container">
-    <!-- Título principal centrado -->
-    <h1 class="titulo-principal">COMPROBANTE DE ABONOS</h1>
+<div class="comprobante-container">
+    <!-- Spacer para separar del membrete -->
+    <div class="spacer-top"></div>
     
-    <!-- Información de cliente y fecha en la misma línea -->
-    <div class="info-venta">
-        <strong>Cliente:</strong> {{ venta.cliente.nombre_completo_display }} | <strong>Fecha de Generación:</strong> {{ now|date:"d/m/Y H:i" }}
-    </div>
-
-    <section>
-        <div class="info-line">
-            <strong>Número de Venta:</strong> {{ venta.folio|default:venta.id }}
-        </div>
-        <div class="info-line">
-            <strong>Fecha de Viaje:</strong> {{ venta.fecha_inicio_viaje|date:"d/m/Y" }}
-        </div>
-        <div class="info-line">
-            <strong>Asesor:</strong> {{ venta.vendedor.username }}
-        </div>
-    </section>
-
-    <section>
-        <h3>Resumen Financiero</h3>
-        {% if venta.tipo_viaje == 'INT' and venta.tipo_cambio and venta.tipo_cambio > 0 %}
-            <div class="info-line">
-                {% if venta.tipo_cambio and venta.tipo_cambio > 0 %}
-                    {% widthratio venta.costo_modificacion venta.tipo_cambio 1 as costo_modificacion_usd %}
-                {% else %}
-                    {% with 0 as costo_modificacion_usd %}{% endwith %}
-                {% endif %}
-                <strong>Costo Total del Viaje:</strong> USD ${{ venta.costo_total_con_modificacion_usd|floatformat:2|intcomma }}{% if venta.costo_modificacion and venta.costo_modificacion > 0 %} (incluye modificación: USD ${{ costo_modificacion_usd|floatformat:2|intcomma }}){% endif %}
-            </div>
-            <div class="info-line">
-                <strong>Total Abonado hasta la fecha:</strong> USD ${{ venta.total_pagado_usd|floatformat:2|intcomma }}
-            </div>
-            <div class="info-line">
-                <strong>Saldo Pendiente:</strong> <span class="total-pendiente">USD ${{ venta.saldo_restante_usd|floatformat:2|intcomma }}</span>
-            </div>
-            {% if venta.tipo_cambio %}
-                <div class="info-line">
-                    <strong>Tipo de Cambio:</strong> 1 USD = ${{ venta.tipo_cambio|floatformat:4|intcomma }} MXN
+    <!-- Información de cliente y venta -->
+    <div class="info-section">
+        <div class="info-section-layout">
+            <div class="info-section-main">
+                <div class="card info-card-client">
+                    <div style="padding: 0 0 20px 0; border-bottom: none;">
+                        <div style="font-size: 9pt; color: #4a5568; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; font-weight: 500;">COMPROBANTE DE ABONOS PARA</div>
+                        <div style="font-size: 28pt; font-weight: 700; color: #2d3748; margin-bottom: 20px; letter-spacing: -0.5px; line-height: 1.2; display: flex; align-items: center; gap: 12px;">
+                            <span style="font-size: 32pt;">👤</span>
+                            <span>{{ venta.cliente.nombre_completo_display }}</span>
+                        </div>
+                    </div>
+                    <table class="info-table">
+                        <tr>
+                            <td>📅 Fecha de Comprobante:</td>
+                            <td>{{ now|date:"d/m/Y" }}</td>
+                        </tr>
+                        <tr>
+                            <td>✈️ Fecha de Viaje:</td>
+                            <td>{{ venta.fecha_inicio_viaje|date:"d/m/Y"|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <td>👨‍💼 Asesor:</td>
+                            <td>{{ venta.vendedor.get_full_name|default:venta.vendedor.username }}</td>
+                        </tr>
+                    </table>
                 </div>
-            {% endif %}
-        {% else %}
-            <div class="info-line">
-                <strong>Costo Total del Viaje:</strong> ${{ venta.costo_total_con_modificacion|floatformat:2|intcomma }}{% if venta.costo_modificacion and venta.costo_modificacion > 0 %} (incluye modificación: ${{ venta.costo_modificacion|floatformat:2|intcomma }}){% endif %}
             </div>
-            <div class="info-line">
-                <strong>Total Abonado hasta la fecha:</strong> ${{ venta.total_pagado|floatformat:2|intcomma }}
+            
+            <div class="info-section-sidebar">
+                <div class="sidebar-card purple">
+                    <div class="sidebar-card-title">RESUMEN FINANCIERO</div>
+                    <div class="sidebar-card-content">
+                        {% if venta.tipo_viaje == 'INT' and venta.tipo_cambio and venta.tipo_cambio > 0 %}
+                            <div class="sidebar-card-item">
+                                <div class="sidebar-card-label">Costo Total del Viaje</div>
+                                <div class="sidebar-card-value">USD ${{ venta.costo_total_con_modificacion_usd|floatformat:2|intcomma }}</div>
+                            </div>
+                            <div class="sidebar-card-item">
+                                <div class="sidebar-card-label">Total Abonado</div>
+                                <div class="sidebar-card-value">USD ${{ venta.total_pagado_usd|floatformat:2|intcomma }}</div>
+                            </div>
+                            <div class="sidebar-card-item">
+                                <div class="sidebar-card-label">Saldo Pendiente</div>
+                                <div class="sidebar-card-value total-pendiente">USD ${{ venta.saldo_restante_usd|floatformat:2|intcomma }}</div>
+                            </div>
+                            {% if venta.tipo_cambio %}
+                                <div class="sidebar-card-item">
+                                    <div class="sidebar-card-label">Tipo de Cambio</div>
+                                    <div class="sidebar-card-value">1 USD = ${{ venta.tipo_cambio|floatformat:4|intcomma }} MXN</div>
+                                </div>
+                            {% endif %}
+                        {% else %}
+                            <div class="sidebar-card-item">
+                                <div class="sidebar-card-label">Costo Total del Viaje</div>
+                                <div class="sidebar-card-value">${{ venta.costo_total_con_modificacion|floatformat:2|intcomma }}</div>
+                            </div>
+                            <div class="sidebar-card-item">
+                                <div class="sidebar-card-label">Total Abonado</div>
+                                <div class="sidebar-card-value">${{ venta.total_pagado|floatformat:2|intcomma }}</div>
+                            </div>
+                            <div class="sidebar-card-item">
+                                <div class="sidebar-card-label">Saldo Pendiente</div>
+                                <div class="sidebar-card-value total-pendiente">${{ venta.saldo_restante|floatformat:2|intcomma }}</div>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
             </div>
-            <div class="info-line">
-                <strong>Saldo Pendiente:</strong> <span class="total-pendiente">${{ venta.saldo_restante|floatformat:2|intcomma }}</span>
-            </div>
-        {% endif %}
-    </section>
-
-    <section>
-        <h3>Detalle de Pagos Realizados</h3>
+        </div>
+    </div>
+    
+    <!-- Separador -->
+    <div class="separator"></div>
+    
+    <!-- Detalle de Pagos Realizados -->
+    <div class="info-section">
         {% if abonos or venta.cantidad_apertura > 0 %}
-        <div class="table-wrapper">
-            <table>
+        <div class="card">
+            <div class="card-header">
+                💳 Historial de Pagos
+            </div>
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Tipo</th>
@@ -196,9 +593,9 @@
                         <td>{{ venta.get_modo_pago_apertura_display }}</td>
                         <td>
                             {% if venta.modo_pago_apertura in 'TRN,TAR,DEP,CRE' and venta.estado_confirmacion == 'EN_CONFIRMACION' %}
-                                <span style="color: #856404;">Pendiente</span>
+                                <span class="estado-pendiente">Pendiente</span>
                             {% else %}
-                                <span style="color: #155724;">Confirmado</span>
+                                <span class="estado-confirmado">Confirmado</span>
                             {% endif %}
                         </td>
                     </tr>
@@ -218,9 +615,9 @@
                         <td>{{ abono.get_forma_pago_display }}</td>
                         <td>
                             {% if abono.forma_pago in 'TRN,TAR,DEP' and not abono.confirmado %}
-                                <span style="color: #856404;">Pendiente</span>
+                                <span class="estado-pendiente">Pendiente</span>
                             {% else %}
-                                <span style="color: #155724;">Confirmado</span>
+                                <span class="estado-confirmado">Confirmado</span>
                             {% endif %}
                         </td>
                     </tr>
@@ -229,9 +626,13 @@
             </table>
         </div>
         {% else %}
-        <p style="text-align: center; color: #666; font-style: italic;">No se han registrado abonos para esta venta.</p>
+        <div class="card">
+            <div style="padding: 40px; text-align: center; color: #718096; font-style: italic;">
+                No se han registrado abonos para esta venta.
+            </div>
+        </div>
         {% endif %}
-    </section>
+    </div>
 </div>
 </body>
 </html>
