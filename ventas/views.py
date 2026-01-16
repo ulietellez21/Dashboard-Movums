@@ -3184,7 +3184,7 @@ class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         context['ejecutivos'] = Ejecutivo.objects.all().select_related('usuario', 'usuario__perfil', 'oficina')
         context['ejecutivo_form'] = kwargs.get('ejecutivo_form') or EjecutivoForm()
         context['mostrar_modal_ejecutivo'] = kwargs.get('mostrar_modal_ejecutivo', False)
-        context['oficinas'] = Oficina.objects.filter(activa=True).order_by('nombre')
+        context['oficinas'] = Oficina.objects.all().order_by('nombre')
         context['oficina_form'] = kwargs.get('oficina_form') or OficinaForm()
         context['mostrar_modal_oficina'] = kwargs.get('mostrar_modal_oficina', False)
         return context
@@ -3432,20 +3432,30 @@ class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         return self.render_to_response(context)
     
     def _handle_oficina_action(self, request):
-        """Maneja las acciones de crear, editar y eliminar oficinas."""
+        """Maneja las acciones de crear, editar, deshabilitar y habilitar oficinas."""
         action = request.POST.get('oficina_action', 'crear')
         oficina_id = request.POST.get('oficina_id')
         
-        if action == 'eliminar':
+        if action == 'deshabilitar':
             if not oficina_id:
-                messages.error(request, "No se pudo identificar la oficina a eliminar.")
+                messages.error(request, "No se pudo identificar la oficina a deshabilitar.")
                 return redirect('gestion_roles')
             oficina = get_object_or_404(Oficina, pk=oficina_id)
             nombre = oficina.nombre
-            # Marcar como inactiva en lugar de eliminar físicamente
             oficina.activa = False
             oficina.save()
-            messages.success(request, f"Oficina '{nombre}' eliminada correctamente.")
+            messages.warning(request, f"Oficina '{nombre}' deshabilitada correctamente.")
+            return redirect('gestion_roles')
+        
+        if action == 'habilitar':
+            if not oficina_id:
+                messages.error(request, "No se pudo identificar la oficina a habilitar.")
+                return redirect('gestion_roles')
+            oficina = get_object_or_404(Oficina, pk=oficina_id)
+            nombre = oficina.nombre
+            oficina.activa = True
+            oficina.save()
+            messages.success(request, f"Oficina '{nombre}' habilitada correctamente.")
             return redirect('gestion_roles')
         
         instance = None
