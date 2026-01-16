@@ -146,20 +146,21 @@
         <div class="sidebar-card blue">
             <div class="sidebar-card-title">CONTACTO</div>
             <div class="sidebar-card-content">
+                {% if ejecutivo_nombre %}
                 <div class="sidebar-card-item">
-                    <div class="sidebar-card-label">Cliente</div>
-                    <div class="sidebar-card-value">{{ cotizacion.cliente.nombre_completo_display }}</div>
+                    <div class="sidebar-card-label">Asesor</div>
+                    <div class="sidebar-card-value">{{ ejecutivo_nombre }}</div>
                 </div>
-                {% if cotizacion.cliente.email %}
-                <div class="sidebar-card-item">
-                    <div class="sidebar-card-label">Email</div>
-                    <div class="sidebar-card-value">{{ cotizacion.cliente.email }}</div>
-                </div>
-                {% endif %}
-                {% if cotizacion.cliente.telefono %}
+                {% if ejecutivo_telefono %}
                 <div class="sidebar-card-item">
                     <div class="sidebar-card-label">Teléfono</div>
-                    <div class="sidebar-card-value">{{ cotizacion.cliente.telefono }}</div>
+                    <div class="sidebar-card-value">{{ ejecutivo_telefono }}</div>
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="sidebar-card-item">
+                    <div class="sidebar-card-label">Asesor</div>
+                    <div class="sidebar-card-value">No asignado</div>
                 </div>
                 {% endif %}
             </div>
