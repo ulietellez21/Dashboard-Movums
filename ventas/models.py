@@ -130,7 +130,7 @@ class VentaViaje(models.Model):
     
     # Modo de pago para la apertura
     MODO_PAGO_CHOICES = [
-        ('EFE', 'Efectivo'),
+        ('EFE', 'Ikki'),
         ('TRN', 'Transferencia'),
         ('TAR', 'Tarjeta'),
         ('DEP', 'Depósito'),
@@ -716,7 +716,7 @@ class AbonoPago(models.Model):
     """Registra cada pago o abono realizado por el cliente."""
     FORMA_PAGO_CHOICES = [
         ('TRN', 'Transferencia'),
-        ('EFE', 'Efectivo'),
+        ('EFE', 'Ikki'),
         ('TAR', 'Tarjeta'),
         ('DEP', 'Depósito'),
         ('PPL', 'PayPal/Digital'),
