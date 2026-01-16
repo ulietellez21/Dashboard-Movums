@@ -16,7 +16,7 @@
 {# CSS CRÍTICO: SOLO LAYOUTS. TODOS LOS COLORES FUERON MOVIDOS A main.css #}
 {# ----------------------------------------------------------- #}
 <style>
-    /* Layout del Sidebar - fijo, visible siempre */
+    /* Layout del Sidebar - fijo, visible siempre en desktop */
     #sidebar-wrapper {
         height: 100vh;
         width: 15rem;
@@ -26,12 +26,14 @@
         z-index: 10;
         overflow-y: auto;
         background-color: #0d6efd;
+        transition: transform 0.3s ease-in-out;
     }
     
     #page-content-wrapper {
         margin-left: 15rem;
         width: calc(100% - 15rem);
         min-width: 0;
+        transition: margin-left 0.3s ease-in-out;
     }
 
     /* CORRECCIÓN DE LOGO: Centrado y escalado correcto (sin aplastar) */
@@ -64,10 +66,104 @@
         font-weight: 500;
     }
 
-    /* Media query para desktop: Sidebar visible por defecto */
+    /* ============================================
+       RESPONSIVE: DISEÑO MÓVIL
+       ============================================ */
+    
+    /* En móvil: Sidebar oculto por defecto, aparece como drawer */
+    @media (max-width: 767.98px) {
+        #sidebar-wrapper {
+            transform: translateX(-100%);
+            z-index: 1030; /* Por encima del navbar pero debajo de modales */
+            box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        /* Sidebar visible cuando tiene la clase 'show' */
+        #sidebar-wrapper.show {
+            transform: translateX(0);
+        }
+        
+        /* Overlay oscuro cuando el sidebar está abierto */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1025;
+        }
+        
+        .sidebar-overlay.show {
+            display: block;
+        }
+        
+        /* Contenido ocupa todo el ancho en móvil */
+        #page-content-wrapper {
+            margin-left: 0;
+            width: 100%;
+        }
+        
+        /* Botón hamburguesa en el navbar */
+        #sidebar-toggle {
+            display: inline-block !important;
+        }
+        
+        /* Ajustar padding del contenido en móvil */
+        #main-content {
+            padding: 1rem !important;
+        }
+        
+        /* Tablas responsive en móvil */
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Cards más compactas en móvil */
+        .card {
+            margin-bottom: 1rem;
+        }
+        
+        /* Ajustar tamaños de fuente en móvil */
+        h1 { font-size: 1.75rem !important; }
+        h2 { font-size: 1.5rem !important; }
+        h3 { font-size: 1.25rem !important; }
+        
+        /* Botones más grandes y táctiles en móvil */
+        .btn {
+            padding: 0.5rem 1rem;
+            min-height: 44px; /* Tamaño mínimo recomendado para toques */
+        }
+        
+        /* Inputs más grandes en móvil */
+        .form-control, .form-select {
+            min-height: 44px;
+            font-size: 16px; /* Evita zoom en iOS */
+        }
+        
+        /* Navbar más compacta en móvil */
+        #main-navbar {
+            padding: 0.5rem 1rem;
+        }
+    }
+
+    /* Desktop: Sidebar siempre visible */
     @media (min-width: 768px) {
         #sidebar-wrapper {
             margin-left: 0;
+            transform: translateX(0) !important;
+        }
+        
+        /* Ocultar botón hamburguesa en desktop */
+        #sidebar-toggle {
+            display: none !important;
+        }
+        
+        /* Ocultar overlay en desktop */
+        .sidebar-overlay {
+            display: none !important;
         }
     }
     
@@ -627,12 +723,19 @@
         </div>
     </div>
     
+    {# Overlay para móvil cuando sidebar está abierto #}
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    
     {# El div principal de contenido. #}
     <div id="page-content-wrapper"> 
         
         {# NAV BAR #}
         <nav class="navbar navbar-expand-lg navbar-dark border-bottom sticky-top" id="main-navbar">
             <div class="container-fluid">
+                {# Botón hamburguesa para móvil #}
+                <button class="btn btn-link text-white p-2 me-2" id="sidebar-toggle" type="button" aria-label="Toggle sidebar">
+                    <i class="fas fa-bars fa-lg"></i>
+                </button>
                 <ul class="navbar-nav ms-auto mt-2 mt-lg-0">
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" id="navbarDropdown" href="#" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -1218,6 +1321,79 @@
             btn.removeAttribute('data-interactive-setup');
         });
     });
+</script>
+
+<script>
+// ============================================
+// SIDEBAR RESPONSIVE PARA MÓVIL
+// ============================================
+(function() {
+    'use strict';
+    
+    const sidebar = document.getElementById('sidebar-wrapper');
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    
+    if (!sidebar || !sidebarToggle || !sidebarOverlay) {
+        return; // Si no existen los elementos, salir
+    }
+    
+    // Función para abrir el sidebar
+    function openSidebar() {
+        sidebar.classList.add('show');
+        sidebarOverlay.classList.add('show');
+        document.body.style.overflow = 'hidden'; // Prevenir scroll del body
+    }
+    
+    // Función para cerrar el sidebar
+    function closeSidebar() {
+        sidebar.classList.remove('show');
+        sidebarOverlay.classList.remove('show');
+        document.body.style.overflow = ''; // Restaurar scroll del body
+    }
+    
+    // Toggle del sidebar con el botón hamburguesa
+    sidebarToggle.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (sidebar.classList.contains('show')) {
+            closeSidebar();
+        } else {
+            openSidebar();
+        }
+    });
+    
+    // Cerrar sidebar al hacer click en el overlay
+    sidebarOverlay.addEventListener('click', function() {
+        closeSidebar();
+    });
+    
+    // Cerrar sidebar al hacer click en un enlace del menú (solo en móvil)
+    const sidebarLinks = sidebar.querySelectorAll('a.list-group-item');
+    sidebarLinks.forEach(function(link) {
+        link.addEventListener('click', function() {
+            // Solo cerrar en móvil (ancho < 768px)
+            if (window.innerWidth < 768) {
+                setTimeout(closeSidebar, 100); // Pequeño delay para mejor UX
+            }
+        });
+    });
+    
+    // Cerrar sidebar al cambiar el tamaño de la ventana (si pasa a desktop)
+    window.addEventListener('resize', function() {
+        if (window.innerWidth >= 768) {
+            closeSidebar(); // Cerrar sidebar en desktop
+        }
+    });
+    
+    // Cerrar sidebar con la tecla Escape (solo en móvil)
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && window.innerWidth < 768 && sidebar.classList.contains('show')) {
+            closeSidebar();
+        }
+    });
+})();
 </script>
 
 {% block extra_js %}{% endblock %}
