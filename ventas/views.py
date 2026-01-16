@@ -9,6 +9,7 @@ from django.urls import reverse_lazy, reverse
 from django.db.models.functions import Coalesce
 from django.db.models import Sum, Count, F, Q, Value, IntegerField, ExpressionWrapper
 from django.db.models import DecimalField as ModelDecimalField
+from django.db import transaction
 from django.contrib import messages
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.conf import settings
@@ -3222,9 +3223,24 @@ class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                 # Verificar que haya email para crear el usuario (email es necesario para crear credenciales)
                 if not ejecutivo.email:
                     logger.error(f"No se puede crear usuario para ejecutivo {ejecutivo.pk} sin email")
-                    return None, None
+                    raise ValueError("El correo electrónico es obligatorio para crear el usuario.")
+                
+                # Verificar que el email no esté en uso por otro usuario
+                if User.objects.filter(email__iexact=ejecutivo.email).exists():
+                    logger.error(f"El email {ejecutivo.email} ya está en uso por otro usuario")
+                    raise ValueError(f"El correo electrónico '{ejecutivo.email}' ya está registrado por otro usuario en el sistema.")
                 
                 username = self._generar_username_unico(ejecutivo.nombre_completo)
+                
+                # Verificar que el username no exista (aunque _generar_username_unico debería generar uno único)
+                if User.objects.filter(username=username).exists():
+                    # Si el username ya existe, generar uno nuevo con contador
+                    base_username = username
+                    contador = 1
+                    while User.objects.filter(username=username).exists():
+                        username = f"{base_username[:20-len(str(contador))]}{contador}"
+                        contador += 1
+                
                 password_plano = secrets.token_urlsafe(10)
                 try:
                     user = User.objects.create_user(
@@ -3235,8 +3251,15 @@ class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                         last_name=last_name
                     )
                 except Exception as e:
-                    logger.error(f"Error al crear usuario para ejecutivo {ejecutivo.pk}: {str(e)}", exc_info=True)
-                    return None, None
+                    error_msg = str(e)
+                    # Capturar errores específicos de base de datos
+                    if "unique constraint" in error_msg.lower() or "duplicate" in error_msg.lower():
+                        if "username" in error_msg.lower():
+                            raise ValueError("El nombre de usuario generado ya existe. Intenta nuevamente.")
+                        elif "email" in error_msg.lower():
+                            raise ValueError(f"El correo electrónico '{ejecutivo.email}' ya está registrado por otro usuario en el sistema.")
+                    logger.error(f"Error al crear usuario para ejecutivo {ejecutivo.pk}: {error_msg}", exc_info=True)
+                    raise ValueError(f"Error al crear el usuario: {error_msg}")
                 
                 # Refrescar el usuario desde la base de datos para asegurar que la señal se haya ejecutado
                 user.refresh_from_db()
@@ -3329,58 +3352,35 @@ class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         form = EjecutivoForm(request.POST, request.FILES, instance=instance)
         if form.is_valid():
             try:
-                ejecutivo = form.save()
-                tipo_usuario = form.cleaned_data.get('tipo_usuario', 'VENDEDOR')
-                
-                # Manejar cambio de contraseña
-                nueva_contrasena = request.POST.get('nueva_contrasena', '').strip()
-                regenerar_password = False
-                if action == 'editar':
-                    # En edición, solo regenerar si se proporciona una nueva contraseña
-                    regenerar_password = bool(nueva_contrasena)
-                else:
-                    # En creación, siempre generar nueva contraseña
-                    regenerar_password = True
-                
-                try:
+                # INICIO DEL BLOQUE DE SEGURIDAD - Transacción atómica
+                with transaction.atomic():
+                    ejecutivo = form.save()  # Ahora esto es provisional dentro de la transacción
+                    tipo_usuario = form.cleaned_data.get('tipo_usuario', 'VENDEDOR')
+                    
+                    # Manejar cambio de contraseña
+                    nueva_contrasena = request.POST.get('nueva_contrasena', '').strip()
+                    regenerar_password = False
+                    if action == 'editar':
+                        # En edición, solo regenerar si se proporciona una nueva contraseña
+                        regenerar_password = bool(nueva_contrasena)
+                    else:
+                        # En creación, siempre generar nueva contraseña
+                        regenerar_password = True
+                    
+                    # Intentar crear usuario
                     user, password = self._crear_o_actualizar_usuario(
                         ejecutivo,
                         tipo_usuario=tipo_usuario,
                         forzar_password=regenerar_password,
                         nueva_password=nueva_contrasena if nueva_contrasena else None
                     )
-                except Exception as e:
-                    # Capturar el error específico de _crear_o_actualizar_usuario
-                    error_msg = str(e)
-                    if "email" in error_msg.lower() or "correo" in error_msg.lower() or "unique" in error_msg.lower():
-                        error_msg = "Error con el correo electrónico. Verifica que sea válido y único."
-                    elif "username" in error_msg.lower():
-                        error_msg = "Error al generar el nombre de usuario. Intenta nuevamente."
-                    else:
-                        error_msg = f"Error al crear/actualizar el usuario: {error_msg}"
-                    messages.error(request, error_msg)
-                    logger.error(f"Error en _crear_o_actualizar_usuario para ejecutivo {ejecutivo.pk}: {error_msg}", exc_info=True)
-                    # Mantener el formulario con errores para que se muestren
-                    context = self.get_context_data()
-                    context['ejecutivo_form'] = form
-                    context['mostrar_modal_ejecutivo'] = True
-                    # Pasar el ejecutivo_id para que el modal se abra en modo edición
-                    if action == 'editar' and ejecutivo_id:
-                        context['ejecutivo_id_editar'] = ejecutivo_id
-                    return self.render_to_response(context)
-                
-                # Verificar que el usuario se creó correctamente
-                if not user:
-                    error_msg = "Error al crear/actualizar el usuario. Por favor, verifica que el correo electrónico sea válido y único."
-                    messages.error(request, error_msg)
-                    # Mantener el formulario con errores para que se muestren
-                    context = self.get_context_data()
-                    context['ejecutivo_form'] = form
-                    context['mostrar_modal_ejecutivo'] = True
-                    # Pasar el ejecutivo_id para que el modal se abra en modo edición
-                    if action == 'editar' and ejecutivo_id:
-                        context['ejecutivo_id_editar'] = ejecutivo_id
-                    return self.render_to_response(context)
+                    
+                    # Verificar que el usuario se creó correctamente
+                    # Si no se creó, esto forzará el rollback automático del ejecutivo guardado arriba
+                    if not user:
+                        error_msg = "Error al crear/actualizar el usuario. Por favor, verifica que el correo electrónico sea válido y único."
+                        raise ValueError(error_msg)
+                # FIN DEL BLOQUE - Si llegamos aquí, todo se confirma (commit)
                 
                 # Refrescar el ejecutivo desde la base de datos para asegurar que las relaciones estén cargadas
                 ejecutivo.refresh_from_db()
@@ -3397,25 +3397,32 @@ class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                     else:
                         messages.success(
                             request,
-                            (
-                                f"Ejecutivo '{ejecutivo.nombre_completo}' agregado. "
-                                f"Credenciales -> Usuario: {user.username if user else 'N/A'} / Contraseña: {password}"
-                            )
+                            f"Ejecutivo '{ejecutivo.nombre_completo}' agregado."
                         )
                 else:
                     messages.success(request, f"Ejecutivo '{ejecutivo.nombre_completo}' actualizado correctamente.")
                 return redirect('gestion_roles')
+                
             except Exception as e:
-                # Si hay un error al crear el usuario o perfil, agregarlo al formulario
-                error_msg = f"Error al guardar el ejecutivo: {str(e)}"
+                # Si ocurre CUALQUIER error dentro del 'with transaction.atomic', 
+                # Django deshace automáticamente el form.save() inicial.
+                # La BD queda limpia como si nada hubiera pasado.
+                
+                error_msg = str(e)
+                # Simplificar el mensaje si no es un mensaje específico ya formateado
+                if "Error al guardar el ejecutivo" not in error_msg and not any(keyword in error_msg.lower() for keyword in ["correo", "email", "usuario", "username"]):
+                    error_msg = f"Error al guardar el ejecutivo: {str(e)}"
+                
                 messages.error(request, error_msg)
                 import traceback
                 logger.error(f"Error al crear ejecutivo: {traceback.format_exc()}")
+                
                 # Mantener el formulario con errores para que se muestren
+                # El formulario original tiene los datos del POST, así que se mantendrán
                 context = self.get_context_data()
-                context['ejecutivo_form'] = form
+                context['ejecutivo_form'] = form  # El formulario ya tiene los datos del POST
                 context['mostrar_modal_ejecutivo'] = True
-                # Pasar el ejecutivo_id para que el modal se abra en modo edición
+                # Pasar el ejecutivo_id para que el modal se abra en modo edición (si es edición)
                 if action == 'editar' and ejecutivo_id:
                     context['ejecutivo_id_editar'] = ejecutivo_id
                 return self.render_to_response(context)
@@ -3428,7 +3435,14 @@ class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             if error_messages:
                 messages.error(request, "Por favor, corrige los siguientes errores: " + " | ".join(error_messages))
         
+        # Al renderizar el formulario con errores, asegurarse de que se pasa con los datos del POST
+        # para que el usuario no tenga que volver a llenar los campos
         context = self.get_context_data(ejecutivo_form=form, mostrar_modal_ejecutivo=True)
+        # Si estamos creando un ejecutivo que ya se guardó pero falló el usuario, pasar su ID para editarlo
+        if action == 'crear' and 'ejecutivo' in locals() and ejecutivo.pk:
+            context['ejecutivo_id_editar'] = ejecutivo.pk
+        elif action == 'editar' and ejecutivo_id:
+            context['ejecutivo_id_editar'] = ejecutivo_id
         return self.render_to_response(context)
     
     def _handle_oficina_action(self, request):

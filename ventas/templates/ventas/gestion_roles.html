@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load humanize %}
+{% load widget_tweaks %}
 
 {% block title %}Gestión de Roles{% endblock %}
 
@@ -311,7 +312,7 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Sueldo Base</label>
-                            {{ ejecutivo_form.sueldo_base }}
+                            {{ ejecutivo_form.sueldo_base|add_class:"form-control"|attr:"type:text"|attr:"inputmode:decimal" }}
                             {{ ejecutivo_form.sueldo_base.errors }}
                         </div>
                         <div class="col-md-6">
@@ -712,6 +713,13 @@ if (document.readyState === 'loading') {
                 
                 // Aplicar visibilidad después de limpiar
                 setTimeout(toggleTipoVendedorVisibility, 50);
+                
+                // Inicializar formato de moneda en el campo sueldo_base después de limpiar
+                setTimeout(function() {
+                    if (sueldoInput && typeof inicializarFormatoMonedaEnCampos === 'function') {
+                        inicializarFormatoMonedaEnCampos(['[name="sueldo_base"]']);
+                    }
+                }, 100);
                 return;
             }
             
@@ -727,7 +735,14 @@ if (document.readyState === 'loading') {
             if (emailInput) emailInput.value = button.getAttribute('data-email') || '';
             if (oficinaInput) oficinaInput.value = button.getAttribute('data-oficina') || '';
             if (tipoVendedorInput) tipoVendedorInput.value = button.getAttribute('data-tipo-vendedor') || 'MOSTRADOR';
-            if (sueldoInput) sueldoInput.value = button.getAttribute('data-sueldo') || '';
+            if (sueldoInput) {
+                var sueldoValue = button.getAttribute('data-sueldo') || '';
+                sueldoInput.value = sueldoValue;
+                // Formatear el sueldo si tiene valor
+                if (sueldoValue && typeof formatearEnTiempoReal === 'function') {
+                    formatearEnTiempoReal(sueldoInput);
+                }
+            }
             if (fechaIngresoInput) fechaIngresoInput.value = button.getAttribute('data-fecha-ingreso') || '';
             if (fechaNacimientoInput) fechaNacimientoInput.value = button.getAttribute('data-fecha-nacimiento') || '';
             if (tipoUsuarioInput) tipoUsuarioInput.value = button.getAttribute('data-tipo-usuario') || 'VENDEDOR';
@@ -737,7 +752,33 @@ if (document.readyState === 'loading') {
             
             // Aplicar visibilidad después de cargar los valores
             setTimeout(toggleTipoVendedorVisibility, 50);
+            
+            // Inicializar formato de moneda en el campo sueldo_base después de que el modal se haya mostrado
+            setTimeout(function() {
+                if (sueldoInput && typeof inicializarFormatoMonedaEnCampos === 'function') {
+                    inicializarFormatoMonedaEnCampos(['[name="sueldo_base"]']);
+                    // Si tiene valor, formatearlo ahora
+                    if (sueldoInput.value && !sueldoInput.value.startsWith('$')) {
+                        if (typeof formatearEnTiempoReal === 'function') {
+                            formatearEnTiempoReal(sueldoInput);
+                        }
+                    }
+                }
+            }, 100);
         });
+        
+        // Limpiar el formato de moneda antes de enviar el formulario
+        var formEjecutivo = modalEl.querySelector('form');
+        if (formEjecutivo) {
+            formEjecutivo.addEventListener('submit', function(e) {
+                var sueldoField = formEjecutivo.querySelector('[name="sueldo_base"]');
+                if (sueldoField && typeof limpiarFormatoMoneda === 'function') {
+                    // Limpiar el formato antes de enviar (quitar $ y comas)
+                    var valorLimpio = limpiarFormatoMoneda(sueldoField.value);
+                    sueldoField.value = valorLimpio || '';
+                }
+            });
+        }
         
         // Limpiar formulario al cerrar
         modalEl.addEventListener('hidden.bs.modal', function() {
@@ -900,6 +941,29 @@ if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initModalOficina);
     } else {
         initModalOficina();
+    }
+})();
+</script>
+
+{# Incluir script de formato de moneda #}
+{% load static %}
+<script src="{% static 'js/currency-formatter.js' %}"></script>
+
+<script>
+// Inicializar formato de moneda cuando el DOM esté listo
+(function() {
+    'use strict';
+    function initFormatoMoneda() {
+        if (typeof inicializarFormatoMonedaEnCampos === 'function') {
+            // Inicializar formato en el campo sueldo_base si existe
+            inicializarFormatoMonedaEnCampos(['[name="sueldo_base"]']);
+        }
+    }
+    
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initFormatoMoneda);
+    } else {
+        initFormatoMoneda();
     }
 })();
 </script>

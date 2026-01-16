@@ -358,7 +358,7 @@ class EjecutivoForm(forms.ModelForm):
             'email': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'ejecutivo@agencia.com'}),
             'oficina': forms.Select(attrs={'class': 'form-select'}),
             'tipo_vendedor': forms.Select(attrs={'class': 'form-select'}),
-            'sueldo_base': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'Ej. 12000.00'}),
+            'sueldo_base': forms.TextInput(attrs={'class': 'form-control', 'type': 'text', 'inputmode': 'decimal', 'placeholder': 'Ej. $12,000.00'}),
             'fecha_ingreso': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'fecha_nacimiento': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'acta_nacimiento': forms.ClearableFileInput(attrs={'class': 'form-control', 'accept': '.pdf,.jpg,.jpeg,.png'}),
@@ -426,11 +426,24 @@ class EjecutivoForm(forms.ModelForm):
         # Verificar que el email no esté en uso por otro ejecutivo (solo si se proporciona un email)
         if email:
             from .models import Ejecutivo
+            from django.contrib.auth.models import User
+            
+            # Verificar en la tabla Ejecutivo
             ejecutivos_con_email = Ejecutivo.objects.filter(email=email)
             if self.instance and self.instance.pk:
                 ejecutivos_con_email = ejecutivos_con_email.exclude(pk=self.instance.pk)
             if ejecutivos_con_email.exists():
                 raise forms.ValidationError("Este correo electrónico ya está registrado para otro ejecutivo.")
+            
+            # Verificar en la tabla User (importante: validar que no esté en uso por otro usuario)
+            # Solo validar si estamos creando un nuevo ejecutivo o editando uno sin usuario
+            if requiere_email:
+                usuarios_con_email = User.objects.filter(email__iexact=email)
+                # Si estamos editando y el ejecutivo tiene usuario, excluir ese usuario de la validación
+                if self.instance and self.instance.pk and self.instance.usuario:
+                    usuarios_con_email = usuarios_con_email.exclude(pk=self.instance.usuario.pk)
+                if usuarios_con_email.exists():
+                    raise forms.ValidationError("Este correo electrónico ya está registrado por otro usuario en el sistema.")
         
         return email
 

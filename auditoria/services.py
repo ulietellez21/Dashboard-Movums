@@ -165,7 +165,10 @@ class AuditoriaService:
     @classmethod
     def registrar_usuario_creado(cls, usuario_creado, usuario_creador, ip_address=None):
         """Registra la creación de un usuario."""
-        descripcion = f"Usuario '{usuario_creado.username}' creado por {usuario_creador.username}."
+        # CORRECCIÓN: Validar si existe usuario_creador
+        creador_str = usuario_creador.username if usuario_creador else 'Sistema'
+        
+        descripcion = f"Usuario '{usuario_creado.username}' creado por {creador_str}."
         return cls.registrar_evento(
             tipo_evento='USUARIO_CREADO',
             descripcion=descripcion,
