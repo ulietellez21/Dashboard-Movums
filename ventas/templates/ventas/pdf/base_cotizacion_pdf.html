@@ -88,7 +88,7 @@ body {
     /* NUEVO: Padding para proteger el contenido de tocar los bordes del membrete */
     /* Ajusta estos valores según qué tan gruesos sean los bordes de tu imagen */
     padding-top: 3.5cm;    /* Espacio para el logo superior */
-    padding-bottom: 3.5cm; /* Espacio para el pie de página - aumentado significativamente para evitar cortes en tablas */
+    padding-bottom: 2.5cm; /* Espacio para el pie de página */
     padding-left: 2.0cm;   /* Espacio lateral */
     padding-right: 2.0cm;  /* Espacio lateral */
 }
@@ -127,14 +127,12 @@ body {
 .content-wrapper {
     page-break-before: always; /* Forzar salto de página antes del wrapper */
     padding-top: 168px; /* 7 saltos de línea (24px cada uno = 168px) */
-    padding-bottom: 48px; /* Espacio inferior adicional para evitar cortes de tablas */
     box-sizing: border-box;
 }
 
 /* Ajuste específico para cotizaciones de paquetes: menos espacio en la segunda página */
 .cotizacion-paquete .content-wrapper {
     padding-top: 144px; /* 6 saltos de línea (quitar 1 salto = 24px menos) */
-    padding-bottom: 48px; /* Espacio inferior adicional para evitar cortes de tablas */
 }
 
 /* Evitar que las cards y secciones se partan entre páginas */
@@ -143,7 +141,7 @@ body {
     page-break-inside: avoid; /* Evitar que la card se parta */
     page-break-after: avoid; /* Mantener la card junta con su total */
     margin-top: 0;
-    margin-bottom: 16px; /* Espaciado aumentado en la parte inferior para evitar cortes */
+    margin-bottom: 8px; /* Espaciado reducido a la mitad entre cards (16px → 8px) */
 }
 
 .info-section {
@@ -173,7 +171,7 @@ body {
     border: none;
     border-radius: 8px; /* Bordes redondeados para look moderno */
     padding: 0;
-    margin: 0 0 16px 0; /* Espaciado aumentado en la parte inferior para evitar cortes */
+    margin: 0 0 8px 0; /* Espaciado reducido a la mitad entre cards (16px → 8px) */
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); /* Sombra sutil */
     page-break-inside: avoid; /* Evitar que la card se parta */
     page-break-before: auto;
@@ -194,7 +192,6 @@ body {
 /* Mantener el total junto con la tabla */
 .total-destacado {
     page-break-before: avoid; /* Total no se separa de la tabla */
-    margin-bottom: 12px; /* Espacio inferior adicional después del total para evitar cortes */
 }
 
 /* Espaciado reducido entre header y tabla */
@@ -622,13 +619,13 @@ body {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    margin: 8px 0 24px 0 !important; /* Espaciado superior reducido, inferior aumentado significativamente para evitar cortes */
+    margin: 8px 0 0 0 !important; /* Espaciado más reducido - importante para paquetes */
     background: white;
     box-sizing: border-box;
-    padding: 6px 12px 12px 12px !important; /* Padding interno: reducido arriba, aumentado abajo */
+    padding: 6px 12px !important; /* Padding interno aún más reducido para más compacto */
     display: table; /* Asegurar que se comporte como tabla */
     border-radius: 8px; /* Esquinas redondeadas */
-    overflow: visible; /* Cambiar a visible para permitir que el contenido no se corte */
+    overflow: hidden; /* Asegurar que el contenido respete el border-radius */
     page-break-inside: avoid; /* Evitar que la tabla se parta entre páginas */
 }
 
@@ -641,11 +638,6 @@ body {
 
 .data-table tr:last-child {
     border-bottom: none;
-    padding-bottom: 8px !important; /* Espacio adicional después de la última fila */
-}
-
-.data-table tr:last-child td {
-    padding-bottom: 10px !important; /* Espacio adicional en la última fila */
 }
 
 .data-table th {
