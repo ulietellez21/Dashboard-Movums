@@ -7344,6 +7344,39 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
             else:
                 membrete_url = f"file://{membrete_abs_path}"
         
+        # Obtener información del ejecutivo que realizó la cotización
+        ejecutivo = None
+        ejecutivo_nombre = None
+        ejecutivo_telefono = None
+        
+        if cotizacion.vendedor:
+            try:
+                # Intentar obtener el Ejecutivo asociado al usuario
+                ejecutivo = Ejecutivo.objects.filter(usuario=cotizacion.vendedor).first()
+                
+                if ejecutivo:
+                    # Si hay ejecutivo, usar su nombre y teléfono
+                    ejecutivo_nombre = ejecutivo.nombre_completo
+                    if ejecutivo.telefono:
+                        # Formatear teléfono a 10 dígitos (eliminar espacios, guiones, paréntesis, etc.)
+                        telefono_limpio = re.sub(r'[^\d]', '', ejecutivo.telefono)
+                        # Si tiene más de 10 dígitos (puede incluir código de país), tomar los últimos 10
+                        if len(telefono_limpio) > 10:
+                            ejecutivo_telefono = telefono_limpio[-10:]
+                        elif len(telefono_limpio) == 10:
+                            ejecutivo_telefono = telefono_limpio
+                        else:
+                            ejecutivo_telefono = ejecutivo.telefono  # Mantener original si no tiene 10 dígitos
+                else:
+                    # Si no hay ejecutivo asociado, usar el nombre del usuario como fallback
+                    ejecutivo_nombre = f"{cotizacion.vendedor.get_full_name() or cotizacion.vendedor.get_username()}"
+                    logger.info(f"Usuario {cotizacion.vendedor.username} no tiene Ejecutivo asociado, usando nombre de usuario")
+            except Exception as e:
+                logger.warning(f"Error al obtener ejecutivo para cotización {cotizacion.pk}: {e}", exc_info=True)
+                # Fallback: usar el nombre del usuario
+                if cotizacion.vendedor:
+                    ejecutivo_nombre = f"{cotizacion.vendedor.get_full_name() or cotizacion.vendedor.get_username()}"
+        
         return {
             'cotizacion': cotizacion,
             'propuestas': propuestas,
@@ -7351,6 +7384,9 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
             'template_name': template_name,
             'STATIC_URL': settings.STATIC_URL,
             'membrete_url': membrete_url,  # URL absoluta file:// para WeasyPrint
+            'ejecutivo': ejecutivo,
+            'ejecutivo_nombre': ejecutivo_nombre,
+            'ejecutivo_telefono': ejecutivo_telefono,
         }
     
     def _generar_pdf(self, cotizacion):
