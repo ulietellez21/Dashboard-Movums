@@ -88,7 +88,7 @@ body {
     /* NUEVO: Padding para proteger el contenido de tocar los bordes del membrete */
     /* Ajusta estos valores según qué tan gruesos sean los bordes de tu imagen */
     padding-top: 3.5cm;    /* Espacio para el logo superior */
-    padding-bottom: 3.0cm; /* Espacio para el pie de página - aumentado para evitar cortes en tablas */
+    padding-bottom: 3.5cm; /* Espacio para el pie de página - aumentado significativamente para evitar cortes en tablas */
     padding-left: 2.0cm;   /* Espacio lateral */
     padding-right: 2.0cm;  /* Espacio lateral */
 }
@@ -127,12 +127,14 @@ body {
 .content-wrapper {
     page-break-before: always; /* Forzar salto de página antes del wrapper */
     padding-top: 168px; /* 7 saltos de línea (24px cada uno = 168px) */
+    padding-bottom: 48px; /* Espacio inferior adicional para evitar cortes de tablas */
     box-sizing: border-box;
 }
 
 /* Ajuste específico para cotizaciones de paquetes: menos espacio en la segunda página */
 .cotizacion-paquete .content-wrapper {
     padding-top: 144px; /* 6 saltos de línea (quitar 1 salto = 24px menos) */
+    padding-bottom: 48px; /* Espacio inferior adicional para evitar cortes de tablas */
 }
 
 /* Evitar que las cards y secciones se partan entre páginas */
@@ -620,13 +622,13 @@ body {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    margin: 8px 0 16px 0 !important; /* Espaciado superior reducido, inferior aumentado para evitar cortes */
+    margin: 8px 0 24px 0 !important; /* Espaciado superior reducido, inferior aumentado significativamente para evitar cortes */
     background: white;
     box-sizing: border-box;
-    padding: 6px 12px !important; /* Padding interno aún más reducido para más compacto */
+    padding: 6px 12px 12px 12px !important; /* Padding interno: reducido arriba, aumentado abajo */
     display: table; /* Asegurar que se comporte como tabla */
     border-radius: 8px; /* Esquinas redondeadas */
-    overflow: hidden; /* Asegurar que el contenido respete el border-radius */
+    overflow: visible; /* Cambiar a visible para permitir que el contenido no se corte */
     page-break-inside: avoid; /* Evitar que la tabla se parta entre páginas */
 }
 
@@ -639,6 +641,11 @@ body {
 
 .data-table tr:last-child {
     border-bottom: none;
+    padding-bottom: 8px !important; /* Espacio adicional después de la última fila */
+}
+
+.data-table tr:last-child td {
+    padding-bottom: 10px !important; /* Espacio adicional en la última fila */
 }
 
 .data-table th {
