@@ -629,7 +629,7 @@ body {
                         {% else %}
                             <td>${{ venta.cantidad_apertura|floatformat:2|intcomma }}</td>
                         {% endif %}
-                        <td>{{ venta.get_modo_pago_apertura_display }}</td>
+                        <td>{% if venta.modo_pago_apertura == 'EFE' %}Efectivo{% else %}{{ venta.get_modo_pago_apertura_display }}{% endif %}</td>
                         <td>
                             {% if venta.modo_pago_apertura in 'TRN,TAR,DEP,CRE' and venta.estado_confirmacion == 'EN_CONFIRMACION' %}
                                 <span class="estado-pendiente">Pendiente</span>
@@ -651,7 +651,7 @@ body {
                         {% else %}
                             <td>${{ abono.monto|floatformat:2|intcomma }}</td>
                         {% endif %}
-                        <td>{{ abono.get_forma_pago_display }}</td>
+                        <td>{% if abono.forma_pago == 'EFE' %}Efectivo{% else %}{{ abono.get_forma_pago_display }}{% endif %}</td>
                         <td>
                             {% if abono.forma_pago in 'TRN,TAR,DEP' and not abono.confirmado %}
                                 <span class="estado-pendiente">Pendiente</span>
