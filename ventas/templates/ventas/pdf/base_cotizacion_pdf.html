@@ -88,7 +88,7 @@ body {
     /* NUEVO: Padding para proteger el contenido de tocar los bordes del membrete */
     /* Ajusta estos valores según qué tan gruesos sean los bordes de tu imagen */
     padding-top: 3.5cm;    /* Espacio para el logo superior */
-    padding-bottom: 2.5cm; /* Espacio para el pie de página */
+    padding-bottom: 3.0cm; /* Espacio para el pie de página - aumentado para evitar cortes en tablas */
     padding-left: 2.0cm;   /* Espacio lateral */
     padding-right: 2.0cm;  /* Espacio lateral */
 }
@@ -141,7 +141,7 @@ body {
     page-break-inside: avoid; /* Evitar que la card se parta */
     page-break-after: avoid; /* Mantener la card junta con su total */
     margin-top: 0;
-    margin-bottom: 8px; /* Espaciado reducido a la mitad entre cards (16px → 8px) */
+    margin-bottom: 16px; /* Espaciado aumentado en la parte inferior para evitar cortes */
 }
 
 .info-section {
@@ -171,7 +171,7 @@ body {
     border: none;
     border-radius: 8px; /* Bordes redondeados para look moderno */
     padding: 0;
-    margin: 0 0 8px 0; /* Espaciado reducido a la mitad entre cards (16px → 8px) */
+    margin: 0 0 16px 0; /* Espaciado aumentado en la parte inferior para evitar cortes */
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); /* Sombra sutil */
     page-break-inside: avoid; /* Evitar que la card se parta */
     page-break-before: auto;
@@ -192,6 +192,7 @@ body {
 /* Mantener el total junto con la tabla */
 .total-destacado {
     page-break-before: avoid; /* Total no se separa de la tabla */
+    margin-bottom: 12px; /* Espacio inferior adicional después del total para evitar cortes */
 }
 
 /* Espaciado reducido entre header y tabla */
@@ -619,7 +620,7 @@ body {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    margin: 8px 0 0 0 !important; /* Espaciado más reducido - importante para paquetes */
+    margin: 8px 0 16px 0 !important; /* Espaciado superior reducido, inferior aumentado para evitar cortes */
     background: white;
     box-sizing: border-box;
     padding: 6px 12px !important; /* Padding interno aún más reducido para más compacto */
