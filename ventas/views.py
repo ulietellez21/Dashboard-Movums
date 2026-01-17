@@ -4983,186 +4983,1019 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         return get_object_or_404(VentaViaje, pk=pk, slug=slug)
     
     def get(self, request, *args, **kwargs):
-        try:
-            from docx import Document
-            from docx.shared import Inches
-        except ImportError:
-            messages.error(request, "Error: python-docx no está instalado. Ejecuta: pip install python-docx")
-            return redirect('listar_confirmaciones', pk=self.get_object().pk, slug=self.get_object().slug_safe)
+        """
+        Genera PDF de confirmaciones usando WeasyPrint (igual que comprobantes de abonos).
+        Formato profesional igual que cotizaciones.
+        """
+        if not WEASYPRINT_AVAILABLE:
+            return HttpResponse("Error en la generación de PDF. Faltan dependencias (WeasyPrint).", status=503)
         
-        venta = self.get_object()
+        try:
+            venta = self.get_object()
+        except Exception as e:
+            logger.error(f"Error obteniendo venta: {e}")
+            return HttpResponse(f"Error: No se pudo obtener la venta. {str(e)}", status=400)
+        
         plantillas = PlantillaConfirmacion.objects.filter(venta=venta).order_by('tipo', '-fecha_creacion')
         
         if not plantillas.exists():
             messages.warning(request, "No hay plantillas de confirmación para generar el documento.")
             return redirect('listar_confirmaciones', pk=venta.pk, slug=venta.slug_safe)
         
-        # Crear documento Word usando la plantilla con membrete si está disponible
-        template_path = os.path.join(settings.BASE_DIR, 'static', 'docx', 'membrete.docx')
-        if os.path.exists(template_path):
-            doc = Document(template_path)
-        else:
-            doc = Document()
+        def format_date(value):
+            """Formatea una fecha para mostrar en el documento."""
+            if not value:
+                return '-'
+            try:
+                if isinstance(value, datetime.date):
+                    return value.strftime('%d/%m/%Y')
+                elif isinstance(value, str):
+                    parsed = datetime.date.fromisoformat(value)
+                    return parsed.strftime('%d/%m/%Y')
+                return str(value)
+            except Exception:
+                return str(value)
         
-        # Configurar fuente predeterminada Arial 12
-        from docx.shared import Pt
-        from docx.oxml.ns import qn
-        from docx.oxml import OxmlElement
+        # Preparar ruta del membrete para WeasyPrint
+        membrete_path = os.path.join(settings.BASE_DIR, 'static', 'img', 'membrete_movums.jpg')
+        membrete_url = None
+        if os.path.exists(membrete_path):
+            membrete_abs_path = os.path.abspath(membrete_path)
+            if os.name == 'nt':
+                membrete_url = f"file:///{membrete_abs_path.replace(os.sep, '/')}"
+            else:
+                membrete_url = f"file://{membrete_abs_path}"
         
-        # Establecer Arial como fuente predeterminada
-        styles = doc.styles
-        style = styles['Normal']
-        font = style.font
-        font.name = 'Arial'
-        font.size = Pt(12)
+        # Procesar cada plantilla y generar HTML
+        plantillas_html = []
+        for plantilla in plantillas:
+            datos = plantilla.datos or {}
+            tipo = plantilla.tipo
+            
+            html_plantilla = ""
+            if tipo == 'VUELO_UNICO':
+                html_plantilla = self._generar_html_vuelo_unico(datos, format_date)
+            elif tipo == 'VUELO_REDONDO':
+                html_plantilla = self._generar_html_vuelo_redondo(datos, format_date)
+            elif tipo == 'HOSPEDAJE':
+                html_plantilla = self._generar_html_hospedaje(datos, format_date, request)
+            elif tipo == 'TRASLADO':
+                traslados_list = datos.get('traslados', [])
+                if traslados_list and isinstance(traslados_list, list):
+                    html_parts = []
+                    for traslado in traslados_list:
+                        html_parts.append(self._generar_html_traslado(traslado, format_date))
+                    html_plantilla = "".join(html_parts)
+                else:
+                    html_plantilla = self._generar_html_traslado(datos, format_date)
+            elif tipo == 'GENERICA':
+                html_plantilla = self._generar_html_generica(datos)
+            
+            if html_plantilla:
+                plantillas_html.append(html_plantilla)
         
-        # Ajustar márgenes solo si estamos usando un documento en blanco
-        if not os.path.exists(template_path):
-            sections = doc.sections
-            for section in sections:
-                section.top_margin = Inches(0.75)
-                section.bottom_margin = Inches(1)
-                section.left_margin = Inches(0.75)
-                section.right_margin = Inches(0.75)
+        # Contexto para la plantilla HTML
+        context = {
+            'venta': venta,
+            'fecha_generacion': datetime.datetime.now(),
+            'plantillas_html': plantillas_html,
+            'membrete_url': membrete_url,
+            'STATIC_URL': settings.STATIC_URL,
+        }
         
-        # Agregar título principal del documento
-        self._agregar_encabezado_documento(doc, venta)
+        # Renderizar plantilla HTML
+        html_string = render_to_string('ventas/confirmaciones_pdf.html', context, request=request)
         
-        # Agregar cada plantilla como una sección en una nueva página
-        from docx.shared import Pt, RGBColor
+        # Generar PDF con WeasyPrint
+        static_dir = os.path.join(settings.BASE_DIR, 'static')
+        static_dir_abs = os.path.abspath(static_dir)
+        base_url = f"file://{static_dir_abs}/"
         
-        for idx, plantilla in enumerate(plantillas):
-            # Cada servicio comienza en una nueva página (excepto el primero)
-            if idx > 0:
-                doc.add_page_break()
-                # Agregar título en cada nueva página
-                self._agregar_encabezado_documento(doc, venta)
-            self._agregar_plantilla_al_documento(doc, plantilla)
+        html = HTML(string=html_string, base_url=base_url)
+        pdf_file = html.write_pdf(stylesheets=[])
         
         # Preparar respuesta HTTP
-        from io import BytesIO
-        
-        # Guardar el documento en memoria (sin protección de solo lectura)
-        buffer = BytesIO()
-        
-        # Asegurar que el documento no tenga protección de escritura
-        # Remover cualquier protección de documento si existe
-        try:
-            from docx.oxml.ns import qn
-            # Buscar y eliminar cualquier elemento de protección
-            for element in doc.element.iter():
-                if element.tag.endswith('documentProtection'):
-                    doc.element.remove(element)
-        except:
-            pass  # Si no hay protección, continuar normalmente
-        
-        doc.save(buffer)
-        buffer.seek(0)
-        
-        # Crear respuesta HTTP con el documento
         nombre_cliente_safe = venta.cliente.nombre_completo_display.replace(' ', '_').replace('/', '_')
-        filename = f"Confirmaciones_Venta_{venta.pk}_{nombre_cliente_safe}.docx"
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"Confirmaciones_Venta_{venta.pk}_{nombre_cliente_safe}_{timestamp}.pdf"
         
-        response = HttpResponse(
-            buffer.getvalue(),
-            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        )
+        response = HttpResponse(pdf_file, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
-        response['Content-Length'] = str(len(buffer.getvalue()))
-        
-        # Agregar headers para asegurar que el navegador no marque el archivo como de solo lectura
         response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         response['Pragma'] = 'no-cache'
         response['Expires'] = '0'
         
-        buffer.close()
         return response
     
-    def _agregar_encabezado_documento(self, doc, venta):
-        """Agrega título e información de la venta respetando el membrete de la plantilla."""
-        from docx.enum.text import WD_ALIGN_PARAGRAPH
-        from docx.shared import Pt, RGBColor
-        from datetime import datetime
-        
-        # Asegurar estilos básicos
-        self._asegurar_estilo_heading(doc, 'Heading 1', 18)
-        self._asegurar_estilo_heading(doc, 'Heading 2', 16)
-        self._asegurar_estilo_heading(doc, 'Heading 4', 12)
-
-        # Pequeño espacio para no invadir el membrete
-        spacer = doc.add_paragraph()
-        spacer.paragraph_format.space_after = Pt(4)
-        
-        titulo_principal = doc.add_heading('CONFIRMACIONES DE VIAJE', level=1)
-        titulo_principal.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        for run in titulo_principal.runs:
-            run.font.name = 'Arial'
-            run.font.color.rgb = RGBColor(0, 74, 142)
-            run.font.size = Pt(18)
-            run.font.bold = True
-        
-        info_p = doc.add_paragraph()
-        info_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        info_p.paragraph_format.space_after = Pt(6)
-        
-        cliente_run = info_p.add_run(f'Cliente: {venta.cliente.nombre_completo_display}')
-        cliente_run.font.name = 'Arial'
-        cliente_run.font.size = Pt(12)
-        cliente_run.font.color.rgb = RGBColor(0, 0, 0)
-        
-        fecha_run = info_p.add_run(f' | Fecha de generación: {datetime.now().strftime("%d de %B de %Y")}')
-        fecha_run.font.name = 'Arial'
-        fecha_run.font.size = Pt(12)
-        fecha_run.font.color.rgb = RGBColor(0, 0, 0)
+    # ===== MÉTODOS DE GENERACIÓN HTML PARA PDF =====
+    # Estos métodos generan HTML para convertir a PDF usando WeasyPrint
     
-    def _agregar_plantilla_al_documento(self, doc, plantilla):
-        """Agrega el contenido de una plantilla al documento Word con estilo profesional."""
-        from docx.enum.text import WD_ALIGN_PARAGRAPH
-        from docx.shared import Pt, RGBColor, Inches
+    def _generar_html_vuelo_unico(self, datos, format_date):
+        """Genera HTML para plantilla de vuelo único (EXACTAMENTE igual que cotizaciones con cards)."""
+        html_parts = []
         
-        # Salto de línea entre la información del cliente y el título de la plantilla
-        self._agregar_salto_entre_secciones(doc)
+        # Card principal con header (IGUAL QUE COTIZACIONES - seccion_vuelo.html)
+        html_parts.append('<div class="card">')
+        html_parts.append('<div class="card-header">')
+        html_parts.append('<span class="icon">')
+        html_parts.append('<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">')
+        html_parts.append('<path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill="white" stroke="none"/>')
+        html_parts.append('</svg>')
+        html_parts.append('</span>')
+        html_parts.append('<span>VUELO ÚNICO</span>')
+        html_parts.append('</div>')
         
-        # Agregar título principal (tamaño 18, Arial)
-        self._asegurar_estilo_heading(doc, 'Heading 2', 18)
-        titulo = doc.add_heading(plantilla.get_tipo_display().upper(), level=2)
-        titulo.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        titulo.paragraph_format.space_before = Pt(12)
-        titulo.paragraph_format.space_after = Pt(10)
-        for run in titulo.runs:
-            run.font.name = 'Arial'
-            run.font.color.rgb = RGBColor(0, 74, 142)  # Azul similar al PDF
-            run.font.size = Pt(18)
-            run.font.bold = True
+        # Tabla de datos (IGUAL QUE COTIZACIONES - data-table)
+        html_parts.append('<table class="data-table">')
         
-        # Agregar datos según el tipo
-        datos = plantilla.datos or {}
+        if datos.get('clave_reserva'):
+            html_parts.append('<tr>')
+            html_parts.append('<td style="width: 30%;"><strong>Clave de Reserva:</strong></td>')
+            html_parts.append(f'<td>{datos.get("clave_reserva")}</td>')
+            html_parts.append('</tr>')
         
-        if plantilla.tipo == 'VUELO_UNICO':
-            self._agregar_vuelo_unico(doc, datos)
-        elif plantilla.tipo == 'VUELO_REDONDO':
-            self._agregar_vuelo_redondo(doc, datos)
-        elif plantilla.tipo == 'HOSPEDAJE':
-            self._agregar_hospedaje(doc, datos)
-        elif plantilla.tipo == 'TRASLADO':
-            # Para traslados, puede haber múltiples traslados
-            if 'traslados' in datos and isinstance(datos['traslados'], list):
-                for idx, traslado in enumerate(datos['traslados'], 1):
-                    if idx > 1:
-                        self._agregar_subtitulo_con_vineta(doc, f'Traslado {idx}')
-                    self._agregar_traslado(doc, traslado)
-            else:
-                # Compatibilidad con formato antiguo
-                self._agregar_traslado(doc, datos)
-        elif plantilla.tipo == 'GENERICA':
-            self._agregar_generica(doc, datos)
+        if datos.get('aerolinea'):
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Aerolínea:</strong></td>')
+            html_parts.append(f'<td>{datos.get("aerolinea")}</td>')
+            html_parts.append('</tr>')
+        
+        if datos.get('numero_vuelo'):
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Vuelo:</strong></td>')
+            html_parts.append(f'<td>{datos.get("numero_vuelo")}</td>')
+            html_parts.append('</tr>')
+        
+        if datos.get('fecha'):
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Fecha:</strong></td>')
+            html_parts.append(f'<td>{datos.get("fecha")}</td>')
+            html_parts.append('</tr>')
+        
+        salida_info = []
+        if datos.get('hora_salida'):
+            salida_info.append(datos.get('hora_salida'))
+        if datos.get('origen_terminal'):
+            salida_info.append(f"Desde: {datos.get('origen_terminal')}")
+        if salida_info:
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Salida:</strong></td>')
+            html_parts.append(f'<td>{" | ".join(salida_info)}</td>')
+            html_parts.append('</tr>')
+        
+        llegada_info = []
+        if datos.get('hora_llegada'):
+            llegada_info.append(datos.get('hora_llegada'))
+        if datos.get('destino_terminal'):
+            llegada_info.append(f"Hasta: {datos.get('destino_terminal')}")
+        if llegada_info:
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Llegada:</strong></td>')
+            html_parts.append(f'<td>{" | ".join(llegada_info)}</td>')
+            html_parts.append('</tr>')
+        
+        if datos.get('tipo_vuelo'):
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Tipo de Vuelo:</strong></td>')
+            html_parts.append(f'<td>{datos.get("tipo_vuelo")}</td>')
+            html_parts.append('</tr>')
+        
+        pasajeros = datos.get('pasajeros', '')
+        if pasajeros:
+            pasajeros_texto = ', '.join([p.strip() for p in str(pasajeros).replace('\r\n', '\n').split('\n') if p.strip()])
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Pasajeros:</strong></td>')
+            html_parts.append(f'<td>{pasajeros_texto}</td>')
+            html_parts.append('</tr>')
+        
+        if datos.get('equipaje'):
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Equipaje:</strong></td>')
+            html_parts.append(f'<td>{datos.get("equipaje")}</td>')
+            html_parts.append('</tr>')
+        
+        if datos.get('informacion_adicional'):
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Información Adicional:</strong></td>')
+            html_parts.append(f'<td>{datos.get("informacion_adicional")}</td>')
+            html_parts.append('</tr>')
+        
+        # Escalas si aplica (dentro de la misma tabla)
+        if datos.get('tipo_vuelo') == 'Escalas' and datos.get('escalas'):
+            escalas = datos.get('escalas', [])
+            if escalas:
+                for i, escala in enumerate(escalas, 1):
+                    html_parts.append('<tr>')
+                    html_parts.append(f'<td><strong>Escala {i}:</strong></td>')
+                    escala_texto = f"{escala.get('ciudad', '')} - {escala.get('aeropuerto', '')}"
+                    detalles = []
+                    if escala.get('hora_llegada'):
+                        detalles.append(f"Llegada: {escala.get('hora_llegada')}")
+                    if escala.get('hora_salida'):
+                        detalles.append(f"Salida: {escala.get('hora_salida')}")
+                    if escala.get('numero_vuelo'):
+                        detalles.append(f"Vuelo: {escala.get('numero_vuelo')}")
+                    if escala.get('duracion'):
+                        detalles.append(f"Duración: {escala.get('duracion')}")
+                    if detalles:
+                        escala_texto += f" ({' | '.join(detalles)})"
+                    html_parts.append(f'<td>{escala_texto}</td>')
+                    html_parts.append('</tr>')
+        
+        html_parts.append('</table>')
+        html_parts.append('</div>')  # Cierre de card
+        
+        # Información Completa del Vuelo (campo "vuelo") - en una nueva card si existe
+        if datos.get('vuelo'):
+            html_parts.append('<div style="page-break-before: always;"></div>')
+            html_parts.append('<div class="card">')
+            html_parts.append('<div class="card-header">')
+            html_parts.append('<span class="icon">')
+            html_parts.append('<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">')
+            html_parts.append('<path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill="white" stroke="none"/>')
+            html_parts.append('</svg>')
+            html_parts.append('</span>')
+            html_parts.append('<span>INFORMACIÓN COMPLETA DEL VUELO</span>')
+            html_parts.append('</div>')
+            vuelo_info = datos.get('vuelo', '').replace('\n', '<br>')
+            html_parts.append(f'<div style="padding: 12px 18px; font-size: 9pt; line-height: 1.5;">{vuelo_info}</div>')
+            html_parts.append('</div>')
+        
+        return "".join(html_parts)
+    
+    def _generar_html_vuelo_redondo(self, datos, format_date):
+        """Genera HTML para plantilla de vuelo redondo (EXACTAMENTE igual que cotizaciones con cards)."""
+        html_parts = []
+        
+        # Card para Vuelo de Ida (IGUAL QUE COTIZACIONES)
+        html_parts.append('<div class="card">')
+        html_parts.append('<div class="card-header">')
+        html_parts.append('<span class="icon">')
+        html_parts.append('<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">')
+        html_parts.append('<path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill="white" stroke="none"/>')
+        html_parts.append('</svg>')
+        html_parts.append('</span>')
+        html_parts.append('<span>VUELO DE IDA</span>')
+        html_parts.append('</div>')
+        
+        html_parts.append('<table class="data-table">')
+        
+        if datos.get('clave_reserva'):
+            html_parts.append('<tr>')
+            html_parts.append('<td style="width: 30%;"><strong>Clave de Reserva:</strong></td>')
+            html_parts.append(f'<td>{datos.get("clave_reserva")}</td>')
+            html_parts.append('</tr>')
+        
+        if datos.get('aerolinea_ida'):
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Aerolínea:</strong></td>')
+            html_parts.append(f'<td>{datos.get("aerolinea_ida")}</td>')
+            html_parts.append('</tr>')
+        
+        if datos.get('numero_vuelo_ida'):
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Vuelo:</strong></td>')
+            html_parts.append(f'<td>{datos.get("numero_vuelo_ida")}</td>')
+            html_parts.append('</tr>')
+        
+        salida_ida_info = []
+        if datos.get('fecha_salida_ida'):
+            salida_ida_info.append(datos.get('fecha_salida_ida'))
+        if datos.get('hora_salida_ida'):
+            salida_ida_info.append(datos.get('hora_salida_ida'))
+        if datos.get('origen_ida'):
+            salida_ida_info.append(f"Desde: {datos.get('origen_ida')}")
+        if salida_ida_info:
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Salida:</strong></td>')
+            html_parts.append(f'<td>{" | ".join(salida_ida_info)}</td>')
+            html_parts.append('</tr>')
+        
+        llegada_ida_info = []
+        if datos.get('hora_llegada_ida'):
+            llegada_ida_info.append(datos.get('hora_llegada_ida'))
+        if datos.get('destino_ida'):
+            llegada_ida_info.append(f"Hasta: {datos.get('destino_ida')}")
+        if llegada_ida_info:
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Llegada:</strong></td>')
+            html_parts.append(f'<td>{" | ".join(llegada_ida_info)}</td>')
+            html_parts.append('</tr>')
+        
+        if datos.get('tipo_vuelo_ida'):
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Tipo de Vuelo:</strong></td>')
+            html_parts.append(f'<td>{datos.get("tipo_vuelo_ida")}</td>')
+            html_parts.append('</tr>')
+        
+        # Escalas de Ida (dentro de la tabla)
+        escalas_ida = datos.get('escalas_ida', [])
+        if escalas_ida and isinstance(escalas_ida, list) and len(escalas_ida) > 0:
+            for i, escala in enumerate(escalas_ida, 1):
+                html_parts.append('<tr>')
+                html_parts.append(f'<td><strong>Escala {i} (Ida):</strong></td>')
+                escala_texto = f"{escala.get('ciudad', '')} - {escala.get('aeropuerto', '')}"
+                detalles = []
+                if escala.get('hora_llegada'):
+                    detalles.append(f"Llegada: {escala.get('hora_llegada')}")
+                if escala.get('hora_salida'):
+                    detalles.append(f"Salida: {escala.get('hora_salida')}")
+                if escala.get('numero_vuelo'):
+                    detalles.append(f"Vuelo: {escala.get('numero_vuelo')}")
+                if escala.get('duracion'):
+                    detalles.append(f"Duración: {escala.get('duracion')}")
+                if detalles:
+                    escala_texto += f" ({' | '.join(detalles)})"
+                html_parts.append(f'<td>{escala_texto}</td>')
+                html_parts.append('</tr>')
+        
+        pasajeros = datos.get('pasajeros', '')
+        if pasajeros:
+            pasajeros_texto = ', '.join([p.strip() for p in str(pasajeros).replace('\r\n', '\n').split('\n') if p.strip()])
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Pasajeros:</strong></td>')
+            html_parts.append(f'<td>{pasajeros_texto}</td>')
+            html_parts.append('</tr>')
+        
+        if datos.get('equipaje'):
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Equipaje:</strong></td>')
+            html_parts.append(f'<td>{datos.get("equipaje")}</td>')
+            html_parts.append('</tr>')
+        
+        html_parts.append('</table>')
+        html_parts.append('</div>')  # Cierre de card Ida
+        
+        # Card para Vuelo de Regreso (IGUAL QUE COTIZACIONES)
+        html_parts.append('<div style="page-break-before: always;"></div>')
+        html_parts.append('<div class="card">')
+        html_parts.append('<div class="card-header">')
+        html_parts.append('<span class="icon">')
+        html_parts.append('<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">')
+        html_parts.append('<path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill="white" stroke="none"/>')
+        html_parts.append('</svg>')
+        html_parts.append('</span>')
+        html_parts.append('<span>VUELO DE REGRESO</span>')
+        html_parts.append('</div>')
+        
+        html_parts.append('<table class="data-table">')
+        
+        if datos.get('aerolinea_regreso'):
+            html_parts.append('<tr>')
+            html_parts.append('<td style="width: 30%;"><strong>Aerolínea:</strong></td>')
+            html_parts.append(f'<td>{datos.get("aerolinea_regreso")}</td>')
+            html_parts.append('</tr>')
+        
+        if datos.get('numero_vuelo_regreso'):
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Vuelo:</strong></td>')
+            html_parts.append(f'<td>{datos.get("numero_vuelo_regreso")}</td>')
+            html_parts.append('</tr>')
+        
+        salida_regreso_info = []
+        if datos.get('fecha_salida_regreso'):
+            salida_regreso_info.append(datos.get('fecha_salida_regreso'))
+        if datos.get('hora_salida_regreso'):
+            salida_regreso_info.append(datos.get('hora_salida_regreso'))
+        if datos.get('origen_regreso'):
+            salida_regreso_info.append(f"Desde: {datos.get('origen_regreso')}")
+        if salida_regreso_info:
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Salida:</strong></td>')
+            html_parts.append(f'<td>{" | ".join(salida_regreso_info)}</td>')
+            html_parts.append('</tr>')
+        
+        llegada_regreso_info = []
+        if datos.get('hora_llegada_regreso'):
+            llegada_regreso_info.append(datos.get('hora_llegada_regreso'))
+        if datos.get('destino_regreso'):
+            llegada_regreso_info.append(f"Hasta: {datos.get('destino_regreso')}")
+        if llegada_regreso_info:
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Llegada:</strong></td>')
+            html_parts.append(f'<td>{" | ".join(llegada_regreso_info)}</td>')
+            html_parts.append('</tr>')
+        
+        if datos.get('tipo_vuelo_regreso'):
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Tipo de Vuelo:</strong></td>')
+            html_parts.append(f'<td>{datos.get("tipo_vuelo_regreso")}</td>')
+            html_parts.append('</tr>')
+        
+        # Escalas de Regreso (dentro de la tabla)
+        escalas_regreso = datos.get('escalas_regreso', [])
+        if escalas_regreso and isinstance(escalas_regreso, list) and len(escalas_regreso) > 0:
+            for i, escala in enumerate(escalas_regreso, 1):
+                html_parts.append('<tr>')
+                html_parts.append(f'<td><strong>Escala {i} (Regreso):</strong></td>')
+                escala_texto = f"{escala.get('ciudad', '')} - {escala.get('aeropuerto', '')}"
+                detalles = []
+                if escala.get('hora_llegada'):
+                    detalles.append(f"Llegada: {escala.get('hora_llegada')}")
+                if escala.get('hora_salida'):
+                    detalles.append(f"Salida: {escala.get('hora_salida')}")
+                if escala.get('numero_vuelo'):
+                    detalles.append(f"Vuelo: {escala.get('numero_vuelo')}")
+                if escala.get('duracion'):
+                    detalles.append(f"Duración: {escala.get('duracion')}")
+                if detalles:
+                    escala_texto += f" ({' | '.join(detalles)})"
+                html_parts.append(f'<td>{escala_texto}</td>')
+                html_parts.append('</tr>')
+        
+        if datos.get('informacion_adicional'):
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Información Adicional:</strong></td>')
+            html_parts.append(f'<td>{datos.get("informacion_adicional")}</td>')
+            html_parts.append('</tr>')
+        
+        html_parts.append('</table>')
+        html_parts.append('</div>')  # Cierre de card Regreso
+        
+        return "".join(html_parts)
+    
+    def _generar_html_hospedaje(self, datos, format_date, request):
+        """Genera HTML para plantilla de hospedaje (mismo formato que cotizaciones con cards)."""
+        html_parts = []
+        
+        # Card principal con header (IGUAL QUE COTIZACIONES)
+        html_parts.append('<div class="card">')
+        html_parts.append('<div class="card-header">')
+        html_parts.append('<span class="icon">')
+        html_parts.append('<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">')
+        html_parts.append('<path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7h8V7zM7 14c-2.33 0-7 1.17-7 3.5V19h14v-1.5c0-2.33-4.67-3.5-7-3.5zM19 14c-2.33 0-7 1.17-7 3.5V19h14v-1.5c0-2.33-4.67-3.5-7-3.5z" fill="white" stroke="none"/>')
+        html_parts.append('</svg>')
+        html_parts.append('</span>')
+        html_parts.append('<span>HOSPEDAJE</span>')
+        html_parts.append('</div>')
+        
+        # Tabla de información (IGUAL QUE COTIZACIONES - data-table)
+        nombre_alojamiento = self._normalizar_valor_campo(datos.get('nombre_alojamiento', ''), limpiar_saltos_linea=True) or 'Hotel propuesto'
+        referencia = self._normalizar_valor_campo(datos.get('numero_referencia', ''), limpiar_saltos_linea=True) or '-'
+        viajero_principal = self._normalizar_valor_campo(datos.get('viajero_principal', ''), es_nombre_propio=True) or '-'
+        tipo_habitacion = self._normalizar_valor_campo(datos.get('tipo_habitacion', ''), limpiar_saltos_linea=True) or '-'
+        direccion = self._normalizar_valor_campo(datos.get('direccion', ''), limpiar_saltos_linea=True) if datos.get('direccion') else '-'
+        plan_alimentos = self._normalizar_valor_campo(datos.get('plan_alimentos', ''), limpiar_saltos_linea=True) if datos.get('plan_alimentos') else (datos.get('regimen', '') if datos.get('regimen') else '-')
+        
+        html_parts.append('<table class="data-table">')
+        html_parts.append('<tr>')
+        html_parts.append(f'<td style="width: 30%;"><strong>Nombre:</strong></td>')
+        html_parts.append(f'<td>{nombre_alojamiento}</td>')
+        html_parts.append('</tr>')
+        html_parts.append('<tr>')
+        html_parts.append(f'<td><strong>Habitación:</strong></td>')
+        html_parts.append(f'<td>{tipo_habitacion}</td>')
+        html_parts.append('</tr>')
+        html_parts.append('<tr>')
+        html_parts.append(f'<td><strong>Dirección:</strong></td>')
+        html_parts.append(f'<td>{direccion}</td>')
+        html_parts.append('</tr>')
+        html_parts.append('<tr>')
+        html_parts.append(f'<td><strong>Plan de Alimentos:</strong></td>')
+        html_parts.append(f'<td>{plan_alimentos}</td>')
+        html_parts.append('</tr>')
+        html_parts.append('<tr>')
+        html_parts.append(f'<td><strong>Referencia:</strong></td>')
+        html_parts.append(f'<td>{referencia}</td>')
+        html_parts.append('</tr>')
+        if viajero_principal != '-':
+            html_parts.append('<tr>')
+            html_parts.append(f'<td><strong>Viajero Principal:</strong></td>')
+            html_parts.append(f'<td><u>{viajero_principal}</u></td>')
+            html_parts.append('</tr>')
+        hora_checkin = datos.get('hora_checkin', '')
+        hora_checkout = datos.get('hora_checkout', '')
+        fecha_checkin = datos.get('fecha_checkin', '')
+        fecha_checkout = datos.get('fecha_checkout', '')
+        if fecha_checkin or fecha_checkout:
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Fechas:</strong></td>')
+            checkin_str = f"Check-in: {fecha_checkin}" + (f" {hora_checkin}" if hora_checkin else "")
+            checkout_str = f"Check-out: {fecha_checkout}" + (f" {hora_checkout}" if hora_checkout else "")
+            html_parts.append(f'<td>{checkin_str} | {checkout_str}</td>')
+            html_parts.append('</tr>')
+        
+        adultos = datos.get('adultos', '0')
+        ninos = datos.get('ninos', '0')
+        ocupacion_str = f"{adultos} Adulto(s)"
+        if int(ninos) > 0:
+            ocupacion_str += f", {ninos} Niño(s)"
+        regimen = datos.get('regimen', '')
+        if ocupacion_str or regimen:
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Huéspedes:</strong></td>')
+            huéspedes_info = [ocupacion_str] if ocupacion_str else []
+            if regimen:
+                huéspedes_info.append(f"Régimen: {regimen}")
+            html_parts.append(f'<td>{" | ".join(huéspedes_info)}</td>')
+            html_parts.append('</tr>')
+        
+        if datos.get('observaciones'):
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Observaciones:</strong></td>')
+            html_parts.append(f'<td>{datos.get("observaciones")}</td>')
+            html_parts.append('</tr>')
+        
+        html_parts.append('</table>')
+        html_parts.append('</div>')  # Cierre de card
+        
+        # Imagen de hospedaje (si existe) - fuera de la card
+        if datos.get('imagen_hospedaje_url'):
+            try:
+                image_url = datos['imagen_hospedaje_url']
+                if image_url.startswith('/media/'):
+                    image_url = request.build_absolute_uri(image_url)
+                elif not image_url.startswith('http'):
+                    image_url = request.build_absolute_uri(f'/media/{image_url}')
+                html_parts.append(f'<img src="{image_url}" class="hospedaje-imagen" alt="Imagen del hospedaje">')
+            except Exception:
+                pass
+        
+        return "".join(html_parts)
+    
+    def _generar_html_traslado(self, datos, format_date):
+        """Genera HTML para plantilla de traslado (EXACTAMENTE igual que cotizaciones con cards)."""
+        html_parts = []
+        
+        # Card principal con header (IGUAL QUE COTIZACIONES)
+        html_parts.append('<div class="card">')
+        html_parts.append('<div class="card-header">')
+        html_parts.append('<span class="icon">')
+        html_parts.append('<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">')
+        html_parts.append('<path d="M18.92 2.01C18.72 1.42 18.16 1 17.5 1h-11c-.66 0-1.21.42-1.42 1.01L3 8v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1V8l-2.08-5.99zM6.5 12c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm11 0c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9 19 9.67 19 10.5 18.33 12 17.5 12zM5 7l1.5-4.5h11L19 7H5z" fill="white" stroke="none"/>')
+        html_parts.append('</svg>')
+        html_parts.append('</span>')
+        html_parts.append('<span>TRASLADO</span>')
+        html_parts.append('</div>')
+        
+        # Tabla de datos (IGUAL QUE COTIZACIONES - data-table)
+        html_parts.append('<table class="data-table">')
+        
+        if datos.get('compania'):
+            html_parts.append('<tr>')
+            html_parts.append('<td style="width: 30%;"><strong>Compañía:</strong></td>')
+            html_parts.append(f'<td>{datos.get("compania")}</td>')
+            html_parts.append('</tr>')
+        
+        if datos.get('codigo_reserva'):
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Código Reserva:</strong></td>')
+            html_parts.append(f'<td>{datos.get("codigo_reserva")}</td>')
+            html_parts.append('</tr>')
+        
+        if datos.get('horario_inicio'):
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Horario de Inicio:</strong></td>')
+            html_parts.append(f'<td>{datos.get("horario_inicio")}</td>')
+            html_parts.append('</tr>')
+        
+        if datos.get('tipo_servicio'):
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Tipo de Servicio:</strong></td>')
+            html_parts.append(f'<td>{datos.get("tipo_servicio")}</td>')
+            html_parts.append('</tr>')
+        
+        ruta_info = []
+        if datos.get('desde'):
+            ruta_info.append(f"Desde: {datos.get('desde')}")
+        if datos.get('hasta'):
+            ruta_info.append(f"Hasta: {datos.get('hasta')}")
+        if ruta_info:
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Ruta:</strong></td>')
+            html_parts.append(f'<td>{" | ".join(ruta_info)}</td>')
+            html_parts.append('</tr>')
+        
+        adultos = datos.get('adultos', '0')
+        ninos = datos.get('ninos', '0')
+        pasajeros_str = f"{adultos} Adulto(s)"
+        if int(ninos) > 0:
+            pasajeros_str += f", {ninos} Niño(s)"
+        html_parts.append('<tr>')
+        html_parts.append('<td><strong>Pasajeros:</strong></td>')
+        html_parts.append(f'<td>{pasajeros_str}</td>')
+        html_parts.append('</tr>')
+        
+        if datos.get('informacion_adicional'):
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Información Adicional:</strong></td>')
+            html_parts.append(f'<td>{datos.get("informacion_adicional")}</td>')
+            html_parts.append('</tr>')
+        
+        html_parts.append('</table>')
+        html_parts.append('</div>')  # Cierre de card
+        
+        return "".join(html_parts)
+    
+    def _generar_html_generica(self, datos):
+        """Genera HTML para plantilla genérica (EXACTAMENTE igual que cotizaciones con cards)."""
+        html_parts = []
+        
+        # Card principal con header (IGUAL QUE COTIZACIONES)
+        html_parts.append('<div class="card">')
+        html_parts.append('<div class="card-header">')
+        html_parts.append('<span class="icon">')
+        html_parts.append('<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">')
+        html_parts.append('<path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" fill="white" stroke="none"/>')
+        html_parts.append('</svg>')
+        html_parts.append('</span>')
+        titulo = datos.get('titulo', 'INFORMACIÓN ADICIONAL')
+        html_parts.append(f'<span>{titulo.upper()}</span>')
+        html_parts.append('</div>')
+        
+        contenido = datos.get('contenido', '')
+        if contenido:
+            contenido_normalizado = self._normalizar_valor_campo(contenido, limpiar_saltos_linea=True)
+            contenido_html = contenido_normalizado.replace('\n', '<br>')
+            html_parts.append(f'<div style="padding: 12px 18px; font-size: 9pt; line-height: 1.5;">{contenido_html}</div>')
+        else:
+            html_parts.append('<div style="padding: 12px 18px; font-size: 9pt; line-height: 1.5;">-</div>')
+        
+        html_parts.append('</div>')  # Cierre de card
+        return "".join(html_parts)
+    
+    # ===== MÉTODOS ANTIGUOS (deprecated - mantenidos por compatibilidad pero ya no se usan) =====
+    
+    def _procesar_vuelo_unico(self, doc, datos, agregar_titulo_principal, agregar_subtitulo_con_vineta,
+                              agregar_info_inline, agregar_info_line, agregar_salto_entre_secciones,
+                              set_run_font, MOVUMS_BLUE_CORP, Pt):
+        """Procesa plantilla de vuelo único usando funciones helper locales (mismo formato que cotizaciones)."""
+        from docx.shared import Inches
+        
+        agregar_titulo_principal("VUELO ÚNICO")
+        agregar_subtitulo_con_vineta('Información de Reserva')
+        agregar_info_inline(
+            ('Clave de Reserva', datos.get('clave_reserva', '')),
+            ('Aerolínea', datos.get('aerolinea', '')),
+            ('Vuelo', datos.get('numero_vuelo', ''))
+        )
+        agregar_salto_entre_secciones()
+        agregar_subtitulo_con_vineta('Detalles del Vuelo')
+        agregar_info_inline(
+            ('Fecha', datos.get('fecha', '')),
+            ('Hora Salida', datos.get('hora_salida', '')),
+            ('Hora Llegada', datos.get('hora_llegada', ''))
+        )
+        agregar_info_inline(
+            ('Origen', datos.get('origen_terminal', '')),
+            ('Destino', datos.get('destino_terminal', ''))
+        )
+        agregar_info_line('Tipo de Vuelo', datos.get('tipo_vuelo', ''))
+        
+        # Escalas si aplica
+        if datos.get('tipo_vuelo') == 'Escalas' and datos.get('escalas'):
+            escalas = datos.get('escalas', [])
+            if escalas:
+                agregar_salto_entre_secciones()
+                agregar_subtitulo_con_vineta('Detalles de Escalas')
+                for i, escala in enumerate(escalas, 1):
+                    escala_p = doc.add_paragraph()
+                    escala_p.paragraph_format.space_after = Pt(6)
+                    escala_run = escala_p.add_run(f'Escala {i}: ')
+                    set_run_font(escala_run, size=12, bold=True)
+                    escala_val_run = escala_p.add_run(f"{escala.get('ciudad', '')} - {escala.get('aeropuerto', '')}")
+                    set_run_font(escala_val_run, size=12)
+                    
+                    escala_info = doc.add_paragraph()
+                    escala_info.paragraph_format.left_indent = Inches(0.3)
+                    escala_info.paragraph_format.space_after = Pt(6)
+                    detalles = []
+                    if escala.get('hora_llegada'):
+                        detalles.append(f"Hora Llegada: {escala.get('hora_llegada')}")
+                    if escala.get('hora_salida'):
+                        detalles.append(f"Hora Salida: {escala.get('hora_salida')}")
+                    if escala.get('numero_vuelo'):
+                        detalles.append(f"Vuelo: {escala.get('numero_vuelo')}")
+                    if escala.get('duracion'):
+                        detalles.append(f"Duración: {escala.get('duracion')}")
+                    detalle_run = escala_info.add_run(' | '.join(detalles))
+                    set_run_font(detalle_run, size=12)
+        
+        agregar_salto_entre_secciones()
+        agregar_subtitulo_con_vineta('Información de Pasajeros')
+        pasajeros = datos.get('pasajeros', '')
+        if pasajeros:
+            pasajeros_texto = ', '.join([p.strip() for p in str(pasajeros).replace('\r\n', '\n').split('\n') if p.strip()])
+            agregar_info_line('Pasajeros', pasajeros_texto)
+        agregar_info_line('Equipaje', datos.get('equipaje', ''))
+        if datos.get('informacion_adicional'):
+            agregar_info_line('Información Adicional', datos.get('informacion_adicional', ''))
+        
+        # Información Completa del Vuelo (campo "vuelo") - en hoja aparte si existe
+        if datos.get('vuelo'):
+            from docx.enum.text import WD_BREAK
+            doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
+            agregar_subtitulo_con_vineta('Información Completa del Vuelo')
+            vuelo_info = datos.get('vuelo', '')
+            for linea in vuelo_info.split('\n'):
+                if linea.strip():
+                    p = doc.add_paragraph(linea.strip())
+                    p.paragraph_format.space_after = Pt(4)
+                    for run in p.runs:
+                        set_run_font(run, size=12)
+    
+    def _procesar_vuelo_redondo(self, doc, datos, agregar_titulo_principal, agregar_subtitulo_con_vineta,
+                                agregar_info_inline, agregar_info_line, agregar_salto_entre_secciones,
+                                set_run_font, MOVUMS_BLUE_CORP, Pt, RGBColor):
+        """Procesa plantilla de vuelo redondo usando funciones helper locales (mismo formato que cotizaciones)."""
+        from docx.shared import Inches
+        
+        agregar_titulo_principal("VUELO REDONDO")
+        agregar_subtitulo_con_vineta('Información de Reserva')
+        agregar_info_line('Clave de Reserva', datos.get('clave_reserva', ''))
+        agregar_salto_entre_secciones()
+        agregar_subtitulo_con_vineta('Vuelo de Ida')
+        agregar_info_inline(
+            ('Aerolínea', datos.get('aerolinea_ida', '')),
+            ('Vuelo', datos.get('numero_vuelo_ida', ''))
+        )
+        agregar_info_inline(
+            ('Fecha Salida', datos.get('fecha_salida_ida', '')),
+            ('Hora Salida', datos.get('hora_salida_ida', '')),
+            ('Hora Llegada', datos.get('hora_llegada_ida', ''))
+        )
+        agregar_info_inline(
+            ('Origen', datos.get('origen_ida', '')),
+            ('Destino', datos.get('destino_ida', ''))
+        )
+        agregar_info_line('Tipo de Vuelo', datos.get('tipo_vuelo_ida', ''))
+        
+        # Escalas de Ida si aplica
+        escalas_ida = datos.get('escalas_ida', [])
+        if escalas_ida and isinstance(escalas_ida, list) and len(escalas_ida) > 0:
+            agregar_salto_entre_secciones()
+            p_titulo = doc.add_paragraph()
+            p_titulo.paragraph_format.space_before = Pt(8)
+            p_titulo.paragraph_format.space_after = Pt(4)
+            titulo_run = p_titulo.add_run('Escalas del Vuelo de Ida:')
+            set_run_font(titulo_run, size=12, bold=True, color=MOVUMS_BLUE_CORP)
+            
+            for i, escala in enumerate(escalas_ida, 1):
+                escala_p = doc.add_paragraph()
+                escala_p.paragraph_format.space_after = Pt(4)
+                escala_p.paragraph_format.left_indent = Inches(0.2)
+                escala_run = escala_p.add_run(f'Escala {i}: ')
+                set_run_font(escala_run, size=12, bold=True)
+                ciudad = escala.get('ciudad', '')
+                aeropuerto = escala.get('aeropuerto', '')
+                escala_val = escala_p.add_run(f"{ciudad} - {aeropuerto}")
+                set_run_font(escala_val, size=12)
+                
+                detalle_p = doc.add_paragraph()
+                detalle_p.paragraph_format.space_after = Pt(6)
+                detalle_p.paragraph_format.left_indent = Inches(0.4)
+                detalles = []
+                if escala.get('hora_llegada'):
+                    detalles.append(f"Llegada: {escala.get('hora_llegada')}")
+                if escala.get('hora_salida'):
+                    detalles.append(f"Salida: {escala.get('hora_salida')}")
+                if escala.get('numero_vuelo'):
+                    detalles.append(f"Vuelo: {escala.get('numero_vuelo')}")
+                if escala.get('duracion'):
+                    detalles.append(f"Duración: {escala.get('duracion')}")
+                detalle_run = detalle_p.add_run(' | '.join(detalles))
+                set_run_font(detalle_run, size=11)
+        
+        # Salto de página antes del Vuelo de Regreso
+        doc.add_page_break()
+        
+        agregar_subtitulo_con_vineta('Vuelo de Regreso')
+        agregar_info_inline(
+            ('Aerolínea', datos.get('aerolinea_regreso', '')),
+            ('Vuelo', datos.get('numero_vuelo_regreso', ''))
+        )
+        agregar_info_inline(
+            ('Fecha Salida', datos.get('fecha_salida_regreso', '')),
+            ('Hora Salida', datos.get('hora_salida_regreso', '')),
+            ('Hora Llegada', datos.get('hora_llegada_regreso', ''))
+        )
+        agregar_info_inline(
+            ('Origen', datos.get('origen_regreso', '')),
+            ('Destino', datos.get('destino_regreso', ''))
+        )
+        agregar_info_line('Tipo de Vuelo', datos.get('tipo_vuelo_regreso', ''))
+        
+        # Escalas de Regreso si aplica
+        escalas_regreso = datos.get('escalas_regreso', [])
+        if escalas_regreso and isinstance(escalas_regreso, list) and len(escalas_regreso) > 0:
+            agregar_salto_entre_secciones()
+            p_titulo = doc.add_paragraph()
+            p_titulo.paragraph_format.space_before = Pt(8)
+            p_titulo.paragraph_format.space_after = Pt(4)
+            titulo_run = p_titulo.add_run('Escalas del Vuelo de Regreso:')
+            set_run_font(titulo_run, size=12, bold=True, color=MOVUMS_BLUE_CORP)
+            
+            for i, escala in enumerate(escalas_regreso, 1):
+                escala_p = doc.add_paragraph()
+                escala_p.paragraph_format.space_after = Pt(4)
+                escala_p.paragraph_format.left_indent = Inches(0.2)
+                escala_run = escala_p.add_run(f'Escala {i}: ')
+                set_run_font(escala_run, size=12, bold=True)
+                ciudad = escala.get('ciudad', '')
+                aeropuerto = escala.get('aeropuerto', '')
+                escala_val = escala_p.add_run(f"{ciudad} - {aeropuerto}")
+                set_run_font(escala_val, size=12)
+                
+                detalle_p = doc.add_paragraph()
+                detalle_p.paragraph_format.space_after = Pt(6)
+                detalle_p.paragraph_format.left_indent = Inches(0.4)
+                detalles = []
+                if escala.get('hora_llegada'):
+                    detalles.append(f"Llegada: {escala.get('hora_llegada')}")
+                if escala.get('hora_salida'):
+                    detalles.append(f"Salida: {escala.get('hora_salida')}")
+                if escala.get('numero_vuelo'):
+                    detalles.append(f"Vuelo: {escala.get('numero_vuelo')}")
+                if escala.get('duracion'):
+                    detalles.append(f"Duración: {escala.get('duracion')}")
+                detalle_run = detalle_p.add_run(' | '.join(detalles))
+                set_run_font(detalle_run, size=11)
+        
+        agregar_salto_entre_secciones()
+        agregar_subtitulo_con_vineta('Información General')
+        pasajeros = datos.get('pasajeros', '')
+        if pasajeros:
+            pasajeros_texto = ', '.join([p.strip() for p in str(pasajeros).replace('\r\n', '\n').split('\n') if p.strip()])
+            agregar_info_line('Pasajeros', pasajeros_texto)
+        agregar_info_line('Equipaje', datos.get('equipaje', ''))
+        if datos.get('informacion_adicional'):
+            agregar_info_line('Información Adicional', datos.get('informacion_adicional', ''))
+    
+    def _procesar_hospedaje(self, doc, datos, agregar_titulo_principal, agregar_subtitulo_con_vineta,
+                           agregar_info_inline, agregar_info_line, agregar_salto_entre_secciones,
+                           set_run_font, MOVUMS_BLUE_CORP, Pt, Inches, request):
+        """Procesa plantilla de hospedaje usando funciones helper locales (mismo formato que cotizaciones)."""
+        agregar_titulo_principal("HOSPEDAJE")
+        agregar_subtitulo_con_vineta('Información del Alojamiento')
+        
+        # Crear tabla de 2 columnas como en cotizaciones (líneas 7026-7056)
+        info_table = doc.add_table(rows=4, cols=2)
+        info_table.autofit = False
+        for col in info_table.columns:
+            for cell in col.cells:
+                cell.width = Inches(3.25)
+        
+        # Normalizar valores
+        nombre_alojamiento = self._normalizar_valor_campo(datos.get('nombre_alojamiento', ''), limpiar_saltos_linea=True)
+        referencia = self._normalizar_valor_campo(datos.get('numero_referencia', ''), limpiar_saltos_linea=True)
+        viajero_principal = self._normalizar_valor_campo(datos.get('viajero_principal', ''), es_nombre_propio=True)
+        tipo_habitacion = self._normalizar_valor_campo(datos.get('tipo_habitacion', ''), limpiar_saltos_linea=True)
+        direccion = self._normalizar_valor_campo(datos.get('direccion', ''), limpiar_saltos_linea=True) if datos.get('direccion') else '-'
+        plan_alimentos = self._normalizar_valor_campo(datos.get('plan_alimentos', ''), limpiar_saltos_linea=True) if datos.get('plan_alimentos') else (datos.get('regimen', '') if datos.get('regimen') else '-')
+        
+        # Nombre (fila 0, columna 0)
+        nombre_cell = info_table.rows[0].cells[0]
+        nombre_label = nombre_cell.paragraphs[0].add_run('Nombre: ')
+        set_run_font(nombre_label, size=12, bold=True)
+        nombre_val = nombre_cell.paragraphs[0].add_run(nombre_alojamiento or 'Hotel propuesto')
+        set_run_font(nombre_val, size=12)
+        
+        # Habitación (fila 1, columna 0)
+        habitacion_cell = info_table.rows[1].cells[0]
+        habitacion_label = habitacion_cell.paragraphs[0].add_run('Habitación: ')
+        set_run_font(habitacion_label, size=12, bold=True)
+        habitacion_val = habitacion_cell.paragraphs[0].add_run(tipo_habitacion or '-')
+        set_run_font(habitacion_val, size=12)
+        
+        # Dirección (fila 2, columna 0)
+        direccion_cell = info_table.rows[2].cells[0]
+        direccion_label = direccion_cell.paragraphs[0].add_run('Dirección: ')
+        set_run_font(direccion_label, size=12, bold=True)
+        direccion_val = direccion_cell.paragraphs[0].add_run(direccion)
+        set_run_font(direccion_val, size=12)
+        
+        # Viajero Principal (fila 3, columna 0)
+        viajero_cell = info_table.rows[3].cells[0]
+        viajero_label = viajero_cell.paragraphs[0].add_run('Viajero Principal: ')
+        set_run_font(viajero_label, size=12, bold=True)
+        viajero_val = viajero_cell.paragraphs[0].add_run(viajero_principal or '-')
+        set_run_font(viajero_val, size=12)
+        if viajero_principal:
+            viajero_val.font.underline = True
+        
+        # Plan de Alimentos (fila 0, columna 1)
+        plan_cell = info_table.rows[0].cells[1]
+        plan_label = plan_cell.paragraphs[0].add_run('Plan de Alimentos: ')
+        set_run_font(plan_label, size=12, bold=True)
+        plan_val = plan_cell.paragraphs[0].add_run(plan_alimentos)
+        set_run_font(plan_val, size=12)
+        
+        # Referencia (fila 1, columna 1)
+        ref_cell = info_table.rows[1].cells[1]
+        ref_label = ref_cell.paragraphs[0].add_run('Referencia: ')
+        set_run_font(ref_label, size=12, bold=True)
+        ref_val = ref_cell.paragraphs[0].add_run(referencia or '-')
+        set_run_font(ref_val, size=12)
+        
+        agregar_salto_entre_secciones()
+        agregar_subtitulo_con_vineta('Fechas y Estancia')
+        hora_checkin = datos.get('hora_checkin', '')
+        hora_checkout = datos.get('hora_checkout', '')
+        fecha_checkin = datos.get('fecha_checkin', '')
+        fecha_checkout = datos.get('fecha_checkout', '')
+        checkin_str = f"{fecha_checkin}" + (f" {hora_checkin}" if hora_checkin else "")
+        checkout_str = f"{fecha_checkout}" + (f" {hora_checkout}" if hora_checkout else "")
+        agregar_info_inline(
+            ('Check-in', checkin_str),
+            ('Check-out', checkout_str)
+        )
+        
+        agregar_salto_entre_secciones()
+        agregar_subtitulo_con_vineta('Información de Huéspedes')
+        adultos = datos.get('adultos', '0')
+        ninos = datos.get('ninos', '0')
+        ocupacion_str = f"{adultos} Adulto(s)"
+        if int(ninos) > 0:
+            ocupacion_str += f", {ninos} Niño(s)"
+        agregar_info_inline(
+            ('Ocupación', ocupacion_str),
+            ('Régimen', datos.get('regimen', ''))
+        )
+        if datos.get('observaciones'):
+            agregar_info_line('Observaciones', datos.get('observaciones', ''))
+        
+        # Imagen de hospedaje (si existe)
+        if datos.get('imagen_hospedaje_url'):
+            try:
+                import requests
+                from io import BytesIO
+                image_url = datos['imagen_hospedaje_url']
+                if image_url.startswith('/media/'):
+                    image_url = request.build_absolute_uri(image_url)
+                response = requests.get(image_url, timeout=5)
+                response.raise_for_status()
+                image_stream = BytesIO(response.content)
+                doc.add_picture(image_stream, width=Inches(4.5))
+            except Exception:
+                pass
+    
+    def _procesar_traslado(self, doc, datos, agregar_titulo_principal, agregar_subtitulo_con_vineta,
+                          agregar_info_inline, agregar_info_line, agregar_salto_entre_secciones,
+                          set_run_font, MOVUMS_BLUE_CORP, Pt, format_date):
+        """Procesa plantilla de traslado usando funciones helper locales (mismo formato que cotizaciones)."""
+        agregar_titulo_principal("TRASLADO")
+        agregar_subtitulo_con_vineta('Información de la Compañía')
+        agregar_info_inline(
+            ('Compañía', datos.get('compania', '')),
+            ('Código Reserva', datos.get('codigo_reserva', ''))
+        )
+        agregar_salto_entre_secciones()
+        agregar_subtitulo_con_vineta('Detalles del Traslado')
+        agregar_info_line('Horario de Inicio de Viaje', datos.get('horario_inicio', ''))
+        agregar_info_line('Tipo de Servicio', datos.get('tipo_servicio', ''))
+        agregar_info_inline(
+            ('Desde', datos.get('desde', '')),
+            ('Hasta', datos.get('hasta', ''))
+        )
+        
+        # Información de Pasajeros
+        adultos = datos.get('adultos', '0')
+        ninos = datos.get('ninos', '0')
+        pasajeros_str = f"{adultos} Adulto(s)"
+        if int(ninos) > 0:
+            pasajeros_str += f", {ninos} Niño(s)"
+        agregar_info_line('Pasajeros', pasajeros_str)
+        
+        if datos.get('informacion_adicional'):
+            agregar_info_line('Información Adicional', datos.get('informacion_adicional', ''))
+    
+    def _procesar_generica(self, doc, datos, agregar_titulo_principal, agregar_subtitulo_con_vineta,
+                          agregar_info_line, agregar_salto_entre_secciones, set_run_font, Pt):
+        """Procesa plantilla genérica usando funciones helper locales (mismo formato que cotizaciones)."""
+        titulo = datos.get('titulo', 'Información Adicional')
+        if titulo:
+            agregar_titulo_principal(titulo.upper())
+        
+        contenido = datos.get('contenido', '')
+        if contenido:
+            contenido_normalizado = self._normalizar_valor_campo(contenido, limpiar_saltos_linea=True)
+            for linea in contenido_normalizado.split('\n'):
+                if linea.strip():
+                    p = doc.add_paragraph(linea.strip())
+                    p.paragraph_format.space_after = Pt(4)
+                    for run in p.runs:
+                        set_run_font(run, size=12)
+    
+    # ===== MÉTODOS ANTIGUOS (deprecated - se mantienen por compatibilidad pero ya no se usan) =====
     
     def _agregar_info_line(self, doc, etiqueta, valor, mostrar_si_vacio=False, es_nombre_propio=False, separar_con_comas=False):
-        """Helper para agregar una línea de información formateada (ultra compacta)."""
+        """Helper para agregar una línea de información formateada (mismo formato que cotizaciones)."""
         from docx.shared import Pt, RGBColor
         
         if not valor and not mostrar_si_vacio:
             return
+        
+        # Usar la función helper definida en get()
+        set_run_font = getattr(self, '_set_run_font', None)
+        TEXT_COLOR = getattr(self, '_TEXT_COLOR', RGBColor(20, 20, 20))
+        
+        # Si no existe la función helper, definirla localmente
+        if not set_run_font:
+            def set_run_font(run, size=12, bold=False, color=TEXT_COLOR):
+                run.font.name = 'Arial'
+                run.font.size = Pt(size)
+                run.bold = bold
+                run.font.color.rgb = color
         
         # Si separar_con_comas, convertir saltos de línea en comas
         if separar_con_comas and valor:
@@ -5182,23 +6015,32 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         
         # Etiqueta en negrita
         label_run = p.add_run(f'{etiqueta}: ')
-        label_run.font.name = 'Arial'
-        label_run.bold = True
-        label_run.font.size = Pt(12)
+        set_run_font(label_run, size=12, bold=True)
         
         # Valor normalizado
         value_run = p.add_run(valor_normalizado if valor_normalizado else 'No especificado')
-        value_run.font.name = 'Arial'
-        value_run.font.size = Pt(12)
+        set_run_font(value_run, size=12)
         
         return p
     
     def _agregar_info_inline(self, doc, *pares_etiqueta_valor, separador=' | ', es_nombre_propio=False):
-        """Helper para agregar múltiples campos en una sola línea (ultra compacto)."""
+        """Helper para agregar múltiples campos en una sola línea (mismo formato que cotizaciones)."""
         from docx.shared import Pt, RGBColor
         
         if not pares_etiqueta_valor:
             return
+        
+        # Usar la función helper definida en get()
+        set_run_font = getattr(self, '_set_run_font', None)
+        TEXT_COLOR = getattr(self, '_TEXT_COLOR', RGBColor(20, 20, 20))
+        
+        # Si no existe la función helper, definirla localmente
+        if not set_run_font:
+            def set_run_font(run, size=12, bold=False, color=TEXT_COLOR):
+                run.font.name = 'Arial'
+                run.font.size = Pt(size)
+                run.bold = bold
+                run.font.color.rgb = color
         
         p = doc.add_paragraph()
         p.paragraph_format.space_after = Pt(4)
@@ -5217,45 +6059,48 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
             
             if idx > 0:
                 sep_run = p.add_run(separador)
-                sep_run.font.name = 'Arial'
-                sep_run.font.size = Pt(12)
-                sep_run.font.color.rgb = RGBColor(150, 150, 150)
+                set_run_font(sep_run, size=12)
             
             label_run = p.add_run(f'{etiqueta}: ')
-            label_run.font.name = 'Arial'
-            label_run.bold = True
-            label_run.font.size = Pt(12)
+            set_run_font(label_run, size=12, bold=True)
             
             value_run = p.add_run(str(valor_normalizado))
-            value_run.font.name = 'Arial'
-            value_run.font.size = Pt(12)
+            set_run_font(value_run, size=12)
         
         return p
     
     def _agregar_subtitulo_con_vineta(self, doc, texto):
-        """Agrega un subtítulo con viñeta azul como en la imagen."""
+        """Agrega un subtítulo con viñeta azul (mismo formato que cotizaciones)."""
         from docx.shared import Pt, RGBColor
-        from docx.oxml import OxmlElement
-        from docx.oxml.ns import qn
+        
+        # Usar el color corporativo definido en get() (con valor por defecto)
+        MOVUMS_BLUE_CORP = getattr(self, '_MOVUMS_BLUE_CORP', None) or RGBColor(0, 74, 142)
+        set_run_font = getattr(self, '_set_run_font', None)
+        TEXT_COLOR = getattr(self, '_TEXT_COLOR', None) or RGBColor(20, 20, 20)
+        
+        # Si no existe la función helper, definirla localmente
+        if not set_run_font:
+            def set_run_font(run, size=12, bold=False, color=TEXT_COLOR):
+                run.font.name = 'Arial'
+                run.font.size = Pt(size)
+                run.bold = bold
+                run.font.color.rgb = color
         
         p = doc.add_paragraph()
         p.paragraph_format.space_before = Pt(10)
         p.paragraph_format.space_after = Pt(4)
-        p.paragraph_format.left_indent = Pt(0)
         
-        # Agregar viñeta manualmente (carácter bullet)
+        # Agregar viñeta manualmente (carácter bullet) - tamaño 14 como cotizaciones
         bullet_run = p.add_run('• ')
-        bullet_run.font.name = 'Arial'
-        bullet_run.font.size = Pt(16)
-        bullet_run.font.color.rgb = RGBColor(0, 74, 142)
-        bullet_run.font.bold = True
+        set_run_font(bullet_run, size=14, bold=True, color=MOVUMS_BLUE_CORP)
         
-        # Agregar texto del subtítulo (tamaño 16 para títulos azules)
+        # Agregar texto del subtítulo (tamaño 14 como cotizaciones)
         texto_run = p.add_run(texto)
-        texto_run.font.name = 'Arial'
-        texto_run.font.size = Pt(16)
-        texto_run.font.color.rgb = RGBColor(0, 74, 142)
-        texto_run.font.bold = True
+        set_run_font(texto_run, size=14, bold=True, color=MOVUMS_BLUE_CORP)
+        
+        # Agregar espaciado después como en cotizaciones
+        spacer = doc.add_paragraph()
+        spacer.paragraph_format.space_after = Pt(2)
         
         return p
     
@@ -5267,9 +6112,12 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         return spacer
     
     def _agregar_vuelo_unico(self, doc, datos):
-        """Agrega contenido de vuelo único al documento con formato profesional."""
+        """Agrega contenido de vuelo único al documento con formato profesional (mismo formato que cotizaciones)."""
         from docx.shared import Pt, RGBColor, Inches
         from docx.enum.text import WD_ALIGN_PARAGRAPH
+        
+        # Color corporativo (mismo que cotizaciones)
+        MOVUMS_BLUE_CORP = RGBColor(0, 74, 142)
         
         # Información de Reserva (con viñeta)
         self._agregar_subtitulo_con_vineta(doc, 'Información de Reserva')
@@ -5370,9 +6218,12 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
             vuelo_val.font.size = Pt(12)
     
     def _agregar_vuelo_redondo(self, doc, datos):
-        """Agrega contenido de vuelo redondo al documento con formato compacto."""
+        """Agrega contenido de vuelo redondo al documento con formato compacto (mismo formato que cotizaciones)."""
         from docx.shared import Pt, Inches
         from docx.shared import RGBColor
+        
+        # Color corporativo (mismo que cotizaciones)
+        MOVUMS_BLUE_CORP = RGBColor(0, 74, 142)
         
         # Información de Reserva (con viñeta)
         self._agregar_subtitulo_con_vineta(doc, 'Información de Reserva')
@@ -5411,7 +6262,7 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                 titulo_run.font.name = 'Arial'
                 titulo_run.font.size = Pt(12)
                 titulo_run.font.bold = True
-                titulo_run.font.color.rgb = RGBColor(0, 74, 142)
+                titulo_run.font.color.rgb = MOVUMS_BLUE_CORP
                 
                 for i, escala in enumerate(escalas_ida, 1):
                     escala_p = doc.add_paragraph()
@@ -5480,7 +6331,7 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                 titulo_run.font.name = 'Arial'
                 titulo_run.font.size = Pt(12)
                 titulo_run.font.bold = True
-                titulo_run.font.color.rgb = RGBColor(0, 74, 142)
+                titulo_run.font.color.rgb = MOVUMS_BLUE_CORP
                 
                 for i, escala in enumerate(escalas_regreso, 1):
                     escala_p = doc.add_paragraph()
@@ -5539,10 +6390,13 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
             info_val.font.size = Pt(12)
     
     def _agregar_hospedaje(self, doc, datos):
-        """Agrega contenido de hospedaje al documento con formato compacto."""
+        """Agrega contenido de hospedaje al documento con formato compacto (mismo formato que cotizaciones)."""
         from docx.shared import Pt, Inches
         from docx.enum.text import WD_ALIGN_PARAGRAPH
         from docx.shared import RGBColor
+        
+        # Color corporativo (mismo que cotizaciones)
+        MOVUMS_BLUE_CORP = RGBColor(0, 74, 142)
         
         # Información del Alojamiento (con viñeta)
         self._agregar_subtitulo_con_vineta(doc, 'Información del Alojamiento')
@@ -5674,10 +6528,13 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                 img_note.add_run('Imagen de confirmación disponible en el sistema.')
     
     def _agregar_traslado(self, doc, datos):
-        """Agrega contenido de traslado al documento con formato compacto."""
+        """Agrega contenido de traslado al documento con formato compacto (mismo formato que cotizaciones)."""
         from docx.shared import Pt
         from docx.enum.text import WD_ALIGN_PARAGRAPH
         from docx.shared import RGBColor
+        
+        # Color corporativo (mismo que cotizaciones)
+        MOVUMS_BLUE_CORP = RGBColor(0, 74, 142)
         
         # Información de la Compañía (con viñeta)
         self._agregar_subtitulo_con_vineta(doc, 'Información de la Compañía')

@@ -1,0 +1,572 @@
+{% load static %}
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Confirmaciones de Viaje - Venta {{ venta.folio|default:venta.id }}</title>
+    <style>
+/* ============================================
+   ESTILOS PARA PDFs DE CONFIRMACIONES
+   DISEÑO EXACTAMENTE IGUAL QUE COTIZACIONES
+   Generados con WeasyPrint
+   ============================================ */
+{% if membrete_url %}
+    /* CONFIGURACIÓN CON MEMBRETE (FONDO COMPLETO) */
+    @page {
+        size: letter;
+        margin: 0; /* IMPORTANTE: Margen 0 para que la imagen toque los bordes */
+        
+        /* Imagen de fondo cubriendo toda la hoja */
+        background-image: url("{{ membrete_url }}");
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: cover; /* cover asegura que llene toda la hoja sin deformarse */
+    }
+{% else %}
+    /* CONFIGURACIÓN SIN MEMBRETE (DEFAULT) */
+    @page {
+        size: letter;
+        margin: 1.5cm;
+    }
+{% endif %}
+
+/* Variables de color Movums - Paleta del Brandboard (EXACTAMENTE IGUAL QUE COTIZACIONES) */
+:root {
+    /* Colores principales del brandboard */
+    --movums-navy: #1A2346;            /* Deep Navy Blue */
+    --movums-violet: #5A429C;          /* Violet/Dark Purple */
+    --movums-royal: #3B72F4;           /* Royal Blue */
+    --movums-medium: #2C96EB;          /* Medium Blue */
+    --movums-light: #4FC3F7;           /* Light Blue/Cyan */
+    --movums-pale: #E3F2FD;            /* Very Light Blue */
+    --movums-green: #8BC34A;           /* Lime Green/Accent */
+    --movums-charcoal: #202124;        /* Dark Charcoal/Black */
+    
+    /* Colores funcionales */
+    --movums-primary: var(--movums-navy);
+    --movums-secondary: var(--movums-royal);
+    --movums-blue-corp: var(--movums-navy);
+    --movums-blue: var(--movums-navy);
+    
+    /* Texto y fondos */
+    --text-primary: var(--movums-charcoal);
+    --text-secondary: #4a5568;
+    --text-muted: #718096;
+    --border-light: #E5E7EB;
+    --border-medium: #CBD5E0;
+    --bg-section: #F9FAFB;
+    --bg-white: #ffffff;
+    --accent-blue: var(--movums-royal);
+    --accent-light: var(--movums-pale);
+    --success: var(--movums-green);
+    
+    /* Espaciado */
+    --spacing-xs: 6px;
+    --spacing-sm: 12px;
+    --spacing-md: 20px;
+    --spacing-lg: 32px;
+    --spacing-xl: 48px;
+}
+
+/* Reset y base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Pangea', 'Arial', 'Helvetica', 'Segoe UI', sans-serif;
+    font-size: 9pt;
+    color: var(--text-primary);
+    line-height: 1.5;
+    background: transparent;
+    width: 100%;
+    min-height: 100vh;
+    box-sizing: border-box;
+    
+    /* Padding para proteger el contenido de tocar los bordes del membrete (IGUAL QUE COTIZACIONES) */
+    padding-top: 3.5cm;    /* Espacio para el logo superior */
+    padding-bottom: 2.5cm; /* Espacio para el pie de página */
+    padding-left: 2.0cm;   /* Espacio lateral */
+    padding-right: 2.0cm;  /* Espacio lateral */
+}
+
+/* ============================================
+   MEMBRETE COMO FONDO DE PÁGINA
+   ============================================ */
+.header {
+    display: none; /* Header oculto, el membrete es fondo */
+}
+
+/* ============================================
+   CONTENEDOR PRINCIPAL
+   ============================================ */
+.confirmaciones-container {
+    width: 100%;
+    margin: 0;
+    padding: 0; /* Ya no necesitamos padding aquí, lo tiene el body */
+    background: transparent;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* Spacer para separar el contenido del membrete (IGUAL QUE COTIZACIONES) */
+.spacer-top {
+    height: 48px; /* 2 saltos de línea adicionales (24px cada uno) */
+    display: block;
+}
+
+/* Wrapper para el contenido con espacio superior en nuevas páginas (IGUAL QUE COTIZACIONES) */
+.content-wrapper {
+    page-break-before: always; /* Forzar salto de página antes del wrapper */
+    padding-top: 168px; /* 7 saltos de línea (24px cada uno = 168px) */
+    box-sizing: border-box;
+}
+
+/* Evitar que las cards y secciones se partan entre páginas */
+.card {
+    page-break-before: auto;
+    page-break-inside: avoid; /* Evitar que la card se parta */
+    page-break-after: avoid; /* Mantener la card junta con su total */
+    margin-top: 0;
+    margin-bottom: 8px; /* Espaciado reducido a la mitad entre cards (16px → 8px) */
+}
+
+.info-section {
+    page-break-before: auto;
+    page-break-inside: avoid;
+    margin-top: 0;
+}
+
+/* ============================================
+   CARDS - DISEÑO MODERNO Y LLAMATIVO (EXACTAMENTE IGUAL QUE COTIZACIONES)
+   ============================================ */
+.card {
+    background: white;
+    border: none;
+    border-radius: 8px; /* Bordes redondeados para look moderno */
+    padding: 0;
+    margin: 0 0 8px 0; /* Espaciado reducido a la mitad entre cards (16px → 8px) */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); /* Sombra sutil */
+    page-break-inside: avoid; /* Evitar que la card se parta */
+    page-break-before: auto;
+    page-break-after: avoid; /* Mantener card y total juntos */
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden; /* Asegurar que el contenido respete el border-radius */
+}
+
+/* Mantener header y total juntos con la tabla */
+.card-header {
+    page-break-after: avoid; /* Header no se separa de la tabla */
+}
+
+/* Mantener el total junto con la tabla */
+.total-destacado {
+    page-break-before: avoid; /* Total no se separa de la tabla */
+}
+
+/* Espaciado reducido entre header y tabla */
+.card-header + .data-table,
+.card-header + .info-table {
+    margin-top: 8px !important; /* Espaciado más compacto */
+}
+
+.card-header {
+    background: #004a8e; /* Azul oscuro según imagen */
+    color: white;
+    font-size: 14pt; /* Tamaño aumentado según imagen */
+    font-weight: 700; /* Bold según imagen */
+    margin: 0;
+    padding: 10px 18px; /* Padding reducido para más compacto */
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    letter-spacing: 1px; /* Letter-spacing ajustado */
+    text-transform: uppercase;
+    box-sizing: border-box;
+    border-bottom: none;
+    position: relative;
+    flex-direction: row;
+    min-height: 44px; /* Altura mínima reducida */
+    overflow: visible;
+    border-radius: 6px 6px 0 0; /* Esquinas redondeadas solo arriba */
+}
+
+.card-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Asegurar que el icono esté siempre a la izquierda */
+.card-header > * {
+    order: 0; /* Resetear orden por defecto */
+}
+
+.card-header .icon {
+    order: -1 !important; /* Forzar que el icono esté PRIMERO (a la izquierda) */
+    width: 28px; /* Aumentado ligeramente más */
+    height: 28px; /* Aumentado ligeramente más */
+    display: inline-flex;
+    align-items: center; /* Centrar verticalmente el icono */
+    justify-content: center;
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+    flex-shrink: 0;
+    margin-right: 0;
+    vertical-align: middle; /* Asegurar alineación vertical */
+}
+
+.card-header .icon svg {
+    width: 26px; /* Aumentado ligeramente más */
+    height: 26px; /* Aumentado ligeramente más */
+    fill: white !important;
+    stroke: white !important;
+    color: white !important;
+    opacity: 1;
+    display: block;
+    vertical-align: middle; /* Asegurar alineación vertical */
+}
+
+/* ============================================
+   INFORMACIÓN DE CLIENTE Y VENTA (IGUAL QUE COTIZACIONES)
+   ============================================ */
+.info-section {
+    margin-bottom: 0;
+    width: 100%;
+    box-sizing: border-box;
+    background: transparent;
+    padding: 0;
+}
+
+.info-section-layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    margin-top: 0; /* Sin margen superior adicional */
+    page-break-inside: avoid; /* Evitar que el layout se parta */
+    justify-content: flex-start;
+    max-width: 100%;
+    width: 100%;
+}
+
+.info-section-main {
+    flex: 2;
+    min-width: 0;
+    max-width: 58%;
+}
+
+.info-card-client {
+    background: white !important;
+    border-radius: 8px; /* Bordes redondeados para look moderno */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); /* Sombra sutil */
+    padding: 0 !important;
+    overflow: hidden; /* Asegurar que el contenido respete el border-radius */
+    border: none; /* Sin bordes externos */
+}
+
+.info-card-client .info-table {
+    padding: 0; /* Sin padding, el padding viene de las celdas */
+    margin: 0;
+    border: none; /* Sin bordes externos */
+}
+
+.info-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 0;
+    background: white;
+    box-sizing: border-box;
+    padding: 0;
+    display: table;
+    border: none; /* Sin bordes externos */
+    page-break-inside: avoid; /* Evitar que la tabla se parta entre páginas */
+}
+
+.info-table tr {
+    background: transparent;
+    border-bottom: 1px solid #e2e8f0; /* Borde más sutil según imagen */
+    page-break-inside: avoid;
+    page-break-after: avoid;
+}
+
+.info-table tr:last-child {
+    border-bottom: none;
+}
+
+.info-table td {
+    padding: 10px 8px; /* Padding ajustado según imagen */
+    border: none;
+    vertical-align: middle;
+    font-size: 9.5pt; /* Tamaño de fuente ajustado */
+    line-height: 1.5;
+    page-break-inside: avoid;
+}
+
+.info-table td:first-child {
+    font-weight: 600; /* Labels en bold */
+    color: #1e3a5f; /* Azul oscuro legible para labels */
+    width: 35%;
+    font-size: 9.5pt;
+    text-transform: none;
+    letter-spacing: 0.2px;
+    background: transparent;
+    padding-right: 12px;
+}
+
+.info-table td:last-child {
+    color: #2c5282; /* Azul medio legible para valores */
+    font-size: 9.5pt;
+    font-weight: 400; /* Regular para valores */
+    background: transparent;
+}
+
+/* Alternar colores de fondo para mejor legibilidad */
+.info-table tr:nth-child(even) {
+    background: #f8f9fa; /* Gris muy claro para filas pares */
+}
+
+.info-table tr:nth-child(even) td {
+    background: transparent;
+}
+
+/* Bordes redondeados simulados para tablas usando border-radius */
+.info-table {
+    border-radius: 8px; /* Esquinas redondeadas */
+    overflow: hidden; /* Asegurar que el contenido respete el border-radius */
+}
+
+/* ============================================
+   TABLAS DE DATOS - FORMATO TIPO TARJETA CON COLOR (IGUAL QUE COTIZACIONES)
+   ============================================ */
+.data-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 8px 0 0 0 !important; /* Espaciado más reducido - importante para paquetes */
+    background: white;
+    box-sizing: border-box;
+    padding: 6px 12px !important; /* Padding interno aún más reducido para más compacto */
+    display: table; /* Asegurar que se comporte como tabla */
+    border-radius: 8px; /* Esquinas redondeadas */
+    overflow: hidden; /* Asegurar que el contenido respete el border-radius */
+    page-break-inside: avoid; /* Evitar que la tabla se parta entre páginas */
+}
+
+.data-table tr {
+    background: transparent;
+    border-bottom: 1px solid #e2e8f0; /* Borde más sutil según imagen */
+    page-break-inside: avoid;
+    page-break-after: avoid;
+}
+
+.data-table tr:last-child {
+    border-bottom: none;
+}
+
+.data-table td {
+    padding: 5px 0 !important; /* Padding vertical aún más reducido para paquetes */
+    border: none;
+    font-size: 9pt; /* Tamaño de fuente ligeramente reducido */
+    vertical-align: middle;
+    line-height: 1.3 !important; /* Line-height más compacto para paquetes */
+    page-break-inside: avoid;
+}
+
+.data-table td:first-child {
+    font-weight: 600; /* Labels en bold */
+    color: #2d3748; /* Dark gray para labels */
+    width: 30% !important; /* Ancho reducido para más compacto (sobrescribe inline styles) */
+    font-size: 9pt; /* Tamaño reducido */
+    text-transform: none;
+    letter-spacing: 0.2px;
+    background: transparent;
+    padding-right: 10px !important; /* Padding reducido */
+}
+
+.data-table td:last-child {
+    color: #4a5568; /* Gray más claro para valores */
+    font-size: 9pt; /* Tamaño reducido */
+    font-weight: 400; /* Regular para valores */
+    background: transparent;
+}
+
+.data-table tr:nth-child(even) {
+    background: rgba(227, 242, 253, 0.3);
+}
+
+.data-table tr:nth-child(even) td:first-child {
+    background: transparent;
+}
+
+/* ============================================
+   SUBTÍTULOS - MODERNOS (IGUAL QUE COTIZACIONES)
+   ============================================ */
+.subtitulo-con-vineta {
+    color: var(--movums-blue-corp);
+    font-size: 14pt;
+    font-weight: 700;
+    margin: 20px 0 15px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    letter-spacing: -0.3px;
+    text-transform: uppercase;
+    box-sizing: border-box;
+    line-height: 1.6;
+}
+
+.subtitulo-con-vineta::before {
+    content: "▸";
+    color: var(--movums-blue-corp);
+    font-size: 18pt;
+    font-weight: bold;
+    margin-right: 6px;
+}
+
+/* ============================================
+   INFORMACIÓN INLINE - DISEÑO PULIDO (IGUAL QUE COTIZACIONES)
+   ============================================ */
+.info-inline {
+    margin: 16px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    padding: 12px 0;
+    box-sizing: border-box;
+    width: 100%;
+    font-size: 10.5pt;
+}
+
+.info-inline strong {
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-right: 8px;
+}
+
+/* ============================================
+   LÍNEAS DE INFORMACIÓN (IGUAL QUE COTIZACIONES)
+   ============================================ */
+.info-line {
+    margin: 14px 0;
+    padding: 8px 0;
+    line-height: 1.8;
+    box-sizing: border-box;
+    width: 100%;
+    font-size: 10.5pt;
+}
+
+.info-line strong {
+    font-weight: 700;
+    color: var(--text-secondary);
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-right: 12px;
+}
+
+/* Saltos entre secciones */
+.salto-seccion {
+    height: 12px;
+    margin: 12px 0;
+}
+
+/* Escalas de vuelos */
+.escalas-container {
+    margin-top: 8px;
+    margin-bottom: 16px;
+}
+
+.escala-item {
+    margin-bottom: 12px;
+    padding-left: 12px;
+    font-size: 10.5pt;
+}
+
+.escala-detalles {
+    font-size: 9pt;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    padding-left: 24px;
+}
+
+/* Imagen de hospedaje */
+.hospedaje-imagen {
+    max-width: 400px;
+    margin-top: 16px;
+    margin-bottom: 16px;
+}
+
+/* Texto adicional */
+.texto-adicional {
+    font-size: 10.5pt;
+    line-height: 1.6;
+    margin-top: 8px;
+    white-space: pre-wrap;
+}
+
+/* Mejoras tipográficas */
+strong {
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+    </style>
+</head>
+<body>
+    <div class="header" style="display: none;"></div>
+    
+    <div class="confirmaciones-container">
+        <!-- Spacer para separar el contenido del membrete (IGUAL QUE COTIZACIONES) -->
+        <div class="spacer-top"></div>
+        
+        <!-- ENCABEZADO CON INFORMACIÓN DEL CLIENTE (IGUAL QUE COTIZACIONES) -->
+        <div class="info-section">
+            <div class="info-section-layout">
+                <div class="info-section-main">
+                    <div class="card info-card-client">
+                        <div style="padding: 0 0 20px 0; border-bottom: none;">
+                            <div style="font-size: 9pt; color: #4a5568; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; font-weight: 500;">CONFIRMACIONES DE VIAJE</div>
+                            <div style="font-size: 28pt; font-weight: 700; color: #2d3748; margin-bottom: 20px; letter-spacing: -0.5px; line-height: 1.2; display: flex; align-items: center; gap: 12px;">
+                                <span style="font-size: 32pt;">👤</span>
+                                <span>{{ venta.cliente.nombre_completo_display }}</span>
+                            </div>
+                        </div>
+                        <table class="info-table">
+                            <tr>
+                                <td>📝 Fecha de Generación:</td>
+                                <td>{{ fecha_generacion|date:"d/m/Y" }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- CONTENIDO DE PLANTILLAS -->
+        {% for plantilla_html in plantillas_html %}
+            {% if forloop.first %}
+                <!-- Primera plantilla: sin wrapper -->
+                {{ plantilla_html|safe }}
+            {% else %}
+                <!-- Plantillas siguientes: con wrapper para espacio superior (IGUAL QUE COTIZACIONES) -->
+                <div class="content-wrapper">
+                    {{ plantilla_html|safe }}
+                </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+</body>
+</html>

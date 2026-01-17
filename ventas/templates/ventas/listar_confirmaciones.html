@@ -26,9 +26,9 @@
             
             {% if plantillas %}
                 <a href="{% url 'generar_documento_confirmacion' pk=venta.pk slug=venta.slug_safe %}"
-                   class="btn btn-primary"
+                   class="btn btn-danger"
                    data-no-transition="true">
-                    <i class="fas fa-file-word"></i> Generar Documento Word
+                    <i class="fas fa-file-pdf"></i> Generar PDF
                 </a>
             {% endif %}
         </div>
