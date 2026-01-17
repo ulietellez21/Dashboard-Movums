@@ -622,110 +622,88 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
             )
 
             if formset.is_valid():
-                # TEMPORAL PARA PRUEBAS: Bloquear todos los cambios una vez asignados (incluido gerente)
-                # TODO: Ajustar permisos por tipo de usuario más adelante
+                # BLOQUEO TEMPORAL: Durante pruebas, TODOS los montos planificados ya asignados están bloqueados
+                # TODO: En producción, implementar permisos por rol (GERENTE puede editar)
                 total_pagado = self.object.total_pagado
                 total_marcado_pagado = Decimal('0.00')
-                errores_permisos = []
                 
                 for form in formset.forms:
-                    cleaned = form.cleaned_data
-                    if not cleaned:
+                    if not form.cleaned_data:
                         continue
                     
                     servicio_id = form.instance.pk if form.instance.pk else None
-                    # [CAMBIO] Usar el diccionario de LIMPIOS para obtener los valores originales reales de la BD
+                    # Usar la copia limpia de la BD para comparar
                     original = originales_limpios.get(servicio_id) if servicio_id else None
                     
-                    if original:
-                        # TEMPORAL: Bloquear modificación de monto_planeado si ya tiene valor
-                        nuevo_monto = cleaned.get('monto_planeado')
-                        
-                        # Si el monto original existe y es mayor a 0
-                        if original.monto_planeado and original.monto_planeado > Decimal('0.00'):
-                            # CORRECCIÓN: Si nuevo_monto es None o 0, asumimos que el campo estaba disabled e intentamos preservar el original
-                            if not nuevo_monto or nuevo_monto == Decimal('0.00'):
-                                nuevo_monto = original.monto_planeado
-                                # Importante: Actualizar cleaned_data para que el siguiente paso tenga el valor correcto
-                                form.cleaned_data['monto_planeado'] = original.monto_planeado
-                                cleaned['monto_planeado'] = original.monto_planeado
-                            # Validamos si hubo cambio real (intento de hack o error)
-                            if nuevo_monto != original.monto_planeado:
-                                errores_permisos.append(
-                                    f"Los montos planificados están bloqueados para pruebas. No se puede modificar el monto de '{original.nombre_servicio}'."
-                                )
-                                # Restaurar para el formulario
-                                form.cleaned_data['monto_planeado'] = original.monto_planeado
-                        
-                        # TEMPORAL: Bloquear modificación de estado pagado si está marcado (para todos)
-                        nuevo_pagado = cleaned.get('pagado', False)
-                        if original.pagado:
-                            # Si intenta desmarcarlo, bloquear
-                            if not nuevo_pagado:
-                                errores_permisos.append(
-                                    f"El estado de pago está bloqueado para pruebas. No se puede desmarcar como pagado el servicio '{original.nombre_servicio}'."
-                                )
-                                # Restaurar el valor original
-                                form.cleaned_data['pagado'] = True
+                    if not original:
+                        continue 
                     
-                    if cleaned.get('pagado'):
-                        total_marcado_pagado += cleaned.get('monto_planeado') or Decimal('0.00')
+                    # --- LÓGICA DE ACTUALIZACIÓN CON BLOQUEO TEMPORAL ---
+                    
+                    # 1. MONTO PLANIFICADO
+                    # PROBLEMA RAÍZ: El formulario puede recibir valores incorrectos debido a:
+                    # - Input hidden que no se envía correctamente
+                    # - clean_monto_planeado que convierte None/empty a Decimal('0.00')
+                    # - Conflictos entre input visible (disabled) e input hidden
+                    # SOLUCIÓN: Si ya tiene monto asignado, SIEMPRE preservar el original de la BD
+                    nuevo_monto = form.cleaned_data.get('monto_planeado')
+                    
+                    # BLOQUEO TEMPORAL: Si tiene monto ya asignado, PRESERVAR SIEMPRE el original
+                    # (sin importar qué venga del formulario, incluso si es 0.00)
+                    if original.monto_planeado and original.monto_planeado > Decimal('0.00'):
+                        # IGNORAR completamente el valor del formulario y usar el original de la BD
+                        nuevo_monto = original.monto_planeado
+                    else:
+                        # Si estaba vacío/sin asignar, aceptamos el valor nuevo (o 0 si viene vacío)
+                        nuevo_monto = nuevo_monto or Decimal('0.00')
+                    
+                    # 2. ESTADO PAGADO
+                    # BLOQUEO TEMPORAL: Una vez marcado como pagado, no se puede desmarcar
+                    nuevo_pagado = form.cleaned_data.get('pagado', False)
+                    if original.pagado:
+                        # Una vez pagado, siempre mantener como pagado (bloqueo temporal)
+                        nuevo_pagado = True
+                    
+                    # 3. OTROS CAMPOS (Siempre editables durante pruebas)
+                    nuevo_opcion_proveedor = form.cleaned_data.get('opcion_proveedor', '')
+                    
+                    # --- APLICAR CAMBIOS ---
+                    original.monto_planeado = nuevo_monto
+                    original.pagado = nuevo_pagado
+                    original.opcion_proveedor = nuevo_opcion_proveedor
+                    
+                    # Gestión de fecha de pago
+                    if nuevo_pagado and not original.fecha_pagado:
+                         original.fecha_pagado = timezone.now()
+                    elif not nuevo_pagado:
+                         original.fecha_pagado = None
+                    
+                    # Calcular total marcado como pagado para validación
+                    if nuevo_pagado:
+                        total_marcado_pagado += nuevo_monto
                 
-                # Si hay errores de permisos, mostrar mensaje y no guardar
-                if errores_permisos:
-                    for error in errores_permisos:
-                        messages.error(request, error)
-                    context = self.get_context_data()
-                    self._prepare_logistica_finanzas_context(context, self.object, formset=formset, servicios_qs=servicios_qs)
-                    return self.render_to_response(context)
-                
+                # Validar que el total marcado como pagado no exceda el total pagado
                 if total_marcado_pagado > total_pagado + Decimal('0.01'):
                     formset._non_form_errors = formset.error_class([
                         f"No puedes marcar como pagados ${total_marcado_pagado:,.2f} cuando solo hay ${total_pagado:,.2f} registrados en abonos y apertura."
                     ])
-                else:
-                    for form in formset.forms:
-                        if not form.cleaned_data:
-                            continue
-                        
-                        servicio_id = form.instance.pk if form.instance.pk else None
-                        # [CAMBIO] Usar el diccionario de LIMPIOS para obtener los valores originales reales de la BD
-                        original = originales_limpios.get(servicio_id) if servicio_id else None
-                        if not original:
-                            continue
-                        
-                        # Obtener valores desde cleaned_data
-                        nuevo_opcion_proveedor = form.cleaned_data.get('opcion_proveedor', '')
-                        nuevo_monto = form.cleaned_data.get('monto_planeado')
-                        nuevo_pagado = form.cleaned_data.get('pagado', False)
-                        
-                        # Preservar el monto_planeado original si el campo estaba bloqueado (deshabilitado)
-                        # Si el servicio ya tenía un monto planificado y el nuevo viene vacío o es 0,
-                        # significa que el campo estaba deshabilitado y debemos preservar el original
-                        if original.monto_planeado and original.monto_planeado > Decimal('0.00'):
-                            if not nuevo_monto or nuevo_monto == Decimal('0.00'):
-                                # El campo estaba bloqueado, preservar el valor original
-                                nuevo_monto = original.monto_planeado
-                        else:
-                            # Si no había monto original, asegurar que sea 0.00 si está vacío
-                            nuevo_monto = nuevo_monto or Decimal('0.00')
-                        
-                        # Actualizar el objeto original directamente
-                        original.opcion_proveedor = nuevo_opcion_proveedor
-                        original.monto_planeado = nuevo_monto
-                        
-                        # Manejar pagado y fecha_pagado
-                        original.pagado = nuevo_pagado
-                        if nuevo_pagado and not original.pagado:
-                            original.fecha_pagado = timezone.now()
-                        elif not nuevo_pagado and original.pagado:
-                            original.fecha_pagado = None
-                        
-                        # Guardar todos los campos
+                    context = self.get_context_data()
+                    self._prepare_logistica_finanzas_context(context, self.object, formset=formset, servicios_qs=servicios_qs)
+                    return self.render_to_response(context)
+                
+                # Guardar todos los cambios (los objetos original ya están actualizados en el bucle anterior)
+                for form in formset.forms:
+                    if not form.cleaned_data:
+                        continue
+                    
+                    servicio_id = form.instance.pk if form.instance.pk else None
+                    original = originales_limpios.get(servicio_id) if servicio_id else None
+                    
+                    if original:
                         original.save(update_fields=['monto_planeado', 'pagado', 'fecha_pagado', 'opcion_proveedor'])
 
-                    messages.success(request, "Control por servicio actualizado correctamente.")
-                    return redirect(reverse('detalle_venta', kwargs={'pk': self.object.pk, 'slug': self.object.slug_safe}) + '?tab=logistica')
+                messages.success(request, "Control por servicio actualizado correctamente.")
+                return redirect(reverse('detalle_venta', kwargs={'pk': self.object.pk, 'slug': self.object.slug_safe}) + '?tab=logistica')
             else:
                 messages.error(request, "Revisa los montos ingresados para cada servicio.")
 
