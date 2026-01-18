@@ -668,7 +668,18 @@ class VentaViaje(models.Model):
         if nuevo_estado != estado_actual:
             self.estado_confirmacion = nuevo_estado
             if guardar:
-                self.save(update_fields=['estado_confirmacion'])
+                # IMPORTANTE: Guardar sin update_fields para disparar todos los signals
+                # y asegurar que total_pagado esté actualizado cuando se ejecute el signal
+                self.save()
+        elif guardar:
+            # IMPORTANTE: Si el estado no cambia pero la venta está liquidada,
+            # debemos guardar igual para disparar el signal de promociones.
+            # Esto asegura que los kilómetros se apliquen aunque el estado ya sea COMPLETADO.
+            if (nuevo_estado == 'COMPLETADO' and 
+                nuevo_total >= self.costo_total_con_modificacion and 
+                self.costo_total_con_modificacion > 0):
+                # La venta está liquidada, guardar para disparar signal de promociones
+                self.save()
 
 
     def __str__(self):

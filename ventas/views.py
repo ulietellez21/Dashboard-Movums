@@ -1432,9 +1432,11 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         # 5. Llama a save_m2m (necesario si hay campos ManyToMany en VentaViajeForm)
         form.save_m2m() 
         
-        # 5.1. KILÓMETROS MOVUMS: Primero redimir (si aplica), luego acumular sobre el total CON descuento
+        # 5.1. KILÓMETROS MOVUMS: Solo redimir (si aplica) al crear la venta
+        # IMPORTANTE: La acumulación de kilómetros y bonos de promociones se aplicará
+        # SOLO cuando la venta se liquide (a través del signal aplicar_promociones_al_liquidar)
         try:
-            # PRIMERO: Redimir kilómetros si se aplicó descuento
+            # PRIMERO: Redimir kilómetros si se aplicó descuento (esto SÍ se hace al crear la venta)
             if self.object.aplica_descuento_kilometros and self.object.descuento_kilometros_mxn > 0:
                 # Calcular kilómetros a redimir: descuento_mxn / valor_por_km (0.05)
                 km_a_redimir = (self.object.descuento_kilometros_mxn / KilometrosService.VALOR_PESO_POR_KM).quantize(Decimal('0.01'))
@@ -1450,63 +1452,14 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
                     else:
                         logger.warning(f"⚠️ No se pudieron redimir kilómetros para venta {self.object.pk} (posible saldo insuficiente)")
             
-            # DESPUÉS: Acumular kilómetros por la compra
-            # IMPORTANTE: Se acumula sobre el total CON descuento (después de aplicar el descuento de kilómetros)
-            # según las reglas: "Cada $1 MXN gastado = 0.5 Kilómetro Movums"
-            # El cliente gasta el costo_venta_final menos el descuento de kilómetros
-            if self.object.cliente and self.object.cliente.participa_kilometros:
-                # Calcular el monto sobre el cual acumular: costo_venta_final - descuento_kilometros_mxn
-                monto_para_acumular = self.object.costo_venta_final
-                if self.object.aplica_descuento_kilometros and self.object.descuento_kilometros_mxn > 0:
-                    monto_para_acumular = monto_para_acumular - self.object.descuento_kilometros_mxn
-                monto_para_acumular = max(Decimal('0.00'), monto_para_acumular)
-                
-                if monto_para_acumular > 0:
-                    registro_acumulacion = KilometrosService.acumular_por_compra(
-                        self.object.cliente, 
-                        monto_para_acumular,  # Se acumula sobre el total con descuento
-                        venta=self.object
-                    )
-                    if registro_acumulacion:
-                        km_acumulados = monto_para_acumular * KilometrosService.KM_POR_PESO
-                        logger.info(f"✅ Kilómetros acumulados para venta {self.object.pk}: {km_acumulados} km (por ${monto_para_acumular:,.2f} MXN)")
-            
-            # ACUMULAR BONOS DE PROMOCIONES (tipo 'KM')
-            # Obtener promociones aplicadas con bonos de kilómetros
-            promociones_aplicadas = getattr(form, 'promos_km', [])
-            bonos_acumulados = 0
-            for promo_data in promociones_aplicadas:
-                km_bono = promo_data.get('km_bono', Decimal('0.00'))
-                promocion = promo_data.get('promo')
-                if km_bono and km_bono > 0 and promocion:
-                    registro_bono = KilometrosService.acumular_bono_promocion(
-                        cliente=self.object.cliente,
-                        kilometros=km_bono,
-                        venta=self.object,
-                        promocion=promocion,
-                        descripcion=f"Bono de promoción: {promocion.nombre}"
-                    )
-                    if registro_bono:
-                        bonos_acumulados += km_bono
-                        logger.info(
-                            f"✅ Bono de kilómetros acumulado para venta {self.object.pk}: "
-                            f"{km_bono} km (Promoción: {promocion.nombre}, Cliente: {self.object.cliente.pk})"
-                        )
-                    else:
-                        logger.warning(
-                            f"⚠️ No se pudo acumular bono de promoción para venta {self.object.pk}: "
-                            f"{km_bono} km (Promoción: {promocion.nombre if promocion else 'N/A'})"
-                        )
-            
-            if bonos_acumulados > 0:
-                logger.info(
-                    f"📊 RESUMEN VENTA {self.object.pk}: "
-                    f"Total bonos acumulados: {bonos_acumulados:,.2f} km, "
-                    f"Cliente: {self.object.cliente.pk if self.object.cliente else 'N/A'}"
-                )
+            # NOTA: La acumulación de kilómetros por compra y bonos de promociones
+            # se aplicará automáticamente cuando la venta se liquide (a través del signal)
+            logger.info(
+                f"ℹ️ Promociones de kilómetros se aplicarán cuando la venta {self.object.pk} se liquide completamente."
+            )
         except Exception:
             logger.exception(
-                f"❌ Error procesando kilómetros Movums para la venta {self.object.pk} "
+                f"❌ Error procesando redención de kilómetros para la venta {self.object.pk} "
                 f"(Cliente: {self.object.cliente.pk if self.object.cliente else 'N/A'})"
             )
     
@@ -1696,114 +1649,54 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
                 logger.exception("❌ Error procesando redención de kilómetros en actualización de venta %s", self.object.pk)
         
         # Manejar cambios en promociones con bonos de kilómetros
+        # IMPORTANTE: Los bonos SOLO se aplican cuando la venta se liquida.
+        # Si la venta ya está liquidada y se agregan/modifican promociones, aplicar inmediatamente.
+        # Si la venta NO está liquidada, los bonos se aplicarán automáticamente cuando se liquide (signal)
         if self.object.cliente and self.object.cliente.participa_kilometros:
             try:
-                # Obtener promociones anteriores (con bonos de kilómetros)
-                promociones_anteriores = {
-                    vpa.promocion_id: vpa.km_bono 
-                    for vpa in venta_anterior.promociones_aplicadas.filter(km_bono__gt=0)
-                }
+                # Verificar si la venta está liquidada
+                venta_liquidada = (
+                    self.object.estado_confirmacion == 'COMPLETADO' or
+                    self.object.total_pagado >= self.object.costo_total_con_modificacion or
+                    self.object.esta_pagada
+                )
                 
-                # Obtener promociones nuevas (con bonos de kilómetros)
-                promociones_nuevas = {}
-                promociones_aplicadas_actuales_qs = self.object.promociones_aplicadas.filter(km_bono__gt=0)
-                promociones_aplicadas_actuales_dict = {vpa.promocion_id: vpa for vpa in promociones_aplicadas_actuales_qs}
-                for vpa in promociones_aplicadas_actuales_qs:
-                    promociones_nuevas[vpa.promocion_id] = vpa.km_bono
-                
-                # Identificar promociones agregadas, eliminadas y modificadas
-                promociones_agregadas = set(promociones_nuevas.keys()) - set(promociones_anteriores.keys())
-                promociones_eliminadas = set(promociones_anteriores.keys()) - set(promociones_nuevas.keys())
-                promociones_modificadas = {
-                    promo_id: (promociones_anteriores[promo_id], promociones_nuevas[promo_id])
-                    for promo_id in set(promociones_anteriores.keys()) & set(promociones_nuevas.keys())
-                    if promociones_anteriores[promo_id] != promociones_nuevas[promo_id]
-                }
-                
-                # Acumular bonos de promociones nuevas
-                for promo_id in promociones_agregadas:
-                    vpa = promociones_aplicadas_actuales_dict.get(promo_id)
-                    if vpa and vpa.km_bono > 0:
-                        registro_bono = KilometrosService.acumular_bono_promocion(
-                            cliente=self.object.cliente,
-                            kilometros=vpa.km_bono,
-                            venta=self.object,
-                            promocion=vpa.promocion,
-                            descripcion=f"Bono de promoción agregado: {vpa.nombre_promocion}"
-                        )
-                        if registro_bono:
-                            logger.info(
-                                f"✅ Bono de promoción acumulado en actualización de venta {self.object.pk}: "
-                                f"{vpa.km_bono} km ({vpa.nombre_promocion}, Cliente: {self.object.cliente.pk})"
-                            )
-                
-                # Revertir bonos de promociones eliminadas
-                for promo_id in promociones_eliminadas:
-                    km_bono_anterior = promociones_anteriores[promo_id]
-                    if km_bono_anterior > 0:
-                        # Buscar el registro original en HistorialKilometros para obtener la promoción
-                        from crm.models import HistorialKilometros
-                        movimiento_original = HistorialKilometros.objects.filter(
+                if venta_liquidada:
+                    # Si está liquidada, verificar si ya se aplicaron bonos para promociones nuevas
+                    # El signal aplicará automáticamente todas las promociones pendientes cuando se liquide
+                    # Aquí solo verificamos si hay promociones nuevas que no se han aplicado aún
+                    from crm.models import HistorialKilometros
+                    
+                    # Obtener promociones actuales con bonos
+                    promociones_aplicadas_actuales_qs = self.object.promociones_aplicadas.filter(km_bono__gt=0)
+                    
+                    for vpa in promociones_aplicadas_actuales_qs:
+                        # Verificar si ya se aplicó el bono para esta promoción específica
+                        bono_ya_aplicado = HistorialKilometros.objects.filter(
                             venta=self.object,
                             tipo_evento='BONO_PROMOCION',
-                            kilometros=km_bono_anterior
-                        ).first()
+                            kilometros=vpa.km_bono
+                        ).exists()
                         
-                        promocion_obj = None
-                        if movimiento_original and 'promoción' in movimiento_original.descripcion.lower():
-                            # Intentar obtener la promoción desde el nombre en la descripción
-                            try:
-                                from crm.models import PromocionKilometros
-                                nombre_promo = movimiento_original.descripcion.split(':')[-1].strip()
-                                promocion_obj = PromocionKilometros.objects.filter(nombre=nombre_promo).first()
-                            except:
-                                pass
-                        
-                        registro_reversion = KilometrosService.revertir_bono_promocion(
-                            cliente=self.object.cliente,
-                            kilometros=km_bono_anterior,
-                            venta=self.object,
-                            promocion=promocion_obj,
-                            descripcion=f"Reversión de bono de promoción eliminada: {km_bono_anterior} km"
-                        )
-                        if registro_reversion:
-                            logger.info(
-                                f"✅ Bono de promoción revertido en actualización de venta {self.object.pk}: "
-                                f"{km_bono_anterior} km (Cliente: {self.object.cliente.pk})"
+                        if not bono_ya_aplicado and vpa.km_bono > 0:
+                            # Bono nuevo que aún no se ha aplicado, aplicar ahora
+                            registro_bono = KilometrosService.acumular_bono_promocion(
+                                cliente=self.object.cliente,
+                                kilometros=vpa.km_bono,
+                                venta=self.object,
+                                promocion=vpa.promocion,
+                                descripcion=f"Bono de promoción al liquidar: {vpa.nombre_promocion or vpa.promocion.nombre}"
                             )
-                
-                # Ajustar bonos de promociones modificadas
-                for promo_id, (km_anterior, km_nuevo) in promociones_modificadas.items():
-                    vpa = promociones_aplicadas_actuales_dict.get(promo_id)
-                    diferencia = km_nuevo - km_anterior
-                    if diferencia > 0:
-                        # El bono aumentó, acumular la diferencia
-                        registro_bono = KilometrosService.acumular_bono_promocion(
-                            cliente=self.object.cliente,
-                            kilometros=diferencia,
-                            venta=self.object,
-                            promocion=vpa.promocion if vpa else None,
-                            descripcion=f"Ajuste de bono de promoción: {vpa.nombre_promocion if vpa else 'Promoción'} (+{diferencia} km)"
-                        )
-                        if registro_bono:
-                            logger.info(
-                                f"✅ Bono de promoción ajustado (aumento) en venta {self.object.pk}: "
-                                f"+{diferencia} km (Cliente: {self.object.cliente.pk})"
-                            )
-                    elif diferencia < 0:
-                        # El bono disminuyó, revertir la diferencia
-                        registro_reversion = KilometrosService.revertir_bono_promocion(
-                            cliente=self.object.cliente,
-                            kilometros=abs(diferencia),
-                            venta=self.object,
-                            promocion=vpa.promocion if vpa else None,
-                            descripcion=f"Ajuste de bono de promoción: {vpa.nombre_promocion if vpa else 'Promoción'} (-{abs(diferencia)} km)"
-                        )
-                        if registro_reversion:
-                            logger.info(
-                                f"✅ Bono de promoción ajustado (disminución) en venta {self.object.pk}: "
-                                f"-{abs(diferencia)} km (Cliente: {self.object.cliente.pk})"
-                            )
+                            if registro_bono:
+                                logger.info(
+                                    f"✅ Bono de promoción acumulado en venta liquidada {self.object.pk}: "
+                                    f"{vpa.km_bono} km ({vpa.nombre_promocion or vpa.promocion.nombre}, Cliente: {self.object.cliente.pk})"
+                                )
+                else:
+                    # Venta no liquidada: los bonos se aplicarán cuando se liquide (a través del signal)
+                    logger.info(
+                        f"ℹ️ Bonos de promociones para venta {self.object.pk} se aplicarán cuando la venta se liquide."
+                    )
             except Exception:
                 logger.exception("❌ Error procesando bonos de promociones en actualización de venta %s", self.object.pk)
         
