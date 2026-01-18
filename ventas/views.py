@@ -639,30 +639,37 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                         continue 
                     
                     # --- LÓGICA DE ACTUALIZACIÓN CON BLOQUEO TEMPORAL ---
+                    # EXCEPCIÓN: Usuario daviddiaz puede editar después de guardado
+                    es_daviddiaz = (request.user.username == 'daviddiaz')
                     
                     # 1. MONTO PLANIFICADO
                     # PROBLEMA RAÍZ: El formulario puede recibir valores incorrectos debido a:
                     # - Input hidden que no se envía correctamente
                     # - clean_monto_planeado que convierte None/empty a Decimal('0.00')
                     # - Conflictos entre input visible (disabled) e input hidden
-                    # SOLUCIÓN: Si ya tiene monto asignado, SIEMPRE preservar el original de la BD
+                    # SOLUCIÓN: Si ya tiene monto asignado, PRESERVAR el original de la BD (excepto daviddiaz)
                     nuevo_monto = form.cleaned_data.get('monto_planeado')
                     
-                    # BLOQUEO TEMPORAL: Si tiene monto ya asignado, PRESERVAR SIEMPRE el original
-                    # (sin importar qué venga del formulario, incluso si es 0.00)
+                    # BLOQUEO: Si tiene monto ya asignado, PRESERVAR el original (excepto daviddiaz)
                     if original.monto_planeado and original.monto_planeado > Decimal('0.00'):
-                        # IGNORAR completamente el valor del formulario y usar el original de la BD
-                        nuevo_monto = original.monto_planeado
+                        if not es_daviddiaz:
+                            # IGNORAR completamente el valor del formulario y usar el original de la BD
+                            nuevo_monto = original.monto_planeado
+                        else:
+                            # daviddiaz puede modificar: usar el valor del formulario o el original si viene vacío
+                            nuevo_monto = nuevo_monto if nuevo_monto is not None else original.monto_planeado
                     else:
                         # Si estaba vacío/sin asignar, aceptamos el valor nuevo (o 0 si viene vacío)
                         nuevo_monto = nuevo_monto or Decimal('0.00')
                     
                     # 2. ESTADO PAGADO
-                    # BLOQUEO TEMPORAL: Una vez marcado como pagado, no se puede desmarcar
+                    # BLOQUEO: Una vez marcado como pagado, no se puede desmarcar (excepto daviddiaz)
                     nuevo_pagado = form.cleaned_data.get('pagado', False)
                     if original.pagado:
-                        # Una vez pagado, siempre mantener como pagado (bloqueo temporal)
-                        nuevo_pagado = True
+                        if not es_daviddiaz:
+                            # Una vez pagado, siempre mantener como pagado (bloqueo)
+                            nuevo_pagado = True
+                        # daviddiaz puede desmarcar si lo desea
                     
                     # 3. OTROS CAMPOS (Siempre editables durante pruebas)
                     nuevo_opcion_proveedor = form.cleaned_data.get('opcion_proveedor', '')
@@ -953,24 +960,27 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
         es_jefe = (user_rol == 'JEFE')
         context['es_jefe'] = es_jefe
         
-        # TEMPORAL PARA PRUEBAS: Bloquear todos los campos una vez asignados (incluido gerente)
-        # TODO: Ajustar permisos por tipo de usuario más adelante
+        # Permitir edición solo para usuario daviddiaz
+        es_daviddiaz = (self.request.user.username == 'daviddiaz')
+        
         if not context.get('puede_editar_servicios_financieros'):
             for form in formset.forms:
                 for field in form.fields.values():
                     field.widget.attrs['disabled'] = 'disabled'
         else:
-            # Bloquear campos una vez asignados (TEMPORAL: para todos, incluido gerente)
+            # Bloquear campos una vez asignados, EXCEPTO para daviddiaz
             for form in formset.forms:
                 if form.instance and form.instance.pk:
-                    # Bloquear monto_planeado si tiene valor (TEMPORAL: para todos)
+                    # Bloquear monto_planeado si tiene valor (excepto daviddiaz)
                     if form.instance.monto_planeado and form.instance.monto_planeado > Decimal('0.00'):
-                        form.fields['monto_planeado'].widget.attrs['disabled'] = 'disabled'
-                        form.fields['monto_planeado'].widget.attrs['readonly'] = 'readonly'
+                        if not es_daviddiaz:
+                            form.fields['monto_planeado'].widget.attrs['disabled'] = 'disabled'
+                            form.fields['monto_planeado'].widget.attrs['readonly'] = 'readonly'
                     
-                    # Bloquear checkbox pagado si está marcado (TEMPORAL: para todos)
+                    # Bloquear checkbox pagado si está marcado (excepto daviddiaz)
                     if form.instance.pagado:
-                        form.fields['pagado'].widget.attrs['disabled'] = 'disabled'
+                        if not es_daviddiaz:
+                            form.fields['pagado'].widget.attrs['disabled'] = 'disabled'
 
         resumen = build_financial_summary(venta, servicios_qs)
         filas = build_service_rows(servicios_qs, resumen, list(formset.forms), venta=venta)

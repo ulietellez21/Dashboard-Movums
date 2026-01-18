@@ -880,8 +880,8 @@
                                                 {{ row.form.id }}
                                                 <div class="input-group">
                                                     <span class="input-group-text">$</span>
-                                                    {% if row.servicio.monto_planeado and row.servicio.monto_planeado > 0 %}
-                                                        {# Campo oculto para preservar el valor cuando está deshabilitado #}
+                                                    {% if row.servicio.monto_planeado and row.servicio.monto_planeado > 0 and not user.username == 'daviddiaz' %}
+                                                        {# Campo oculto para preservar el valor cuando está deshabilitado (excepto daviddiaz) #}
                                                         <input type="hidden" 
                                                                name="{{ row.form.monto_planeado.name }}" 
                                                                value="{{ row.servicio.monto_planeado|stringformat:'.2f' }}">
@@ -892,7 +892,7 @@
                                                                disabled 
                                                                readonly
                                                                style="background-color: #e9ecef; cursor: not-allowed;"
-                                                               title="Los montos planificados están bloqueados para pruebas">
+                                                               title="Los montos planificados están bloqueados">
                                                     {% else %}
                                                         {{ row.form.monto_planeado }}
                                                     {% endif %}
@@ -907,8 +907,8 @@
                                             </td>
                                             <td>
                                                 <div class="form-check">
-                                                    {% if row.servicio.pagado %}
-                                                        {# Campo oculto para preservar el valor cuando está deshabilitado #}
+                                                    {% if row.servicio.pagado and not user.username == 'daviddiaz' %}
+                                                        {# Campo oculto para preservar el valor cuando está deshabilitado (excepto daviddiaz) #}
                                                         {# Para checkboxes, Django envía el nombre del campo si está marcado #}
                                                         <input type="hidden" 
                                                                name="{{ row.form.pagado.name }}" 
@@ -919,7 +919,7 @@
                                                                checked 
                                                                disabled
                                                                style="cursor: not-allowed;"
-                                                               title="El estado de pago está bloqueado para pruebas">
+                                                               title="El estado de pago está bloqueado">
                                                         <label class="form-check-label" style="opacity: 0.7;">Pagado</label>
                                                     {% else %}
                                                         {{ row.form.pagado }}
