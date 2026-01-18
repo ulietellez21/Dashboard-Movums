@@ -25,7 +25,8 @@ def build_financial_summary(venta, servicios_qs):
     )['total']
 
     saldo_disponible = max(Decimal('0.00'), total_pagado - pagado_servicios)
-    ganancia_estimada = max(Decimal('0.00'), total_venta - total_neto)
+    # Ganancia estimada se calcula desde servicios planificados (total_venta - total_servicios_planeados)
+    ganancia_estimada = max(Decimal('0.00'), total_venta - total_servicios_planeados)
     ganancia_en_mano = max(Decimal('0.00'), total_pagado - total_servicios_planeados)
     ganancia_pendiente = max(Decimal('0.00'), ganancia_estimada - ganancia_en_mano)
 
