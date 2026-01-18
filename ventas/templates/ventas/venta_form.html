@@ -1421,6 +1421,8 @@
                     const originalText = costoVentaLabel.textContent.replace(' *', '').replace(' (MXN - Calculado desde USD)', '');
                     costoVentaLabel.innerHTML = originalText + ' (MXN - Calculado desde USD)<span class="text-danger">*</span>';
                 }
+                // Convertir USD a MXN inmediatamente cuando se activa la sección internacional
+                convertirUsdAMxn();
                 // Costo Neto: se ingresa en USD, se convertirá a MXN al guardar
                 if (labelCostoNeto) {
                     labelCostoNeto.innerHTML = 'Costo Neto (USD)';
@@ -1444,6 +1446,12 @@
 
                 if (costoVentaLabel) {
                     costoVentaLabel.innerHTML = costoVentaLabel.textContent.replace(' (MXN - Calculado desde USD)', '');
+                }
+                // Restaurar campo costo_venta_final a editable para ventas nacionales
+                if (costoVentaInput) {
+                    costoVentaInput.readOnly = false;
+                    costoVentaInput.style.backgroundColor = '';
+                    costoVentaInput.style.cursor = '';
                 }
                 // Restaurar label de costo neto
                 if (labelCostoNeto) {
@@ -1473,6 +1481,14 @@
             totalUsdCalculado.value = totalUsd.toFixed(2);
         }
 
+        // Función auxiliar para formatear un número a formato de moneda MXN (con $ y comas)
+        function formatearMonedaMXN(valor) {
+            if (!valor || valor === 0) return '';
+            const partes = valor.toFixed(2).split('.');
+            const parteEntera = parseInt(partes[0], 10).toLocaleString('es-MX');
+            return '$' + parteEntera + '.' + partes[1];
+        }
+
         function convertirUsdAMxn() {
             if (!tipoViajeSelect || tipoViajeSelect.value !== 'INT') return;
             const tipoCambio = toNumber(tipoCambioInput ? tipoCambioInput.value : 0);
@@ -1485,9 +1501,15 @@
             const totalUsd = tarifaBase + impuestos + suplementos + tours;
             const totalMxn = totalUsd * tipoCambio;
 
-            // Actualizar solo costo_venta_final en MXN (costo_neto se llena manualmente)
-            if (costoVentaInput && costoVentaInput.value == 0) {
-                costoVentaInput.value = totalMxn.toFixed(2);
+            // IMPORTANTE: Para ventas internacionales, el costo_venta_final siempre se calcula desde USD
+            // Actualizar costo_venta_final en MXN automáticamente con formato de moneda
+            if (costoVentaInput) {
+                // Formatear el valor con símbolo de pesos y comas para separar miles
+                costoVentaInput.value = formatearMonedaMXN(totalMxn);
+                // Hacer el campo readonly para ventas internacionales ya que es calculado automáticamente
+                costoVentaInput.readOnly = true;
+                costoVentaInput.style.backgroundColor = '#f8f9fa';
+                costoVentaInput.style.cursor = 'not-allowed';
             }
             // NO actualizar costo_neto automáticamente - el vendedor lo llena manualmente
 
@@ -1507,6 +1529,18 @@
                     if (toursUsdInput) toursUsdInput.value = '';
                     if (tipoCambioInput) tipoCambioInput.value = '';
                     if (totalUsdCalculado) totalUsdCalculado.value = '0.00';
+                    // Restaurar campo costo_venta_final a editable
+                    if (costoVentaInput) {
+                        costoVentaInput.readOnly = false;
+                        costoVentaInput.style.backgroundColor = '';
+                        costoVentaInput.style.cursor = '';
+                    }
+                } else {
+                    // Si cambia a internacional, calcular inmediatamente
+                    setTimeout(function() {
+                        calcularTotalUsd();
+                        convertirUsdAMxn();
+                    }, 50);
                 }
             });
             // Inicializar al cargar
@@ -1528,6 +1562,14 @@
             tipoCambioInput.addEventListener('input', function () {
                 convertirUsdAMxn();
             });
+        }
+        
+        // Inicializar cálculo si ya es venta internacional al cargar
+        if (tipoViajeSelect && tipoViajeSelect.value === 'INT') {
+            setTimeout(function() {
+                calcularTotalUsd();
+                convertirUsdAMxn();
+            }, 100);
         }
         if (descuentoCheckbox) {
             descuentoCheckbox.addEventListener('change', recalculateDescuento);
