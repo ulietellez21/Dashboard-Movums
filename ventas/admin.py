@@ -12,6 +12,7 @@ from .models import (
     Proveedor,
     ConfirmacionVenta,
     LogisticaServicio,
+    AbonoProveedor,
 ) # Importar modelos
 
 # =================================================================
@@ -240,3 +241,12 @@ class LogisticaServicioAdmin(admin.ModelAdmin):
 
 # --- 4. Registrar AbonoPagoAdmin ---
 admin.site.register(AbonoPago, AbonoPagoAdmin)
+
+# --- 5. AbonoProveedor Admin ---
+@admin.register(AbonoProveedor)
+class AbonoProveedorAdmin(admin.ModelAdmin):
+    list_display = ('venta', 'proveedor', 'monto', 'monto_usd', 'estado', 'solicitud_por', 'fecha_solicitud')
+    list_filter = ('estado', 'fecha_solicitud')
+    search_fields = ('venta__id', 'proveedor', 'solicitud_por__username')
+    date_hierarchy = 'fecha_solicitud'
+    readonly_fields = ('fecha_creacion', 'fecha_actualizacion', 'fecha_solicitud', 'fecha_aprobacion', 'fecha_confirmacion', 'fecha_cancelacion')

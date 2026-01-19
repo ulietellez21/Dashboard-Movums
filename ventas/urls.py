@@ -54,6 +54,13 @@ from .views import (
     SubirComprobanteAperturaView,
     PagosPorConfirmarView,
     ConfirmarPagoDesdeListaView,
+    
+    # Abonos a Proveedor (Ventas Internacionales)
+    SolicitarAbonoProveedorView,
+    AprobarAbonoProveedorView,
+    ConfirmarAbonoProveedorView,
+    CancelarAbonoProveedorView,
+    ListaAbonosProveedorView,
 )
 
 # app_name = 'ventas' 
@@ -98,6 +105,13 @@ urlpatterns = [
     
     # 2.2 Confirmaciones de Venta
     path('confirmaciones/<int:pk>/eliminar/', EliminarConfirmacionView.as_view(), name='eliminar_confirmacion'),
+    
+    # 2.3 Abonos a Proveedor (Ventas Internacionales)
+    path('abonos-proveedor/', ListaAbonosProveedorView.as_view(), name='lista_abonos_proveedor'),
+    path('ventas/<int:pk>/abonos-proveedor/solicitar/', SolicitarAbonoProveedorView.as_view(), name='solicitar_abono_proveedor'),
+    path('abonos-proveedor/<int:abono_id>/aprobar/', AprobarAbonoProveedorView.as_view(), name='aprobar_abono_proveedor'),
+    path('abonos-proveedor/<int:abono_id>/confirmar/', ConfirmarAbonoProveedorView.as_view(), name='confirmar_abono_proveedor'),
+    path('abonos-proveedor/<int:abono_id>/cancelar/', CancelarAbonoProveedorView.as_view(), name='cancelar_abono_proveedor'),
 
     # 3. CRUD de Ventas
     path('crear/', VentaViajeCreateView.as_view(), name='crear_venta'),

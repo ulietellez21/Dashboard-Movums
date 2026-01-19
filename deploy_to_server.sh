@@ -2,7 +2,7 @@
 # Script de despliegue automático al servidor DigitalOcean
 # Uso: ./deploy_to_server.sh
 
-SERVER="tellez@206.189.223.176"
+SERVER="root@206.189.223.176"
 PASSWORD="[REDACTED_SSH_PASSWORD]"
 
 echo "🚀 Iniciando despliegue al servidor DigitalOcean..."
@@ -50,17 +50,17 @@ fi
 
 echo ""
 echo "📋 Paso 2: Detectando ubicación del proyecto..."
-PROJECT_DIR=$(run_remote "find ~ -name 'agencia-web-project' -type d 2>/dev/null | head -1")
+PROJECT_DIR=$(run_remote "find /home -name 'manage.py' -type f 2>/dev/null | grep -i agencia | head -1 | xargs dirname 2>/dev/null")
 if [ -z "$PROJECT_DIR" ]; then
-    PROJECT_DIR=$(run_remote "find /var/www -name 'agencia-web-project' -type d 2>/dev/null | head -1")
+    PROJECT_DIR=$(run_remote "find ~ -name 'agencia-web-project' -type d 2>/dev/null | head -1")
 fi
 if [ -z "$PROJECT_DIR" ]; then
-    PROJECT_DIR=$(run_remote "find /home -name 'agencia-web-project' -type d 2>/dev/null | head -1")
+    PROJECT_DIR=$(run_remote "find /var/www -name 'agencia-web-project' -type d 2>/dev/null | head -1")
 fi
 
 if [ -z "$PROJECT_DIR" ]; then
     echo "⚠️  No se encontró el proyecto. Usando directorio por defecto..."
-    PROJECT_DIR="~/agencia-web-project"
+    PROJECT_DIR="/home/tellez/sitios/agencia"
 else
     echo "✅ Proyecto encontrado en: $PROJECT_DIR"
 fi
@@ -94,7 +94,7 @@ run_remote "cd $PROJECT_DIR && if [ -f requirements.txt ]; then pip install -q -
 
 echo ""
 echo "📋 Paso 8: Aplicando migraciones..."
-run_remote "cd $PROJECT_DIR && python manage.py migrate --noinput"
+run_remote "cd $PROJECT_DIR && python3 manage.py migrate --noinput"
 
 if [ $? -eq 0 ]; then
     echo "✅ Migraciones aplicadas"
@@ -105,7 +105,7 @@ fi
 
 echo ""
 echo "📋 Paso 9: Recolectando archivos estáticos..."
-run_remote "cd $PROJECT_DIR && python manage.py collectstatic --noinput"
+run_remote "cd $PROJECT_DIR && python3 manage.py collectstatic --noinput"
 
 echo ""
 echo "📋 Paso 10: Reiniciando servicios..."

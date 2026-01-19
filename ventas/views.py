@@ -52,6 +52,7 @@ from .models import (
     PlantillaConfirmacion,
     Cotizacion,
     VentaPromocionAplicada,
+    AbonoProveedor,
 )
 from crm.models import Cliente
 from crm.services import KilometrosService
@@ -66,6 +67,8 @@ from .forms import (
     EjecutivoForm,
     OficinaForm,
     CotizacionForm,
+    SolicitarAbonoProveedorForm,
+    ConfirmarAbonoProveedorForm,
 )
 from .utils import numero_a_texto
 from .services.logistica import (
@@ -571,6 +574,30 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
         context['puede_editar_servicios_financieros'] = self._puede_gestionar_logistica_financiera(self.request.user, venta)
         if mostrar_tab_logistica:
             self._prepare_logistica_finanzas_context(context, venta)
+        
+        # Abonos a Proveedor (solo para ventas internacionales)
+        if venta.tipo_viaje == 'INT':
+            context['abonos_proveedor'] = venta.abonos_proveedor.all().select_related(
+                'solicitud_por', 'aprobado_por', 'confirmado_por', 'cancelado_por'
+            ).order_by('-fecha_solicitud')
+            context['total_abonado_proveedor'] = venta.total_abonado_proveedor
+            context['saldo_pendiente_proveedor'] = venta.saldo_pendiente_proveedor
+            context['total_usd_venta'] = venta.total_usd
+            from .forms import SolicitarAbonoProveedorForm
+            context['form_abono_proveedor'] = SolicitarAbonoProveedorForm(venta=venta, user=self.request.user)
+            context['puede_solicitar_abono_proveedor'] = user_rol in ['VENDEDOR', 'JEFE', 'CONTADOR']
+            context['puede_aprobar_abono_proveedor'] = user_rol in ['CONTADOR', 'JEFE']
+            context['puede_confirmar_abono_proveedor'] = user_rol in ['CONTADOR', 'JEFE']
+            context['puede_cancelar_abono_proveedor'] = user_rol == 'JEFE'
+        else:
+            context['abonos_proveedor'] = []
+            context['total_abonado_proveedor'] = Decimal('0.00')
+            context['saldo_pendiente_proveedor'] = Decimal('0.00')
+            context['total_usd_venta'] = Decimal('0.00')
+            context['puede_solicitar_abono_proveedor'] = False
+            context['puede_aprobar_abono_proveedor'] = False
+            context['puede_confirmar_abono_proveedor'] = False
+            context['puede_cancelar_abono_proveedor'] = False
         
         # Inicialización del Formulario de Confirmaciones
         context['confirmaciones'] = venta.confirmaciones.select_related('subido_por').order_by('-fecha_subida')
@@ -8377,3 +8404,242 @@ class CotizacionConvertirView(LoginRequiredMixin, View):
         indice_final = opcion_vuelo_index or opcion_hotel_index or '0'
         url_destino = reverse('crear_venta') + f'?cotizacion={cot.slug}&total_b={str(total_cotizacion)}&idx_b={indice_final}'
         return redirect(url_destino)
+
+
+# ------------------- ABONOS A PROVEEDOR (VENTAS INTERNACIONALES) -------------------
+
+class SolicitarAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Vista para que un vendedor solicite un abono a proveedor."""
+    
+    def test_func(self):
+        """Solo vendedores, jefes y contadores pueden solicitar abonos."""
+        user_rol = get_user_role(self.request.user)
+        return user_rol in ['VENDEDOR', 'JEFE', 'CONTADOR']
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "No tienes permiso para solicitar abonos a proveedores.")
+        return redirect('dashboard')
+    
+    def post(self, request, pk):
+        """Procesa la solicitud de abono a proveedor."""
+        venta = get_object_or_404(VentaViaje, pk=pk)
+        
+        # Verificar que sea venta internacional
+        if venta.tipo_viaje != 'INT':
+            messages.error(request, "Solo se pueden solicitar abonos a proveedores para ventas internacionales.")
+            return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+        
+        # Ya no requerimos que la venta tenga proveedor asignado, el vendedor lo escribe libremente
+        
+        from .forms import SolicitarAbonoProveedorForm
+        form = SolicitarAbonoProveedorForm(request.POST, venta=venta, user=request.user)
+        
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    abono = form.save(commit=False)
+                    abono.venta = venta
+                    abono.solicitud_por = request.user
+                    abono.estado = 'PENDIENTE'
+                    abono.save()
+                    
+                    # Calcular monto_usd si hay tipo de cambio
+                    if abono.tipo_cambio_aplicado and abono.tipo_cambio_aplicado > 0:
+                        abono.monto_usd = (abono.monto / abono.tipo_cambio_aplicado).quantize(Decimal('0.01'))
+                        abono.save()
+                    elif venta.tipo_cambio and venta.tipo_cambio > 0:
+                        abono.monto_usd = (abono.monto / venta.tipo_cambio).quantize(Decimal('0.01'))
+                        abono.tipo_cambio_aplicado = venta.tipo_cambio
+                        abono.save()
+                    
+                    # Notificar a contadores
+                    contadores = User.objects.filter(perfil__rol='CONTADOR')
+                    for contador in contadores:
+                        Notificacion.objects.create(
+                            usuario=contador,
+                            tipo='SOLICITUD_ABONO_PROVEEDOR',
+                            mensaje=f"Solicitud de abono a proveedor: ${abono.monto:,.2f} MXN ({venta.folio or venta.pk})",
+                            venta=venta,
+                            abono_proveedor=abono
+                        )
+                    
+                    messages.success(request, f"Solicitud de abono a {abono.proveedor} por ${abono.monto:,.2f} MXN enviada correctamente.")
+            except Exception as e:
+                messages.error(request, f"Error al solicitar el abono: {str(e)}")
+                logger.exception(f"Error al solicitar abono a proveedor: {str(e)}")
+        else:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{field}: {error}")
+        
+        return redirect(reverse('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}) + '?tab=logistica')
+
+
+class AprobarAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Vista para que un contador apruebe un abono a proveedor."""
+    
+    def test_func(self):
+        """Solo contadores y jefes pueden aprobar abonos."""
+        user_rol = get_user_role(self.request.user)
+        return user_rol in ['CONTADOR', 'JEFE']
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "No tienes permiso para aprobar abonos a proveedores.")
+        return redirect('dashboard')
+    
+    def post(self, request, abono_id):
+        """Aprueba un abono a proveedor."""
+        abono = get_object_or_404(AbonoProveedor, pk=abono_id)
+        
+        if abono.estado != 'PENDIENTE':
+            messages.error(request, "Este abono ya no está pendiente de aprobación.")
+            return redirect(reverse('detalle_venta', kwargs={'pk': abono.venta.pk, 'slug': abono.venta.slug_safe}) + '?tab=logistica')
+        
+        try:
+            with transaction.atomic():
+                abono.estado = 'APROBADO'
+                abono.aprobado_por = request.user
+                abono.fecha_aprobacion = timezone.now()
+                abono.save()
+                
+                # Notificar al vendedor que solicitó
+                if abono.solicitud_por:
+                    Notificacion.objects.create(
+                        usuario=abono.solicitud_por,
+                        tipo='ABONO_PROVEEDOR_APROBADO',
+                        mensaje=f"Abono a {abono.proveedor} por ${abono.monto:,.2f} MXN aprobado (Venta #{abono.venta.folio or abono.venta.pk})",
+                        venta=abono.venta,
+                        abono_proveedor=abono
+                    )
+                
+                messages.success(request, f"Abono a {abono.proveedor} aprobado correctamente.")
+        except Exception as e:
+            messages.error(request, f"Error al aprobar el abono: {str(e)}")
+            logger.exception(f"Error al aprobar abono a proveedor: {str(e)}")
+        
+        return redirect(reverse('detalle_venta', kwargs={'pk': abono.venta.pk, 'slug': abono.venta.slug_safe}) + '?tab=logistica')
+
+
+class ConfirmarAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Vista para que un contador confirme un abono a proveedor con comprobante."""
+    
+    def test_func(self):
+        """Solo contadores y jefes pueden confirmar abonos."""
+        user_rol = get_user_role(self.request.user)
+        return user_rol in ['CONTADOR', 'JEFE']
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "No tienes permiso para confirmar abonos a proveedores.")
+        return redirect('dashboard')
+    
+    def post(self, request, abono_id):
+        """Confirma un abono a proveedor con comprobante."""
+        abono = get_object_or_404(AbonoProveedor, pk=abono_id)
+        
+        if abono.estado != 'APROBADO':
+            messages.error(request, "Este abono debe estar aprobado antes de confirmarlo.")
+            return redirect(reverse('detalle_venta', kwargs={'pk': abono.venta.pk, 'slug': abono.venta.slug_safe}) + '?tab=logistica')
+        
+        from .forms import ConfirmarAbonoProveedorForm
+        form = ConfirmarAbonoProveedorForm(request.POST, request.FILES, instance=abono)
+        
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    abono = form.save(commit=False)
+                    abono.estado = 'COMPLETADO'
+                    abono.confirmado_por = request.user
+                    abono.fecha_confirmacion = timezone.now()
+                    abono.save()
+                    
+                    # Notificar al vendedor que solicitó
+                    if abono.solicitud_por:
+                        Notificacion.objects.create(
+                            usuario=abono.solicitud_por,
+                            tipo='ABONO_PROVEEDOR_COMPLETADO',
+                            mensaje=f"Abono a {abono.proveedor} por ${abono.monto:,.2f} MXN completado (Venta #{abono.venta.folio or abono.venta.pk})",
+                            venta=abono.venta,
+                            abono_proveedor=abono
+                        )
+                    
+                    messages.success(request, f"Abono a {abono.proveedor} confirmado con comprobante.")
+            except Exception as e:
+                messages.error(request, f"Error al confirmar el abono: {str(e)}")
+                logger.exception(f"Error al confirmar abono a proveedor: {str(e)}")
+        else:
+            messages.error(request, "Por favor, corrige los errores en el formulario.")
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{field}: {error}")
+        
+        return redirect(reverse('detalle_venta', kwargs={'pk': abono.venta.pk, 'slug': abono.venta.slug_safe}) + '?tab=logistica')
+
+
+class CancelarAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Vista para cancelar un abono a proveedor (solo JEFE puede modificar)."""
+    
+    def test_func(self):
+        """Solo jefes pueden cancelar abonos."""
+        user_rol = get_user_role(self.request.user)
+        return user_rol == 'JEFE'
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "Solo los jefes pueden cancelar abonos a proveedores.")
+        return redirect('dashboard')
+    
+    def post(self, request, abono_id):
+        """Cancela un abono a proveedor."""
+        abono = get_object_or_404(AbonoProveedor, pk=abono_id)
+        motivo_cancelacion = request.POST.get('motivo_cancelacion', '')
+        
+        if abono.estado == 'COMPLETADO':
+            messages.error(request, "No se puede cancelar un abono que ya está completado.")
+            return redirect(reverse('detalle_venta', kwargs={'pk': abono.venta.pk, 'slug': abono.venta.slug_safe}) + '?tab=logistica')
+        
+        try:
+            with transaction.atomic():
+                abono.estado = 'CANCELADO'
+                abono.cancelado_por = request.user
+                abono.fecha_cancelacion = timezone.now()
+                abono.motivo_cancelacion = motivo_cancelacion
+                abono.save()
+                
+                # Notificar al vendedor que solicitó
+                if abono.solicitud_por:
+                    Notificacion.objects.create(
+                        usuario=abono.solicitud_por,
+                        tipo='ABONO_PROVEEDOR_CANCELADO',
+                        mensaje=f"Abono a {abono.proveedor} por ${abono.monto:,.2f} MXN cancelado (Venta #{abono.venta.folio or abono.venta.pk})",
+                        venta=abono.venta,
+                        abono_proveedor=abono
+                    )
+                
+                messages.success(request, f"Abono a {abono.proveedor} cancelado correctamente.")
+        except Exception as e:
+            messages.error(request, f"Error al cancelar el abono: {str(e)}")
+            logger.exception(f"Error al cancelar abono a proveedor: {str(e)}")
+        
+        return redirect(reverse('detalle_venta', kwargs={'pk': abono.venta.pk, 'slug': abono.venta.slug_safe}) + '?tab=logistica')
+
+
+class ListaAbonosProveedorView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    """Vista para que un contador vea todas las solicitudes de abonos a proveedores pendientes."""
+    template_name = 'ventas/lista_abonos_proveedor.html'
+    
+    def test_func(self):
+        """Solo contadores y jefes pueden ver la lista de solicitudes."""
+        user_rol = get_user_role(self.request.user)
+        return user_rol in ['CONTADOR', 'JEFE']
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "No tienes permiso para ver las solicitudes de abonos a proveedores.")
+        return redirect('dashboard')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Filtrar solo solicitudes pendientes y aprobadas
+        context['abonos_pendientes'] = AbonoProveedor.objects.filter(
+            estado__in=['PENDIENTE', 'APROBADO']
+        ).select_related('venta', 'solicitud_por').order_by('-fecha_solicitud')
+        context['user_rol'] = get_user_role(self.request.user)
+        return context

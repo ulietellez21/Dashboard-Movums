@@ -32,3 +32,7 @@ weasyprint==66.0
 webencodings==0.5.1
 whitenoise==6.6.0
 zopfli==0.2.3.post1
+pytest==9.0.2
+pytest-django==4.11.1
+factory-boy==3.3.3
+Faker==40.1.2

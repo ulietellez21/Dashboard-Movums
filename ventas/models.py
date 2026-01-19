@@ -588,6 +588,33 @@ class VentaViaje(models.Model):
         return self.saldo_restante <= Decimal('0.00')
     
     @property
+    def total_abonado_proveedor(self):
+        """Calcula el total abonado al proveedor (solo abonos COMPLETADOS) en USD."""
+        if self.tipo_viaje != 'INT':
+            return Decimal('0.00')
+        
+        total = Decimal('0.00')
+        for abono in self.abonos_proveedor.filter(estado='COMPLETADO'):
+            if abono.monto_usd:
+                total += abono.monto_usd
+            elif abono.tipo_cambio_aplicado and abono.tipo_cambio_aplicado > 0:
+                total += (abono.monto / abono.tipo_cambio_aplicado).quantize(Decimal('0.01'))
+            elif self.tipo_cambio and self.tipo_cambio > 0:
+                total += (abono.monto / self.tipo_cambio).quantize(Decimal('0.01'))
+        return total
+    
+    @property
+    def saldo_pendiente_proveedor(self):
+        """Calcula el saldo pendiente por abonar al proveedor en USD."""
+        if self.tipo_viaje != 'INT':
+            return Decimal('0.00')
+        
+        total_usd = self.total_usd
+        abonado = self.total_abonado_proveedor
+        pendiente = total_usd - abonado
+        return max(Decimal('0.00'), pendiente.quantize(Decimal('0.01')))
+    
+    @property
     def servicios_seleccionados_display(self):
         """Devuelve una lista legible de los servicios seleccionados."""
         if not self.servicios_seleccionados:
@@ -1127,6 +1154,184 @@ class Proveedor(models.Model):
         return codigo_servicio.strip() in [s.strip() for s in self.servicios.split(',')]
 
 
+class AbonoProveedor(models.Model):
+    """
+    Modelo para gestionar abonos solicitados a proveedores en ventas internacionales.
+    Flujo: Vendedor solicita → Contador aprueba → Contador confirma con comprobante → Completo
+    """
+    ESTADO_CHOICES = [
+        ('PENDIENTE', 'Pendiente'),
+        ('APROBADO', 'Aprobado'),
+        ('COMPLETADO', 'Completado'),
+        ('CANCELADO', 'Cancelado'),
+    ]
+    
+    venta = models.ForeignKey(
+        VentaViaje,
+        on_delete=models.CASCADE,
+        related_name='abonos_proveedor',
+        verbose_name="Venta Asociada"
+    )
+    proveedor = models.CharField(
+        max_length=255,
+        verbose_name="Proveedor",
+        help_text="Nombre del proveedor al que se abonará"
+    )
+    
+    # Montos (puede ser MXN con conversión a USD)
+    monto = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        verbose_name="Monto a Abonar"
+    )
+    monto_usd = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Monto en USD"
+    )
+    tipo_cambio_aplicado = models.DecimalField(
+        max_digits=12,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        verbose_name="Tipo de Cambio Aplicado",
+        help_text="Tipo de cambio usado para convertir MXN a USD"
+    )
+    
+    # Flujo de estados
+    estado = models.CharField(
+        max_length=20,
+        choices=ESTADO_CHOICES,
+        default='PENDIENTE',
+        verbose_name="Estado"
+    )
+    
+    # Solicitud inicial (vendedor)
+    solicitud_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='abonos_proveedor_solicitados',
+        verbose_name="Solicitado Por"
+    )
+    fecha_solicitud = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Fecha de Solicitud"
+    )
+    nota_solicitud = models.TextField(
+        blank=True,
+        verbose_name="Nota de Solicitud",
+        help_text="Notas o comentarios sobre el abono solicitado"
+    )
+    
+    # Aprobación (contador)
+    aprobado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='abonos_proveedor_aprobados',
+        verbose_name="Aprobado Por"
+    )
+    fecha_aprobacion = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Fecha de Aprobación"
+    )
+    
+    # Confirmación/Completado (contador con comprobante)
+    confirmado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='abonos_proveedor_confirmados',
+        verbose_name="Confirmado Por"
+    )
+    fecha_confirmacion = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Fecha de Confirmación"
+    )
+    comprobante = models.ImageField(
+        upload_to='comprobantes_proveedor/%Y/%m/%d/',
+        null=True,
+        blank=True,
+        verbose_name="Comprobante de Abono",
+        help_text="Imagen del comprobante de pago al proveedor"
+    )
+    nota_confirmacion = models.TextField(
+        blank=True,
+        verbose_name="Nota de Confirmación",
+        help_text="Notas adicionales al confirmar el abono"
+    )
+    
+    # Cancelación
+    cancelado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='abonos_proveedor_cancelados',
+        verbose_name="Cancelado Por"
+    )
+    fecha_cancelacion = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Fecha de Cancelación"
+    )
+    motivo_cancelacion = models.TextField(
+        blank=True,
+        verbose_name="Motivo de Cancelación"
+    )
+    
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Abono a Proveedor"
+        verbose_name_plural = "Abonos a Proveedores"
+        ordering = ['-fecha_solicitud']
+        indexes = [
+            models.Index(fields=['venta', 'estado']),
+            models.Index(fields=['estado', 'fecha_solicitud']),
+        ]
+    
+    def __str__(self):
+        return f"Abono #{self.pk} - {self.proveedor} - ${self.monto:,.2f} - {self.get_estado_display()}"
+    
+    def puede_modificar(self, user):
+        """Verifica si un usuario puede modificar este abono."""
+        # Solo JEFE puede modificar
+        from usuarios.models import Perfil
+        if hasattr(user, 'perfil'):
+            return user.perfil.rol == 'JEFE'
+        return False
+    
+    def puede_aprobar(self, user):
+        """Verifica si un usuario puede aprobar este abono."""
+        from usuarios.models import Perfil
+        if hasattr(user, 'perfil'):
+            return user.perfil.rol in ['CONTADOR', 'JEFE']
+        return False
+    
+    def puede_confirmar(self, user):
+        """Verifica si un usuario puede confirmar este abono."""
+        from usuarios.models import Perfil
+        if hasattr(user, 'perfil'):
+            return user.perfil.rol in ['CONTADOR', 'JEFE']
+        return False
+    
+    def puede_cancelar(self, user):
+        """Verifica si un usuario puede cancelar este abono."""
+        from usuarios.models import Perfil
+        if hasattr(user, 'perfil'):
+            return user.perfil.rol in ['CONTADOR', 'JEFE']
+        return False
+
+
 class ConfirmacionVenta(models.Model):
     """
     Archivos de confirmación asociados a una venta (boletos, vouchers, etc.).
@@ -1362,6 +1567,10 @@ class Notificacion(models.Model):
         ('PAGO_PENDIENTE', 'Pago Pendiente de Confirmación'),
         ('PAGO_CONFIRMADO', 'Pago Confirmado por Contador'),
         ('CANCELACION', 'Venta Cancelada'),
+        ('SOLICITUD_ABONO_PROVEEDOR', 'Solicitud de Abono a Proveedor'),
+        ('ABONO_PROVEEDOR_APROBADO', 'Abono a Proveedor Aprobado'),
+        ('ABONO_PROVEEDOR_COMPLETADO', 'Abono a Proveedor Completado'),
+        ('ABONO_PROVEEDOR_CANCELADO', 'Abono a Proveedor Cancelado'),
     ]
     
     usuario = models.ForeignKey(
@@ -1372,7 +1581,7 @@ class Notificacion(models.Model):
         # Ahora puede ser JEFE, CONTADOR o VENDEDOR
     )
     tipo = models.CharField(
-        max_length=20,
+        max_length=35,
         choices=TIPO_CHOICES,
         verbose_name="Tipo de Notificación"
     )
@@ -1409,6 +1618,15 @@ class Notificacion(models.Model):
         limit_choices_to={'perfil__rol': 'CONTADOR'}
     )
     confirmado_en = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de Confirmación")
+    # Relación con AbonoProveedor
+    abono_proveedor = models.ForeignKey(
+        'ventas.AbonoProveedor',
+        on_delete=models.CASCADE,
+        related_name='notificaciones',
+        null=True,
+        blank=True,
+        verbose_name="Abono a Proveedor Relacionado"
+    )
     
     class Meta:
         verbose_name = "Notificación"

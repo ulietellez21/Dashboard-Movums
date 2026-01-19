@@ -2,7 +2,7 @@ from django import forms
 from django.forms import modelformset_factory
 import json
 from django.db.models import Case, When, Value, IntegerField
-from .models import AbonoPago, Logistica, VentaViaje, Proveedor, Ejecutivo, LogisticaServicio, Cotizacion # Aseguramos la importación de VentaViaje
+from .models import AbonoPago, Logistica, VentaViaje, Proveedor, Ejecutivo, LogisticaServicio, Cotizacion, AbonoProveedor # Aseguramos la importación de VentaViaje
 from django.contrib.auth.models import User
 from crm.models import Cliente # Importamos Cliente para usarlo en el queryset si es necesario
 from crm.services import KilometrosService
@@ -452,6 +452,182 @@ class EjecutivoForm(forms.ModelForm):
         if sueldo is None or sueldo <= 0:
             raise forms.ValidationError("El sueldo base debe ser mayor a 0.")
         return sueldo
+
+
+# ------------------- AbonoProveedor Forms -------------------
+
+class SolicitarAbonoProveedorForm(forms.ModelForm):
+    """Formulario para que un vendedor solicite un abono a proveedor."""
+    
+    # Redefinir monto como CharField para manejar formato de moneda
+    monto = forms.CharField(
+        label="Monto a Abonar",
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': '0.00',
+            'type': 'text',
+            'inputmode': 'decimal'
+        }),
+        help_text='Monto en MXN a abonar al proveedor'
+    )
+    
+    # Redefinir tipo_cambio_aplicado como CharField para manejar formato
+    tipo_cambio_aplicado = forms.CharField(
+        label="Tipo de Cambio Aplicado",
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': '0.0000',
+            'type': 'text',
+            'inputmode': 'decimal'
+        }),
+        help_text='Tipo de cambio del día para convertir MXN a USD'
+    )
+    
+    class Meta:
+        model = AbonoProveedor
+        fields = ['proveedor', 'monto', 'tipo_cambio_aplicado', 'nota_solicitud']
+        widgets = {
+            'proveedor': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej: Aerolínea XYZ, Hotel ABC, etc.'
+            }),
+            'nota_solicitud': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Notas o comentarios sobre el abono solicitado...'
+            }),
+        }
+        help_texts = {
+            'proveedor': 'Nombre del proveedor al que se abonará (texto libre)',
+            'nota_solicitud': 'Notas adicionales sobre esta solicitud',
+        }
+    
+    def __init__(self, *args, **kwargs):
+        self.venta = kwargs.pop('venta', None)
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        
+        # Pre-llenar el campo de proveedor si la venta ya tiene uno asignado
+        if self.venta and self.venta.proveedor:
+            self.fields['proveedor'].initial = self.venta.proveedor.nombre
+    
+    def clean_proveedor(self):
+        proveedor = self.cleaned_data.get('proveedor')
+        if not proveedor or not proveedor.strip():
+            raise forms.ValidationError("Debes especificar el nombre del proveedor.")
+        return proveedor.strip()
+    
+    def clean_monto(self):
+        """Limpia el formato de moneda (quita $ y comas) antes de validar."""
+        monto_raw = self.cleaned_data.get('monto')
+        
+        # Si no hay valor, retornar None para que Django muestre el error de campo requerido
+        if not monto_raw:
+            raise forms.ValidationError("Este campo es obligatorio.")
+        
+        # Si es string, limpiar formato (quitar $, comas y espacios)
+        if isinstance(monto_raw, str):
+            # Remover símbolos de moneda y formateo
+            monto_limpio = monto_raw.replace('$', '').replace(',', '').replace(' ', '').replace('USD', '').strip()
+            if not monto_limpio:
+                raise forms.ValidationError("Este campo es obligatorio.")
+            try:
+                monto = Decimal(monto_limpio)
+            except (ValueError, InvalidOperation):
+                raise forms.ValidationError("El monto debe ser un número válido.")
+        elif isinstance(monto_raw, Decimal):
+            monto = monto_raw
+        else:
+            try:
+                monto = Decimal(str(monto_raw))
+            except (ValueError, InvalidOperation):
+                raise forms.ValidationError("El monto debe ser un número válido.")
+        
+        if monto <= 0:
+            raise forms.ValidationError("El monto debe ser mayor a 0.")
+        return monto
+    
+    def clean_tipo_cambio_aplicado(self):
+        """Limpia el formato del tipo de cambio antes de validar."""
+        tipo_cambio_raw = self.cleaned_data.get('tipo_cambio_aplicado')
+        
+        # Si no hay valor, retornar None para que Django muestre el error de campo requerido
+        if not tipo_cambio_raw:
+            raise forms.ValidationError("Este campo es obligatorio.")
+        
+        # Si es string, limpiar formato
+        if isinstance(tipo_cambio_raw, str):
+            tipo_cambio_limpio = tipo_cambio_raw.replace('$', '').replace(',', '').replace(' ', '').replace('USD', '').strip()
+            if not tipo_cambio_limpio:
+                raise forms.ValidationError("Este campo es obligatorio.")
+            try:
+                tipo_cambio = Decimal(tipo_cambio_limpio)
+            except (ValueError, InvalidOperation):
+                raise forms.ValidationError("El tipo de cambio debe ser un número válido.")
+        elif isinstance(tipo_cambio_raw, Decimal):
+            tipo_cambio = tipo_cambio_raw
+        else:
+            try:
+                tipo_cambio = Decimal(str(tipo_cambio_raw))
+            except (ValueError, InvalidOperation):
+                raise forms.ValidationError("El tipo de cambio debe ser un número válido.")
+        
+        if tipo_cambio <= 0:
+            raise forms.ValidationError("El tipo de cambio debe ser mayor a 0.")
+        return tipo_cambio
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        tipo_cambio = cleaned_data.get('tipo_cambio_aplicado')
+        monto = cleaned_data.get('monto')
+        
+        # Asegurar que monto y tipo_cambio sean Decimal después de la limpieza
+        # (clean_monto y clean_tipo_cambio_aplicado ya los convierten)
+        
+        # Si hay tipo de cambio, calcular monto_usd
+        if tipo_cambio and tipo_cambio > 0 and monto:
+            cleaned_data['monto_usd'] = (monto / tipo_cambio).quantize(Decimal('0.01'))
+        
+        return cleaned_data
+    
+    def save(self, commit=True):
+        """Guarda el formulario asegurando que los valores numéricos sean Decimal."""
+        instance = super().save(commit=False)
+        
+        # Asegurar que monto y tipo_cambio_aplicado sean Decimal
+        # (ya están convertidos por clean_monto y clean_tipo_cambio_aplicado)
+        if commit:
+            instance.save()
+        return instance
+
+
+class ConfirmarAbonoProveedorForm(forms.ModelForm):
+    """Formulario para que un contador confirme un abono a proveedor con comprobante."""
+    
+    class Meta:
+        model = AbonoProveedor
+        fields = ['comprobante', 'nota_confirmacion']
+        widgets = {
+            'comprobante': forms.ClearableFileInput(attrs={
+                'class': 'form-control',
+                'accept': 'image/*,.pdf'
+            }),
+            'nota_confirmacion': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Notas adicionales sobre la confirmación del abono...'
+            }),
+        }
+        help_texts = {
+            'comprobante': 'Sube el comprobante de pago al proveedor (imagen o PDF)',
+            'nota_confirmacion': 'Notas adicionales sobre la confirmación',
+        }
+    
+    def clean_comprobante(self):
+        comprobante = self.cleaned_data.get('comprobante')
+        if not comprobante:
+            raise forms.ValidationError("Debes subir un comprobante para confirmar el abono.")
+        return comprobante
 
 
 class ConfirmacionVentaForm(forms.Form):
