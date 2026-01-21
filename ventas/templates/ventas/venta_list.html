@@ -336,10 +336,6 @@ Mis Ventas 💼
                     
                     <div class="row g-3 mt-2">
                         <div class="col-md-4">
-                            <label class="form-label fw-bold">Fecha de cotización</label>
-                            <input type="date" class="form-control" name="fecha_cotizacion" value="{{ cotizacion_fecha_hoy }}">
-                        </div>
-                        <div class="col-md-4">
                             <label class="form-label fw-bold">Origen</label>
                             <input type="text" class="form-control" name="origen" placeholder="Ej: Guadalajara">
                         </div>
@@ -694,7 +690,6 @@ crossorigin="anonymous" referrerpolicy="no-referrer" />
         });
 
         const defaults = {
-            fecha_cotizacion: cotizacionForm.querySelector('input[name="fecha_cotizacion"]')?.value || '',
             pasajeros: cotizacionForm.querySelector('input[name="pasajeros"]')?.value || '',
             adultos: cotizacionForm.querySelector('input[name="adultos"]')?.value || '',
             menores: cotizacionForm.querySelector('input[name="menores"]')?.value || ''
@@ -725,7 +720,7 @@ crossorigin="anonymous" referrerpolicy="no-referrer" />
             const data = Object.fromEntries(formData.entries());
             const tipo = data.tipo_cotizacion || 'vuelos';
 
-            const requiredFields = ['origen', 'destino', 'fecha_cotizacion', 'fecha_inicio', 'fecha_fin'];
+            const requiredFields = ['origen', 'destino', 'fecha_inicio', 'fecha_fin'];
             const missing = requiredFields.filter(field => !(data[field] || '').trim());
             if (missing.length) {
                 alert('Por favor completa los campos obligatorios: Origen, Destino y Fechas.');
@@ -775,7 +770,7 @@ crossorigin="anonymous" referrerpolicy="no-referrer" />
                 tipo,
                 general: {
                     cliente: selectedVenta?.cliente || '',
-                    fechaCotizacion: data.fecha_cotizacion,
+                    fechaCotizacion: fecha_cotizacion, // Usar fecha automática establecida arriba
                     origen: data.origen,
                     destino: data.destino,
                     dias: data.dias,
