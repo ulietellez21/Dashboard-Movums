@@ -1515,7 +1515,31 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         modo_pago = form.cleaned_data.get('modo_pago_apertura', 'EFE')
         cantidad_apertura = form.cleaned_data.get('cantidad_apertura', Decimal('0.00'))
         
-        if modo_pago == 'CRE':
+        # ✅ NUEVO: Lógica para "Directo a Proveedor" (PRO)
+        if modo_pago == 'PRO':
+            # Calcular el total final con descuentos
+            costo_base = (self.object.costo_venta_final or Decimal('0.00')) + (self.object.costo_modificacion or Decimal('0.00'))
+            descuento_km = self.object.descuento_kilometros_mxn or Decimal('0.00')
+            descuento_promo = self.object.descuento_promociones_mxn or Decimal('0.00')
+            total_descuentos = descuento_km + descuento_promo
+            total_final = costo_base - total_descuentos
+            
+            # Establecer cantidad_apertura igual al total final y estado como COMPLETADO
+            self.object.cantidad_apertura = total_final
+            self.object.estado_confirmacion = 'COMPLETADO'
+            self.object.save(update_fields=['cantidad_apertura', 'estado_confirmacion'])
+            
+            # Crear notificación para el VENDEDOR (si existe)
+            if self.object.vendedor:
+                mensaje_vendedor_apertura = f"Venta #{self.object.pk} marcada como pagada (Directo a Proveedor): ${total_final:,.2f} - Cliente: {self.object.cliente.nombre_completo_display}"
+                Notificacion.objects.create(
+                    usuario=self.object.vendedor,
+                    tipo='APERTURA',
+                    mensaje=mensaje_vendedor_apertura,
+                    venta=self.object,
+                    confirmado=True
+                )
+        elif modo_pago == 'CRE':
             # Para crédito: estado EN_CONFIRMACION y cantidad_apertura = 0
             self.object.estado_confirmacion = 'EN_CONFIRMACION'
             self.object.cantidad_apertura = Decimal('0.00')
@@ -1592,10 +1616,14 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 
     def test_func(self):
         # Solo el vendedor que creó la venta o el JEFE pueden editarla. CONTADOR solo lectura.
+        # ✅ BLOQUEO: Si la venta tiene modo_pago_apertura='PRO', solo JEFE/GERENTE pueden editarla
         venta = self.get_object()
         user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
         if user_rol == 'CONTADOR':
             return False
+        # Si la venta es "Directo a Proveedor", solo JEFE o GERENTE pueden editarla
+        if venta.modo_pago_apertura == 'PRO':
+            return user_rol in ['JEFE', 'GERENTE']
         return venta.vendedor == self.request.user or user_rol == 'JEFE'
     
     def get_form_kwargs(self):
@@ -1605,7 +1633,11 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 
     def handle_no_permission(self):
         venta = self.get_object()
-        messages.error(self.request, "No tienes permiso para editar esta venta.")
+        # Mensaje específico si la venta es "Directo a Proveedor"
+        if venta.modo_pago_apertura == 'PRO':
+            messages.error(self.request, "Esta venta fue pagada directamente al proveedor. Solo JEFE o GERENTE pueden modificarla.")
+        else:
+            messages.error(self.request, "No tienes permiso para editar esta venta.")
         # Se asegura de usar 'detalle_venta' para la redirección de error (AHORA CON SLUG)
         return HttpResponseRedirect(reverse_lazy('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}))
 
@@ -1745,6 +1777,35 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
                     )
             except Exception:
                 logger.exception("❌ Error procesando bonos de promociones en actualización de venta %s", self.object.pk)
+        
+        # ✅ NUEVO: Lógica para "Directo a Proveedor" (PRO) en actualización
+        modo_pago = form.cleaned_data.get('modo_pago_apertura', self.object.modo_pago_apertura)
+        modo_pago_anterior = venta_anterior.modo_pago_apertura
+        
+        # Si se cambió a PRO o ya era PRO, aplicar la lógica
+        if modo_pago == 'PRO':
+            # Calcular el total final con descuentos
+            costo_base = (self.object.costo_venta_final or Decimal('0.00')) + (self.object.costo_modificacion or Decimal('0.00'))
+            descuento_km = self.object.descuento_kilometros_mxn or Decimal('0.00')
+            descuento_promo = self.object.descuento_promociones_mxn or Decimal('0.00')
+            total_descuentos = descuento_km + descuento_promo
+            total_final = costo_base - total_descuentos
+            
+            # Establecer cantidad_apertura igual al total final y estado como COMPLETADO
+            self.object.cantidad_apertura = total_final
+            self.object.estado_confirmacion = 'COMPLETADO'
+            self.object.save(update_fields=['cantidad_apertura', 'estado_confirmacion'])
+            
+            # Si cambió de otro modo a PRO, crear notificación
+            if modo_pago_anterior != 'PRO' and self.object.vendedor:
+                mensaje_vendedor = f"Venta #{self.object.pk} actualizada a pagada (Directo a Proveedor): ${total_final:,.2f} - Cliente: {self.object.cliente.nombre_completo_display}"
+                Notificacion.objects.create(
+                    usuario=self.object.vendedor,
+                    tipo='APERTURA',
+                    mensaje=mensaje_vendedor,
+                    venta=self.object,
+                    confirmado=True
+                )
         
         self.object.actualizar_estado_financiero()
         messages.success(self.request, mensaje)

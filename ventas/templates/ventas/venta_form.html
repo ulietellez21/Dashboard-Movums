@@ -2201,6 +2201,155 @@
                 // El formulario se enviará ahora con números limpios
             });
         }
+
+        // ========== MANEJO DE MODO DE PAGO "DIRECTO A PROVEEDOR" (PRO) ==========
+        const modoPagoAperturaSelect = document.getElementById('id_modo_pago_apertura');
+        const cantidadAperturaInput = document.getElementById('id_cantidad_apertura');
+        const cantidadAperturaLabel = cantidadAperturaInput?.closest('.col-md-4')?.querySelector('label');
+        
+        // Función para calcular el total final con descuentos
+        function calcularTotalFinal() {
+            const costoVentaFinal = parseFloat(document.getElementById('id_costo_venta_final')?.value?.replace(/[^0-9.]/g, '') || '0');
+            const costoModificacion = parseFloat(document.getElementById('id_costo_modificacion')?.value?.replace(/[^0-9.]/g, '') || '0');
+            const descuentoKm = parseFloat(document.getElementById('id_descuento_kilometros_mxn')?.value?.replace(/[^0-9.]/g, '') || '0');
+            const descuentoPromo = parseFloat(document.getElementById('id_descuento_promociones_mxn')?.value?.replace(/[^0-9.]/g, '') || '0');
+            
+            const costoBase = costoVentaFinal + costoModificacion;
+            const totalDescuentos = descuentoKm + descuentoPromo;
+            const totalFinal = Math.max(0, costoBase - totalDescuentos);
+            
+            return totalFinal;
+        }
+        
+        function manejarModoPagoProveedor() {
+            if (!modoPagoAperturaSelect || !cantidadAperturaInput) return;
+            
+            const modoSeleccionado = modoPagoAperturaSelect.value;
+            
+            if (modoSeleccionado === 'PRO') {
+                // Calcular el total final con descuentos
+                const totalFinal = calcularTotalFinal();
+                
+                // Establecer cantidad_apertura igual al total final
+                cantidadAperturaInput.value = totalFinal.toFixed(2);
+                
+                // IMPORTANTE: Usar readonly en lugar de disabled para que el campo se envíe en el formulario
+                cantidadAperturaInput.removeAttribute('disabled');
+                cantidadAperturaInput.setAttribute('readonly', 'readonly');
+                cantidadAperturaInput.classList.add('bg-light');
+                cantidadAperturaInput.style.cursor = 'not-allowed';
+                
+                // Mostrar mensaje informativo
+                let mensajeInfo = cantidadAperturaInput.closest('.col-md-4')?.querySelector('.pro-directo-mensaje');
+                if (!mensajeInfo) {
+                    mensajeInfo = document.createElement('div');
+                    mensajeInfo.className = 'pro-directo-mensaje alert alert-info mt-2 small';
+                    mensajeInfo.innerHTML = '<i class="fas fa-info-circle"></i> El monto se establecerá automáticamente al total final (pago directo al proveedor).';
+                    cantidadAperturaInput.closest('.col-md-4')?.appendChild(mensajeInfo);
+                }
+            } else {
+                // Habilitar el campo cantidad_apertura si no es PRO
+                cantidadAperturaInput.removeAttribute('readonly');
+                cantidadAperturaInput.removeAttribute('disabled');
+                cantidadAperturaInput.classList.remove('bg-light');
+                cantidadAperturaInput.style.cursor = '';
+                
+                // Ocultar mensaje informativo
+                const mensajeInfo = cantidadAperturaInput.closest('.col-md-4')?.querySelector('.pro-directo-mensaje');
+                if (mensajeInfo) {
+                    mensajeInfo.remove();
+                }
+            }
+        }
+        
+        // Función para actualizar en tiempo real cuando cambien los campos relacionados
+        function actualizarCantidadAperturaSiEsPro() {
+            if (modoPagoAperturaSelect && modoPagoAperturaSelect.value === 'PRO') {
+                manejarModoPagoProveedor();
+            }
+        }
+        
+            // Ejecutar al cargar la página y cuando cambie el modo de pago
+        if (modoPagoAperturaSelect && cantidadAperturaInput) {
+            modoPagoAperturaSelect.addEventListener('change', manejarModoPagoProveedor);
+            
+            // Lista de campos que afectan el total final
+            const camposAfectanTotal = [
+                'id_costo_venta_final',
+                'id_costo_modificacion',
+                'id_descuento_kilometros_mxn',
+                'id_descuento_promociones_mxn'
+            ];
+            
+            // Agregar event listeners a los campos que afectan el total
+            camposAfectanTotal.forEach(id => {
+                const campo = document.getElementById(id);
+                if (campo) {
+                    // Escuchar eventos input, change y blur para actualización en tiempo real
+                    ['input', 'change', 'blur'].forEach(eventType => {
+                        campo.addEventListener(eventType, function() {
+                            // Pequeño delay para asegurar que el valor se haya actualizado
+                            setTimeout(actualizarCantidadAperturaSiEsPro, 50);
+                        });
+                    });
+                }
+            });
+            
+            // Escuchar cambios en los radio buttons de promociones
+            document.addEventListener('change', function(e) {
+                if (e.target && e.target.classList.contains('promo-radio')) {
+                    setTimeout(actualizarCantidadAperturaSiEsPro, 100);
+                }
+            });
+            
+            // Interceptar la función updateTotalFinal si existe para actualizar cantidad_apertura
+            if (typeof window.updateTotalFinalOriginal === 'undefined') {
+                window.updateTotalFinalOriginal = window.updateTotalFinal;
+                if (typeof window.updateTotalFinal === 'function') {
+                    window.updateTotalFinal = function() {
+                        // Llamar a la función original
+                        if (window.updateTotalFinalOriginal) {
+                            window.updateTotalFinalOriginal();
+                        }
+                        // Actualizar cantidad_apertura si es PRO
+                        setTimeout(actualizarCantidadAperturaSiEsPro, 50);
+                    };
+                }
+            }
+            
+            // Interceptar recalculateDescuento si existe
+            if (typeof window.recalculateDescuentoOriginal === 'undefined') {
+                window.recalculateDescuentoOriginal = window.recalculateDescuento;
+                if (typeof window.recalculateDescuento === 'function') {
+                    window.recalculateDescuento = function() {
+                        // Llamar a la función original
+                        if (window.recalculateDescuentoOriginal) {
+                            window.recalculateDescuentoOriginal();
+                        }
+                        // Actualizar cantidad_apertura si es PRO
+                        setTimeout(actualizarCantidadAperturaSiEsPro, 50);
+                    };
+                }
+            }
+            
+            // Asegurar que el valor se actualice antes de enviar el formulario
+            const ventaForm = document.getElementById('ventaForm');
+            if (ventaForm) {
+                ventaForm.addEventListener('submit', function(e) {
+                    if (modoPagoAperturaSelect.value === 'PRO') {
+                        // Recalcular y establecer el valor justo antes de enviar
+                        const totalFinal = calcularTotalFinal();
+                        cantidadAperturaInput.value = totalFinal.toFixed(2);
+                        // Asegurar que el campo no esté disabled y que sea readonly
+                        cantidadAperturaInput.removeAttribute('disabled');
+                        cantidadAperturaInput.setAttribute('readonly', 'readonly');
+                    }
+                });
+            }
+            
+            // Ejecutar al cargar
+            setTimeout(manejarModoPagoProveedor, 100);
+        }
     });
 </script>
 {% endblock %}

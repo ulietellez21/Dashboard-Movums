@@ -566,7 +566,7 @@
                                 Registrar Nuevo Abono
                             </div>
                             <div class="card-body">
-                                {% if venta.saldo_restante > 0 %}
+                                {% if venta.saldo_restante > 0 and venta.modo_pago_apertura != 'PRO' %}
                                     <form method="post">
                                         {% csrf_token %}
                                         
@@ -615,7 +615,12 @@
                                     </form>
                                 {% else %}
                                     <div class="alert alert-success text-center">
-                                        <i class="fas fa-check-double"></i> ¡Esta venta está completamente pagada!
+                                        <i class="fas fa-check-double"></i> 
+                                        {% if venta.modo_pago_apertura == 'PRO' %}
+                                            Esta venta fue pagada directamente al proveedor. No se requieren abonos adicionales.
+                                        {% else %}
+                                            ¡Esta venta está completamente pagada!
+                                        {% endif %}
                                     </div>
                                 {% endif %}
                             </div>
