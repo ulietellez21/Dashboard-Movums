@@ -4,7 +4,7 @@
     <div class="card">
         <div class="card-header">
             <span class="icon">📄</span>
-            <span>COTIZACIÓN GENÉRICA</span>
+            <span>{{ cotizacion.titulo|upper|default:"COTIZACIÓN GENÉRICA" }}</span>
         </div>
         
         {% if propuestas.generica.contenido %}
