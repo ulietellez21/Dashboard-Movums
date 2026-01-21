@@ -2064,6 +2064,43 @@ class CotizacionForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
+        
+        # Validar que la suma de adultos y menores coincida con el total de pasajeros
+        pasajeros = cleaned.get('pasajeros')
+        adultos = cleaned.get('adultos')
+        menores = cleaned.get('menores')
+        
+        # Convertir a enteros si vienen como strings o None
+        if pasajeros is not None:
+            try:
+                pasajeros = int(pasajeros) if not isinstance(pasajeros, int) else pasajeros
+            except (ValueError, TypeError):
+                pasajeros = None
+        
+        if adultos is not None:
+            try:
+                adultos = int(adultos) if not isinstance(adultos, int) else adultos
+            except (ValueError, TypeError):
+                adultos = None
+        
+        if menores is not None:
+            try:
+                menores = int(menores) if not isinstance(menores, int) else menores
+            except (ValueError, TypeError):
+                menores = None
+        
+        # Solo validar si todos los campos tienen valores válidos
+        if pasajeros is not None and adultos is not None and menores is not None:
+            suma_adultos_menores = adultos + menores
+            if pasajeros != suma_adultos_menores:
+                error_msg = (
+                    f"El número total de pasajeros ({pasajeros}) no coincide con la suma de adultos "
+                    f"({adultos}) y menores ({menores}). Por favor, rectifica los números para que "
+                    f"adultos + menores = {pasajeros} pasajeros."
+                )
+                self.add_error('adultos', error_msg)
+                self.add_error('menores', error_msg)
+        
         propuestas_raw = cleaned.get('propuestas')
         if isinstance(propuestas_raw, str):
             try:

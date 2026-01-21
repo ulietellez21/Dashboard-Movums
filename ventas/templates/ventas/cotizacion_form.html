@@ -737,6 +737,76 @@
 
         // Ejecutar al cargar la página
         inicializarEdadesMenores();
+        
+        // ========== VALIDACIÓN EN TIEMPO REAL DE PASAJEROS ==========
+        const campoPasajeros = document.getElementById('id_pasajeros');
+        const campoAdultos = document.getElementById('id_adultos');
+        const campoMenoresValidacion = document.getElementById('id_menores'); // Renombrar para evitar conflicto con campoMenores de edades
+        
+        // Función para validar y mostrar indicador visual de error
+        function validarPasajeros() {
+            // Obtener valores actualizados cada vez
+            const pasajeros = parseInt(campoPasajeros?.value) || 0;
+            const adultos = parseInt(campoAdultos?.value) || 0;
+            const menores = parseInt(campoMenoresValidacion?.value) || 0;
+            const suma = adultos + menores;
+            
+            // Remover clases de error de los campos
+            if (campoAdultos) campoAdultos.classList.remove('is-invalid');
+            if (campoMenoresValidacion) campoMenoresValidacion.classList.remove('is-invalid');
+            if (campoPasajeros) campoPasajeros.classList.remove('is-invalid');
+            
+            // Solo validar si todos los campos tienen valores válidos
+            if (pasajeros > 0 && adultos >= 0 && menores >= 0) {
+                if (pasajeros !== suma) {
+                    // Agregar clases de error (muestra el símbolo ! en Bootstrap)
+                    if (campoAdultos) campoAdultos.classList.add('is-invalid');
+                    if (campoMenoresValidacion) campoMenoresValidacion.classList.add('is-invalid');
+                    if (campoPasajeros) campoPasajeros.classList.add('is-invalid');
+                    
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        // Agregar event listeners a los tres campos con múltiples eventos
+        if (campoPasajeros) {
+            campoPasajeros.addEventListener('input', validarPasajeros);
+            campoPasajeros.addEventListener('change', validarPasajeros);
+            campoPasajeros.addEventListener('blur', validarPasajeros);
+        }
+        if (campoAdultos) {
+            campoAdultos.addEventListener('input', validarPasajeros);
+            campoAdultos.addEventListener('change', validarPasajeros);
+            campoAdultos.addEventListener('blur', validarPasajeros);
+        }
+        if (campoMenoresValidacion) {
+            campoMenoresValidacion.addEventListener('input', validarPasajeros);
+            campoMenoresValidacion.addEventListener('change', validarPasajeros);
+            campoMenoresValidacion.addEventListener('blur', validarPasajeros);
+        }
+        
+        // Validar inicialmente al cargar la página (con un pequeño delay para asegurar que los campos estén renderizados)
+        setTimeout(function() {
+            validarPasajeros();
+        }, 100);
+        
+        // Validar antes de enviar el formulario
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                if (!validarPasajeros()) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Hacer scroll a los campos con error
+                    if (campoPasajeros) {
+                        campoPasajeros.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    return false;
+                }
+            });
+        }
+        
         const sections = form.querySelectorAll('.cotizacion-section');
         const propuestasInput = document.getElementById('id_propuestas');
         const docxBtn = document.getElementById('docxBtn');
