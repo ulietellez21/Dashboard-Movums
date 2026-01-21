@@ -129,7 +129,13 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <span class="badge bg-secondary">{{ c.get_estado_display }}</span>
+                                {% if c.estado == 'CONVERTIDA' %}
+                                    <span class="badge bg-success">{{ c.get_estado_display }}</span>
+                                {% elif c.estado == 'ENVIADA' %}
+                                    <span class="badge bg-info">{{ c.get_estado_display }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ c.get_estado_display }}</span>
+                                {% endif %}
                             </td>
                             <td class="text-end">
                                 <a href="{% url 'cotizacion_detalle' slug=c.slug %}" class="btn btn-sm btn-outline-primary">
