@@ -1548,14 +1548,52 @@ class VentaViajeForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
-        
+
         # Validar que si se selecciona "Trámites de Documentación", se especifique el tipo de trámite
         servicios_seleccionados = cleaned_data.get('servicios_seleccionados', [])
         if 'Trámites de Documentación' in servicios_seleccionados:
             tipo_tramite = cleaned_data.get('tipo_tramite_documentacion', '').strip()
             if not tipo_tramite:
                 self.add_error('tipo_tramite_documentacion', 'Debes seleccionar si es trámite de Visa o Pasaporte cuando seleccionas "Trámites de Documentación".')
-        
+
+        # ✅ NUEVO: Lógica para "Directo a Proveedor" (PRO)
+        modo_pago_apertura = cleaned_data.get('modo_pago_apertura')
+        if modo_pago_apertura == 'PRO':
+            # Calcular el total final con descuentos
+            costo_venta_final = cleaned_data.get('costo_venta_final') or Decimal('0.00')
+            costo_modificacion = cleaned_data.get('costo_modificacion') or Decimal('0.00')
+            descuento_km = cleaned_data.get('descuento_kilometros_mxn') or Decimal('0.00')
+            descuento_promo = cleaned_data.get('descuento_promociones_mxn') or Decimal('0.00')
+            
+            # Convertir a Decimal si vienen como string
+            if isinstance(costo_venta_final, str):
+                try:
+                    costo_venta_final = Decimal(costo_venta_final.replace(',', ''))
+                except (ValueError, InvalidOperation):
+                    costo_venta_final = Decimal('0.00')
+            if isinstance(costo_modificacion, str):
+                try:
+                    costo_modificacion = Decimal(costo_modificacion.replace(',', ''))
+                except (ValueError, InvalidOperation):
+                    costo_modificacion = Decimal('0.00')
+            if isinstance(descuento_km, str):
+                try:
+                    descuento_km = Decimal(descuento_km.replace(',', ''))
+                except (ValueError, InvalidOperation):
+                    descuento_km = Decimal('0.00')
+            if isinstance(descuento_promo, str):
+                try:
+                    descuento_promo = Decimal(descuento_promo.replace(',', ''))
+                except (ValueError, InvalidOperation):
+                    descuento_promo = Decimal('0.00')
+            
+            costo_base = costo_venta_final + costo_modificacion
+            total_descuentos = descuento_km + descuento_promo
+            total_final = max(Decimal('0.00'), costo_base - total_descuentos)
+            
+            # Establecer cantidad_apertura igual al total final
+            cleaned_data['cantidad_apertura'] = total_final
+
         tipo_viaje = cleaned_data.get('tipo_viaje', 'NAC')
         
         # Desactivar Kilómetros Movums para ventas internacionales
@@ -1631,6 +1669,23 @@ class VentaViajeForm(forms.ModelForm):
                     self.add_error('costo_modificacion', "El costo de modificación debe ser mayor o igual a 0.")
             else:
                 cleaned_data['costo_modificacion'] = Decimal('0.00')
+        
+        # ✅ NUEVO: Lógica para "Directo a Proveedor" (PRO) - Después de limpiar valores
+        modo_pago_apertura = cleaned_data.get('modo_pago_apertura')
+        if modo_pago_apertura == 'PRO':
+            # Obtener valores ya limpios
+            costo_venta_final = cleaned_data.get('costo_venta_final') or Decimal('0.00')
+            costo_modificacion = cleaned_data.get('costo_modificacion') or Decimal('0.00')
+            descuento_km = cleaned_data.get('descuento_kilometros_mxn') or Decimal('0.00')
+            descuento_promo = cleaned_data.get('descuento_promociones_mxn') or Decimal('0.00')
+            
+            # Calcular total final
+            costo_base = costo_venta_final + costo_modificacion
+            total_descuentos = descuento_km + descuento_promo
+            total_final = max(Decimal('0.00'), costo_base - total_descuentos)
+            
+            # Establecer cantidad_apertura igual al total final
+            cleaned_data['cantidad_apertura'] = total_final
 
         # ------------------- LÓGICA PARA VENTAS INTERNACIONALES (USD) -------------------
         tipo_viaje = cleaned_data.get('tipo_viaje', 'NAC')
