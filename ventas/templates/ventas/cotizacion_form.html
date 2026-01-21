@@ -58,10 +58,6 @@
                     <div class="invalid-feedback d-block">{{ error }}</div>
                     {% endfor %}
                 </div>
-                <div class="col-md-4">
-                    <label class="form-label fw-bold">Fecha de cotización</label>
-                    {{ form.fecha_cotizacion }}
-                </div>
             </div>
 
             <div class="row g-3 mt-2">
@@ -1378,9 +1374,23 @@
                 })()
             };
 
+            // Obtener fecha de cotización: si existe en propuestas anteriores, mantenerla; si no, usar fecha actual
+            let fecha_cotizacion = null;
+            try {
+                const propuestasExistentes = propuestasInput ? JSON.parse(propuestasInput.value || '{}') : {};
+                fecha_cotizacion = propuestasExistentes.fecha_cotizacion || null;
+            } catch(e) {
+                // Si no hay propuestas previas o hay error, usar null (se establecerá en el backend)
+            }
+            // Si no hay fecha previa, establecer la fecha actual
+            if (!fecha_cotizacion) {
+                const hoy = new Date();
+                fecha_cotizacion = hoy.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+            }
+            
             const propuestas = {
                 tipo: tipo,
-                fecha_cotizacion: data.fecha_cotizacion || null,
+                fecha_cotizacion: fecha_cotizacion,
                 vuelos: propuestasVuelo,
                 hoteles: propuestasHotel,
                 paquete: objetoPaquete,

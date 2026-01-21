@@ -1885,7 +1885,6 @@ class VentaViajeForm(forms.ModelForm):
 # ------------------- CotizacionForm -------------------
 class CotizacionForm(forms.ModelForm):
     # Campos extra para estructurar propuestas como en el modal anterior
-    fecha_cotizacion = forms.DateField(required=False, widget=forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date', 'class': 'form-control'}))
     tipo = forms.ChoiceField(
         choices=[
             ('vuelos', '✈️ Vuelos'),
@@ -1914,7 +1913,6 @@ class CotizacionForm(forms.ModelForm):
             'cliente',
             'titulo',
             'tipo',
-            'fecha_cotizacion',
             'origen',
             'destino',
             'dias',
@@ -2154,6 +2152,11 @@ class CotizacionForm(forms.ModelForm):
         tipo = self.cleaned_data.get('tipo', 'vuelos')
         if 'tipo' not in instance.propuestas:
             instance.propuestas['tipo'] = tipo
+        
+        # Establecer fecha_cotizacion automáticamente si no existe (fecha actual)
+        if 'fecha_cotizacion' not in instance.propuestas or not instance.propuestas.get('fecha_cotizacion'):
+            from django.utils import timezone
+            instance.propuestas['fecha_cotizacion'] = timezone.localdate().isoformat()
         
         # CRÍTICO: Si el tipo es 'paquete', asegurar que el objeto paquete exista y tenga la estructura correcta
         if tipo == 'paquete':
