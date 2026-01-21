@@ -689,6 +689,10 @@ crossorigin="anonymous" referrerpolicy="no-referrer" />
             toggleSection(this.value);
         });
 
+        // Establecer fecha de cotización automáticamente (fecha actual)
+        const hoy = new Date();
+        const fecha_cotizacion = hoy.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+        
         const defaults = {
             pasajeros: cotizacionForm.querySelector('input[name="pasajeros"]')?.value || '',
             adultos: cotizacionForm.querySelector('input[name="adultos"]')?.value || '',
