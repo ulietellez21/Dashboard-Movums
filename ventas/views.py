@@ -1468,7 +1468,12 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         
         # 4. Guarda la instancia, lo que dispara el método save() del modelo
         self.object = instance # Establece self.object para que get_success_url funcione
-        self.object.save() 
+        self.object.save()
+        
+        # 4.1. Actualizar el estado de la cotización a CONVERTIDA cuando se crea la venta
+        if cot:
+            cot.estado = 'CONVERTIDA'
+            cot.save(update_fields=['estado']) 
         
         # 5. Llama a save_m2m (necesario si hay campos ManyToMany en VentaViajeForm)
         form.save_m2m() 
