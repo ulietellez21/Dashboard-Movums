@@ -701,15 +701,11 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                         # daviddiaz, JEFE o GERENTE pueden desmarcar si lo desean
                     
                     # 3. OPCIÓN PROVEEDOR
-                    # BLOQUEO: Una vez asignado, no se puede modificar (excepto daviddiaz, JEFE o GERENTE)
+                    # BLOQUEO: Una vez asignado, no se puede modificar (BLOQUEADO PARA TODOS - PRUEBAS)
                     nuevo_opcion_proveedor = form.cleaned_data.get('opcion_proveedor', '')
                     if original.opcion_proveedor and original.opcion_proveedor.strip():
-                        if not puede_editar_campos_bloqueados:
-                            # PRESERVAR el valor original de la BD
-                            nuevo_opcion_proveedor = original.opcion_proveedor
-                        else:
-                            # daviddiaz, JEFE o GERENTE pueden modificar: usar el valor del formulario o el original si viene vacío
-                            nuevo_opcion_proveedor = nuevo_opcion_proveedor if nuevo_opcion_proveedor.strip() else original.opcion_proveedor
+                        # TEMPORAL: Bloquear para todos con fines de prueba - PRESERVAR siempre el valor original
+                        nuevo_opcion_proveedor = original.opcion_proveedor
                     
                     # --- APLICAR CAMBIOS ---
                     original.monto_planeado = nuevo_monto
@@ -1021,11 +1017,11 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                         if not puede_editar_campos_bloqueados:
                             form.fields['pagado'].widget.attrs['disabled'] = 'disabled'
                     
-                    # Bloquear opcion_proveedor si tiene valor (excepto daviddiaz, JEFE o GERENTE)
+                    # Bloquear opcion_proveedor si tiene valor (BLOQUEADO PARA TODOS - PRUEBAS)
                     if form.instance.opcion_proveedor and form.instance.opcion_proveedor.strip():
-                        if not puede_editar_campos_bloqueados:
-                            form.fields['opcion_proveedor'].widget.attrs['disabled'] = 'disabled'
-                            form.fields['opcion_proveedor'].widget.attrs['readonly'] = 'readonly'
+                        # TEMPORAL: Bloquear para todos con fines de prueba
+                        form.fields['opcion_proveedor'].widget.attrs['disabled'] = 'disabled'
+                        form.fields['opcion_proveedor'].widget.attrs['readonly'] = 'readonly'
 
         resumen = build_financial_summary(venta, servicios_qs)
         filas = build_service_rows(servicios_qs, resumen, list(formset.forms), venta=venta)
