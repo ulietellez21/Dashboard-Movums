@@ -124,4 +124,3 @@ class PromocionesService:
         # Stacking permitido: regresar todas las aplicables en orden de creación (más recientes primero)
         candidatas.sort(key=lambda x: x['promo'].creada_en, reverse=True)
         return candidatas
-

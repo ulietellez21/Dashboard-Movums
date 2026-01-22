@@ -8230,6 +8230,7 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
         ejecutivo = None
         ejecutivo_nombre = None
         ejecutivo_telefono = None
+        ejecutivo_email = None
         
         if cotizacion.vendedor:
             try:
@@ -8237,7 +8238,7 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
                 ejecutivo = Ejecutivo.objects.filter(usuario=cotizacion.vendedor).first()
                 
                 if ejecutivo:
-                    # Si hay ejecutivo, usar su nombre y teléfono
+                    # Si hay ejecutivo, usar su nombre, teléfono y email
                     ejecutivo_nombre = ejecutivo.nombre_completo
                     if ejecutivo.telefono:
                         # Formatear teléfono a 10 dígitos (eliminar espacios, guiones, paréntesis, etc.)
@@ -8249,15 +8250,21 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
                             ejecutivo_telefono = telefono_limpio
                         else:
                             ejecutivo_telefono = ejecutivo.telefono  # Mantener original si no tiene 10 dígitos
+                    if ejecutivo.email:
+                        ejecutivo_email = ejecutivo.email
                 else:
                     # Si no hay ejecutivo asociado, usar el nombre del usuario como fallback
                     ejecutivo_nombre = f"{cotizacion.vendedor.get_full_name() or cotizacion.vendedor.get_username()}"
+                    if cotizacion.vendedor.email:
+                        ejecutivo_email = cotizacion.vendedor.email
                     logger.info(f"Usuario {cotizacion.vendedor.username} no tiene Ejecutivo asociado, usando nombre de usuario")
             except Exception as e:
                 logger.warning(f"Error al obtener ejecutivo para cotización {cotizacion.pk}: {e}", exc_info=True)
                 # Fallback: usar el nombre del usuario
                 if cotizacion.vendedor:
                     ejecutivo_nombre = f"{cotizacion.vendedor.get_full_name() or cotizacion.vendedor.get_username()}"
+                    if cotizacion.vendedor.email:
+                        ejecutivo_email = cotizacion.vendedor.email
         
         return {
             'cotizacion': cotizacion,
@@ -8269,6 +8276,7 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
             'ejecutivo': ejecutivo,
             'ejecutivo_nombre': ejecutivo_nombre,
             'ejecutivo_telefono': ejecutivo_telefono,
+            'ejecutivo_email': ejecutivo_email,
         }
     
     def _generar_pdf(self, cotizacion):

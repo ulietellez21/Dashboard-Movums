@@ -106,40 +106,6 @@
                         {% endif %}
                     </div>
                 </div>
-                {% if cotizacion.fecha_inicio or cotizacion.fecha_fin %}
-                <div class="sidebar-card-item">
-                    <div class="sidebar-card-label">Fecha de Viaje</div>
-                    <div class="sidebar-card-value">
-                        {% if cotizacion.fecha_inicio %}{{ cotizacion.fecha_inicio|date:"d/m/Y" }}{% else %}-{% endif %} / 
-                        {% if cotizacion.fecha_fin %}{{ cotizacion.fecha_fin|date:"d/m/Y" }}{% else %}-{% endif %}
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-        
-        <div class="sidebar-card purple">
-            <div class="sidebar-card-title">INFORMACIÓN DEL VIAJE</div>
-            <div class="sidebar-card-content">
-                <div class="sidebar-card-item">
-                    <div class="sidebar-card-label">Pasajeros</div>
-                    <div class="sidebar-card-value">
-                        {{ cotizacion.adultos|default:1 }} Adultos / {{ cotizacion.menores|default:0 }} Menores
-                        {% if cotizacion.edades_menores %}(Edades: {{ cotizacion.edades_menores }}){% endif %}
-                    </div>
-                </div>
-                {% if cotizacion.dias or cotizacion.noches %}
-                <div class="sidebar-card-item">
-                    <div class="sidebar-card-label">Duración</div>
-                    <div class="sidebar-card-value">{{ cotizacion.dias|default:"-" }} días / {{ cotizacion.noches|default:"-" }} noches</div>
-                </div>
-                {% endif %}
-                {% if cotizacion.origen or cotizacion.destino %}
-                <div class="sidebar-card-item">
-                    <div class="sidebar-card-label">Ruta</div>
-                    <div class="sidebar-card-value">{{ cotizacion.origen|default:"-" }} → {{ cotizacion.destino|default:"-" }}</div>
-                </div>
-                {% endif %}
             </div>
         </div>
         
@@ -148,18 +114,20 @@
             <div class="sidebar-card-content">
                 {% if ejecutivo_nombre %}
                 <div class="sidebar-card-item">
-                    <div class="sidebar-card-label">Asesor</div>
-                    <div class="sidebar-card-value">{{ ejecutivo_nombre }}</div>
+                    <div class="sidebar-card-label">Contacto</div>
+                    <div class="sidebar-card-value">
+                        {{ ejecutivo_nombre }}{% if ejecutivo_telefono %} ({{ ejecutivo_telefono }}){% endif %}
+                    </div>
                 </div>
-                {% if ejecutivo_telefono %}
+                {% if ejecutivo_email %}
                 <div class="sidebar-card-item">
-                    <div class="sidebar-card-label">Teléfono</div>
-                    <div class="sidebar-card-value">{{ ejecutivo_telefono }}</div>
+                    <div class="sidebar-card-label">Correo</div>
+                    <div class="sidebar-card-value">{{ ejecutivo_email }}</div>
                 </div>
                 {% endif %}
                 {% else %}
                 <div class="sidebar-card-item">
-                    <div class="sidebar-card-label">Asesor</div>
+                    <div class="sidebar-card-label">Contacto</div>
                     <div class="sidebar-card-value">No asignado</div>
                 </div>
                 {% endif %}
