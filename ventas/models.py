@@ -128,6 +128,13 @@ class VentaViaje(models.Model):
         verbose_name="Cantidad de Apertura/Anticipo"
     )
     
+    # Campo para indicar si se requiere factura por el monto de apertura
+    requiere_factura_apertura = models.BooleanField(
+        default=False,
+        verbose_name="Requiere Factura por Apertura",
+        help_text="Indica si el cliente requiere factura por el monto de apertura."
+    )
+    
     # Modo de pago para la apertura
     MODO_PAGO_CHOICES = [
         ('EFE', 'Ikki'),

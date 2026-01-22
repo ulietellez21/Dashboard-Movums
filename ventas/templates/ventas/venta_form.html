@@ -464,6 +464,21 @@
                         {% endfor %}
                     </div>
                     <div class="col-md-4 mb-3">
+                        {# Requiere Factura por Apertura #}
+                        <div class="form-check mt-4">
+                            {{ form.requiere_factura_apertura }}
+                            <label class="form-check-label fw-bold text-secondary" for="{{ form.requiere_factura_apertura.id_for_label }}">
+                                {{ form.requiere_factura_apertura.label }}
+                            </label>
+                            {% if form.requiere_factura_apertura.help_text %}
+                            <div class="form-text">{{ form.requiere_factura_apertura.help_text }}</div>
+                            {% endif %}
+                        </div>
+                        {% for error in form.requiere_factura_apertura.errors %}
+                        <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    <div class="col-md-4 mb-3">
                         {# Costo Neto (Costo Agencia) #}
                         <label for="{{ form.costo_neto.id_for_label }}" class="form-label fw-bold text-secondary">
                             <span id="labelCostoNeto">{{ form.costo_neto.label }}</span><span

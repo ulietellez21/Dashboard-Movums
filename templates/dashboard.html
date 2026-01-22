@@ -302,6 +302,11 @@
                                     <i class="fas fa-clock text-warning me-2"></i>
                                     <span class="badge bg-warning text-dark me-2">Pendiente</span>
                                     <small class="text-muted">{{ notificacion.fecha_creacion|date:"d/m/Y H:i" }}</small>
+                                    {% if notificacion.venta and notificacion.venta.requiere_factura_apertura %}
+                                        <span class="badge bg-info text-white ms-2">
+                                            <i class="fas fa-file-invoice"></i> Requiere Factura
+                                        </span>
+                                    {% endif %}
                                 </div>
                                 <p class="mb-1">{{ notificacion.mensaje }}</p>
                                 {% if notificacion.venta %}
@@ -355,6 +360,11 @@
                                 <p class="mb-1">
                                     <strong>Monto:</strong> ${{ abono.monto|floatformat:2|intcomma }} 
                                     <strong>Forma de Pago:</strong> {{ abono.get_forma_pago_display }}
+                                    {% if abono.requiere_factura %}
+                                        <span class="badge bg-info text-white ms-2">
+                                            <i class="fas fa-file-invoice"></i> Requiere Factura
+                                        </span>
+                                    {% endif %}
                                 </p>
                                 <p class="mb-1">
                                     <strong>Venta #{{ abono.venta.pk }}</strong> - Cliente: {{ abono.venta.cliente }}
