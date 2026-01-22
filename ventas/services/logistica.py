@@ -165,4 +165,3 @@ def build_logistica_card(venta):
         'dias_restantes': dias_restantes,
         'resumen': summary_extended,
     }
-
