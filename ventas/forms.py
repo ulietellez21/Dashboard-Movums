@@ -883,6 +883,7 @@ class VentaViajeForm(forms.ModelForm):
             'costo_venta_final', 
             'cantidad_apertura', 
             'modo_pago_apertura',
+            'requiere_factura_apertura',
             'costo_neto', 
             'fecha_vencimiento_pago',
             'aplica_descuento_kilometros',
@@ -905,6 +906,7 @@ class VentaViajeForm(forms.ModelForm):
             # Selecciones
             'tipo_viaje': forms.Select(attrs={'class': 'form-select'}),
             'modo_pago_apertura': forms.Select(attrs={'class': 'form-select'}),
+            'requiere_factura_apertura': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
 
             # Archivos - Múltiples archivos (hasta 5)
             'documentos_cliente': MultipleFileInput(attrs={'class': 'form-control', 'accept': '*/*'}),

@@ -246,14 +246,47 @@ class DashboardView(LoginRequiredMixin, ListView):
                     context['ventas_pendientes'] = VentaViaje.objects.none()
                 
                 # Abonos pendientes de confirmación (para mostrar en el dashboard)
+                # IMPORTANTE: Debe coincidir con la lógica de PagosPorConfirmarView
+                # Solo mostrar abonos con comprobante subido
                 context['abonos_pendientes'] = AbonoPago.objects.filter(
-                    Q(forma_pago__in=['TRN', 'TAR', 'DEP']) & Q(confirmado=False)
+                    Q(forma_pago__in=['TRN', 'TAR', 'DEP']) & 
+                    Q(confirmado=False) &
+                    Q(comprobante_subido=True)
                 ).select_related('venta', 'venta__cliente', 'registrado_por').order_by('-fecha_pago')[:10]
                 
-                # Notificaciones de apertura pendiente (pagos de apertura sin abono asociado)
-                context['notificaciones_apertura_pendiente'] = notificaciones_pendientes_pagos.filter(
-                    abono__isnull=True  # Notificaciones sin abono son de apertura
-                ).select_related('venta', 'venta__cliente').order_by('-fecha_creacion')[:10]
+                # Ventas con apertura pendiente (para mostrar en el dashboard)
+                # IMPORTANTE: Debe coincidir con la lógica de PagosPorConfirmarView
+                # Para TRN/TAR/DEP: requiere comprobante subido
+                # Para CRE: no requiere comprobante, solo estar en EN_CONFIRMACION
+                ventas_apertura_pendiente = VentaViaje.objects.filter(
+                    Q(estado_confirmacion='EN_CONFIRMACION') &  # Solo las que están en confirmación
+                    (
+                        # Transferencia, Tarjeta, Depósito: requieren comprobante
+                        (Q(modo_pago_apertura__in=['TRN', 'TAR', 'DEP']) & Q(cantidad_apertura__gt=0) & Q(comprobante_apertura_subido=True)) |
+                        # Crédito: no requiere comprobante ni cantidad_apertura > 0
+                        Q(modo_pago_apertura='CRE')
+                    )
+                ).exclude(
+                    estado_confirmacion='COMPLETADO'  # Excluir explícitamente las ya confirmadas
+                ).select_related('cliente', 'vendedor').order_by('-fecha_creacion')[:10]
+                
+                # Convertir ventas a notificaciones para mantener compatibilidad con el template
+                # El template espera notificaciones, pero ahora usamos directamente las ventas
+                # Clase auxiliar para crear objetos similares a Notificacion
+                class NotificacionTemporal:
+                    def __init__(self, venta, mensaje):
+                        self.venta = venta
+                        self.mensaje = mensaje
+                        self.fecha_creacion = venta.fecha_creacion
+                
+                notificaciones_apertura_list = []
+                for venta in ventas_apertura_pendiente:
+                    # Crear una notificación temporal para el template (no se guarda en BD)
+                    modo_pago_display = dict(VentaViaje.MODO_PAGO_CHOICES).get(venta.modo_pago_apertura, venta.modo_pago_apertura)
+                    mensaje = f"Pago de apertura pendiente de confirmación: ${venta.cantidad_apertura:,.2f} ({modo_pago_display}) - Venta #{venta.pk} - Cliente: {venta.cliente.nombre_completo_display}"
+                    notificaciones_apertura_list.append(NotificacionTemporal(venta, mensaje))
+                
+                context['notificaciones_apertura_pendiente'] = notificaciones_apertura_list
                 
                 # Contador de ventas con estado "En confirmación"
                 context['ventas_en_confirmacion_count'] = VentaViaje.objects.filter(
@@ -792,9 +825,13 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                     # ✅ NUEVO FLUJO: NO se crean notificaciones automáticas
                     # Las notificaciones se crearán solo cuando se suba el comprobante
                     
-                    # 1. Cambiar estado de venta a "En confirmación"
-                    self.object.estado_confirmacion = 'EN_CONFIRMACION'
-                    self.object.save(update_fields=['estado_confirmacion'])
+                    # 1. Cambiar estado de venta a "En confirmación" SOLO si no está ya COMPLETADO.
+                    # Si la apertura (o crédito) ya fue confirmada, la venta está COMPLETADO y no debe
+                    # cambiarse: así evitamos que la apertura "reaparezca" en el dashboard del contador.
+                    if self.object.estado_confirmacion != 'COMPLETADO':
+                        self.object.estado_confirmacion = 'EN_CONFIRMACION'
+                        self.object.save(update_fields=['estado_confirmacion'])
+                    self.object.actualizar_estado_financiero()
                     
                     forma_pago_display = dict(AbonoPago.FORMA_PAGO_CHOICES).get(forma_pago, forma_pago)
                     messages.success(request, f"Abono de ${abono.monto:,.2f} ({forma_pago_display}) registrado exitosamente. ⏳ Por favor, sube el comprobante para enviarlo al contador.")

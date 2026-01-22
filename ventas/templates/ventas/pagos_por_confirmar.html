@@ -78,6 +78,11 @@
                                                     <span class="badge {% if abono.forma_pago == 'TRN' %}bg-primary{% elif abono.forma_pago == 'TAR' %}bg-info{% elif abono.forma_pago == 'DEP' %}bg-secondary{% elif abono.forma_pago == 'EFE' %}bg-success{% else %}bg-secondary{% endif %}">
                                                         {{ abono.get_forma_pago_display }}
                                                     </span>
+                                                    {% if abono.requiere_factura %}
+                                                        <span class="badge bg-info text-white ms-1" title="Requiere factura">
+                                                            <i class="fas fa-file-invoice"></i> Factura
+                                                        </span>
+                                                    {% endif %}
                                                 </td>
                                                 <td>
                                                     {% if abono.comprobante_imagen %}
@@ -88,7 +93,12 @@
                                                         <span class="text-muted">Sin comprobante</span>
                                                     {% endif %}
                                                 </td>
-                                                <td>{{ abono.registrado_por.username|default:"-" }}</td>
+                                                <td>
+                                                    {{ abono.registrado_por.username|default:"-" }}
+                                                    {% if abono.requiere_factura %}
+                                                        <br><small class="text-info"><i class="fas fa-file-invoice"></i> Requiere factura</small>
+                                                    {% endif %}
+                                                </td>
                                                 <td>
                                                     {% if abono.comprobante_subido %}
                                                         <form method="post" action="{% url 'confirmar_pago_desde_lista' tipo='abono' pk=abono.pk %}" class="d-inline">
@@ -156,6 +166,11 @@
                                                     <span class="badge {% if venta.modo_pago_apertura == 'TRN' %}bg-primary{% elif venta.modo_pago_apertura == 'TAR' %}bg-info{% elif venta.modo_pago_apertura == 'DEP' %}bg-secondary{% elif venta.modo_pago_apertura == 'CRE' %}bg-warning{% elif venta.modo_pago_apertura == 'EFE' %}bg-success{% else %}bg-secondary{% endif %}">
                                                         {{ venta.get_modo_pago_apertura_display }}
                                                     </span>
+                                                    {% if venta.requiere_factura_apertura %}
+                                                        <span class="badge bg-info text-white ms-1" title="Requiere factura">
+                                                            <i class="fas fa-file-invoice"></i> Factura
+                                                        </span>
+                                                    {% endif %}
                                                 </td>
                                                 <td>
                                                     {% if venta.comprobante_apertura %}
@@ -166,7 +181,12 @@
                                                         <span class="text-muted">Sin comprobante</span>
                                                     {% endif %}
                                                 </td>
-                                                <td>{{ venta.vendedor.username|default:"-" }}</td>
+                                                <td>
+                                                    {{ venta.vendedor.username|default:"-" }}
+                                                    {% if venta.requiere_factura_apertura %}
+                                                        <br><small class="text-info"><i class="fas fa-file-invoice"></i> Requiere factura</small>
+                                                    {% endif %}
+                                                </td>
                                                 <td>
                                                     {% if venta.comprobante_apertura_subido %}
                                                         <form method="post" action="{% url 'confirmar_pago_desde_lista' tipo='apertura' pk=venta.pk %}" class="d-inline">
