@@ -25,7 +25,7 @@
                     <button class="nav-link {% if not request.GET.tab or request.GET.tab != 'historial' %}active{% endif %}" id="pendientes-tab" data-bs-toggle="tab" data-bs-target="#pendientes" type="button" role="tab">
                         <i class="fas fa-exclamation-circle"></i> Pendientes 
                         <span class="badge bg-warning text-dark ms-1">
-                            {{ object.abonos|length|add:object.aperturas|length }}
+                            {{ object.abonos|length|add:object.aperturas|length|add:object.abonos_proveedor|length }}
                         </span>
                     </button>
                 </li>
@@ -214,6 +214,82 @@
                             {% endif %}
                         </div>
                     </div>
+                    
+                    <!-- Abonos a Proveedor Pendientes -->
+                    <div class="card mb-4 shadow-sm">
+                        <div class="card-header bg-warning text-dark">
+                            <h5 class="mb-0">
+                                <i class="fas fa-hand-holding-usd"></i> Abonos a Proveedor Pendientes 
+                                <span class="badge bg-light text-dark ms-2">{{ object.abonos_proveedor|length }}</span>
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if object.abonos_proveedor %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Fecha</th>
+                                                <th>Venta</th>
+                                                <th>Cliente</th>
+                                                <th>Proveedor</th>
+                                                <th>Monto (MXN)</th>
+                                                <th>Monto (USD)</th>
+                                                <th>Estado</th>
+                                                <th>Solicitado Por</th>
+                                                <th>Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for abono in object.abonos_proveedor %}
+                                            <tr class="{% if abono.estado == 'PENDIENTE' %}table-warning{% elif abono.estado == 'APROBADO' %}table-info{% endif %}">
+                                                <td>
+                                                    {% if abono.estado == 'APROBADO' and abono.fecha_aprobacion %}
+                                                        {{ abono.fecha_aprobacion|date:"d/M/y H:i" }}
+                                                    {% else %}
+                                                        {{ abono.fecha_solicitud|date:"d/M/y H:i" }}
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <a href="{% url 'detalle_venta' pk=abono.venta.pk slug=abono.venta.slug_safe %}?tab=logistica" class="text-decoration-none">
+                                                        {{ abono.venta.folio|default:abono.venta.id }}
+                                                    </a>
+                                                </td>
+                                                <td>{{ abono.venta.cliente.nombre_completo_display }}</td>
+                                                <td><strong>{{ abono.proveedor }}</strong></td>
+                                                <td><strong>${{ abono.monto|floatformat:2|intcomma }}</strong></td>
+                                                <td>
+                                                    {% if abono.monto_usd %}
+                                                        <strong>${{ abono.monto_usd|floatformat:2|intcomma }}</strong>
+                                                    {% else %}
+                                                        <span class="text-muted">-</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if abono.estado == 'PENDIENTE' %}
+                                                        <span class="badge bg-warning text-dark">Pendiente</span>
+                                                    {% elif abono.estado == 'APROBADO' %}
+                                                        <span class="badge bg-info">Aprobado</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ abono.solicitud_por.get_full_name|default:abono.solicitud_por.username }}</td>
+                                                <td>
+                                                    <a href="{% url 'detalle_venta' pk=abono.venta.pk slug=abono.venta.slug_safe %}?tab=logistica" class="btn btn-sm btn-outline-info">
+                                                        <i class="fas fa-eye"></i> Ver Venta
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i> No hay abonos a proveedor pendientes de confirmar.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- Tab Historial -->
@@ -371,6 +447,62 @@
                             {% else %}
                                 <div class="alert alert-info">
                                     <i class="fas fa-info-circle"></i> No hay aperturas confirmadas en el período seleccionado.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Abonos a Proveedor Confirmados -->
+                    <div class="card mb-4 shadow-sm">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-check-circle"></i> Abonos a Proveedor Confirmados 
+                                <span class="badge bg-light text-dark ms-2">{{ abonos_proveedor_confirmados|length }}</span>
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if abonos_proveedor_confirmados %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Fecha Confirmación</th>
+                                                <th>Venta</th>
+                                                <th>Cliente</th>
+                                                <th>Proveedor</th>
+                                                <th>Monto (MXN)</th>
+                                                <th>Monto (USD)</th>
+                                                <th>Confirmado por</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for abono in abonos_proveedor_confirmados %}
+                                            <tr>
+                                                <td>{{ abono.fecha_confirmacion|date:"d/M/y H:i" }}</td>
+                                                <td>
+                                                    <a href="{% url 'detalle_venta' pk=abono.venta.pk slug=abono.venta.slug_safe %}" class="text-decoration-none">
+                                                        {{ abono.venta.folio|default:abono.venta.id }}
+                                                    </a>
+                                                </td>
+                                                <td>{{ abono.venta.cliente.nombre_completo_display }}</td>
+                                                <td><strong>{{ abono.proveedor }}</strong></td>
+                                                <td><strong>${{ abono.monto|floatformat:2|intcomma }}</strong></td>
+                                                <td>
+                                                    {% if abono.monto_usd %}
+                                                        <strong>${{ abono.monto_usd|floatformat:2|intcomma }}</strong>
+                                                    {% else %}
+                                                        <span class="text-muted">-</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ abono.confirmado_por.username|default:"-" }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i> No hay abonos a proveedor confirmados en el período seleccionado.
                                 </div>
                             {% endif %}
                         </div>

@@ -224,6 +224,7 @@ class ProveedorForm(forms.ModelForm):
             'servicios',
             'link',
             'genera_factura',
+            'metodo_pago_preferencial',
         ]
         widgets = {
             'nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. Aeroméxico'}),
@@ -236,9 +237,11 @@ class ProveedorForm(forms.ModelForm):
             'email_ejecutivo': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'ejecutivo@proveedor.com'}),
             'link': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://www.proveedor.com'}),
             'genera_factura': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'metodo_pago_preferencial': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
         help_texts = {
             'genera_factura': 'Marca esta casilla si el proveedor emite factura automáticamente.',
+            'metodo_pago_preferencial': 'Si está activo, las ventas nacionales con este proveedor mostrarán la tabla de abonos al proveedor.',
         }
 
     def __init__(self, *args, **kwargs):
@@ -474,13 +477,14 @@ class SolicitarAbonoProveedorForm(forms.ModelForm):
     # Redefinir tipo_cambio_aplicado como CharField para manejar formato
     tipo_cambio_aplicado = forms.CharField(
         label="Tipo de Cambio Aplicado",
+        required=False,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': '0.0000',
             'type': 'text',
             'inputmode': 'decimal'
         }),
-        help_text='Tipo de cambio del día para convertir MXN a USD'
+        help_text='Tipo de cambio del día para convertir MXN a USD (requerido solo para ventas internacionales)'
     )
     
     class Meta:
@@ -510,6 +514,15 @@ class SolicitarAbonoProveedorForm(forms.ModelForm):
         # Pre-llenar el campo de proveedor si la venta ya tiene uno asignado
         if self.venta and self.venta.proveedor:
             self.fields['proveedor'].initial = self.venta.proveedor.nombre
+        
+        # Para ventas nacionales, el tipo de cambio no es requerido
+        if self.venta and self.venta.tipo_viaje == 'NAC':
+            self.fields['tipo_cambio_aplicado'].required = False
+            self.fields['tipo_cambio_aplicado'].help_text = 'Tipo de cambio (opcional, solo si se requiere conversión a USD)'
+        else:
+            # Para ventas internacionales, el tipo de cambio es requerido
+            self.fields['tipo_cambio_aplicado'].required = True
+            self.fields['tipo_cambio_aplicado'].help_text = 'Tipo de cambio del día para convertir MXN a USD'
     
     def clean_proveedor(self):
         proveedor = self.cleaned_data.get('proveedor')
@@ -551,15 +564,20 @@ class SolicitarAbonoProveedorForm(forms.ModelForm):
         """Limpia el formato del tipo de cambio antes de validar."""
         tipo_cambio_raw = self.cleaned_data.get('tipo_cambio_aplicado')
         
-        # Si no hay valor, retornar None para que Django muestre el error de campo requerido
+        # Si no hay valor y es venta internacional, es requerido
         if not tipo_cambio_raw:
-            raise forms.ValidationError("Este campo es obligatorio.")
+            if self.venta and self.venta.tipo_viaje == 'INT':
+                raise forms.ValidationError("Este campo es obligatorio para ventas internacionales.")
+            # Para ventas nacionales, puede ser None
+            return None
         
         # Si es string, limpiar formato
         if isinstance(tipo_cambio_raw, str):
             tipo_cambio_limpio = tipo_cambio_raw.replace('$', '').replace(',', '').replace(' ', '').replace('USD', '').strip()
             if not tipo_cambio_limpio:
-                raise forms.ValidationError("Este campo es obligatorio.")
+                if self.venta and self.venta.tipo_viaje == 'INT':
+                    raise forms.ValidationError("Este campo es obligatorio para ventas internacionales.")
+                return None
             try:
                 tipo_cambio = Decimal(tipo_cambio_limpio)
             except (ValueError, InvalidOperation):
@@ -584,9 +602,12 @@ class SolicitarAbonoProveedorForm(forms.ModelForm):
         # Asegurar que monto y tipo_cambio sean Decimal después de la limpieza
         # (clean_monto y clean_tipo_cambio_aplicado ya los convierten)
         
-        # Si hay tipo de cambio, calcular monto_usd
+        # Si hay tipo de cambio, calcular monto_usd (solo para ventas internacionales)
         if tipo_cambio and tipo_cambio > 0 and monto:
             cleaned_data['monto_usd'] = (monto / tipo_cambio).quantize(Decimal('0.01'))
+        elif self.venta and self.venta.tipo_viaje == 'NAC':
+            # Para ventas nacionales, monto_usd puede ser None
+            cleaned_data['monto_usd'] = None
         
         return cleaned_data
     

@@ -961,8 +961,9 @@
                         </div>
                     </div>
 
-                    {# Sección de Abonos a Proveedor (solo para ventas internacionales) #}
-                    {% if venta.tipo_viaje == 'INT' %}
+                    {# Sección de Abonos a Proveedor #}
+                    {# Mostrar para: ventas internacionales (siempre) o ventas nacionales con proveedor preferencial #}
+                    {% if venta.tipo_viaje == 'INT' or venta.proveedor and venta.proveedor.metodo_pago_preferencial %}
                     <div class="card mb-4 shadow border-warning" id="abonosProveedorCard">
                         <div class="card-header bg-warning text-dark">
                             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center">
@@ -974,16 +975,16 @@
                             {# Resumen de abonos #}
                             <div class="row text-center g-3 mb-4">
                                 <div class="col-12 col-md-4">
-                                    <p class="text-muted mb-1">Total del Viaje (USD)</p>
-                                    <h4 class="text-primary mb-0">${{ total_usd_venta|floatformat:2|intcomma }} USD</h4>
+                                    <p class="text-muted mb-1">Total del Viaje ({{ moneda_abonos }})</p>
+                                    <h4 class="text-primary mb-0">${{ total_usd_venta|floatformat:2|intcomma }} {{ moneda_abonos }}</h4>
                                 </div>
                                 <div class="col-12 col-md-4">
                                     <p class="text-muted mb-1">Total Abonado al Proveedor</p>
-                                    <h4 class="text-success mb-0">${{ total_abonado_proveedor|floatformat:2|intcomma }} USD</h4>
+                                    <h4 class="text-success mb-0">${{ total_abonado_proveedor|floatformat:2|intcomma }} {{ moneda_abonos }}</h4>
                                 </div>
                                 <div class="col-12 col-md-4">
                                     <p class="text-muted mb-1">Saldo Pendiente</p>
-                                    <h4 class="text-warning mb-0">${{ saldo_pendiente_proveedor|floatformat:2|intcomma }} USD</h4>
+                                    <h4 class="text-warning mb-0">${{ saldo_pendiente_proveedor|floatformat:2|intcomma }} {{ moneda_abonos }}</h4>
                                 </div>
                             </div>
 
@@ -1008,6 +1009,7 @@
                                             <th>Monto (USD)</th>
                                             <th>Estado</th>
                                             <th>Solicitado Por</th>
+                                            <th>Notas</th>
                                             <th>Acciones</th>
                                         </tr>
                                     </thead>
@@ -1031,6 +1033,15 @@
                                             </td>
                                             <td>{{ abono.solicitud_por.get_full_name|default:abono.solicitud_por.username }}</td>
                                             <td>
+                                                {% if abono.nota_solicitud %}
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalNotasAbono{{ abono.id }}" title="Ver notas">
+                                                        <i class="fas fa-sticky-note"></i>
+                                                    </button>
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
                                                 <div class="btn-group btn-group-sm" role="group">
                                                     {% if abono.estado == 'PENDIENTE' and puede_aprobar_abono_proveedor %}
                                                         <form method="post" action="{% url 'aprobar_abono_proveedor' abono.id %}" style="display: inline;">
@@ -1050,7 +1061,7 @@
                                                             <i class="fas fa-eye"></i>
                                                         </a>
                                                     {% endif %}
-                                                    {% if abono.estado != 'COMPLETADO' and puede_cancelar_abono_proveedor %}
+                                                    {% if abono.estado == 'PENDIENTE' and puede_cancelar_abono_proveedor %}
                                                         <form method="post" action="{% url 'cancelar_abono_proveedor' abono.id %}" style="display: inline;" onsubmit="return confirm('¿Estás seguro de cancelar este abono?');">
                                                             {% csrf_token %}
                                                             <button type="submit" class="btn btn-danger btn-sm" title="Cancelar">
@@ -1404,7 +1415,7 @@
 </script>
 
 {# Modales para Abonos a Proveedor #}
-{% if venta.tipo_viaje == 'INT' %}
+{% if venta.tipo_viaje == 'INT' or venta.proveedor and venta.proveedor.metodo_pago_preferencial %}
 <!-- Modal para solicitar abono a proveedor -->
 <div class="modal fade" id="modalSolicitarAbonoProveedor" tabindex="-1" aria-labelledby="modalSolicitarAbonoProveedorLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -1418,8 +1429,8 @@
             <form method="post" action="{% url 'solicitar_abono_proveedor' pk=venta.pk %}" id="formSolicitarAbonoProveedor">
                 {% csrf_token %}
                 <div class="modal-body">
-                    <p class="text-muted">Total del viaje: <strong>${{ total_usd_venta|floatformat:2|intcomma }} USD</strong></p>
-                    <p class="text-muted">Saldo pendiente: <strong>${{ saldo_pendiente_proveedor|floatformat:2|intcomma }} USD</strong></p>
+                    <p class="text-muted">Total del viaje: <strong>${{ total_usd_venta|floatformat:2|intcomma }} {{ moneda_abonos }}</strong></p>
+                    <p class="text-muted">Saldo pendiente: <strong>${{ saldo_pendiente_proveedor|floatformat:2|intcomma }} {{ moneda_abonos }}</strong></p>
                     <hr>
                     {% if form_abono_proveedor %}
                         <div class="mb-3">
@@ -1444,10 +1455,11 @@
                         </div>
                         <div class="mb-3">
                             <label for="{{ form_abono_proveedor.tipo_cambio_aplicado.id_for_label }}" class="form-label">
-                                {{ form_abono_proveedor.tipo_cambio_aplicado.label }} <span class="text-danger">*</span>
+                                {{ form_abono_proveedor.tipo_cambio_aplicado.label }}
+                                {% if venta.tipo_viaje == 'INT' %}<span class="text-danger">*</span>{% endif %}
                             </label>
                             {{ form_abono_proveedor.tipo_cambio_aplicado }}
-                            <div class="form-text">Tipo de cambio del día para convertir MXN a USD</div>
+                            <div class="form-text">{{ form_abono_proveedor.tipo_cambio_aplicado.help_text }}</div>
                             {% for error in form_abono_proveedor.tipo_cambio_aplicado.errors %}
                                 <div class="text-danger small">{{ error }}</div>
                             {% endfor %}
@@ -1537,6 +1549,30 @@
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+{% endfor %}
+
+<!-- Modales para ver notas de abonos a proveedor -->
+{% for abono in abonos_proveedor %}
+    {% if abono.nota_solicitud %}
+    <div class="modal fade" id="modalNotasAbono{{ abono.id }}" tabindex="-1" aria-labelledby="modalNotasAbono{{ abono.id }}Label" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header bg-secondary text-white">
+                    <h6 class="modal-title" id="modalNotasAbono{{ abono.id }}Label">
+                        <i class="fas fa-sticky-note me-2"></i>Notas
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0 text-muted small">{{ abono.nota_solicitud|linebreaks }}</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
             </div>
         </div>
     </div>
