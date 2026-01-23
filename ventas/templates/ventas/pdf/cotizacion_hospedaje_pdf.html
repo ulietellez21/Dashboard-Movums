@@ -5,3 +5,14 @@
         {% include "ventas/pdf/components/seccion_hotel.html" with hotel=hotel %}
     {% endfor %}
 {% endblock %}
+
+{% block terminos_condiciones %}
+<div class="terminos-condiciones">
+    <div class="terminos-condiciones-title">Términos y condiciones</div>
+    <div class="terminos-condiciones-content">
+        <p>Los cambios en los nombres de los titulares pueden estar o no permitidos y pueden ocasionar cargos extra.</p>
+        <p>Las propiedades puede cobrar impuestos locales pagaderos directo en destino.</p>
+        <p><em>*Tarifas sujetas a disponibilidad y a cambios sin previo aviso*</em></p>
+    </div>
+</div>
+{% endblock %}
