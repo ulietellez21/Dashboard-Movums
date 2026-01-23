@@ -5,3 +5,18 @@
         {% include "ventas/pdf/components/seccion_vuelo.html" with vuelo=vuelo %}
     {% endfor %}
 {% endblock %}
+
+{% block terminos_condiciones %}
+<div class="terminos-condiciones">
+    <div class="terminos-condiciones-title">Términos y condiciones</div>
+    <div class="terminos-condiciones-content">
+        <p>Los boletos de avión no son reembolsables.</p>
+        <p>Una vez emitido el boleto no puede ser asignado a una persona o aerolínea diferente.</p>
+        <p>Los cambios en los boletos pueden ocasionar cargos extra, están sujetos a disponibilidad, clase tarifaría y políticas de cada aerolínea al momento de solicitar el cambio.</p>
+        <p>Para vuelos nacionales presentarse 2 horas antes de la salida del vuelo. Para vuelos internacionales presentarse 3 horas antes de la salida del vuelo.</p>
+        <p>Menores de 2 años cumplidos en adelante pagan completo</p>
+        <p>Sin asignación de asientos, si requiere asientos en específico tienen costo extra</p>
+        <p><em>*Sujeto a disponibilidad y a cambios sin previo aviso*</em></p>
+    </div>
+</div>
+{% endblock %}
