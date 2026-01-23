@@ -292,6 +292,20 @@ class DashboardView(LoginRequiredMixin, ListView):
                 context['ventas_en_confirmacion_count'] = VentaViaje.objects.filter(
                     estado_confirmacion='EN_CONFIRMACION'
                 ).count()
+                
+                # Abonos a proveedor pendientes de confirmar (para mostrar en el dashboard)
+                abonos_proveedor_pendientes_dashboard = AbonoProveedor.objects.filter(
+                    estado='APROBADO'
+                ).select_related('venta', 'venta__cliente', 'solicitud_por', 'aprobado_por').order_by('-fecha_aprobacion')[:10]
+                context['abonos_proveedor_pendientes'] = abonos_proveedor_pendientes_dashboard
+                
+                # Notificaciones de abonos a proveedor para el contador
+                notificaciones_abonos_proveedor = Notificacion.objects.filter(
+                    usuario=user,
+                    tipo__in=['SOLICITUD_ABONO_PROVEEDOR', 'ABONO_PROVEEDOR_APROBADO'],
+                    vista=False
+                ).select_related('venta', 'abono_proveedor').order_by('-fecha_creacion')[:10]
+                context['notificaciones_abonos_proveedor'] = notificaciones_abonos_proveedor
             
         # --- Lógica de KPIs (se mantiene para vendedores) ---
         elif user_rol == 'VENDEDOR':
@@ -608,25 +622,34 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
         if mostrar_tab_logistica:
             self._prepare_logistica_finanzas_context(context, venta)
         
-        # Abonos a Proveedor (solo para ventas internacionales)
-        if venta.tipo_viaje == 'INT':
+        # Abonos a Proveedor
+        # Mostrar para: ventas internacionales (siempre) o ventas nacionales con proveedor preferencial
+        debe_mostrar_abonos = venta._debe_mostrar_abonos_proveedor()
+        if debe_mostrar_abonos:
             context['abonos_proveedor'] = venta.abonos_proveedor.all().select_related(
                 'solicitud_por', 'aprobado_por', 'confirmado_por', 'cancelado_por'
             ).order_by('-fecha_solicitud')
             context['total_abonado_proveedor'] = venta.total_abonado_proveedor
             context['saldo_pendiente_proveedor'] = venta.saldo_pendiente_proveedor
-            context['total_usd_venta'] = venta.total_usd
+            # Para ventas internacionales: mostrar total en USD, para nacionales: en MXN
+            if venta.tipo_viaje == 'INT':
+                context['total_usd_venta'] = venta.total_usd
+                context['moneda_abonos'] = 'USD'
+            else:
+                context['total_usd_venta'] = venta.costo_venta_final or Decimal('0.00')
+                context['moneda_abonos'] = 'MXN'
             from .forms import SolicitarAbonoProveedorForm
             context['form_abono_proveedor'] = SolicitarAbonoProveedorForm(venta=venta, user=self.request.user)
             context['puede_solicitar_abono_proveedor'] = user_rol in ['VENDEDOR', 'JEFE', 'CONTADOR']
-            context['puede_aprobar_abono_proveedor'] = user_rol in ['CONTADOR', 'JEFE']
-            context['puede_confirmar_abono_proveedor'] = user_rol in ['CONTADOR', 'JEFE']
+            context['puede_aprobar_abono_proveedor'] = user_rol == 'CONTADOR'  # Solo contador puede aprobar
+            context['puede_confirmar_abono_proveedor'] = user_rol == 'CONTADOR'  # Solo contador puede confirmar
             context['puede_cancelar_abono_proveedor'] = user_rol == 'JEFE'
         else:
             context['abonos_proveedor'] = []
             context['total_abonado_proveedor'] = Decimal('0.00')
             context['saldo_pendiente_proveedor'] = Decimal('0.00')
             context['total_usd_venta'] = Decimal('0.00')
+            context['moneda_abonos'] = 'USD'
             context['puede_solicitar_abono_proveedor'] = False
             context['puede_aprobar_abono_proveedor'] = False
             context['puede_confirmar_abono_proveedor'] = False
@@ -7235,14 +7258,25 @@ class PagosPorConfirmarView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
             estado_confirmacion='COMPLETADO'  # Excluir explícitamente las ya confirmadas
         ).select_related('cliente', 'vendedor').order_by('-fecha_creacion')
         
-        # Crear un objeto simple para el template que tenga los atributos abonos y aperturas
+        # Abonos a proveedor pendientes: PENDIENTE (para aprobar) y APROBADO (para confirmar)
+        abonos_proveedor_pendientes = AbonoProveedor.objects.filter(
+            estado__in=['PENDIENTE', 'APROBADO']
+        ).select_related('venta', 'venta__cliente', 'venta__vendedor', 'solicitud_por', 'aprobado_por').order_by('-fecha_solicitud', '-fecha_aprobacion')
+        
+        # Crear un objeto simple para el template que tenga los atributos abonos, aperturas y abonos_proveedor
         class PagosPendientes:
-            def __init__(self, abonos, aperturas):
+            def __init__(self, abonos, aperturas, abonos_proveedor):
                 self.abonos = abonos
                 self.aperturas = aperturas
+                self.abonos_proveedor = abonos_proveedor
         
-        context['object'] = PagosPendientes(abonos_pendientes, ventas_apertura_pendiente)
+        context['object'] = PagosPendientes(abonos_pendientes, ventas_apertura_pendiente, abonos_proveedor_pendientes)
         context['pagos_pendientes'] = context['object']  # También disponible con este nombre
+        
+        # Abonos a proveedor confirmados para el historial
+        abonos_proveedor_confirmados = AbonoProveedor.objects.filter(
+            estado='COMPLETADO'
+        ).select_related('venta', 'venta__cliente', 'confirmado_por')
         
         # Obtener pagos confirmados para el historial
         fecha_filtro = self.request.GET.get('fecha_filtro', 'mes')
@@ -7284,6 +7318,10 @@ class PagosPorConfirmarView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
                 ventas_apertura_confirmada = ventas_apertura_confirmada.filter(
                     fecha_creacion__date__range=[fecha_desde_obj, fecha_hasta_obj]
                 )
+                # Aplicar filtro a abonos a proveedor confirmados
+                abonos_proveedor_confirmados = abonos_proveedor_confirmados.filter(
+                    fecha_confirmacion__date__range=[fecha_desde_obj, fecha_hasta_obj]
+                )
             except ValueError:
                 pass
         elif fecha_filtro == 'dia':
@@ -7298,6 +7336,8 @@ class PagosPorConfirmarView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
             )
             # Para aperturas, usar fecha_creacion
             ventas_apertura_confirmada = ventas_apertura_confirmada.filter(fecha_creacion__date=hoy)
+            # Para abonos a proveedor, usar fecha_confirmacion
+            abonos_proveedor_confirmados = abonos_proveedor_confirmados.filter(fecha_confirmacion__date=hoy)
         elif fecha_filtro == 'semana':
             # Usar localdate() para obtener la fecha local de México, no UTC
             semana_pasada = timezone.localdate() - timedelta(days=7)
@@ -7305,6 +7345,7 @@ class PagosPorConfirmarView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
                 Q(confirmado_en__date__gte=semana_pasada) | Q(confirmado_en__isnull=True, fecha_pago__date__gte=semana_pasada)
             )
             ventas_apertura_confirmada = ventas_apertura_confirmada.filter(fecha_creacion__date__gte=semana_pasada)
+            abonos_proveedor_confirmados = abonos_proveedor_confirmados.filter(fecha_confirmacion__date__gte=semana_pasada)
         elif fecha_filtro == 'mes':
             # Usar localdate() para obtener la fecha local de México, no UTC
             mes_pasado = timezone.localdate() - timedelta(days=30)
@@ -7312,6 +7353,7 @@ class PagosPorConfirmarView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
                 Q(confirmado_en__date__gte=mes_pasado) | Q(confirmado_en__isnull=True, fecha_pago__date__gte=mes_pasado)
             )
             ventas_apertura_confirmada = ventas_apertura_confirmada.filter(fecha_creacion__date__gte=mes_pasado)
+            abonos_proveedor_confirmados = abonos_proveedor_confirmados.filter(fecha_confirmacion__date__gte=mes_pasado)
         
         # Ordenar abonos confirmados por confirmado_en si existe, sino por fecha_pago
         from django.db.models import Case, When, F, DateTimeField
@@ -8549,9 +8591,17 @@ class SolicitarAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View)
         """Procesa la solicitud de abono a proveedor."""
         venta = get_object_or_404(VentaViaje, pk=pk)
         
-        # Verificar que sea venta internacional
-        if venta.tipo_viaje != 'INT':
-            messages.error(request, "Solo se pueden solicitar abonos a proveedores para ventas internacionales.")
+        # Verificar que se pueda solicitar abono:
+        # - Ventas internacionales: siempre permitido
+        # - Ventas nacionales: solo si tienen proveedor con método de pago preferencial
+        puede_solicitar = False
+        if venta.tipo_viaje == 'INT':
+            puede_solicitar = True
+        elif venta.tipo_viaje == 'NAC' and venta.proveedor and venta.proveedor.metodo_pago_preferencial:
+            puede_solicitar = True
+        
+        if not puede_solicitar:
+            messages.error(request, "No se pueden solicitar abonos a proveedores para esta venta.")
             return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
         
         # Ya no requerimos que la venta tenga proveedor asignado, el vendedor lo escribe libremente
@@ -8604,9 +8654,9 @@ class AprobarAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View):
     """Vista para que un contador apruebe un abono a proveedor."""
     
     def test_func(self):
-        """Solo contadores y jefes pueden aprobar abonos."""
+        """Solo contadores pueden aprobar abonos."""
         user_rol = get_user_role(self.request.user)
-        return user_rol in ['CONTADOR', 'JEFE']
+        return user_rol == 'CONTADOR'
     
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para aprobar abonos a proveedores.")
@@ -8637,6 +8687,17 @@ class AprobarAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View):
                         abono_proveedor=abono
                     )
                 
+                # Notificar a contadores que hay un abono aprobado pendiente de confirmar
+                contadores = User.objects.filter(perfil__rol='CONTADOR')
+                for contador in contadores:
+                    Notificacion.objects.create(
+                        usuario=contador,
+                        tipo='ABONO_PROVEEDOR_APROBADO',
+                        mensaje=f"Abono a {abono.proveedor} por ${abono.monto:,.2f} MXN aprobado, pendiente de confirmar (Venta #{abono.venta.folio or abono.venta.pk})",
+                        venta=abono.venta,
+                        abono_proveedor=abono
+                    )
+                
                 messages.success(request, f"Abono a {abono.proveedor} aprobado correctamente.")
         except Exception as e:
             messages.error(request, f"Error al aprobar el abono: {str(e)}")
@@ -8649,9 +8710,9 @@ class ConfirmarAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View)
     """Vista para que un contador confirme un abono a proveedor con comprobante."""
     
     def test_func(self):
-        """Solo contadores y jefes pueden confirmar abonos."""
+        """Solo contadores pueden confirmar abonos."""
         user_rol = get_user_role(self.request.user)
-        return user_rol in ['CONTADOR', 'JEFE']
+        return user_rol == 'CONTADOR'
     
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para confirmar abonos a proveedores.")
@@ -8675,6 +8736,9 @@ class ConfirmarAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View)
                     abono.estado = 'COMPLETADO'
                     abono.confirmado_por = request.user
                     abono.fecha_confirmacion = timezone.now()
+                    # Si hay nota de confirmación, reemplazar la nota de solicitud para que el vendedor la vea
+                    if abono.nota_confirmacion:
+                        abono.nota_solicitud = abono.nota_confirmacion
                     abono.save()
                     
                     # Notificar al vendedor que solicitó

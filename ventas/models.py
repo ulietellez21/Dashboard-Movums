@@ -594,31 +594,59 @@ class VentaViaje(models.Model):
     def esta_pagada(self):
         return self.saldo_restante <= Decimal('0.00')
     
+    def _debe_mostrar_abonos_proveedor(self):
+        """Determina si se deben mostrar abonos al proveedor."""
+        # Ventas internacionales: siempre mostrar
+        if self.tipo_viaje == 'INT':
+            return True
+        # Ventas nacionales: solo si tienen proveedor con método de pago preferencial
+        if self.tipo_viaje == 'NAC' and self.proveedor:
+            return self.proveedor.metodo_pago_preferencial
+        return False
+    
     @property
     def total_abonado_proveedor(self):
-        """Calcula el total abonado al proveedor (solo abonos COMPLETADOS) en USD."""
-        if self.tipo_viaje != 'INT':
+        """Calcula el total abonado al proveedor (solo abonos COMPLETADOS).
+        Para ventas internacionales: en USD.
+        Para ventas nacionales: en MXN.
+        """
+        if not self._debe_mostrar_abonos_proveedor():
             return Decimal('0.00')
         
         total = Decimal('0.00')
         for abono in self.abonos_proveedor.filter(estado='COMPLETADO'):
-            if abono.monto_usd:
-                total += abono.monto_usd
-            elif abono.tipo_cambio_aplicado and abono.tipo_cambio_aplicado > 0:
-                total += (abono.monto / abono.tipo_cambio_aplicado).quantize(Decimal('0.01'))
-            elif self.tipo_cambio and self.tipo_cambio > 0:
-                total += (abono.monto / self.tipo_cambio).quantize(Decimal('0.01'))
+            if self.tipo_viaje == 'INT':
+                # Ventas internacionales: calcular en USD
+                if abono.monto_usd:
+                    total += abono.monto_usd
+                elif abono.tipo_cambio_aplicado and abono.tipo_cambio_aplicado > 0:
+                    total += (abono.monto / abono.tipo_cambio_aplicado).quantize(Decimal('0.01'))
+                elif self.tipo_cambio and self.tipo_cambio > 0:
+                    total += (abono.monto / self.tipo_cambio).quantize(Decimal('0.01'))
+            else:
+                # Ventas nacionales: usar monto directamente en MXN
+                total += abono.monto
         return total
     
     @property
     def saldo_pendiente_proveedor(self):
-        """Calcula el saldo pendiente por abonar al proveedor en USD."""
-        if self.tipo_viaje != 'INT':
+        """Calcula el saldo pendiente por abonar al proveedor.
+        Para ventas internacionales: en USD.
+        Para ventas nacionales: en MXN.
+        """
+        if not self._debe_mostrar_abonos_proveedor():
             return Decimal('0.00')
         
-        total_usd = self.total_usd
-        abonado = self.total_abonado_proveedor
-        pendiente = total_usd - abonado
+        if self.tipo_viaje == 'INT':
+            # Ventas internacionales: calcular en USD
+            total_usd = self.total_usd
+            abonado = self.total_abonado_proveedor
+            pendiente = total_usd - abonado
+        else:
+            # Ventas nacionales: calcular en MXN
+            total_mxn = self.costo_venta_final or Decimal('0.00')
+            abonado = self.total_abonado_proveedor
+            pendiente = total_mxn - abonado
         return max(Decimal('0.00'), pendiente.quantize(Decimal('0.01')))
     
     @property
@@ -1127,6 +1155,11 @@ class Proveedor(models.Model):
     )
     link = models.URLField(blank=True, verbose_name="Link del Proveedor")
     genera_factura = models.BooleanField(default=False, verbose_name="Genera Factura Automática")
+    metodo_pago_preferencial = models.BooleanField(
+        default=False,
+        verbose_name="Método de Pago Preferencial",
+        help_text="Si está activo, las ventas nacionales con este proveedor mostrarán la tabla de abonos al proveedor."
+    )
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
 

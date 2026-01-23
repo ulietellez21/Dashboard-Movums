@@ -366,6 +366,20 @@
                             {% endif %}
                             <small class="text-muted d-block mt-1">Si no genera factura automática se notificará al JEFE cuando se utilice.</small>
                         </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input type="checkbox" name="metodo_pago_preferencial" id="id_metodo_pago_preferencial" class="form-check-input" {% if form.metodo_pago_preferencial.value %}checked{% endif %}>
+                                <label class="form-check-label fw-semibold" for="id_metodo_pago_preferencial">
+                                    Método de pago preferencial
+                                </label>
+                            </div>
+                            {% if form.metodo_pago_preferencial.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.metodo_pago_preferencial.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                            <small class="text-muted d-block mt-1">Si está activo, las ventas nacionales con este proveedor mostrarán la tabla de abonos al proveedor.</small>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer bg-light border-0">
