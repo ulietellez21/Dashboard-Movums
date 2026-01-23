@@ -123,16 +123,36 @@ body {
     display: block;
 }
 
+/* Contenedor padre que agrupa contenido y términos en la misma página */
+.content-page-wrapper {
+    page-break-before: always; /* Forzar salto de página antes del wrapper */
+    box-sizing: border-box;
+}
+
 /* Wrapper para el contenido (vuelos, hoteles, etc.) con espacio superior */
 .content-wrapper {
-    page-break-before: always; /* Forzar salto de página antes del wrapper */
     padding-top: 168px; /* 7 saltos de línea (24px cada uno = 168px) */
+    padding-bottom: 0;
     box-sizing: border-box;
 }
 
 /* Ajuste específico para cotizaciones de paquetes: menos espacio en la segunda página */
 .cotizacion-paquete .content-wrapper {
     padding-top: 144px; /* 6 saltos de línea (quitar 1 salto = 24px menos) */
+}
+
+/* Wrapper para términos y condiciones - visible y posicionado correctamente */
+.terminos-wrapper {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    display: block !important;
+    position: relative;
+    page-break-before: avoid; /* Mantener en la misma página que el contenido */
+    page-break-inside: avoid;
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 /* Evitar que las cards y secciones se partan entre páginas */
@@ -779,6 +799,66 @@ body {
 }
 
 /* ============================================
+   TÉRMINOS Y CONDICIONES - DISCRETO
+   ============================================ */
+.terminos-condiciones {
+    margin-top: 216px;
+    margin-bottom: 8px;
+    margin-left: 0;
+    margin-right: 0;
+    padding: 12px 0;
+    background: transparent;
+    border-top: 1px solid #e2e8f0;
+    border-bottom: 1px solid #e2e8f0;
+    color: var(--text-secondary);
+    font-size: 7.5pt;
+    line-height: 1.0;
+    text-align: left;
+    page-break-inside: avoid;
+    page-break-before: avoid;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    display: block !important;
+    position: relative;
+    visibility: visible !important;
+    opacity: 1 !important;
+    clear: both;
+    z-index: 1;
+}
+
+.terminos-condiciones-title {
+    font-size: 8.5pt;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.terminos-condiciones-content {
+    font-size: 7.5pt;
+    color: #718096;
+    line-height: 1.0;
+}
+
+.terminos-condiciones-content p {
+    margin: 2px 0;
+    padding: 0;
+    display: block;
+    line-height: 1.0;
+}
+
+.terminos-condiciones-content p:last-child {
+    margin-bottom: 0;
+}
+
+.terminos-condiciones-content em {
+    font-style: italic;
+    color: #718096;
+}
+
+/* ============================================
    UTILIDADES
    ============================================ */
 .text-center {
@@ -886,9 +966,17 @@ strong {
         
         {% include "ventas/pdf/components/info_cliente.html" %}
         
-        <!-- Wrapper para las cards de vuelo/hoteles con espacio superior -->
-        <div class="content-wrapper">
-            {% block content %}{% endblock %}
+        <!-- Términos y condiciones - en la primera página, antes del content-wrapper -->
+        <div class="terminos-wrapper">
+            {% block terminos_condiciones %}{% endblock %}
+        </div>
+        
+        <!-- Contenedor que agrupa contenido en la segunda página -->
+        <div class="content-page-wrapper">
+            <!-- Wrapper para las cards de vuelo/hoteles con espacio superior -->
+            <div class="content-wrapper">
+                {% block content %}{% endblock %}
+            </div>
         </div>
         
         {% if tipo != 'paquete' %}
