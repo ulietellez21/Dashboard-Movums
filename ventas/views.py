@@ -721,40 +721,41 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                     if not original:
                         continue 
                     
-                    # --- LÓGICA DE ACTUALIZACIÓN CON BLOQUEO TEMPORAL ---
+                    # --- LÓGICA DE ACTUALIZACIÓN CON BLOQUEO ROBUSTO ---
                     # EXCEPCIÓN: Usuario daviddiaz, JEFE o GERENTE pueden editar después de guardado
                     es_daviddiaz = (request.user.username == 'daviddiaz')
                     user_rol = get_user_role(request.user)
                     puede_editar_campos_bloqueados = es_daviddiaz or user_rol in ['JEFE', 'GERENTE']
                     
                     # 1. MONTO PLANIFICADO
-                    # PROBLEMA RAÍZ: El formulario puede recibir valores incorrectos debido a:
-                    # - Input hidden que no se envía correctamente
-                    # - clean_monto_planeado que convierte None/empty a Decimal('0.00')
-                    # - Conflictos entre input visible (disabled) e input hidden
-                    # SOLUCIÓN: Si ya tiene monto asignado, PRESERVAR el original de la BD (excepto daviddiaz, JEFE o GERENTE)
+                    # PROBLEMA RAÍZ: Cuando un campo está disabled, el formulario envía 0.00 o None
+                    # SOLUCIÓN ROBUSTA: Si ya tiene monto asignado, preservar el original si el nuevo es 0/None
                     nuevo_monto = form.cleaned_data.get('monto_planeado')
                     
-                    # BLOQUEO: Si tiene monto ya asignado, PRESERVAR el original (excepto daviddiaz, JEFE o GERENTE)
+                    # BLOQUEO ROBUSTO: Si tiene monto ya asignado, SIEMPRE preservar el original si el nuevo es 0/None
+                    # NINGÚN usuario puede sobrescribir un valor existente con 0/None
                     if original.monto_planeado and original.monto_planeado > Decimal('0.00'):
-                        if not puede_editar_campos_bloqueados:
-                            # IGNORAR completamente el valor del formulario y usar el original de la BD
+                        # Si el nuevo monto es None, 0 o 0.00 (lo que llega cuando el input está disabled),
+                        # IGNORAR EL NUEVO MONTO Y MANTENER EL ORIGINAL, sin importar privilegios
+                        if nuevo_monto is None or nuevo_monto == Decimal('0.00') or nuevo_monto == 0:
                             nuevo_monto = original.monto_planeado
+                        elif puede_editar_campos_bloqueados and nuevo_monto > Decimal('0.00') and nuevo_monto != original.monto_planeado:
+                            # Solo usuarios con privilegios pueden modificar con un valor válido diferente
+                            # (aunque el template bloquea la edición, esta lógica protege en caso de manipulación)
+                            pass  # Usar el nuevo_monto solo si es válido y diferente
                         else:
-                            # daviddiaz, JEFE o GERENTE pueden modificar: usar el valor del formulario o el original si viene vacío
-                            nuevo_monto = nuevo_monto if nuevo_monto is not None else original.monto_planeado
+                            # Cualquier otro caso: preservar el original
+                            nuevo_monto = original.monto_planeado
                     else:
                         # Si estaba vacío/sin asignar, aceptamos el valor nuevo (o 0 si viene vacío)
                         nuevo_monto = nuevo_monto or Decimal('0.00')
                     
                     # 2. ESTADO PAGADO
-                    # BLOQUEO: Una vez marcado como pagado, no se puede desmarcar (excepto daviddiaz, JEFE o GERENTE)
+                    # BLOQUEO: Una vez marcado como pagado, NINGÚN usuario puede desmarcarlo
                     nuevo_pagado = form.cleaned_data.get('pagado', False)
                     if original.pagado:
-                        if not puede_editar_campos_bloqueados:
-                            # Una vez pagado, siempre mantener como pagado (bloqueo)
-                            nuevo_pagado = True
-                        # daviddiaz, JEFE o GERENTE pueden desmarcar si lo desean
+                        # Una vez pagado, siempre mantener como pagado (bloqueo total)
+                        nuevo_pagado = True
                     
                     # 3. OPCIÓN PROVEEDOR
                     # BLOQUEO: Una vez asignado, no se puede modificar (BLOQUEADO PARA TODOS - PRUEBAS)
@@ -1038,6 +1039,12 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
             venta.servicios_logisticos.all().delete()
 
     def _prepare_logistica_finanzas_context(self, context, venta, formset=None, servicios_qs=None):
+        # Calcular puede_editar_campos_bloqueados siempre (para que esté disponible en el template)
+        es_daviddiaz = (self.request.user.username == 'daviddiaz')
+        user_rol = get_user_role(self.request.user)
+        puede_editar_campos_bloqueados = es_daviddiaz or user_rol in ['JEFE', 'GERENTE']
+        context['puede_editar_campos_bloqueados'] = puede_editar_campos_bloqueados
+        
         if not context.get('mostrar_tab_logistica'):
             return
 
@@ -1053,33 +1060,25 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
         es_jefe = (user_rol == 'JEFE')
         context['es_jefe'] = es_jefe
         
-        # Permitir edición solo para usuario daviddiaz, JEFE o GERENTE
-        es_daviddiaz = (self.request.user.username == 'daviddiaz')
-        user_rol = get_user_role(self.request.user)
-        puede_editar_campos_bloqueados = es_daviddiaz or user_rol in ['JEFE', 'GERENTE']
-        
         if not context.get('puede_editar_servicios_financieros'):
             for form in formset.forms:
                 for field in form.fields.values():
                     field.widget.attrs['disabled'] = 'disabled'
         else:
-            # Bloquear campos una vez asignados, EXCEPTO para daviddiaz, JEFE o GERENTE
+            # Bloquear campos una vez asignados - NINGÚN usuario puede editar campos con valor
             for form in formset.forms:
                 if form.instance and form.instance.pk:
-                    # Bloquear monto_planeado si tiene valor (excepto daviddiaz, JEFE o GERENTE)
+                    # Bloquear monto_planeado si tiene valor - SIEMPRE, sin excepciones
                     if form.instance.monto_planeado and form.instance.monto_planeado > Decimal('0.00'):
-                        if not puede_editar_campos_bloqueados:
-                            form.fields['monto_planeado'].widget.attrs['disabled'] = 'disabled'
-                            form.fields['monto_planeado'].widget.attrs['readonly'] = 'readonly'
+                        form.fields['monto_planeado'].widget.attrs['disabled'] = 'disabled'
+                        form.fields['monto_planeado'].widget.attrs['readonly'] = 'readonly'
                     
-                    # Bloquear checkbox pagado si está marcado (excepto daviddiaz, JEFE o GERENTE)
+                    # Bloquear checkbox pagado si está marcado - SIEMPRE, sin excepciones
                     if form.instance.pagado:
-                        if not puede_editar_campos_bloqueados:
-                            form.fields['pagado'].widget.attrs['disabled'] = 'disabled'
+                        form.fields['pagado'].widget.attrs['disabled'] = 'disabled'
                     
-                    # Bloquear opcion_proveedor si tiene valor (BLOQUEADO PARA TODOS - PRUEBAS)
+                    # Bloquear opcion_proveedor si tiene valor - SIEMPRE, sin excepciones
                     if form.instance.opcion_proveedor and form.instance.opcion_proveedor.strip():
-                        # TEMPORAL: Bloquear para todos con fines de prueba
                         form.fields['opcion_proveedor'].widget.attrs['disabled'] = 'disabled'
                         form.fields['opcion_proveedor'].widget.attrs['readonly'] = 'readonly'
 
