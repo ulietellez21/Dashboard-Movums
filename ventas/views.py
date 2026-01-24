@@ -7593,6 +7593,22 @@ class CotizacionCreateView(LoginRequiredMixin, CreateView):
     form_class = CotizacionForm
     template_name = 'ventas/cotizacion_form.html'
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        
+        # Pre-seleccionar cliente si viene en la URL (desde detalle del cliente)
+        cliente_pk = self.request.GET.get('cliente_pk')
+        if cliente_pk:
+            if 'initial' not in kwargs:
+                kwargs['initial'] = {}
+            try:
+                cliente = Cliente.objects.get(pk=cliente_pk)
+                kwargs['initial']['cliente'] = cliente
+            except Cliente.DoesNotExist:
+                pass
+        
+        return kwargs
+
     def form_valid(self, form):
         form.instance.vendedor = self.request.user
         return super().form_valid(form)

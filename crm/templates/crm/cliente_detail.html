@@ -36,23 +36,28 @@
             {% endif %}
             Cliente: {{ cliente }} 
         </h1>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 flex-wrap">
             {% with user.perfil.rol|default:""|upper as user_rol %}
                 {% if "CONTADOR" not in user_rol %}
                     <!-- Botón de Edición -->
-                    <a href="{% url 'editar_cliente' pk=cliente.pk %}" class="btn btn-warning shadow-sm">
+                    <a href="{% url 'editar_cliente' pk=cliente.pk %}" class="btn btn-sm btn-warning shadow-sm">
                         <i class="fas fa-pencil-alt"></i> Editar Datos
                     </a>
                     
                     <!-- Botón de Abrir Venta -->
-                    <a href="{% url 'crear_venta' %}?cliente_pk={{ cliente.pk }}" class="btn btn-success shadow-sm">
+                    <a href="{% url 'crear_venta' %}?cliente_pk={{ cliente.pk }}" class="btn btn-sm btn-success shadow-sm">
                         <i class="fas fa-plane"></i> Abrir Nueva Venta
+                    </a>
+                    
+                    <!-- Botón de Crear Cotización -->
+                    <a href="{% url 'cotizacion_crear' %}?cliente_pk={{ cliente.pk }}" class="btn btn-sm btn-info shadow-sm">
+                        <i class="fas fa-file-invoice"></i> Crear Cotización
                     </a>
                 {% endif %}
                 
                 <!-- Botón para Abrir Modal de Eliminación (SOLO JEFE) -->
                 {% if user_rol == "JEFE" %}
-                    <button type="button" class="btn btn-danger shadow-sm" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal">
+                    <button type="button" class="btn btn-sm btn-danger shadow-sm" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal">
                         <i class="fas fa-trash-alt"></i> Eliminar Cliente
                     </button>
                 {% endif %}
