@@ -302,3 +302,29 @@ def eliminar_comprobantes_venta_liquidada(sender, instance, **kwargs):
         except Exception:
             # Si hay algún error, no hacer nada
             pass
+
+
+@receiver(post_save, sender=VentaViaje)
+def recalcular_comisiones_si_pagada(sender, instance, **kwargs):
+    """
+    Recalcula las comisiones de una venta si cambió su estado de pago.
+    Se ejecuta cuando una venta se actualiza (especialmente cuando se marca como pagada).
+    """
+    # Solo procesar si la venta tiene un vendedor
+    if not instance.vendedor:
+        return
+    
+    # Verificar si el vendedor es de tipo MOSTRADOR
+    try:
+        perfil = instance.vendedor.perfil
+        if perfil.tipo_vendedor != 'MOSTRADOR':
+            return
+    except:
+        return
+    
+    # Importar aquí para evitar importaciones circulares
+    try:
+        from ventas.services.comisiones import recalcular_comision_venta_si_pagada
+        recalcular_comision_venta_si_pagada(instance)
+    except Exception as e:
+        logger.error(f"Error al recalcular comisiones para venta {instance.pk}: {e}", exc_info=True)

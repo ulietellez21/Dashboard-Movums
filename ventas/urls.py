@@ -12,6 +12,11 @@ from .views import (
     ComisionesVendedoresView,
     DetalleComisionesView,
     ExportarComisionesExcelView,
+    # Nuevas vistas de comisiones robustas
+    ComisionesMensualesView,
+    DetalleComisionesMensualesView,
+    ExportarComisionesMensualesExcelView,
+    ExportarComisionesMensualesTodosExcelView,
     GestionRolesView,
     EjecutivoDetailView,
     ProveedorListCreateView,
@@ -72,9 +77,15 @@ urlpatterns = [
     # 2. Reportes y Logística
     path('logistica-pendiente/', LogisticaPendienteView.as_view(), name='logistica_pendiente'), 
     path('reporte-financiero/', ReporteFinancieroView.as_view(), name='reporte_financiero'),
+    # Comisiones (Legacy - mantener por compatibilidad)
     path('comisiones/', ComisionesVendedoresView.as_view(), name='reporte_comisiones'),
     path('comisiones/<int:pk>/detalle/', DetalleComisionesView.as_view(), name='detalle_comisiones'),
     path('comisiones/<int:pk>/exportar-excel/', ExportarComisionesExcelView.as_view(), name='exportar_comisiones_excel'),
+    # Comisiones Mensuales (Sistema Robusto - MOSTRADOR)
+    path('comisiones-mensuales/', ComisionesMensualesView.as_view(), name='comisiones_mensuales'),
+    path('comisiones-mensuales/<int:pk>/detalle/', DetalleComisionesMensualesView.as_view(), name='detalle_comisiones_mensuales'),
+    path('comisiones-mensuales/<int:pk>/exportar-excel/', ExportarComisionesMensualesExcelView.as_view(), name='exportar_comisiones_mensuales_excel'),
+    path('comisiones-mensuales/exportar-todos-excel/', ExportarComisionesMensualesTodosExcelView.as_view(), name='exportar_comisiones_mensuales_todos_excel'),
     path('gestion-roles/', GestionRolesView.as_view(), name='gestion_roles'),
     path('gestion-roles/ejecutivo/<int:pk>/', EjecutivoDetailView.as_view(), name='ejecutivo_detail'),
     

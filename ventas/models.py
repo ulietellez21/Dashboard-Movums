@@ -1817,7 +1817,226 @@ class Cotizacion(models.Model):
         return f"Cotización {self.pk} - {self.cliente.nombre_completo_display}"
 
 
-# ------------------- SIGNALS (Sin cambios) -------------------
+# ------------------- MODELOS DE COMISIONES -------------------
+
+class ComisionVenta(models.Model):
+    """
+    Almacena el cálculo de comisión para cada venta individual.
+    Permite desglosar las comisiones por venta y rastrear el estado de pago.
+    """
+    venta = models.ForeignKey(
+        VentaViaje,
+        on_delete=models.CASCADE,
+        related_name='comisiones',
+        verbose_name="Venta"
+    )
+    vendedor = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='comisiones_ventas',
+        verbose_name="Vendedor"
+    )
+    mes = models.IntegerField(verbose_name="Mes")
+    anio = models.IntegerField(verbose_name="Año")
+    
+    TIPO_VENTA_CHOICES = [
+        ('NACIONAL', 'Nacional'),
+        ('INTERNACIONAL', 'Internacional'),
+        ('VUELO', 'Vuelo Solitario'),
+    ]
+    tipo_venta = models.CharField(
+        max_length=20,
+        choices=TIPO_VENTA_CHOICES,
+        verbose_name="Tipo de Venta"
+    )
+    
+    # Monto base sobre el que se calcula la comisión
+    monto_base_comision = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Monto Base para Comisión"
+    )
+    
+    # Porcentaje aplicado según el total mensual
+    porcentaje_aplicado = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Porcentaje Aplicado (%)"
+    )
+    
+    # Comisión calculada (100% del monto)
+    comision_calculada = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Comisión Calculada (100%)"
+    )
+    
+    # Comisión pagada (100% si está pagada, 30% si está pendiente)
+    comision_pagada = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Comisión Pagada"
+    )
+    
+    # Comisión pendiente (70% restante si está pendiente)
+    comision_pendiente = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Comisión Pendiente"
+    )
+    
+    ESTADO_PAGO_CHOICES = [
+        ('PAGADA', 'Pagada al 100%'),
+        ('PENDIENTE', 'Pendiente de Pago'),
+    ]
+    estado_pago_venta = models.CharField(
+        max_length=20,
+        choices=ESTADO_PAGO_CHOICES,
+        default='PENDIENTE',
+        verbose_name="Estado de Pago de la Venta"
+    )
+    
+    # Detalles en JSON para desglose (tarifa_base, suplementos, tours, impuestos excluidos, etc.)
+    detalles = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name="Detalles de la Comisión",
+        help_text="Desglose detallado de la comisión (tarifa_base, suplementos, tours, impuestos excluidos, etc.)"
+    )
+    
+    fecha_calculo = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Fecha de Cálculo"
+    )
+    fecha_actualizacion = models.DateTimeField(
+        auto_now=True,
+        verbose_name="Fecha de Actualización"
+    )
+    
+    class Meta:
+        verbose_name = "Comisión de Venta"
+        verbose_name_plural = "Comisiones de Ventas"
+        unique_together = ['venta', 'mes', 'anio']
+        indexes = [
+            models.Index(fields=['vendedor', 'mes', 'anio']),
+            models.Index(fields=['venta']),
+        ]
+    
+    def __str__(self):
+        return f"Comisión Venta #{self.venta.pk} - {self.vendedor.username} - {self.mes}/{self.anio}"
+
+
+class ComisionMensual(models.Model):
+    """
+    Almacena el resumen mensual de comisiones por vendedor.
+    Incluye totales, porcentajes aplicados y bonos.
+    """
+    vendedor = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='comisiones_mensuales',
+        verbose_name="Vendedor"
+    )
+    mes = models.IntegerField(verbose_name="Mes")
+    anio = models.IntegerField(verbose_name="Año")
+    
+    TIPO_VENDEDOR_CHOICES = [
+        ('MOSTRADOR', 'Asesor de Mostrador'),
+        ('CAMPO', 'Asesor de Campo'),
+        ('ISLA', 'Asesor de Isla'),
+    ]
+    tipo_vendedor = models.CharField(
+        max_length=20,
+        choices=TIPO_VENDEDOR_CHOICES,
+        default='MOSTRADOR',
+        verbose_name="Tipo de Vendedor"
+    )
+    
+    # Total de ventas del mes (para determinar el porcentaje)
+    total_ventas_mes = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Total de Ventas del Mes"
+    )
+    
+    # Porcentaje de comisión según la escala alcanzada
+    porcentaje_comision = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Porcentaje de Comisión (%)"
+    )
+    
+    # Bono extra del 1% si supera $500,000
+    bono_extra = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Bono Extra (1% sobre $500,000+)"
+    )
+    
+    # Suma de comisiones de ventas pagadas al 100%
+    comision_total_pagada = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Comisión Total Pagada"
+    )
+    
+    # Suma de comisiones pendientes (30% de ventas no pagadas)
+    comision_total_pendiente = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Comisión Total Pendiente"
+    )
+    
+    # Total de comisión (pagada + pendiente + bono)
+    comision_total = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Comisión Total"
+    )
+    
+    fecha_calculo = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Fecha de Cálculo"
+    )
+    fecha_actualizacion = models.DateTimeField(
+        auto_now=True,
+        verbose_name="Fecha de Actualización"
+    )
+    
+    # Archivo Excel generado (opcional)
+    archivo_excel = models.FileField(
+        upload_to='comisiones_excel/%Y/%m/',
+        blank=True,
+        null=True,
+        verbose_name="Archivo Excel Generado"
+    )
+    
+    class Meta:
+        verbose_name = "Comisión Mensual"
+        verbose_name_plural = "Comisiones Mensuales"
+        unique_together = ['vendedor', 'mes', 'anio', 'tipo_vendedor']
+        indexes = [
+            models.Index(fields=['vendedor', 'mes', 'anio']),
+            models.Index(fields=['tipo_vendedor', 'mes', 'anio']),
+        ]
+        ordering = ['-anio', '-mes', 'vendedor']
+    
+    def __str__(self):
+        return f"Comisión Mensual - {self.vendedor.username} - {self.mes}/{self.anio}"
+
+
+# ------------------- SIGNALS -------------------
 
 @receiver(post_save, sender=VentaViaje)
 def crear_registros_iniciales(sender, instance, created, **kwargs):
@@ -1826,3 +2045,4 @@ def crear_registros_iniciales(sender, instance, created, **kwargs):
     """
     if created:
         Logistica.objects.get_or_create(venta=instance)
+

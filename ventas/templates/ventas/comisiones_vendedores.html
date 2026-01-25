@@ -49,6 +49,14 @@
                 <i class="fas fa-info-circle me-1"></i>
                 Mostrando comisiones para: <strong>{{ fecha_desde|date:"F Y" }}</strong>
             </small>
+            {% if user_rol == 'JEFE' or user_rol == 'CONTADOR' %}
+            <div class="mt-3">
+                <a href="{% url 'exportar_comisiones_mensuales_todos_excel' %}?mes={{ mes_filtro }}&anio={{ anio_filtro }}" 
+                   class="btn btn-success">
+                    <i class="fas fa-file-excel me-2"></i>Exportar Todos los Vendedores a Excel
+                </a>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>

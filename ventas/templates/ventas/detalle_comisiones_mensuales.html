@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Detalle de Comisiones Mensuales{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="text-primary">
+        <i class="fas fa-chart-line"></i> Detalle de Comisiones - {{ vendedor.get_full_name|default:vendedor.username }}
+    </h1>
+    <a href="{% url 'comisiones_mensuales' %}?mes={{ mes_filtro }}&anio={{ anio_filtro }}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Volver al Reporte
+    </a>
+</div>
+
+{# Filtros por mes y año #}
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body">
+        <form method="get" action="{% url 'detalle_comisiones_mensuales' vendedor.pk %}" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label for="mes" class="form-label fw-bold">Mes</label>
+                <select name="mes" id="mes" class="form-select">
+                    {% for mes_num, mes_nombre in meses %}
+                        <option value="{{ mes_num }}" {% if mes_filtro == mes_num %}selected{% endif %}>
+                            {{ mes_nombre|title }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="anio" class="form-label fw-bold">Año</label>
+                <select name="anio" id="anio" class="form-select">
+                    {% for anio_opcion in anios %}
+                        <option value="{{ anio_opcion }}" {% if anio_filtro == anio_opcion %}selected{% endif %}>
+                            {{ anio_opcion }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-filter me-2"></i>Filtrar
+                </button>
+            </div>
+        </form>
+        <div class="mt-2">
+            <small class="text-muted">
+                <i class="fas fa-info-circle me-1"></i>
+                Mostrando comisiones para: <strong>
+                {% for mes_num, mes_nombre in meses %}
+                    {% if mes_num == mes_filtro %}{{ mes_nombre|title }}{% endif %}
+                {% endfor %} {{ anio_filtro }}</strong>
+            </small>
+        </div>
+    </div>
+</div>
+
+{% if comision_mensual %}
+{# Resumen General #}
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card shadow-sm border-primary">
+            <div class="card-body text-center">
+                <h5 class="text-muted mb-2">Total Ventas del Mes</h5>
+                <h3 class="text-primary mb-0">${{ comision_mensual.total_ventas_mes|floatformat:2|intcomma }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-info">
+            <div class="card-body text-center">
+                <h5 class="text-muted mb-2">Porcentaje Comisión</h5>
+                <h3 class="text-info mb-0">{{ comision_mensual.porcentaje_comision|floatformat:2 }}%</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-success">
+            <div class="card-body text-center">
+                <h5 class="text-muted mb-2">Comisión Pagada</h5>
+                <h3 class="text-success mb-0">${{ comision_mensual.comision_total_pagada|floatformat:2|intcomma }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-warning">
+            <div class="card-body text-center">
+                <h5 class="text-muted mb-2">Comisión Pendiente</h5>
+                <h3 class="text-warning mb-0">${{ comision_mensual.comision_total_pendiente|floatformat:2|intcomma }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card shadow-sm border-success">
+            <div class="card-body text-center">
+                <h5 class="text-muted mb-2">Bono Extra (1% sobre $500,000+)</h5>
+                <h3 class="text-success mb-0">${{ comision_mensual.bono_extra|floatformat:2|intcomma }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm border-primary">
+            <div class="card-body text-center">
+                <h5 class="text-muted mb-2">COMISIÓN TOTAL</h5>
+                <h3 class="text-primary mb-0 fw-bold">${{ comision_mensual.comision_total|floatformat:2|intcomma }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Detalle por Venta #}
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-primary text-white">
+        <h4 class="mb-0">
+            <i class="fas fa-list me-2"></i>Detalle por Venta
+            <span class="badge bg-light text-primary ms-2">
+                {{ comisiones_ventas|length }} venta(s)
+            </span>
+        </h4>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Venta #</th>
+                        <th>Cliente</th>
+                        <th>Tipo</th>
+                        <th class="text-end">Monto Base</th>
+                        <th class="text-end">Porcentaje</th>
+                        <th class="text-end">Comisión Calculada</th>
+                        <th class="text-end">Estado Pago</th>
+                        <th class="text-end text-success">Comisión Pagada</th>
+                        <th class="text-end text-warning">Comisión Pendiente</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for comision_venta in comisiones_ventas %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'detalle_venta' comision_venta.venta.slug comision_venta.venta.pk %}" 
+                               class="text-decoration-none fw-bold">
+                                #{{ comision_venta.venta.pk }}
+                            </a>
+                        </td>
+                        <td>{{ comision_venta.venta.cliente.nombre_completo_display }}</td>
+                        <td>
+                            {% if comision_venta.tipo_venta == 'VUELO' %}
+                                <span class="badge bg-warning text-dark">Vuelo Solitario</span>
+                            {% elif comision_venta.tipo_venta == 'INTERNACIONAL' %}
+                                <span class="badge bg-success">Internacional</span>
+                            {% else %}
+                                <span class="badge bg-info">Nacional</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if comision_venta.tipo_venta == 'VUELO' %}
+                                <span class="text-muted">$100 fijo</span>
+                            {% else %}
+                                ${{ comision_venta.monto_base_comision|floatformat:2|intcomma }}
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if comision_venta.tipo_venta == 'VUELO' %}
+                                <span class="text-muted">-</span>
+                            {% else %}
+                                {{ comision_venta.porcentaje_aplicado|floatformat:2 }}%
+                            {% endif %}
+                        </td>
+                        <td class="text-end fw-bold">
+                            ${{ comision_venta.comision_calculada|floatformat:2|intcomma }}
+                        </td>
+                        <td class="text-end">
+                            {% if comision_venta.estado_pago_venta == 'PAGADA' %}
+                                <span class="badge bg-success">Pagada 100%</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">Pendiente</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end text-success fw-bold">
+                            ${{ comision_venta.comision_pagada|floatformat:2|intcomma }}
+                        </td>
+                        <td class="text-end text-warning fw-bold">
+                            ${{ comision_venta.comision_pendiente|floatformat:2|intcomma }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <th colspan="7" class="text-end">Totales:</th>
+                        <th class="text-end text-success">${{ comision_mensual.comision_total_pagada|floatformat:2|intcomma }}</th>
+                        <th class="text-end text-warning">${{ comision_mensual.comision_total_pendiente|floatformat:2|intcomma }}</th>
+                    </tr>
+                    <tr class="table-primary">
+                        <th colspan="7" class="text-end">COMISIÓN TOTAL + BONO:</th>
+                        <th colspan="2" class="text-end fw-bold">
+                            ${{ comision_mensual.comision_total|floatformat:2|intcomma }}
+                        </th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+{# Detalles de Ventas Internacionales (si hay) #}
+{% for comision_venta in comisiones_ventas %}
+    {% if comision_venta.tipo_venta == 'INTERNACIONAL' and comision_venta.detalles %}
+    <div class="card shadow-sm border-success mb-3">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">
+                <i class="fas fa-globe-americas me-2"></i>Venta #{{ comision_venta.venta.pk }} - Desglose Internacional
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Tarifa Base USD:</strong> ${{ comision_venta.detalles.tarifa_base_usd|floatformat:2|intcomma }}</p>
+                    <p><strong>Suplementos USD:</strong> ${{ comision_venta.detalles.suplementos_usd|floatformat:2|intcomma }}</p>
+                    <p><strong>Tours USD:</strong> ${{ comision_venta.detalles.tours_usd|floatformat:2|intcomma }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Impuestos USD:</strong> <span class="text-muted">${{ comision_venta.detalles.impuestos_usd|floatformat:2|intcomma }} (excluidos)</span></p>
+                    <p><strong>Tipo de Cambio:</strong> {{ comision_venta.detalles.tipo_cambio|floatformat:4 }}</p>
+                    <p><strong>Base Comisión MXN:</strong> ${{ comision_venta.detalles.monto_base_calculado|floatformat:2|intcomma }}</p>
+                </div>
+            </div>
+            <div class="alert alert-info mb-0 mt-3">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>Nota:</strong> La comisión se calcula sobre Tarifa Base + Suplementos + Tours (impuestos excluidos).
+            </div>
+        </div>
+    </div>
+    {% endif %}
+{% endfor %}
+
+{# Botón de exportación #}
+<div class="text-center mb-4">
+    <a href="{% url 'exportar_comisiones_mensuales_excel' vendedor.pk %}?mes={{ mes_filtro }}&anio={{ anio_filtro }}" 
+       class="btn btn-success btn-lg">
+        <i class="fas fa-file-excel me-2"></i>Exportar a Excel
+    </a>
+</div>
+
+{% else %}
+<div class="alert alert-warning">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    No hay comisiones calculadas para este período.
+</div>
+{% endif %}
+
+{% endblock %}
