@@ -8323,6 +8323,22 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
                     if cotizacion.vendedor.email:
                         ejecutivo_email = cotizacion.vendedor.email
         
+        # Procesar fecha de cotización: convertir string ISO a objeto date si es necesario
+        fecha_cotizacion_obj = None
+        if isinstance(propuestas, dict) and propuestas.get('fecha_cotizacion'):
+            try:
+                # Si es string ISO, convertir a date
+                if isinstance(propuestas['fecha_cotizacion'], str):
+                    fecha_cotizacion_obj = datetime.date.fromisoformat(propuestas['fecha_cotizacion'])
+                elif isinstance(propuestas['fecha_cotizacion'], (datetime.date, datetime.datetime)):
+                    fecha_cotizacion_obj = propuestas['fecha_cotizacion'] if isinstance(propuestas['fecha_cotizacion'], datetime.date) else propuestas['fecha_cotizacion'].date()
+            except (ValueError, TypeError, AttributeError):
+                # Fallback a fecha de creación
+                fecha_cotizacion_obj = cotizacion.creada_en.date() if cotizacion.creada_en else None
+        else:
+            # Si no hay fecha en propuestas, usar fecha de creación
+            fecha_cotizacion_obj = cotizacion.creada_en.date() if cotizacion.creada_en else None
+        
         return {
             'cotizacion': cotizacion,
             'propuestas': propuestas,
@@ -8334,6 +8350,7 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
             'ejecutivo_nombre': ejecutivo_nombre,
             'ejecutivo_telefono': ejecutivo_telefono,
             'ejecutivo_email': ejecutivo_email,
+            'fecha_cotizacion': fecha_cotizacion_obj,  # Objeto date para usar con filtro |date
         }
     
     def _generar_pdf(self, cotizacion):

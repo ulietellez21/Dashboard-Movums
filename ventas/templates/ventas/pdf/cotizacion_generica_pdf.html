@@ -1,19 +1,17 @@
 {% extends "ventas/pdf/base_cotizacion_pdf.html" %}
 
 {% block content %}
-    <div class="card">
+    <div class="card card-generica">
         <div class="card-header">
             <span class="icon">📄</span>
             <span>{{ cotizacion.titulo|upper|default:"COTIZACIÓN GENÉRICA" }}</span>
         </div>
         
         {% if propuestas.generica.contenido %}
-        <table class="data-table">
-            <tr>
-                <td style="width: 30%;"><strong>Contenido:</strong></td>
-                <td>{{ propuestas.generica.contenido|linebreaks }}</td>
-            </tr>
-        </table>
+        <div class="contenido-generica">
+            <div class="contenido-generica-label"><strong>Contenido:</strong></div>
+            <div class="contenido-generica-texto">{{ propuestas.generica.contenido|linebreaks }}</div>
+        </div>
         {% endif %}
     </div>
 {% endblock %}
