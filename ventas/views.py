@@ -3389,11 +3389,17 @@ class ExportarComisionesMensualesTodosExcelView(LoginRequiredMixin, View):
     Solo disponible para JEFE y CONTADOR.
     """
     def get(self, request):
+        # Determinar desde dónde se llamó para redirigir correctamente
+        referer = request.META.get('HTTP_REFERER', '')
+        viene_de_reporte_comisiones = 'reporte_comisiones' in referer or 'comisiones/' in referer
+        
         try:
             from openpyxl import Workbook
             from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
         except ImportError:
             messages.error(request, "Error: openpyxl no está instalado. Instala con: pip install openpyxl")
+            if viene_de_reporte_comisiones:
+                return redirect('reporte_comisiones')
             return redirect('comisiones_mensuales')
         
         # Verificar permisos
@@ -3402,6 +3408,8 @@ class ExportarComisionesMensualesTodosExcelView(LoginRequiredMixin, View):
         
         if user_rol not in ['JEFE', 'CONTADOR']:
             messages.error(request, "No tienes permiso para exportar comisiones de todos los vendedores.")
+            if viene_de_reporte_comisiones:
+                return redirect('reporte_comisiones')
             return redirect('comisiones_mensuales')
         
         # Obtener mes y año del request
@@ -3427,8 +3435,7 @@ class ExportarComisionesMensualesTodosExcelView(LoginRequiredMixin, View):
         
         if not vendedores.exists():
             messages.warning(request, "No hay vendedores de tipo MOSTRADOR.")
-            # Redirigir según desde dónde se llamó
-            if 'reporte_comisiones' in request.META.get('HTTP_REFERER', ''):
+            if viene_de_reporte_comisiones:
                 return redirect('reporte_comisiones')
             return redirect('comisiones_mensuales')
         
@@ -3538,7 +3545,7 @@ class ExportarComisionesMensualesTodosExcelView(LoginRequiredMixin, View):
         logger.info(f"Vendedores con datos: {vendedores_con_datos}")
         if vendedores_con_datos == 0:
             messages.warning(request, f"No hay comisiones calculadas para {datetime.datetime(anio_filtro, mes_filtro, 1).strftime('%B %Y')}. Por favor, recalcula las comisiones primero.")
-            if 'reporte_comisiones' in request.META.get('HTTP_REFERER', ''):
+            if viene_de_reporte_comisiones:
                 return redirect('reporte_comisiones')
             return redirect('comisiones_mensuales')
         
@@ -3676,11 +3683,12 @@ class ExportarComisionesMensualesTodosExcelView(LoginRequiredMixin, View):
             response['Content-Disposition'] = f'attachment; filename="{filename}"'
             
             wb.save(response)
+            logger.info(f"Excel generado exitosamente: {filename}")
             return response
         except Exception as e:
             logger.error(f"Error al generar Excel de comisiones: {e}", exc_info=True)
             messages.error(request, f"Error al generar el archivo Excel: {str(e)}")
-            if 'reporte_comisiones' in request.META.get('HTTP_REFERER', ''):
+            if viene_de_reporte_comisiones:
                 return redirect('reporte_comisiones')
             return redirect('comisiones_mensuales')
 
