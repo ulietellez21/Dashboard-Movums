@@ -5396,6 +5396,21 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         html_parts.append('</div>')  # Cierre de card Ida
         
         # Card para Vuelo de Regreso (IGUAL QUE COTIZACIONES)
+        # Verificar si hay datos del vuelo de regreso para mostrar la card
+        tiene_datos_regreso = (
+            datos.get('aerolinea_regreso') or 
+            datos.get('numero_vuelo_regreso') or 
+            datos.get('fecha_salida_regreso') or 
+            datos.get('hora_salida_regreso') or 
+            datos.get('origen_regreso') or 
+            datos.get('hora_llegada_regreso') or 
+            datos.get('destino_regreso') or 
+            datos.get('tipo_vuelo_regreso') or 
+            (datos.get('escalas_regreso') and isinstance(datos.get('escalas_regreso'), list) and len(datos.get('escalas_regreso', [])) > 0) or
+            datos.get('informacion_adicional')
+        )
+        
+        # Siempre mostrar la card del vuelo de regreso (incluso si no hay datos, para que el usuario sepa que debe llenarla)
         html_parts.append('<div style="page-break-before: always;"></div>')
         html_parts.append('<div class="card">')
         html_parts.append('<div class="card-header">')
@@ -5408,6 +5423,13 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         html_parts.append('</div>')
         
         html_parts.append('<table class="data-table">')
+        
+        # Mostrar campos del vuelo de regreso (mostrar siempre, incluso si están vacíos, para que se vea la estructura)
+        if datos.get('clave_reserva'):
+            html_parts.append('<tr>')
+            html_parts.append('<td style="width: 30%;"><strong>Clave de Reserva:</strong></td>')
+            html_parts.append(f'<td>{datos.get("clave_reserva")}</td>')
+            html_parts.append('</tr>')
         
         if datos.get('aerolinea_regreso'):
             html_parts.append('<tr>')
@@ -5423,7 +5445,7 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         
         salida_regreso_info = []
         if datos.get('fecha_salida_regreso'):
-            salida_regreso_info.append(datos.get('fecha_salida_regreso'))
+            salida_regreso_info.append(format_date(datos.get('fecha_salida_regreso')) if format_date else datos.get('fecha_salida_regreso'))
         if datos.get('hora_salida_regreso'):
             salida_regreso_info.append(datos.get('hora_salida_regreso'))
         if datos.get('origen_regreso'):
@@ -5472,10 +5494,30 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                 html_parts.append(f'<td>{escala_texto}</td>')
                 html_parts.append('</tr>')
         
+        if datos.get('pasajeros'):
+            pasajeros_texto = ', '.join([p.strip() for p in str(datos.get('pasajeros', '')).replace('\r\n', '\n').split('\n') if p.strip()])
+            if pasajeros_texto:
+                html_parts.append('<tr>')
+                html_parts.append('<td><strong>Pasajeros:</strong></td>')
+                html_parts.append(f'<td>{pasajeros_texto}</td>')
+                html_parts.append('</tr>')
+        
+        if datos.get('equipaje'):
+            html_parts.append('<tr>')
+            html_parts.append('<td><strong>Equipaje:</strong></td>')
+            html_parts.append(f'<td>{datos.get("equipaje")}</td>')
+            html_parts.append('</tr>')
+        
         if datos.get('informacion_adicional'):
             html_parts.append('<tr>')
             html_parts.append('<td><strong>Información Adicional:</strong></td>')
             html_parts.append(f'<td>{datos.get("informacion_adicional")}</td>')
+            html_parts.append('</tr>')
+        
+        # Si no hay datos del vuelo de regreso, mostrar un mensaje
+        if not tiene_datos_regreso:
+            html_parts.append('<tr>')
+            html_parts.append('<td colspan="2" style="text-align: center; color: #718096; font-style: italic; padding: 20px;">No hay información disponible del vuelo de regreso. Por favor, complete los datos en la plantilla de confirmación.</td>')
             html_parts.append('</tr>')
         
         html_parts.append('</table>')

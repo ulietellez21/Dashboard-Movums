@@ -72,20 +72,6 @@
                 </tr>
                 {% endif %}
             {% endif %}
-            
-            <tr>
-                <td>📝 Fecha de Cotización:</td>
-                <!-- FIN: Iconos en labels (PRUEBA - fácil de revertir) -->
-                <td>
-                    {% if fecha_cotizacion %}
-                        {{ fecha_cotizacion|date:"d/m/Y" }}
-                    {% elif cotizacion.creada_en %}
-                        {{ cotizacion.creada_en|date:"d/m/Y" }}
-                    {% else %}
-                        -
-                    {% endif %}
-                </td>
-            </tr>
         </table>
         </div>
     </div>
