@@ -93,3 +93,13 @@ def substract(value, arg):
         return float(value) - float(arg)
     except (ValueError, TypeError):
         return value
+
+@register.filter
+def mul(value, arg):
+    """Multiplica value por arg."""
+    try:
+        if value is None or arg is None:
+            return value
+        return float(value) * float(arg)
+    except (ValueError, TypeError):
+        return value

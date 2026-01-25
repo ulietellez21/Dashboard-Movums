@@ -53,6 +53,8 @@ from .models import (
     Cotizacion,
     VentaPromocionAplicada,
     AbonoProveedor,
+    ComisionVenta,
+    ComisionMensual,
 )
 from crm.models import Cliente
 from crm.services import KilometrosService
@@ -3009,7 +3011,680 @@ class VentaViajeDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
         
         return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
     
-# ------------------- 12. REPORTE DE COMISIONES POR VENDEDOR -------------------
+# ------------------- 12. SISTEMA ROBUSTO DE COMISIONES (MOSTRADOR) -------------------
+
+class ComisionesMensualesView(LoginRequiredMixin, TemplateView):
+    """
+    Vista para calcular y mostrar comisiones mensuales de Asesores de Mostrador.
+    - JEFE/CONTADOR: Ve todas las comisiones
+    - VENDEDOR: Solo ve sus propias comisiones
+    """
+    template_name = 'ventas/comisiones_mensuales.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        user = self.request.user
+        user_rol = user.perfil.rol if hasattr(user, 'perfil') else 'INVITADO'
+        
+        # Obtener mes y año del request (por defecto mes actual)
+        mes_actual = timezone.now().month
+        anio_actual = timezone.now().year
+        
+        mes_filtro = int(self.request.GET.get('mes', mes_actual))
+        anio_filtro = int(self.request.GET.get('anio', anio_actual))
+        
+        # Determinar qué vendedores mostrar
+        if user_rol == 'VENDEDOR':
+            vendedores_a_mostrar = User.objects.filter(pk=user.pk)
+        elif user_rol in ['JEFE', 'CONTADOR']:
+            # Solo mostrar vendedores de tipo MOSTRADOR
+            vendedores_a_mostrar = User.objects.filter(
+                perfil__rol='VENDEDOR',
+                perfil__tipo_vendedor='MOSTRADOR'
+            ).order_by('username')
+        else:
+            vendedores_a_mostrar = User.objects.none()
+        
+        # Obtener o calcular comisiones mensuales
+        comisiones_mensuales = []
+        for vendedor in vendedores_a_mostrar:
+            # Verificar si ya existe el cálculo para este mes
+            comision_mensual = ComisionMensual.objects.filter(
+                vendedor=vendedor,
+                mes=mes_filtro,
+                anio=anio_filtro,
+                tipo_vendedor='MOSTRADOR'
+            ).first()
+            
+            # Si no existe, calcular automáticamente
+            if not comision_mensual:
+                try:
+                    from ventas.services.comisiones import calcular_comisiones_mensuales_mostrador
+                    comision_mensual = calcular_comisiones_mensuales_mostrador(
+                        vendedor, mes_filtro, anio_filtro
+                    )
+                except Exception as e:
+                    logger.error(f"Error al calcular comisiones para {vendedor.username}: {e}", exc_info=True)
+                    continue
+            
+            # Obtener comisiones de ventas para el detalle
+            comisiones_ventas = ComisionVenta.objects.filter(
+                vendedor=vendedor,
+                mes=mes_filtro,
+                anio=anio_filtro
+            ).select_related('venta', 'venta__cliente').order_by('-venta__fecha_creacion')
+            
+            comisiones_mensuales.append({
+                'vendedor': vendedor,
+                'comision_mensual': comision_mensual,
+                'comisiones_ventas': comisiones_ventas,
+                'es_usuario_actual': (vendedor.pk == user.pk),
+            })
+        
+        context['comisiones_mensuales'] = comisiones_mensuales
+        context['mes_filtro'] = mes_filtro
+        context['anio_filtro'] = anio_filtro
+        context['user_rol'] = user_rol
+        
+        # Generar lista de meses y años para el selector
+        meses = [(i, datetime.datetime(2000, i, 1).strftime('%B')) for i in range(1, 13)]
+        anios = list(range(anio_actual - 2, anio_actual + 1))
+        
+        context['meses'] = meses
+        context['anios'] = anios
+        
+        return context
+    
+    def post(self, request, *args, **kwargs):
+        """Recalcular comisiones para un mes específico"""
+        mes = int(request.POST.get('mes'))
+        anio = int(request.POST.get('anio'))
+        
+        user = request.user
+        user_rol = user.perfil.rol if hasattr(user, 'perfil') else 'INVITADO'
+        
+        # Determinar qué vendedores recalcular
+        if user_rol == 'VENDEDOR':
+            vendedores = [user]
+        elif user_rol in ['JEFE', 'CONTADOR']:
+            vendedores = User.objects.filter(
+                perfil__rol='VENDEDOR',
+                perfil__tipo_vendedor='MOSTRADOR'
+            )
+        else:
+            messages.error(request, "No tienes permiso para recalcular comisiones.")
+            return redirect('comisiones_mensuales')
+        
+        # Recalcular comisiones
+        from ventas.services.comisiones import calcular_comisiones_mensuales_mostrador
+        
+        recalculos = 0
+        for vendedor in vendedores:
+            try:
+                calcular_comisiones_mensuales_mostrador(vendedor, mes, anio)
+                recalculos += 1
+            except Exception as e:
+                logger.error(f"Error al recalcular comisiones para {vendedor.username}: {e}", exc_info=True)
+        
+        messages.success(request, f"Comisiones recalculadas para {recalculos} vendedor(es).")
+        return redirect(f"{reverse('comisiones_mensuales')}?mes={mes}&anio={anio}")
+
+
+class DetalleComisionesMensualesView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
+    """
+    Vista de detalle de comisiones mensuales de un vendedor específico.
+    Muestra el desglose por venta.
+    """
+    model = User
+    template_name = 'ventas/detalle_comisiones_mensuales.html'
+    context_object_name = 'vendedor'
+    
+    def test_func(self):
+        """Verificar permisos"""
+        user = self.request.user
+        user_rol = user.perfil.rol if hasattr(user, 'perfil') else 'INVITADO'
+        vendedor = self.get_object()
+        
+        # El vendedor puede ver sus propias comisiones, JEFE/CONTADOR pueden ver todas
+        if user_rol == 'VENDEDOR':
+            return vendedor.pk == user.pk
+        elif user_rol in ['JEFE', 'CONTADOR']:
+            return True
+        return False
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        vendedor = self.get_object()
+        
+        # Obtener mes y año del request
+        mes_actual = timezone.now().month
+        anio_actual = timezone.now().year
+        
+        mes_filtro = int(self.request.GET.get('mes', mes_actual))
+        anio_filtro = int(self.request.GET.get('anio', anio_actual))
+        
+        # Obtener comisión mensual
+        comision_mensual = ComisionMensual.objects.filter(
+            vendedor=vendedor,
+            mes=mes_filtro,
+            anio=anio_filtro,
+            tipo_vendedor='MOSTRADOR'
+        ).first()
+        
+        # Si no existe, calcular automáticamente
+        if not comision_mensual:
+            try:
+                from ventas.services.comisiones import calcular_comisiones_mensuales_mostrador
+                comision_mensual = calcular_comisiones_mensuales_mostrador(
+                    vendedor, mes_filtro, anio_filtro
+                )
+            except Exception as e:
+                logger.error(f"Error al calcular comisiones para {vendedor.username}: {e}", exc_info=True)
+        
+        # Obtener comisiones de ventas
+        comisiones_ventas = ComisionVenta.objects.filter(
+            vendedor=vendedor,
+            mes=mes_filtro,
+            anio=anio_filtro
+        ).select_related('venta', 'venta__cliente').order_by('-venta__fecha_creacion')
+        
+        context['comision_mensual'] = comision_mensual
+        context['comisiones_ventas'] = comisiones_ventas
+        context['mes_filtro'] = mes_filtro
+        context['anio_filtro'] = anio_filtro
+        
+        # Generar lista de meses y años
+        meses = [(i, datetime.datetime(2000, i, 1).strftime('%B')) for i in range(1, 13)]
+        anios = list(range(anio_actual - 2, anio_actual + 1))
+        
+        context['meses'] = meses
+        context['anios'] = anios
+        
+        return context
+
+
+class ExportarComisionesMensualesExcelView(LoginRequiredMixin, View):
+    """
+    Exporta las comisiones mensuales a Excel.
+    """
+    def get(self, request, pk):
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+        except ImportError:
+            messages.error(request, "Error: openpyxl no está instalado. Instala con: pip install openpyxl")
+            return redirect('comisiones_mensuales')
+        
+        vendedor = get_object_or_404(User, pk=pk)
+        
+        # Verificar permisos
+        user = request.user
+        user_rol = user.perfil.rol if hasattr(user, 'perfil') else 'INVITADO'
+        
+        if user_rol == 'VENDEDOR' and vendedor.pk != user.pk:
+            messages.error(request, "No tienes permiso para exportar estas comisiones.")
+            return redirect('comisiones_mensuales')
+        elif user_rol not in ['JEFE', 'CONTADOR', 'VENDEDOR']:
+            messages.error(request, "No tienes permiso para exportar comisiones.")
+            return redirect('comisiones_mensuales')
+        
+        # Obtener mes y año del request
+        mes_actual = timezone.now().month
+        anio_actual = timezone.now().year
+        
+        mes_filtro = int(request.GET.get('mes', mes_actual))
+        anio_filtro = int(request.GET.get('anio', anio_actual))
+        
+        # Obtener comisión mensual
+        comision_mensual = ComisionMensual.objects.filter(
+            vendedor=vendedor,
+            mes=mes_filtro,
+            anio=anio_filtro,
+            tipo_vendedor='MOSTRADOR'
+        ).first()
+        
+        if not comision_mensual:
+            messages.warning(request, "No hay comisiones calculadas para este período.")
+            return redirect('detalle_comisiones_mensuales', pk=vendedor.pk)
+        
+        # Obtener comisiones de ventas
+        comisiones_ventas = ComisionVenta.objects.filter(
+            vendedor=vendedor,
+            mes=mes_filtro,
+            anio=anio_filtro
+        ).select_related('venta', 'venta__cliente').order_by('venta__fecha_creacion')
+        
+        # Crear workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Comisiones Mensuales"
+        
+        # Estilos
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF", size=12)
+        title_font = Font(bold=True, size=14)
+        border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        
+        # Título
+        ws['A1'] = f"Reporte de Comisiones Mensuales - {vendedor.get_full_name() or vendedor.username}"
+        ws['A1'].font = title_font
+        ws.merge_cells('A1:F1')
+        
+        # Información del período
+        ws['A3'] = f"Período: {datetime.datetime(anio_filtro, mes_filtro, 1).strftime('%B %Y')}"
+        ws['A3'].font = Font(bold=True)
+        
+        # Resumen mensual
+        row = 5
+        ws[f'A{row}'] = "RESUMEN MENSUAL"
+        ws[f'A{row}'].font = Font(bold=True, size=12)
+        ws.merge_cells(f'A{row}:B{row}')
+        
+        row += 1
+        ws[f'A{row}'] = "Total de Ventas del Mes:"
+        ws[f'B{row}'] = f"${comision_mensual.total_ventas_mes:,.2f}"
+        ws[f'A{row}'].font = Font(bold=True)
+        
+        row += 1
+        ws[f'A{row}'] = "Porcentaje de Comisión:"
+        ws[f'B{row}'] = f"{comision_mensual.porcentaje_comision:.2f}%"
+        ws[f'A{row}'].font = Font(bold=True)
+        
+        row += 1
+        ws[f'A{row}'] = "Bono Extra (1% sobre $500,000+):"
+        ws[f'B{row}'] = f"${comision_mensual.bono_extra:,.2f}"
+        ws[f'A{row}'].font = Font(bold=True)
+        
+        row += 1
+        ws[f'A{row}'] = "Comisión Total Pagada:"
+        ws[f'B{row}'] = f"${comision_mensual.comision_total_pagada:,.2f}"
+        ws[f'A{row}'].font = Font(bold=True)
+        ws[f'B{row}'].fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+        
+        row += 1
+        ws[f'A{row}'] = "Comisión Total Pendiente:"
+        ws[f'B{row}'] = f"${comision_mensual.comision_total_pendiente:,.2f}"
+        ws[f'A{row}'].font = Font(bold=True)
+        ws[f'B{row}'].fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+        
+        row += 1
+        ws[f'A{row}'] = "COMISIÓN TOTAL:"
+        ws[f'B{row}'] = f"${comision_mensual.comision_total:,.2f}"
+        ws[f'A{row}'].font = Font(bold=True, size=12)
+        ws[f'B{row}'].font = Font(bold=True, size=12)
+        ws[f'B{row}'].fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+        
+        # Detalle por venta
+        row += 3
+        ws[f'A{row}'] = "DETALLE POR VENTA"
+        ws[f'A{row}'].font = Font(bold=True, size=12)
+        ws.merge_cells(f'A{row}:H{row}')
+        
+        row += 1
+        headers = ['Venta #', 'Cliente', 'Tipo', 'Monto Base', 'Porcentaje', 'Comisión Calculada', 'Estado Pago', 'Comisión Pagada', 'Comisión Pendiente']
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=row, column=col, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = border
+        
+        # Datos de ventas
+        for comision_venta in comisiones_ventas:
+            row += 1
+            venta = comision_venta.venta
+            
+            ws.cell(row=row, column=1, value=venta.pk)
+            ws.cell(row=row, column=2, value=venta.cliente.nombre_completo_display)
+            ws.cell(row=row, column=3, value=comision_venta.get_tipo_venta_display())
+            ws.cell(row=row, column=4, value=float(comision_venta.monto_base_comision))
+            ws.cell(row=row, column=5, value=f"{comision_venta.porcentaje_aplicado:.2f}%")
+            ws.cell(row=row, column=6, value=float(comision_venta.comision_calculada))
+            ws.cell(row=row, column=7, value=comision_venta.get_estado_pago_venta_display())
+            ws.cell(row=row, column=8, value=float(comision_venta.comision_pagada))
+            ws.cell(row=row, column=9, value=float(comision_venta.comision_pendiente))
+            
+            # Aplicar formato
+            for col in range(1, 10):
+                cell = ws.cell(row=row, column=col)
+                cell.border = border
+                if col in [4, 6, 8, 9]:  # Columnas numéricas
+                    cell.number_format = '#,##0.00'
+                    cell.alignment = Alignment(horizontal='right')
+        
+        # Ajustar ancho de columnas
+        ws.column_dimensions['A'].width = 12
+        ws.column_dimensions['B'].width = 30
+        ws.column_dimensions['C'].width = 15
+        ws.column_dimensions['D'].width = 15
+        ws.column_dimensions['E'].width = 12
+        ws.column_dimensions['F'].width = 18
+        ws.column_dimensions['G'].width = 15
+        ws.column_dimensions['H'].width = 18
+        ws.column_dimensions['I'].width = 18
+        
+        # Preparar respuesta
+        nombre_vendedor_safe = (vendedor.get_full_name() or vendedor.username).replace(' ', '_')
+        nombre_mes = datetime.datetime(anio_filtro, mes_filtro, 1).strftime('%B_%Y')
+        filename = f"comisiones_{nombre_vendedor_safe}_{nombre_mes}.xlsx"
+        
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        wb.save(response)
+        return response
+
+
+class ExportarComisionesMensualesTodosExcelView(LoginRequiredMixin, View):
+    """
+    Exporta las comisiones mensuales de TODOS los vendedores a Excel.
+    Solo disponible para JEFE y CONTADOR.
+    """
+    def get(self, request):
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+        except ImportError:
+            messages.error(request, "Error: openpyxl no está instalado. Instala con: pip install openpyxl")
+            return redirect('comisiones_mensuales')
+        
+        # Verificar permisos
+        user = request.user
+        user_rol = user.perfil.rol if hasattr(user, 'perfil') else 'INVITADO'
+        
+        if user_rol not in ['JEFE', 'CONTADOR']:
+            messages.error(request, "No tienes permiso para exportar comisiones de todos los vendedores.")
+            return redirect('comisiones_mensuales')
+        
+        # Obtener mes y año del request
+        mes_actual = timezone.now().month
+        anio_actual = timezone.now().year
+        
+        try:
+            mes_filtro = int(request.GET.get('mes', mes_actual))
+            anio_filtro = int(request.GET.get('anio', anio_actual))
+        except (ValueError, TypeError):
+            mes_filtro = mes_actual
+            anio_filtro = anio_actual
+        
+        logger.info(f"Exportando comisiones para mes={mes_filtro}, año={anio_filtro}")
+        
+        # Obtener todos los vendedores de tipo MOSTRADOR
+        vendedores = User.objects.filter(
+            perfil__rol='VENDEDOR',
+            perfil__tipo_vendedor='MOSTRADOR'
+        ).order_by('username')
+        
+        logger.info(f"Vendedores encontrados: {vendedores.count()}")
+        
+        if not vendedores.exists():
+            messages.warning(request, "No hay vendedores de tipo MOSTRADOR.")
+            # Redirigir según desde dónde se llamó
+            if 'reporte_comisiones' in request.META.get('HTTP_REFERER', ''):
+                return redirect('reporte_comisiones')
+            return redirect('comisiones_mensuales')
+        
+        # Crear workbook
+        wb = Workbook()
+        
+        # ===== HOJA 1: RESUMEN GENERAL =====
+        ws_resumen = wb.active
+        ws_resumen.title = "Resumen General"
+        
+        # Estilos
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF", size=12)
+        title_font = Font(bold=True, size=14)
+        border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        
+        # Título
+        ws_resumen['A1'] = f"Reporte de Comisiones Mensuales - Todos los Vendedores"
+        ws_resumen['A1'].font = title_font
+        ws_resumen.merge_cells('A1:J1')
+        
+        # Información del período
+        ws_resumen['A3'] = f"Período: {datetime.datetime(anio_filtro, mes_filtro, 1).strftime('%B %Y')}"
+        ws_resumen['A3'].font = Font(bold=True)
+        
+        # Encabezados de resumen
+        row = 5
+        headers_resumen = [
+            'Vendedor', 'Total Ventas', 'Porcentaje', 'Bono Extra', 
+            'Comisión Pagada', 'Comisión Pendiente', 'Comisión Total'
+        ]
+        for col, header in enumerate(headers_resumen, 1):
+            cell = ws_resumen.cell(row=row, column=col, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = border
+        
+        # Datos de resumen por vendedor
+        total_general_ventas = Decimal('0.00')
+        total_general_pagada = Decimal('0.00')
+        total_general_pendiente = Decimal('0.00')
+        total_general_comision = Decimal('0.00')
+        total_general_bono = Decimal('0.00')
+        
+        vendedores_con_datos = 0
+        
+        for vendedor in vendedores:
+            # Obtener o calcular comisión mensual
+            comision_mensual = ComisionMensual.objects.filter(
+                vendedor=vendedor,
+                mes=mes_filtro,
+                anio=anio_filtro,
+                tipo_vendedor='MOSTRADOR'
+            ).first()
+            
+            if not comision_mensual:
+                try:
+                    from ventas.services.comisiones import calcular_comisiones_mensuales_mostrador
+                    comision_mensual = calcular_comisiones_mensuales_mostrador(
+                        vendedor, mes_filtro, anio_filtro
+                    )
+                except Exception as e:
+                    logger.error(f"Error al calcular comisiones para {vendedor.username}: {e}", exc_info=True)
+                    continue
+            
+            row += 1
+            nombre_vendedor = vendedor.get_full_name() or vendedor.username
+            
+            ws_resumen.cell(row=row, column=1, value=nombre_vendedor)
+            ws_resumen.cell(row=row, column=2, value=float(comision_mensual.total_ventas_mes))
+            ws_resumen.cell(row=row, column=3, value=f"{comision_mensual.porcentaje_comision:.2f}%")
+            ws_resumen.cell(row=row, column=4, value=float(comision_mensual.bono_extra))
+            ws_resumen.cell(row=row, column=5, value=float(comision_mensual.comision_total_pagada))
+            ws_resumen.cell(row=row, column=6, value=float(comision_mensual.comision_total_pendiente))
+            ws_resumen.cell(row=row, column=7, value=float(comision_mensual.comision_total))
+            
+            # Aplicar formato
+            for col in range(1, 8):
+                cell = ws_resumen.cell(row=row, column=col)
+                cell.border = border
+                if col in [2, 4, 5, 6, 7]:  # Columnas numéricas
+                    cell.number_format = '#,##0.00'
+                    cell.alignment = Alignment(horizontal='right')
+                else:
+                    cell.alignment = Alignment(horizontal='left')
+            
+            # Colorear comisión pagada y pendiente
+            ws_resumen.cell(row=row, column=5).fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+            ws_resumen.cell(row=row, column=6).fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+            ws_resumen.cell(row=row, column=7).fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+            
+            # Acumular totales
+            total_general_ventas += comision_mensual.total_ventas_mes
+            total_general_pagada += comision_mensual.comision_total_pagada
+            total_general_pendiente += comision_mensual.comision_total_pendiente
+            total_general_comision += comision_mensual.comision_total
+            total_general_bono += comision_mensual.bono_extra
+            vendedores_con_datos += 1
+        
+        # Verificar si hay datos
+        logger.info(f"Vendedores con datos: {vendedores_con_datos}")
+        if vendedores_con_datos == 0:
+            messages.warning(request, f"No hay comisiones calculadas para {datetime.datetime(anio_filtro, mes_filtro, 1).strftime('%B %Y')}. Por favor, recalcula las comisiones primero.")
+            if 'reporte_comisiones' in request.META.get('HTTP_REFERER', ''):
+                return redirect('reporte_comisiones')
+            return redirect('comisiones_mensuales')
+        
+        # Fila de totales
+        row += 1
+        ws_resumen.cell(row=row, column=1, value="TOTAL GENERAL").font = Font(bold=True, size=12)
+        ws_resumen.cell(row=row, column=2, value=float(total_general_ventas)).font = Font(bold=True)
+        ws_resumen.cell(row=row, column=3, value="-").font = Font(bold=True)
+        ws_resumen.cell(row=row, column=4, value=float(total_general_bono)).font = Font(bold=True)
+        ws_resumen.cell(row=row, column=5, value=float(total_general_pagada)).font = Font(bold=True)
+        ws_resumen.cell(row=row, column=6, value=float(total_general_pendiente)).font = Font(bold=True)
+        ws_resumen.cell(row=row, column=7, value=float(total_general_comision)).font = Font(bold=True, size=12)
+        
+        # Aplicar formato a totales
+        for col in range(1, 8):
+            cell = ws_resumen.cell(row=row, column=col)
+            cell.border = border
+            cell.fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+            if col in [2, 4, 5, 6, 7]:
+                cell.number_format = '#,##0.00'
+                cell.alignment = Alignment(horizontal='right')
+        
+        # Ajustar ancho de columnas (Resumen)
+        ws_resumen.column_dimensions['A'].width = 30
+        ws_resumen.column_dimensions['B'].width = 18
+        ws_resumen.column_dimensions['C'].width = 12
+        ws_resumen.column_dimensions['D'].width = 15
+        ws_resumen.column_dimensions['E'].width = 18
+        ws_resumen.column_dimensions['F'].width = 18
+        ws_resumen.column_dimensions['G'].width = 18
+        
+        # ===== HOJA 2: DETALLE POR VENTA (TODOS LOS VENDEDORES) =====
+        ws_detalle = wb.create_sheet("Detalle por Venta")
+        
+        # Título
+        ws_detalle['A1'] = f"Detalle de Comisiones por Venta - Todos los Vendedores"
+        ws_detalle['A1'].font = title_font
+        ws_detalle.merge_cells('A1:J1')
+        
+        # Información del período
+        ws_detalle['A3'] = f"Período: {datetime.datetime(anio_filtro, mes_filtro, 1).strftime('%B %Y')}"
+        ws_detalle['A3'].font = Font(bold=True)
+        
+        # Encabezados de detalle
+        row = 5
+        headers_detalle = [
+            'Vendedor', 'Venta #', 'Cliente', 'Tipo', 'Monto Base', 
+            'Porcentaje', 'Comisión Calculada', 'Estado Pago', 'Comisión Pagada', 'Comisión Pendiente'
+        ]
+        for col, header in enumerate(headers_detalle, 1):
+            cell = ws_detalle.cell(row=row, column=col, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = border
+        
+        # Obtener todas las comisiones de ventas ordenadas por vendedor y fecha
+        todas_comisiones_ventas = ComisionVenta.objects.filter(
+            vendedor__in=vendedores,
+            mes=mes_filtro,
+            anio=anio_filtro
+        ).select_related('vendedor', 'venta', 'venta__cliente').order_by('vendedor__username', 'venta__fecha_creacion')
+        
+        # Datos de detalle
+        for comision_venta in todas_comisiones_ventas:
+            row += 1
+            venta = comision_venta.venta
+            nombre_vendedor = comision_venta.vendedor.get_full_name() or comision_venta.vendedor.username
+            
+            ws_detalle.cell(row=row, column=1, value=nombre_vendedor)
+            ws_detalle.cell(row=row, column=2, value=venta.pk)
+            ws_detalle.cell(row=row, column=3, value=venta.cliente.nombre_completo_display)
+            ws_detalle.cell(row=row, column=4, value=comision_venta.get_tipo_venta_display())
+            ws_detalle.cell(row=row, column=5, value=float(comision_venta.monto_base_comision))
+            ws_detalle.cell(row=row, column=6, value=f"{comision_venta.porcentaje_aplicado:.2f}%")
+            ws_detalle.cell(row=row, column=7, value=float(comision_venta.comision_calculada))
+            ws_detalle.cell(row=row, column=8, value=comision_venta.get_estado_pago_venta_display())
+            ws_detalle.cell(row=row, column=9, value=float(comision_venta.comision_pagada))
+            ws_detalle.cell(row=row, column=10, value=float(comision_venta.comision_pendiente))
+            
+            # Aplicar formato
+            for col in range(1, 11):
+                cell = ws_detalle.cell(row=row, column=col)
+                cell.border = border
+                if col in [5, 7, 9, 10]:  # Columnas numéricas
+                    cell.number_format = '#,##0.00'
+                    cell.alignment = Alignment(horizontal='right')
+                else:
+                    cell.alignment = Alignment(horizontal='left')
+        
+        # Totales por vendedor en detalle
+        row += 2
+        ws_detalle.cell(row=row, column=1, value="TOTALES POR VENDEDOR").font = Font(bold=True, size=12)
+        ws_detalle.merge_cells(f'A{row}:D{row}')
+        
+        for vendedor in vendedores:
+            comisiones_vendedor = todas_comisiones_ventas.filter(vendedor=vendedor)
+            if comisiones_vendedor.exists():
+                row += 1
+                nombre_vendedor = vendedor.get_full_name() or vendedor.username
+                total_pagada_v = sum(c.comision_pagada for c in comisiones_vendedor)
+                total_pendiente_v = sum(c.comision_pendiente for c in comisiones_vendedor)
+                total_v = total_pagada_v + total_pendiente_v
+                
+                ws_detalle.cell(row=row, column=1, value=nombre_vendedor).font = Font(bold=True)
+                ws_detalle.cell(row=row, column=7, value=float(total_pagada_v + total_pendiente_v)).font = Font(bold=True)
+                ws_detalle.cell(row=row, column=9, value=float(total_pagada_v)).font = Font(bold=True)
+                ws_detalle.cell(row=row, column=10, value=float(total_pendiente_v)).font = Font(bold=True)
+                
+                for col in [7, 9, 10]:
+                    cell = ws_detalle.cell(row=row, column=col)
+                    cell.number_format = '#,##0.00'
+                    cell.border = border
+        
+        # Ajustar ancho de columnas (Detalle)
+        ws_detalle.column_dimensions['A'].width = 25
+        ws_detalle.column_dimensions['B'].width = 10
+        ws_detalle.column_dimensions['C'].width = 30
+        ws_detalle.column_dimensions['D'].width = 15
+        ws_detalle.column_dimensions['E'].width = 15
+        ws_detalle.column_dimensions['F'].width = 12
+        ws_detalle.column_dimensions['G'].width = 18
+        ws_detalle.column_dimensions['H'].width = 15
+        ws_detalle.column_dimensions['I'].width = 18
+        ws_detalle.column_dimensions['J'].width = 18
+        
+        # Preparar respuesta
+        try:
+            nombre_mes = datetime.datetime(anio_filtro, mes_filtro, 1).strftime('%B_%Y')
+            filename = f"comisiones_todos_vendedores_{nombre_mes}.xlsx"
+            
+            response = HttpResponse(
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            
+            wb.save(response)
+            return response
+        except Exception as e:
+            logger.error(f"Error al generar Excel de comisiones: {e}", exc_info=True)
+            messages.error(request, f"Error al generar el archivo Excel: {str(e)}")
+            if 'reporte_comisiones' in request.META.get('HTTP_REFERER', ''):
+                return redirect('reporte_comisiones')
+            return redirect('comisiones_mensuales')
+
+# ------------------- 12. REPORTE DE COMISIONES POR VENDEDOR (LEGACY) -------------------
 
 def calcular_comision_por_tipo(total_ventas, tipo_vendedor):
     """
@@ -3145,6 +3820,21 @@ class ComisionesVendedoresView(LoginRequiredMixin, TemplateView):
         context['lista_comisiones'] = lista_comisiones
         context['titulo_reporte'] = "Reporte de Comisiones de Ventas"
         context['user_rol'] = user_rol
+        
+        # Agregar mes y año del request para el botón de exportación
+        mes_actual = timezone.now().month
+        anio_actual = timezone.now().year
+        context['mes_filtro'] = int(self.request.GET.get('mes', mes_actual))
+        context['anio_filtro'] = int(self.request.GET.get('anio', anio_actual))
+        
+        # Generar fecha_desde para mostrar en el template
+        from datetime import date
+        try:
+            fecha_desde = date(context['anio_filtro'], context['mes_filtro'], 1)
+            context['fecha_desde'] = fecha_desde
+        except (ValueError, TypeError):
+            fecha_desde = date(anio_actual, mes_actual, 1)
+            context['fecha_desde'] = fecha_desde
         
         return context
 
