@@ -14,14 +14,12 @@
     /* CONFIGURACIÓN CON MEMBRETE (FONDO COMPLETO) */
     @page {
         size: letter;
-        margin: 0; /* IMPORTANTE: Margen 0 para que la imagen toque los bordes */
-        
-        /* Imagen de fondo cubriendo toda la hoja */
-        background-image: url("{{ membrete_url }}");
-        background-position: center;
-        background-repeat: no-repeat;
-        background-size: cover; /* cover asegura que llene toda la hoja sin deformarse */
+        /* Márgenes de seguridad: Arriba, Derecha, Abajo, Izquierda */
+        /* Margen inferior aumentado a 3.0cm para recortar un renglón al final de cada página */
+        margin: 3.5cm 2.0cm 3.0cm 2.0cm;
+        /* NOTA: background-image se maneja en body::before para full-bleed */
     }
+    
 {% else %}
     /* CONFIGURACIÓN SIN MEMBRETE (DEFAULT) */
     @page {
@@ -75,6 +73,28 @@
     box-sizing: border-box;
 }
 
+/* Fondo Fijo Full-Bleed: El membrete cubre toda la hoja usando body::before */
+{% if membrete_url %}
+body::before {
+    content: "";
+    display: block;
+    position: fixed;
+    /* Coordenadas negativas iguales a los márgenes de @page para llegar al borde */
+    /* Actualizado bottom a -3.0cm para coincidir con el nuevo margen inferior */
+    top: -3.5cm;
+    left: -2.0cm;
+    right: -2.0cm;
+    bottom: -3.0cm;
+    z-index: -1000; /* Detrás de todo */
+    
+    /* Propiedades del fondo del membrete */
+    background-image: url("{{ membrete_url }}");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+}
+{% endif %}
+
 body {
     font-family: 'Pangea', 'Arial', 'Helvetica', 'Segoe UI', sans-serif;
     font-size: 9pt;
@@ -85,12 +105,9 @@ body {
     min-height: 100vh;
     box-sizing: border-box;
     
-    /* NUEVO: Padding para proteger el contenido de tocar los bordes del membrete */
-    /* Ajusta estos valores según qué tan gruesos sean los bordes de tu imagen */
-    padding-top: 3.5cm;    /* Espacio para el logo superior */
-    padding-bottom: 2.5cm; /* Espacio para el pie de página */
-    padding-left: 2.0cm;   /* Espacio lateral */
-    padding-right: 2.0cm;  /* Espacio lateral */
+    /* Los márgenes se controlan desde @page, el body no tiene padding ni margin */
+    padding: 0;
+    margin: 0;
 }
 
 /* ============================================
@@ -117,6 +134,27 @@ body {
     gap: 6px;
 }
 
+/* Para cotizaciones genéricas, permitir flujo libre */
+.cotizacion-generica .cotizacion-container {
+    display: block !important; /* Cambiar a block para mejor flujo */
+    gap: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+}
+
+
+.cotizacion-generica .content-wrapper {
+    padding-top: 48px !important; /* Solo el spacer-top */
+    padding-bottom: 0 !important;
+    margin-bottom: 0 !important; /* Sin margen inferior adicional */
+    page-break-inside: auto !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+}
+
 /* Spacer para separar el contenido del membrete */
 .spacer-top {
     height: 48px; /* 2 saltos de línea adicionales (24px cada uno) */
@@ -129,11 +167,26 @@ body {
     box-sizing: border-box;
 }
 
+/* Para cotizaciones genéricas, no forzar salto de página */
+.cotizacion-generica .content-page-wrapper {
+    page-break-before: auto !important; /* No forzar salto */
+    break-before: auto !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    overflow: visible !important;
+}
+
 /* Wrapper para el contenido (vuelos, hoteles, etc.) con espacio superior */
 .content-wrapper {
     padding-top: 168px; /* 7 saltos de línea (24px cada uno = 168px) */
     padding-bottom: 0;
     box-sizing: border-box;
+}
+
+/* Para cotizaciones genéricas, reducir padding superior y permitir flujo */
+/* Aplicar cuando hay card-generica dentro */
+.content-wrapper .card-generica {
+    /* El card-generica ya tiene sus propias reglas */
 }
 
 /* Ajuste específico para cotizaciones de paquetes: menos espacio en la segunda página */
@@ -163,6 +216,13 @@ body {
     margin-top: 0;
     margin-bottom: 8px; /* Espaciado reducido a la mitad entre cards (16px → 8px) */
 }
+
+/* Excepción: cards genéricas pueden partirse */
+.card.card-generica {
+    page-break-inside: auto !important;
+    page-break-after: auto !important;
+}
+
 
 .info-section {
     page-break-before: auto;
@@ -200,6 +260,122 @@ body {
     max-width: 100%;
     box-sizing: border-box;
     overflow: hidden; /* Asegurar que el contenido respete el border-radius */
+}
+
+/* Excepción VITAL para cotizaciones genéricas con texto largo */
+/* SOBRESCRIBIR COMPLETAMENTE todas las reglas de .card para permitir flujo entre páginas */
+.card.card-generica {
+    display: block !important;
+    background: white !important;
+    border: none !important;
+    border-radius: 0 !important; /* Sin bordes redondeados para evitar problemas de overflow */
+    padding: 0 !important;
+    margin: 0 !important; /* Sin márgenes que interfieran */
+    box-shadow: none !important; /* Sin sombra */
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: visible !important; /* CRÍTICO: Permitir que el contenido fluya */
+    page-break-inside: auto !important; /* CRÍTICO: Permitir que se parta entre páginas */
+    page-break-before: auto !important;
+    page-break-after: auto !important;
+}
+
+.card.card-generica .card-header {
+    page-break-after: avoid !important; /* Mantener header con el contenido */
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+.card.card-generica .contenido-generica {
+    page-break-inside: auto !important; /* Permitir saltos dentro del contenedor */
+    display: block !important; /* Asegurar flujo normal de bloque */
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+}
+
+.card.card-generica .contenido-generica-texto {
+    page-break-inside: auto !important; /* Permitir saltos dentro del texto */
+    page-break-before: auto !important;
+    page-break-after: auto !important;
+    display: block !important; /* Asegurar flujo normal de bloque */
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+}
+
+/* DISEÑO VERTICAL SIMPLE Y ROBUSTO PARA TEXTO LARGO */
+.contenido-generica {
+    display: block !important;
+    width: 100% !important;
+    padding: 20px !important;
+    margin: 0 !important; /* Sin márgenes */
+    box-sizing: border-box !important;
+    page-break-inside: auto !important; /* Permitir que se parta entre páginas */
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+}
+
+.contenido-generica-label {
+    display: block !important; /* Título en su propia línea */
+    width: 100%;
+    margin-bottom: 10px;
+    font-size: 10pt;
+    color: #2d3748;
+    font-weight: bold;
+    page-break-after: avoid !important; /* Mantener el título con el texto */
+}
+
+.contenido-generica-texto {
+    display: block !important; /* Texto debajo, ocupando todo el ancho */
+    width: 100% !important;
+    font-size: 9pt;
+    line-height: 1.6;
+    color: #4a5568;
+    text-align: justify; /* Justificado para mejor lectura */
+    margin: 0 !important; /* Sin márgenes */
+    padding: 0 !important; /* Sin padding */
+    
+    /* PROPIEDADES CRÍTICAS PARA PAGINACIÓN Y FLUJO ENTRE PÁGINAS */
+    /* Usar ambas sintaxis (antigua y moderna) para máxima compatibilidad */
+    page-break-inside: auto !important;
+    break-inside: auto !important; /* Sintaxis moderna CSS3 */
+    page-break-before: auto !important;
+    break-before: auto !important;
+    page-break-after: auto !important;
+    break-after: auto !important;
+    overflow: visible !important;
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    
+    /* Propiedades para controlar el flujo de texto entre páginas */
+    orphans: 1 !important; /* Mínimo 1 línea (muy permisivo para mejor flujo) */
+    widows: 1 !important; /* Mínimo 1 línea (muy permisivo para mejor flujo) */
+}
+
+/* Asegurar que los párrafos dentro del texto también puedan partirse */
+.contenido-generica-texto p {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    margin: 0 0 8px 0 !important; /* Espaciado mínimo entre párrafos */
+    padding: 0 !important;
+    overflow: visible !important;
+}
+
+.contenido-generica-texto p:last-child {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
 }
 
 /* Mantener header y total juntos con la tabla */
@@ -680,6 +856,9 @@ body {
     vertical-align: middle;
     line-height: 1.3 !important; /* Line-height más compacto para paquetes */
     page-break-inside: avoid;
+    word-wrap: break-word; /* Permitir que el texto largo se ajuste */
+    overflow-wrap: break-word; /* Asegurar que el texto largo se ajuste */
+    white-space: normal; /* Permitir saltos de línea */
 }
 
 .data-table td:first-child {
@@ -890,8 +1069,8 @@ body {
 /* ============================================
    EVITAR SALTOS DE PÁGINA - REGLAS MEJORADAS
    ============================================ */
-/* Mantener cards completas sin partirse */
-.card {
+/* Mantener cards completas sin partirse (excepto genéricas) */
+.card:not(.card-generica) {
     page-break-inside: avoid;
     page-break-after: avoid;
 }
@@ -957,7 +1136,7 @@ strong {
 }
     </style>
 </head>
-<body{% if tipo == 'paquete' %} class="cotizacion-paquete"{% endif %}>
+<body{% if tipo == 'paquete' %} class="cotizacion-paquete"{% elif tipo == 'generica' %} class="cotizacion-generica"{% endif %}>
     {% include "ventas/pdf/components/header.html" %}
     
     <div class="cotizacion-container">

@@ -77,10 +77,12 @@
                 <td>📝 Fecha de Cotización:</td>
                 <!-- FIN: Iconos en labels (PRUEBA - fácil de revertir) -->
                 <td>
-                    {% if cotizacion.propuestas.fecha_cotizacion %}
-                        {{ cotizacion.propuestas.fecha_cotizacion|date:"d/m/Y" }}
-                    {% else %}
+                    {% if fecha_cotizacion %}
+                        {{ fecha_cotizacion|date:"d/m/Y" }}
+                    {% elif cotizacion.creada_en %}
                         {{ cotizacion.creada_en|date:"d/m/Y" }}
+                    {% else %}
+                        -
                     {% endif %}
                 </td>
             </tr>
@@ -99,10 +101,12 @@
                 <div class="sidebar-card-item">
                     <div class="sidebar-card-label">Fecha de Cotización</div>
                     <div class="sidebar-card-value">
-                        {% if cotizacion.propuestas.fecha_cotizacion %}
-                            {{ cotizacion.propuestas.fecha_cotizacion|date:"d/m/Y" }}
-                        {% else %}
+                        {% if fecha_cotizacion %}
+                            {{ fecha_cotizacion|date:"d/m/Y" }}
+                        {% elif cotizacion.creada_en %}
                             {{ cotizacion.creada_en|date:"d/m/Y" }}
+                        {% else %}
+                            -
                         {% endif %}
                     </div>
                 </div>
