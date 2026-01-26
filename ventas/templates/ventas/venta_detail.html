@@ -214,6 +214,25 @@
                                         {% else %}
                                             <span class="badge bg-danger fs-6">Cancelada</span>
                                         {% endif %}
+                                        {% if solicitud_cancelacion %}
+                                            <br>
+                                            <small class="text-muted">Solicitud:</small>
+                                            {% if solicitud_cancelacion.estado == 'PENDIENTE' %}
+                                                {% if puede_aprobar_rechazar_cancelacion %}
+                                                    <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#revisarSolicitudCancelacionModal">
+                                                        <i class="fas fa-eye me-1"></i> Pendiente
+                                                    </button>
+                                                {% else %}
+                                                    <span class="badge bg-warning">Pendiente</span>
+                                                {% endif %}
+                                            {% elif solicitud_cancelacion.estado == 'APROBADA' %}
+                                                <span class="badge bg-success">Aprobada</span>
+                                            {% elif solicitud_cancelacion.estado == 'RECHAZADA' %}
+                                                <span class="badge bg-danger">Rechazada</span>
+                                            {% elif solicitud_cancelacion.estado == 'CANCELADA' %}
+                                                <span class="badge bg-secondary">Cancelada</span>
+                                            {% endif %}
+                                        {% endif %}
                                     </div>
                                     <div class="col-md-3">
                                         <strong class="text-muted d-block mb-1">Tipo de Viaje:</strong>
@@ -240,6 +259,111 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Acciones de Cancelación -->
+                {% if puede_cancelar_definitivamente or puede_reciclar_venta %}
+                <div class="row g-3 mb-4">
+                    <div class="col-12">
+                        <div class="card shadow-sm border-warning">
+                            <div class="card-header bg-warning text-dark">
+                                <i class="fas fa-exclamation-triangle me-2"></i>Acciones de Cancelación
+                            </div>
+                            <div class="card-body">
+                                {% if puede_cancelar_definitivamente %}
+                                <p class="mb-3">
+                                    <i class="fas fa-info-circle me-2 text-info"></i>
+                                    Tu solicitud de cancelación ha sido aprobada. Puedes proceder con la cancelación definitiva de la venta.
+                                </p>
+                                <form method="post" action="{% url 'cancelar_venta' pk=venta.pk %}" onsubmit="return confirm('¿Estás seguro de que deseas cancelar definitivamente esta venta? Esta acción revertirá KM Movums, promociones y comisiones.');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-danger">
+                                        <i class="fas fa-times-circle me-2"></i>Cancelar Venta Definitivamente
+                                    </button>
+                                </form>
+                                {% elif puede_reciclar_venta %}
+                                <p class="mb-3">
+                                    <i class="fas fa-recycle me-2 text-success"></i>
+                                    Esta venta ha sido cancelada. Puedes reciclar la venta para crear una nueva venta con los datos de esta venta cancelada (cliente, pasajeros, abonos, etc.).
+                                </p>
+                                <form method="post" action="{% url 'reciclar_venta' pk=venta.pk %}" onsubmit="return confirm('¿Estás seguro de que deseas reciclar esta venta? Se creará una nueva venta con los datos de esta venta cancelada.');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="fas fa-recycle me-2"></i>Reciclar Venta
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Resumen Financiero (solo si está cancelada) -->
+                {% if venta.estado == 'CANCELADA' and resumen_financiero %}
+                <div class="row g-3 mb-4">
+                    <div class="col-12">
+                        <div class="card shadow-sm border-info">
+                            <div class="card-header bg-info text-white">
+                                <i class="fas fa-money-bill-wave me-2"></i>Resumen Financiero
+                            </div>
+                            <div class="card-body">
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <strong class="text-muted d-block mb-1">Total de Abonos:</strong>
+                                        <span class="fs-5 text-primary">{{ resumen_financiero.total_abonos }}</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <strong class="text-muted d-block mb-1">Monto Total Abonado:</strong>
+                                        <span class="fs-5 text-success">${{ resumen_financiero.monto_total_abonos|floatformat:2|intcomma }}</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <strong class="text-muted d-block mb-1">Monto de Apertura:</strong>
+                                        <span class="fs-5 text-info">${{ resumen_financiero.monto_apertura|floatformat:2|intcomma }}</span>
+                                    </div>
+                                    <div class="col-md-12">
+                                        <strong class="text-muted d-block mb-2">Total Pagado:</strong>
+                                        <span class="fs-4 fw-bold text-success">${{ resumen_financiero.total_pagado|floatformat:2|intcomma }}</span>
+                                    </div>
+                                    {% if resumen_financiero.abonos_detalle %}
+                                    <div class="col-md-12">
+                                        <hr>
+                                        <strong class="text-muted d-block mb-2">Desglose de Abonos:</strong>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-bordered">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Fecha</th>
+                                                        <th>Monto</th>
+                                                        <th>Forma de Pago</th>
+                                                        <th>Estado</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for abono in resumen_financiero.abonos_detalle %}
+                                                    <tr>
+                                                        <td>{{ abono.fecha|date:"d/m/Y H:i" }}</td>
+                                                        <td>${{ abono.monto|floatformat:2|intcomma }}</td>
+                                                        <td>{{ abono.forma_pago }}</td>
+                                                        <td>
+                                                            {% if abono.confirmado %}
+                                                                <span class="badge bg-success">Confirmado</span>
+                                                            {% else %}
+                                                                <span class="badge bg-warning">Pendiente</span>
+                                                            {% endif %}
+                                                        </td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
 
                 <!-- Información del Cliente -->
                 <div class="row g-3 mb-4">
@@ -1362,6 +1486,120 @@
     </div>
     {% endif %}
 {% endfor %}
+
+{# Modal para Revisar Solicitud de Cancelación (solo para director) #}
+{% if solicitud_cancelacion and solicitud_cancelacion.estado == 'PENDIENTE' and puede_aprobar_rechazar_cancelacion %}
+<div class="modal fade" id="revisarSolicitudCancelacionModal" tabindex="-1" aria-labelledby="revisarSolicitudCancelacionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="revisarSolicitudCancelacionModalLabel">
+                    <i class="fas fa-clipboard-list me-2"></i>Revisar Solicitud de Cancelación
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong class="text-muted d-block mb-1">Venta:</strong>
+                        <span class="badge bg-primary fs-6">#{{ venta.folio|default:venta.pk }}</span>
+                    </div>
+                    <div class="col-md-6">
+                        <strong class="text-muted d-block mb-1">Cliente:</strong>
+                        <span>{{ venta.cliente.nombre_completo_display }}</span>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong class="text-muted d-block mb-1">Vendedor:</strong>
+                        <span>
+                            {% if venta.vendedor.get_full_name %}
+                                {{ venta.vendedor.get_full_name }} ({{ venta.vendedor.username }})
+                            {% else %}
+                                {{ venta.vendedor.username }}
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="col-md-6">
+                        <strong class="text-muted d-block mb-1">Fecha de Solicitud:</strong>
+                        <span>{{ solicitud_cancelacion.fecha_solicitud|date:"d/m/Y H:i" }}</span>
+                    </div>
+                </div>
+                <hr>
+                <div class="mb-3">
+                    <strong class="text-muted d-block mb-2">
+                        <i class="fas fa-comment-alt me-2"></i>Motivo de la Cancelación:
+                    </strong>
+                    <div class="alert alert-light border" style="min-height: 100px; white-space: pre-wrap; word-wrap: break-word;">
+                        {{ solicitud_cancelacion.motivo }}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i> Cerrar
+                </button>
+                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#modalRechazarCancelacion" data-bs-dismiss="modal">
+                    <i class="fas fa-times-circle me-1"></i> Rechazar
+                </button>
+                <form method="post" action="{% url 'aprobar_cancelacion' pk=solicitud_cancelacion.pk %}" style="display: inline;" onsubmit="return confirm('¿Estás seguro de que deseas aprobar esta solicitud de cancelación?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-check-circle me-1"></i> Aprobar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Modal para Rechazar Cancelación (con motivo) #}
+<div class="modal fade" id="modalRechazarCancelacion" tabindex="-1" aria-labelledby="modalRechazarCancelacionLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="modalRechazarCancelacionLabel">
+                    <i class="fas fa-times-circle me-2"></i>Rechazar Solicitud de Cancelación
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'rechazar_cancelacion' pk=solicitud_cancelacion.pk %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <p>¿Estás seguro de que deseas rechazar esta solicitud de cancelación?</p>
+                    <div class="mb-3">
+                        <label for="motivo_rechazo" class="form-label fw-bold">
+                            <i class="fas fa-comment-alt me-2"></i>Motivo del Rechazo <span class="text-danger">*</span>
+                        </label>
+                        <textarea 
+                            class="form-control" 
+                            id="motivo_rechazo" 
+                            name="motivo_rechazo" 
+                            rows="4" 
+                            placeholder="Proporciona el motivo del rechazo (mínimo 10 caracteres)..." 
+                            required
+                            minlength="10"
+                            style="resize: vertical;"></textarea>
+                        <small class="form-text text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            El vendedor recibirá una notificación con este motivo.
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-times-circle me-1"></i> Rechazar Solicitud
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% endblock modals %}
 
 {% block extra_js %}
