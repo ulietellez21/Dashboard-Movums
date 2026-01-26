@@ -17,7 +17,7 @@
 {# Filtros por mes y año #}
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-body">
-        <form method="get" action="{% url 'detalle_comisiones' vendedor.pk %}" class="row g-3 align-items-end">
+        <form method="get" action="{% url 'detalle_comisiones' vendedor.pk %}" class="row g-3 align-items-end" id="filtroForm">
             <div class="col-md-4">
                 <label for="mes" class="form-label fw-bold">Mes</label>
                 <select name="mes" id="mes" class="form-select">
@@ -69,6 +69,14 @@
             <div class="card-body text-center">
                 <h5 class="text-muted mb-2">Comisión Total</h5>
                 <h3 class="text-success mb-0">${{ comision_total|floatformat:2|intcomma }}</h3>
+                <small class="text-muted">Porcentaje: {{ porcentaje_comision|floatformat:2 }}%</small>
+                {% if porcentaje_ajustado_manual %}
+                <div class="mt-2">
+                    <span class="badge bg-warning text-dark">
+                        <i class="fas fa-edit me-1"></i>Ajustado Manualmente
+                    </span>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -81,6 +89,97 @@
         </div>
     </div>
 </div>
+
+{# Formulario de Asignación Manual para ISLA #}
+{% if tipo_vendedor == 'ISLA' and puede_ajustar_comision %}
+<div class="card shadow-sm border-warning mb-4">
+    <div class="card-header bg-warning text-dark">
+        <i class="fas fa-edit me-2"></i>
+        <strong>Asignar Porcentaje de Comisión (Asesores de Isla)</strong>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-warning mb-3">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Importante:</strong> Los Asesores de Isla NO utilizan el sistema escalonado automático. Su porcentaje de comisión debe ser asignado <strong>manualmente por el JEFE o CONTADOR</strong>. Si no se asigna un porcentaje, la comisión será 0%.
+        </div>
+        {% if porcentaje_ajustado_manual %}
+        <div class="alert alert-info mb-3">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Porcentaje asignado:</strong> {{ porcentaje_ajustado_manual|floatformat:2 }}%
+            {% if comision_mensual.ajustado_por %}
+            <br>
+            <small>Asignado por: <strong>{{ comision_mensual.ajustado_por.get_full_name|default:comision_mensual.ajustado_por.username }}</strong> 
+            el {{ comision_mensual.fecha_ajuste|date:"d/m/Y H:i" }}</small>
+            {% endif %}
+            {% if comision_mensual.nota_ajuste %}
+            <br>
+            <small><strong>Nota:</strong> {{ comision_mensual.nota_ajuste }}</small>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="alert alert-danger mb-3">
+            <i class="fas fa-exclamation-circle me-2"></i>
+            <strong>No hay porcentaje asignado.</strong> Por favor, asigne un porcentaje de comisión para este vendedor.
+        </div>
+        {% endif %}
+        <form method="post" action="{% url 'ajustar_comision_isla' vendedor.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="mes" value="{{ mes_filtro }}">
+            <input type="hidden" name="anio" value="{{ anio_filtro }}">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label for="porcentaje_ajustado" class="form-label fw-bold">
+                        Porcentaje de Comisión (%)
+                    </label>
+                    <input type="number" 
+                           class="form-control" 
+                           id="porcentaje_ajustado" 
+                           name="porcentaje_ajustado" 
+                           step="0.01" 
+                           min="0" 
+                           max="100" 
+                           value="{% if porcentaje_ajustado_manual %}{{ porcentaje_ajustado_manual|floatformat:2 }}{% else %}0.00{% endif %}"
+                           required>
+                    <div class="form-text">
+                        Ingrese el porcentaje de comisión que desea asignar a este vendedor.
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label for="nota_ajuste" class="form-label fw-bold">
+                        Nota del Ajuste (Opcional)
+                    </label>
+                    <textarea class="form-control" 
+                              id="nota_ajuste" 
+                              name="nota_ajuste" 
+                              rows="2" 
+                              placeholder="Justificación o motivo de la asignación de comisión...">{% if comision_mensual.nota_ajuste %}{{ comision_mensual.nota_ajuste }}{% endif %}</textarea>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-warning w-100">
+                        <i class="fas fa-save me-2"></i>Asignar Comisión
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% elif tipo_vendedor == 'ISLA' %}
+<div class="card shadow-sm border-info mb-4">
+    <div class="card-header bg-info text-white">
+        <i class="fas fa-info-circle me-2"></i>
+        <strong>Información sobre Comisiones de Asesores de Isla</strong>
+    </div>
+    <div class="card-body">
+        <p class="mb-2">Los Asesores de Isla utilizan un sistema de comisiones <strong>100% manual</strong>. El porcentaje de comisión debe ser asignado por el <strong>JEFE o CONTADOR</strong> desde esta página.</p>
+        {% if not porcentaje_ajustado_manual %}
+        <div class="alert alert-warning mb-0">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>No hay porcentaje asignado.</strong> Contacte al JEFE o CONTADOR para que asigne su porcentaje de comisión.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
 
 {# Detalle Ventas Nacionales #}
 {% if comision_nacionales and comision_nacionales.detalle %}

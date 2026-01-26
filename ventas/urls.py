@@ -12,6 +12,7 @@ from .views import (
     ComisionesVendedoresView,
     DetalleComisionesView,
     ExportarComisionesExcelView,
+    AjustarComisionIslaView,
     # Nuevas vistas de comisiones robustas
     ComisionesMensualesView,
     DetalleComisionesMensualesView,
@@ -85,6 +86,7 @@ urlpatterns = [
     path('comisiones/', ComisionesVendedoresView.as_view(), name='reporte_comisiones'),
     path('comisiones/<int:pk>/detalle/', DetalleComisionesView.as_view(), name='detalle_comisiones'),
     path('comisiones/<int:pk>/exportar-excel/', ExportarComisionesExcelView.as_view(), name='exportar_comisiones_excel'),
+    path('comisiones/<int:pk>/ajustar-isla/', AjustarComisionIslaView.as_view(), name='ajustar_comision_isla'),
     # Comisiones Mensuales (Sistema Robusto - MOSTRADOR)
     path('comisiones-mensuales/', ComisionesMensualesView.as_view(), name='comisiones_mensuales'),
     path('comisiones-mensuales/<int:pk>/detalle/', DetalleComisionesMensualesView.as_view(), name='detalle_comisiones_mensuales'),

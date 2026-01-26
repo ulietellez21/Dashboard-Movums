@@ -17,7 +17,7 @@ from django.utils import timezone
 from django.utils import formats  # Para formatear fechas en el PDF
 # IMPORTACIÓN CLAVE: Necesaria para generar slugs automáticamente
 from django.utils.text import slugify 
-from datetime import timedelta 
+from datetime import timedelta, date
 from collections import Counter
 import math, re, logging, secrets, json, io, os
 import datetime # Necesario para el contexto del PDF (campo now)
@@ -4169,6 +4169,24 @@ class ComisionesVendedoresView(LoginRequiredMixin, TemplateView):
         # así que obtenemos todas las ventas y luego filtramos en Python
         ventas_base = self.get_queryset_base()
 
+        # Obtener mes y año del filtro ANTES del bucle
+        mes_actual = timezone.now().month
+        anio_actual = timezone.now().year
+        
+        # Manejar parámetros vacíos o inválidos
+        mes_param = self.request.GET.get('mes', '').strip()
+        anio_param = self.request.GET.get('anio', '').strip()
+        
+        try:
+            mes_filtro = int(mes_param) if mes_param else mes_actual
+        except (ValueError, TypeError):
+            mes_filtro = mes_actual
+        
+        try:
+            anio_filtro = int(anio_param) if anio_param else anio_actual
+        except (ValueError, TypeError):
+            anio_filtro = anio_actual
+        
         lista_comisiones = []
         
         for vendedor in vendedores_a_mostrar:
@@ -4182,21 +4200,43 @@ class ComisionesVendedoresView(LoginRequiredMixin, TemplateView):
                 if venta.total_pagado >= venta.costo_total_con_modificacion
             ]
             ejecutivo = getattr(vendedor, 'ejecutivo_asociado', None)
-            sueldo_base = ejecutivo.sueldo_base if ejecutivo and ejecutivo.sueldo_base else self.SUELDO_BASE
 
             # Obtener tipo de vendedor (por defecto MOSTRADOR si no tiene ejecutivo asociado)
             tipo_vendedor = ejecutivo.tipo_vendedor if ejecutivo else 'MOSTRADOR'
+            
+            # Sueldo base (ISLA SÍ tiene sueldo base)
+            sueldo_base = ejecutivo.sueldo_base if ejecutivo and ejecutivo.sueldo_base else self.SUELDO_BASE
 
             # Suma el costo final de las ventas pagadas (base para la comisión)
             total_ventas_pagadas = sum(
                 venta.costo_venta_final for venta in ventas_pagadas_vendedor
             ) or Decimal('0.00')
             
-            # CÁLCULO DE COMISIÓN según tipo de vendedor
-            porcentaje_comision, comision_ganada = calcular_comision_por_tipo(
-                total_ventas_pagadas, 
-                tipo_vendedor
-            )
+            # Para ISLA, las comisiones son 100% manuales (no hay cálculo automático)
+            porcentaje_comision = None
+            if tipo_vendedor == 'ISLA':
+                comision_mensual = ComisionMensual.objects.filter(
+                    vendedor=vendedor,
+                    mes=mes_filtro,
+                    anio=anio_filtro,
+                    tipo_vendedor='ISLA'
+                ).first()
+                
+                if comision_mensual and comision_mensual.porcentaje_ajustado_manual:
+                    # Usar porcentaje ajustado manualmente por el JEFE
+                    porcentaje_comision = comision_mensual.porcentaje_ajustado_manual / Decimal('100')
+                    comision_ganada = total_ventas_pagadas * porcentaje_comision
+                else:
+                    # Si no hay porcentaje ajustado, comisión = 0 (debe ser asignada manualmente)
+                    porcentaje_comision = Decimal('0.00')
+                    comision_ganada = Decimal('0.00')
+            else:
+                # Para otros tipos (MOSTRADOR, CAMPO), calcular normalmente
+                porcentaje_comision, comision_ganada = calcular_comision_por_tipo(
+                    total_ventas_pagadas, 
+                    tipo_vendedor
+                )
+            
             ingreso_total = sueldo_base + comision_ganada
 
             lista_comisiones.append({
@@ -4214,24 +4254,8 @@ class ComisionesVendedoresView(LoginRequiredMixin, TemplateView):
         context['lista_comisiones'] = lista_comisiones
         context['titulo_reporte'] = "Reporte de Comisiones de Ventas"
         context['user_rol'] = user_rol
-        
-        # Agregar mes y año del request para el botón de exportación
-        mes_actual = timezone.now().month
-        anio_actual = timezone.now().year
-        
-        # Manejar parámetros vacíos o inválidos
-        mes_param = self.request.GET.get('mes', '').strip()
-        anio_param = self.request.GET.get('anio', '').strip()
-        
-        try:
-            context['mes_filtro'] = int(mes_param) if mes_param else mes_actual
-        except (ValueError, TypeError):
-            context['mes_filtro'] = mes_actual
-        
-        try:
-            context['anio_filtro'] = int(anio_param) if anio_param else anio_actual
-        except (ValueError, TypeError):
-            context['anio_filtro'] = anio_actual
+        context['mes_filtro'] = mes_filtro
+        context['anio_filtro'] = anio_filtro
         
         # Generar fecha_desde para mostrar en el template
         from datetime import date
@@ -7928,13 +7952,61 @@ class DetalleComisionesView(LoginRequiredMixin, TemplateView):
             venta.costo_venta_final for venta in ventas_pagadas
         ) or Decimal('0.00')
         
-        porcentaje_comision, comision_total = calcular_comision_por_tipo(
-            total_ventas_pagadas, 
-            tipo_vendedor
-        )
+        # Obtener mes y año del request para verificar si hay ComisionMensual con ajuste manual
+        mes_actual = timezone.now().month
+        anio_actual = timezone.now().year
         
+        # Manejar parámetros vacíos o inválidos
+        mes_param = self.request.GET.get('mes', '').strip()
+        anio_param = self.request.GET.get('anio', '').strip()
+        
+        try:
+            mes_filtro = int(mes_param) if mes_param else mes_actual
+        except (ValueError, TypeError):
+            mes_filtro = mes_actual
+        
+        try:
+            anio_filtro = int(anio_param) if anio_param else anio_actual
+        except (ValueError, TypeError):
+            anio_filtro = anio_actual
+        
+        # Verificar si existe ComisionMensual para ISLA con ajuste manual
+        comision_mensual = None
+        porcentaje_a_usar = None
+        if tipo_vendedor == 'ISLA':
+            comision_mensual = ComisionMensual.objects.filter(
+                vendedor=vendedor,
+                mes=mes_filtro,
+                anio=anio_filtro,
+                tipo_vendedor='ISLA'
+            ).first()
+            
+            if comision_mensual and comision_mensual.porcentaje_ajustado_manual:
+                # Usar porcentaje ajustado manualmente por el JEFE
+                porcentaje_a_usar = comision_mensual.porcentaje_ajustado_manual / Decimal('100')
+            else:
+                # ISLA no tiene cálculo automático, debe ser asignado manualmente
+                porcentaje_a_usar = Decimal('0.00')
+        else:
+            # Para otros tipos, calcular normalmente
+            porcentaje_a_usar, _ = calcular_comision_por_tipo(
+                total_ventas_pagadas, 
+                tipo_vendedor
+            )
+        
+        # Calcular comisión total con el porcentaje a usar
+        comision_total = total_ventas_pagadas * porcentaje_a_usar
+        
+        # Sueldo base (ISLA SÍ tiene sueldo base)
         sueldo_base = ejecutivo.sueldo_base if ejecutivo and ejecutivo.sueldo_base else Decimal('10000.00')
+        
         ingreso_total = sueldo_base + comision_total
+        
+        # Determinar si se puede ajustar (solo JEFE/CONTADOR para ISLA)
+        puede_ajustar_comision = (
+            tipo_vendedor == 'ISLA' and 
+            user_rol in ['JEFE', 'CONTADOR']
+        )
         
         context.update({
             'vendedor': vendedor,
@@ -7944,12 +8016,187 @@ class DetalleComisionesView(LoginRequiredMixin, TemplateView):
             'user_rol': user_rol,
             'sueldo_base': sueldo_base,
             'total_ventas_pagadas': total_ventas_pagadas,
-            'porcentaje_comision': porcentaje_comision * 100,
+            'porcentaje_comision': porcentaje_a_usar * 100,
             'comision_total': comision_total,
             'ingreso_total': ingreso_total,
+            'mes_filtro': mes_filtro,
+            'anio_filtro': anio_filtro,
+            'comision_mensual': comision_mensual,
+            'puede_ajustar_comision': puede_ajustar_comision,
+            'porcentaje_ajustado_manual': comision_mensual.porcentaje_ajustado_manual if comision_mensual and comision_mensual.porcentaje_ajustado_manual else None,
         })
         
+        # Generar fecha_desde para mostrar en el template
+        try:
+            fecha_desde = date(anio_filtro, mes_filtro, 1)
+            context['fecha_desde'] = fecha_desde
+        except (ValueError, TypeError):
+            fecha_desde = date(anio_actual, mes_actual, 1)
+            context['fecha_desde'] = fecha_desde
+        
         return context
+
+
+class AjustarComisionIslaView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """
+    Vista para ajustar manualmente el porcentaje de comisión para Asesores de Isla.
+    Solo JEFE y CONTADOR pueden realizar ajustes.
+    """
+    
+    def test_func(self):
+        """Solo JEFE y CONTADOR pueden ajustar comisiones."""
+        user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
+        return user_rol in ['JEFE', 'CONTADOR']
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "No tienes permiso para ajustar comisiones.")
+        return redirect('reporte_comisiones')
+    
+    def post(self, request, pk):
+        """Guarda el ajuste manual del porcentaje de comisión."""
+        vendedor = get_object_or_404(User, pk=pk, perfil__rol='VENDEDOR')
+        
+        # Verificar que el vendedor sea ISLA
+        ejecutivo = getattr(vendedor, 'ejecutivo_asociado', None)
+        tipo_vendedor = ejecutivo.tipo_vendedor if ejecutivo else 'MOSTRADOR'
+        
+        if tipo_vendedor != 'ISLA':
+            messages.error(request, "El ajuste manual solo está disponible para Asesores de Isla.")
+            return redirect(f"{reverse('detalle_comisiones', kwargs={'pk': vendedor.pk})}?mes={timezone.now().month}&anio={timezone.now().year}")
+        
+        # Obtener parámetros
+        mes = int(request.POST.get('mes', timezone.now().month))
+        anio = int(request.POST.get('anio', timezone.now().year))
+        porcentaje_ajustado = request.POST.get('porcentaje_ajustado', '').strip()
+        nota_ajuste = request.POST.get('nota_ajuste', '').strip()
+        
+        # Validar porcentaje
+        try:
+            porcentaje_decimal = Decimal(porcentaje_ajustado)
+            if porcentaje_decimal < 0 or porcentaje_decimal > 100:
+                messages.error(request, "El porcentaje debe estar entre 0 y 100.")
+                return redirect(f"{reverse('detalle_comisiones', kwargs={'pk': vendedor.pk})}?mes={mes}&anio={anio}")
+        except (ValueError, InvalidOperation):
+            messages.error(request, "Porcentaje inválido.")
+            return redirect(f"{reverse('detalle_comisiones', kwargs={'pk': vendedor.pk})}?mes={mes}&anio={anio}")
+        
+        # Obtener o crear ComisionMensual
+        comision_mensual, created = ComisionMensual.objects.get_or_create(
+            vendedor=vendedor,
+            mes=mes,
+            anio=anio,
+            tipo_vendedor='ISLA',
+            defaults={
+                'total_ventas_mes': Decimal('0.00'),
+                'porcentaje_comision': Decimal('0.00'),
+                'comision_total': Decimal('0.00'),
+            }
+        )
+        
+        # Si no tiene total_ventas_mes, calcularlo
+        if comision_mensual.total_ventas_mes == Decimal('0.00'):
+            fecha_inicio = date(anio, mes, 1)
+            if mes == 12:
+                fecha_fin = date(anio + 1, 1, 1)
+            else:
+                fecha_fin = date(anio, mes + 1, 1)
+            
+            ventas_mes = VentaViaje.objects.filter(
+                vendedor=vendedor,
+                fecha_creacion__gte=fecha_inicio,
+                fecha_creacion__lt=fecha_fin
+            )
+            total_ventas_mes = sum(venta.costo_venta_final for venta in ventas_mes) or Decimal('0.00')
+            comision_mensual.total_ventas_mes = total_ventas_mes
+        
+        # Actualizar con el ajuste manual
+        comision_mensual.porcentaje_ajustado_manual = porcentaje_decimal
+        comision_mensual.ajustado_por = request.user
+        comision_mensual.fecha_ajuste = timezone.now()
+        comision_mensual.nota_ajuste = nota_ajuste
+        
+        # Recalcular comisión total con el nuevo porcentaje
+        # Para ISLA, calcular comisiones por venta individual
+        fecha_inicio = date(anio, mes, 1)
+        if mes == 12:
+            fecha_fin = date(anio + 1, 1, 1)
+        else:
+            fecha_fin = date(anio, mes + 1, 1)
+        
+        ventas_mes = VentaViaje.objects.filter(
+            vendedor=vendedor,
+            fecha_creacion__gte=fecha_inicio,
+            fecha_creacion__lt=fecha_fin
+        )
+        
+        # Recalcular comisiones de ventas con el nuevo porcentaje
+        porcentaje_decimal_normalizado = porcentaje_decimal / Decimal('100')
+        comision_total_calculada = Decimal('0.00')
+        
+        for venta in ventas_mes:
+            # Calcular comisión para esta venta
+            total_pagado = venta.total_pagado
+            costo_total = venta.costo_total_con_modificacion
+            
+            if total_pagado >= costo_total:
+                # Venta pagada: 100% de comisión
+                comision_venta = venta.costo_venta_final * porcentaje_decimal_normalizado
+                comision_pagada = comision_venta
+                comision_pendiente = Decimal('0.00')
+                estado_pago = 'PAGADA'
+            else:
+                # Venta pendiente: 30% pagada, 70% pendiente
+                comision_venta = venta.costo_venta_final * porcentaje_decimal_normalizado
+                comision_pagada = comision_venta * Decimal('0.30')
+                comision_pendiente = comision_venta * Decimal('0.70')
+                estado_pago = 'PENDIENTE'
+            
+            # Actualizar o crear ComisionVenta
+            tipo_venta = 'INTERNACIONAL' if venta.tipo_viaje == 'INT' else 'NACIONAL'
+            ComisionVenta.objects.update_or_create(
+                venta=venta,
+                mes=mes,
+                anio=anio,
+                defaults={
+                    'vendedor': vendedor,
+                    'tipo_venta': tipo_venta,
+                    'monto_base_comision': venta.costo_venta_final,
+                    'porcentaje_aplicado': porcentaje_decimal,
+                    'comision_calculada': comision_venta,
+                    'comision_pagada': comision_pagada,
+                    'comision_pendiente': comision_pendiente,
+                    'estado_pago_venta': estado_pago,
+                }
+            )
+            
+            comision_total_calculada += comision_venta
+        
+        # Actualizar ComisionMensual
+        comision_mensual.porcentaje_comision = porcentaje_decimal  # Actualizar también el porcentaje principal
+        comision_mensual.comision_total = comision_total_calculada
+        comision_mensual.comision_total_pagada = sum(
+            cv.comision_pagada for cv in ComisionVenta.objects.filter(
+                vendedor=vendedor, mes=mes, anio=anio
+            )
+        ) or Decimal('0.00')
+        comision_mensual.comision_total_pendiente = sum(
+            cv.comision_pendiente for cv in ComisionVenta.objects.filter(
+                vendedor=vendedor, mes=mes, anio=anio
+            )
+        ) or Decimal('0.00')
+        comision_mensual.bono_extra = Decimal('0.00')  # ISLA no tiene bono extra
+        comision_mensual.save()
+        
+        messages.success(
+            request, 
+            f"Porcentaje de comisión ajustado a {porcentaje_decimal}% para {vendedor.get_full_name() or vendedor.username}."
+        )
+        logger.info(
+            f"✅ Comisión ajustada manualmente para {vendedor.username} ({mes}/{anio}): {porcentaje_decimal}% por {request.user.username}"
+        )
+        
+        # Redirigir al reporte de comisiones con los filtros de mes y año
+        return redirect(f"{reverse('reporte_comisiones')}?mes={mes}&anio={anio}")
 
 
 class ExportarComisionesExcelView(LoginRequiredMixin, View):
