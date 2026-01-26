@@ -4084,7 +4084,7 @@ def calcular_comision_por_tipo(total_ventas, tipo_vendedor):
     Calcula la comisión según el tipo de vendedor y el total de ventas.
     
     Sistema de comisiones:
-    - OFICINA (Ventas Internas): Escalonado
+    - MOSTRADOR/ISLA (Ventas Internas): Escalonado
       * $0 - $99,999: 1%
       * $100,000 - $199,999: 2%
       * $200,000 - $299,999: 3%
@@ -4092,24 +4092,25 @@ def calcular_comision_por_tipo(total_ventas, tipo_vendedor):
       * $400,000 - $500,000: 5%
       * Más de $500,000: 5% (tope máximo)
     
-    - CALLE (Ventas de Campo): Fijo 4%
+    - CAMPO (Ventas de Campo): Fijo 4%
     
     Args:
         total_ventas: Decimal - Total de ventas pagadas del vendedor
-        tipo_vendedor: str - 'OFICINA' o 'CALLE'
+        tipo_vendedor: str - 'MOSTRADOR', 'ISLA', 'CAMPO', o 'OFICINA'/'CALLE' (legacy)
     
     Returns:
         tuple: (porcentaje_comision, monto_comision)
             porcentaje_comision: Decimal (ej: 0.03 para 3%)
             monto_comision: Decimal (monto calculado)
     """
-    if tipo_vendedor == 'CALLE':
+    # Mapeo: CAMPO usa comisión fija, el resto usa escalonado
+    if tipo_vendedor == 'CAMPO' or tipo_vendedor == 'CALLE':
         # Ejecutivos de Ventas de Campo: 4% fijo siempre
         porcentaje = Decimal('0.04')
         return porcentaje, total_ventas * porcentaje
     
-    elif tipo_vendedor == 'OFICINA':
-        # Ejecutivos de Ventas Internas: Sistema escalonado
+    elif tipo_vendedor in ['MOSTRADOR', 'ISLA', 'OFICINA']:
+        # Ejecutivos de Ventas Internas (Mostrador/Isla): Sistema escalonado
         if total_ventas < Decimal('100000'):
             porcentaje = Decimal('0.01')  # 1%
         elif total_ventas < Decimal('200000'):
@@ -4183,8 +4184,8 @@ class ComisionesVendedoresView(LoginRequiredMixin, TemplateView):
             ejecutivo = getattr(vendedor, 'ejecutivo_asociado', None)
             sueldo_base = ejecutivo.sueldo_base if ejecutivo and ejecutivo.sueldo_base else self.SUELDO_BASE
 
-            # Obtener tipo de vendedor (por defecto OFICINA si no tiene ejecutivo asociado)
-            tipo_vendedor = ejecutivo.tipo_vendedor if ejecutivo else 'OFICINA'
+            # Obtener tipo de vendedor (por defecto MOSTRADOR si no tiene ejecutivo asociado)
+            tipo_vendedor = ejecutivo.tipo_vendedor if ejecutivo else 'MOSTRADOR'
 
             # Suma el costo final de las ventas pagadas (base para la comisión)
             total_ventas_pagadas = sum(
@@ -7921,7 +7922,7 @@ class DetalleComisionesView(LoginRequiredMixin, TemplateView):
         
         # Calcular comisiones
         ejecutivo = getattr(vendedor, 'ejecutivo_asociado', None)
-        tipo_vendedor = ejecutivo.tipo_vendedor if ejecutivo else 'OFICINA'
+        tipo_vendedor = ejecutivo.tipo_vendedor if ejecutivo else 'MOSTRADOR'
         
         total_ventas_pagadas = sum(
             venta.costo_venta_final for venta in ventas_pagadas
@@ -7987,7 +7988,7 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
         
         # Calcular comisiones
         ejecutivo = getattr(vendedor, 'ejecutivo_asociado', None)
-        tipo_vendedor = ejecutivo.tipo_vendedor if ejecutivo else 'OFICINA'
+        tipo_vendedor = ejecutivo.tipo_vendedor if ejecutivo else 'MOSTRADOR'
         
         total_ventas_pagadas = sum(
             venta.costo_venta_final for venta in ventas_pagadas
