@@ -4217,8 +4217,20 @@ class ComisionesVendedoresView(LoginRequiredMixin, TemplateView):
         # Agregar mes y año del request para el botón de exportación
         mes_actual = timezone.now().month
         anio_actual = timezone.now().year
-        context['mes_filtro'] = int(self.request.GET.get('mes', mes_actual))
-        context['anio_filtro'] = int(self.request.GET.get('anio', anio_actual))
+        
+        # Manejar parámetros vacíos o inválidos
+        mes_param = self.request.GET.get('mes', '').strip()
+        anio_param = self.request.GET.get('anio', '').strip()
+        
+        try:
+            context['mes_filtro'] = int(mes_param) if mes_param else mes_actual
+        except (ValueError, TypeError):
+            context['mes_filtro'] = mes_actual
+        
+        try:
+            context['anio_filtro'] = int(anio_param) if anio_param else anio_actual
+        except (ValueError, TypeError):
+            context['anio_filtro'] = anio_actual
         
         # Generar fecha_desde para mostrar en el template
         from datetime import date
