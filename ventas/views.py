@@ -55,10 +55,12 @@ from .models import (
     AbonoProveedor,
     ComisionVenta,
     ComisionMensual,
+    SolicitudCancelacion,
 )
 from crm.models import Cliente
 from crm.services import KilometrosService
 from usuarios.models import Perfil
+from .services.cancelacion import CancelacionService
 from .forms import (
     VentaViajeForm,
     LogisticaForm,
@@ -71,6 +73,7 @@ from .forms import (
     CotizacionForm,
     SolicitarAbonoProveedorForm,
     ConfirmarAbonoProveedorForm,
+    SolicitudCancelacionForm,
 )
 from .utils import numero_a_texto
 from .services.logistica import (
@@ -212,11 +215,22 @@ class DashboardView(LoginRequiredMixin, ListView):
                 context['notificaciones'] = Notificacion.objects.filter(
                     usuario=user,
                     vista=False  # Solo mostrar notificaciones no vistas
-                ).select_related('venta', 'venta__cliente', 'abono').order_by('-fecha_creacion')[:30]  # Últimas 30 no vistas
+                ).select_related('venta', 'venta__cliente', 'abono', 'solicitud_cancelacion').order_by('-fecha_creacion')[:30]  # Últimas 30 no vistas
                 context['notificaciones_count'] = Notificacion.objects.filter(
                     usuario=user,
                     vista=False
                 ).count()  # Contador solo de no vistas
+                
+                # Solicitudes de cancelación pendientes (para director administrativo)
+                # Filtrar por usuario daviddiaz o rol JEFE
+                if user.username == 'daviddiaz' or user_rol == 'JEFE':
+                    solicitudes_pendientes = SolicitudCancelacion.objects.filter(
+                        estado='PENDIENTE'
+                    ).select_related(
+                        'venta', 'venta__cliente', 'venta__vendedor', 'solicitado_por'
+                    ).order_by('-fecha_solicitud')[:20]
+                    context['solicitudes_cancelacion_pendientes'] = solicitudes_pendientes
+                    context['solicitudes_cancelacion_count'] = solicitudes_pendientes.count()
             # --- Lógica para CONTADOR (dentro del bloque JEFE/CONTADOR) ---
             elif user_rol == 'CONTADOR':
                 # Notificaciones para CONTADOR: mostrar solo las no vistas
@@ -674,6 +688,67 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
         context['total_final'] = total_final
         context['descuento_km'] = descuento_km
         context['descuento_promo'] = descuento_promo
+        
+        # ------------------- Contexto de Solicitud de Cancelación -------------------
+        solicitud_cancelacion = getattr(venta, 'solicitud_cancelacion', None)
+        context['solicitud_cancelacion'] = solicitud_cancelacion
+        
+        # Determinar si se puede solicitar cancelación
+        puede_solicitar = (
+            venta.estado == 'ACTIVA' and
+            (not solicitud_cancelacion or solicitud_cancelacion.estado in ['RECHAZADA', 'CANCELADA']) and
+            (venta.vendedor == self.request.user or user_rol == 'JEFE')
+        )
+        context['puede_solicitar_cancelacion'] = puede_solicitar
+        
+        # Determinar si se puede cancelar definitivamente (requiere solicitud aprobada)
+        puede_cancelar_definitivamente = (
+            venta.estado == 'ACTIVA' and
+            solicitud_cancelacion and
+            solicitud_cancelacion.estado == 'APROBADA' and
+            (venta.vendedor == self.request.user or user_rol == 'JEFE')
+        )
+        context['puede_cancelar_definitivamente'] = puede_cancelar_definitivamente
+        
+        # Determinar si se puede reciclar (venta cancelada definitivamente)
+        puede_reciclar = (
+            venta.estado == 'CANCELADA' and
+            (venta.vendedor == self.request.user or user_rol == 'JEFE')
+        )
+        context['puede_reciclar_venta'] = puede_reciclar
+        
+        # Determinar si el usuario puede aprobar/rechazar solicitudes (solo director)
+        puede_aprobar_rechazar = (
+            solicitud_cancelacion and
+            solicitud_cancelacion.estado == 'PENDIENTE' and
+            (self.request.user.username == 'daviddiaz' or user_rol == 'JEFE')
+        )
+        context['puede_aprobar_rechazar_cancelacion'] = puede_aprobar_rechazar
+        
+        # Formulario de solicitud de cancelación
+        if puede_solicitar:
+            context['solicitud_cancelacion_form'] = SolicitudCancelacionForm()
+        
+        # ------------------- Resumen Financiero (solo si está cancelada) -------------------
+        if venta.estado == 'CANCELADA':
+            resumen_financiero = {
+                'total_abonos': venta.abonos.count(),
+                'monto_total_abonos': sum(abono.monto for abono in venta.abonos.all()),
+                'monto_apertura': venta.cantidad_apertura or Decimal('0.00'),
+                'total_pagado': venta.total_pagado,
+                'abonos_detalle': [
+                    {
+                        'fecha': abono.fecha_pago,
+                        'monto': abono.monto,
+                        'forma_pago': abono.get_forma_pago_display(),
+                        'confirmado': abono.confirmado,
+                    }
+                    for abono in venta.abonos.all().order_by('fecha_pago')
+                ],
+            }
+            context['resumen_financiero'] = resumen_financiero
+        else:
+            context['resumen_financiero'] = None
         
         return context
 
@@ -1691,6 +1766,29 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         kwargs = super().get_form_kwargs()
         kwargs['request'] = self.request
         return kwargs
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        venta = self.object
+        user_rol = get_user_role(self.request.user)
+        
+        # Contexto de solicitud de cancelación
+        solicitud_cancelacion = getattr(venta, 'solicitud_cancelacion', None)
+        context['solicitud_cancelacion'] = solicitud_cancelacion
+        
+        # Siempre mostrar el formulario si la venta está activa (la validación se hace en la vista)
+        if venta.estado == 'ACTIVA':
+            context['solicitud_cancelacion_form'] = SolicitudCancelacionForm()
+        
+        # Variable para verificar permisos (usada en la vista para validar, no en el template)
+        puede_solicitar = (
+            venta.estado == 'ACTIVA' and
+            (not solicitud_cancelacion or solicitud_cancelacion.estado in ['RECHAZADA', 'CANCELADA']) and
+            (venta.vendedor == self.request.user or user_rol == 'JEFE')
+        )
+        context['puede_solicitar_cancelacion'] = puede_solicitar
+        
+        return context
 
     def handle_no_permission(self):
         venta = self.get_object()
@@ -1877,78 +1975,362 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         return reverse_lazy('detalle_venta', kwargs={'pk': self.object.pk, 'slug': self.object.slug_safe})
 
 
-class CancelarVentaView(LoginRequiredMixin, UserPassesTestMixin, View):
-    """Vista para cancelar una venta cambiando su estado a CANCELADA."""
+# ------------------- VISTAS DE SOLICITUD DE CANCELACIÓN -------------------
+
+class SolicitarCancelacionView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Vista para solicitar la cancelación de una venta."""
     
     def test_func(self):
-        """Solo el vendedor que creó la venta o el JEFE pueden cancelarla. CONTADOR solo lectura."""
+        """Solo el vendedor que creó la venta o el JEFE pueden solicitar cancelación."""
         venta = get_object_or_404(VentaViaje, pk=self.kwargs['pk'])
-        user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
+        user_rol = get_user_role(self.request.user)
         if user_rol == 'CONTADOR':
             return False
+        # No se puede solicitar si ya hay una solicitud pendiente o aprobada
+        if hasattr(venta, 'solicitud_cancelacion'):
+            solicitud = venta.solicitud_cancelacion
+            if solicitud.estado in ['PENDIENTE', 'APROBADA']:
+                return False
         return venta.vendedor == self.request.user or user_rol == 'JEFE'
     
     def handle_no_permission(self):
-        messages.error(self.request, "No tienes permiso para cancelar esta venta.")
-        return redirect('lista_ventas')
+        messages.error(self.request, "No tienes permiso para solicitar la cancelación de esta venta.")
+        return redirect('detalle_venta', pk=self.kwargs['pk'], slug=get_object_or_404(VentaViaje, pk=self.kwargs['pk']).slug_safe)
     
     def post(self, request, *args, **kwargs):
         venta = get_object_or_404(VentaViaje, pk=self.kwargs['pk'])
         
-        # Verificar si la venta ya estaba cancelada
-        ya_estaba_cancelada = venta.estado == 'CANCELADA'
+        # Verificar que no existe una solicitud pendiente o aprobada
+        if hasattr(venta, 'solicitud_cancelacion'):
+            solicitud_existente = venta.solicitud_cancelacion
+            if solicitud_existente.estado in ['PENDIENTE', 'APROBADA']:
+                messages.warning(request, "Ya existe una solicitud de cancelación pendiente o aprobada para esta venta.")
+                return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
         
-        venta.estado = 'CANCELADA'
-        venta.save(update_fields=['estado'])
-        
-        # Revertir kilómetros Movums si la venta no estaba previamente cancelada
-        if not ya_estaba_cancelada:
-            try:
-                resultado = KilometrosService.revertir_por_cancelacion(venta)
-                if resultado['revertidos'] > 0:
-                    mensaje_reversion = f"La venta #{venta.pk} ha sido cancelada exitosamente."
-                    detalles = []
-                    if resultado['km_totales'] > 0:
-                        detalles.append(f"Se revirtieron {resultado['km_totales']:,.2f} km acumulados")
-                    if resultado.get('km_devueltos', 0) > 0:
-                        detalles.append(f"Se devolvieron {resultado['km_devueltos']:,.2f} km redimidos")
-                    
-                    if detalles:
-                        mensaje_reversion += " " + " y ".join(detalles) + "."
-                    
-                    logger.info(
-                        f"✅ Kilómetros procesados por cancelación de venta {venta.pk}: "
-                        f"{resultado['km_totales']:,.2f} km revertidos, "
-                        f"{resultado.get('km_devueltos', 0):,.2f} km devueltos "
-                        f"({resultado['revertidos']} movimientos)"
-                    )
-                    messages.success(request, mensaje_reversion)
-                else:
-                    messages.success(request, f"La venta #{venta.pk} ha sido cancelada exitosamente.")
-            except Exception as e:
-                logger.exception(f"❌ Error al revertir kilómetros por cancelación de venta {venta.pk}: {e}")
-                messages.warning(
-                    request, 
-                    f"La venta #{venta.pk} ha sido cancelada, pero hubo un error al revertir los kilómetros Movums. "
-                    "Por favor, verifica manualmente el historial de kilómetros del cliente."
+        form = SolicitudCancelacionForm(request.POST)
+        if form.is_valid():
+            solicitud = form.save(commit=False)
+            solicitud.venta = venta
+            solicitud.solicitado_por = request.user
+            solicitud.estado = 'PENDIENTE'
+            solicitud.save()
+            
+            # Crear notificación para el director administrativo (daviddiaz por ahora)
+            director = User.objects.filter(username='daviddiaz').first()
+            if not director:
+                # Si no existe daviddiaz, buscar JEFE
+                director = User.objects.filter(perfil__rol='JEFE').first()
+            
+            if director:
+                mensaje = (
+                    f"Solicitud de cancelación de venta #{venta.folio or venta.pk} - "
+                    f"Cliente: {venta.cliente.nombre_completo_display} - "
+                    f"Vendedor: {venta.vendedor.get_full_name() or venta.vendedor.username if venta.vendedor else 'N/A'}\n\n"
+                    f"Motivo: {solicitud.motivo}"
                 )
+                Notificacion.objects.create(
+                    usuario=director,
+                    tipo='SOLICITUD_CANCELACION',
+                    mensaje=mensaje,
+                    venta=venta,
+                    solicitud_cancelacion=solicitud,
+                    vista=False
+                )
+            
+            messages.success(request, f"Solicitud de cancelación enviada. El director administrativo revisará tu solicitud.")
+            logger.info(f"✅ Solicitud de cancelación creada para venta {venta.pk} por {request.user.username}")
         else:
-            messages.info(request, f"La venta #{venta.pk} ya estaba cancelada.")
+            messages.error(request, "Error al enviar la solicitud. Por favor, verifica el formulario.")
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{field}: {error}")
         
-        # Crear notificación para JEFE sobre la cancelación
-        jefes = User.objects.filter(perfil__rol='JEFE')
-        mensaje = f"La venta #{venta.pk} - Cliente: {venta.cliente.nombre_completo_display} ha sido cancelada por {request.user.username}"
+        return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+
+
+class AprobarCancelacionView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Vista para aprobar una solicitud de cancelación (solo director administrativo)."""
+    
+    def test_func(self):
+        """Solo el director administrativo (daviddiaz o JEFE) puede aprobar."""
+        user = self.request.user
+        user_rol = get_user_role(user)
+        return user.username == 'daviddiaz' or user_rol == 'JEFE'
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "No tienes permiso para aprobar solicitudes de cancelación.")
+        solicitud = get_object_or_404(SolicitudCancelacion, pk=self.kwargs.get('pk'))
+        return redirect('detalle_venta', pk=solicitud.venta.pk, slug=solicitud.venta.slug_safe)
+    
+    def post(self, request, *args, **kwargs):
+        solicitud = get_object_or_404(SolicitudCancelacion, pk=self.kwargs['pk'])
+        venta = solicitud.venta
         
-        for jefe in jefes:
+        if solicitud.estado != 'PENDIENTE':
+            messages.error(request, "Esta solicitud ya fue procesada.")
+            return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+        
+        solicitud.estado = 'APROBADA'
+        solicitud.aprobado_por = request.user
+        solicitud.fecha_aprobacion = timezone.now()
+        solicitud.save()
+        
+        # Crear notificación para el vendedor
+        if venta.vendedor:
+            mensaje = (
+                f"Tu solicitud de cancelación para la venta #{venta.folio or venta.pk} "
+                f"ha sido aprobada. Ahora puedes proceder con la cancelación definitiva."
+            )
             Notificacion.objects.create(
-                usuario=jefe,
-                tipo='CANCELACION',
+                usuario=venta.vendedor,
+                tipo='CANCELACION_APROBADA',
                 mensaje=mensaje,
                 venta=venta,
-                confirmado=False
+                solicitud_cancelacion=solicitud,
+                vista=False
+            )
+        
+        messages.success(request, f"Solicitud de cancelación aprobada. El vendedor podrá cancelar la venta definitivamente.")
+        logger.info(f"✅ Solicitud de cancelación {solicitud.pk} aprobada por {request.user.username}")
+        
+        return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+
+
+class RechazarCancelacionView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Vista para rechazar una solicitud de cancelación (solo director administrativo)."""
+    
+    def test_func(self):
+        """Solo el director administrativo (daviddiaz o JEFE) puede rechazar."""
+        user = self.request.user
+        user_rol = get_user_role(user)
+        return user.username == 'daviddiaz' or user_rol == 'JEFE'
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "No tienes permiso para rechazar solicitudes de cancelación.")
+        solicitud = get_object_or_404(SolicitudCancelacion, pk=self.kwargs.get('pk'))
+        return redirect('detalle_venta', pk=solicitud.venta.pk, slug=solicitud.venta.slug_safe)
+    
+    def post(self, request, *args, **kwargs):
+        solicitud = get_object_or_404(SolicitudCancelacion, pk=self.kwargs['pk'])
+        venta = solicitud.venta
+        
+        if solicitud.estado != 'PENDIENTE':
+            messages.error(request, "Esta solicitud ya fue procesada.")
+            return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+        
+        motivo_rechazo = request.POST.get('motivo_rechazo', '').strip()
+        if not motivo_rechazo or len(motivo_rechazo) < 10:
+            messages.error(request, "Debes proporcionar un motivo de rechazo de al menos 10 caracteres.")
+            return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+        
+        solicitud.estado = 'RECHAZADA'
+        solicitud.aprobado_por = request.user
+        solicitud.fecha_aprobacion = timezone.now()
+        solicitud.motivo_rechazo = motivo_rechazo
+        solicitud.save()
+        
+        # Crear notificación para el vendedor
+        if venta.vendedor:
+            mensaje = (
+                f"Tu solicitud de cancelación para la venta #{venta.folio or venta.pk} "
+                f"ha sido rechazada.\n\nMotivo: {motivo_rechazo}"
+            )
+            Notificacion.objects.create(
+                usuario=venta.vendedor,
+                tipo='CANCELACION_RECHAZADA',
+                mensaje=mensaje,
+                venta=venta,
+                solicitud_cancelacion=solicitud,
+                vista=False
+            )
+        
+        messages.success(request, f"Solicitud de cancelación rechazada.")
+        logger.info(f"✅ Solicitud de cancelación {solicitud.pk} rechazada por {request.user.username}")
+        
+        return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+
+
+class CancelarVentaView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Vista para cancelar una venta definitivamente (requiere solicitud aprobada)."""
+    
+    def test_func(self):
+        """Solo el vendedor que creó la venta o el JEFE pueden cancelarla, y debe tener solicitud aprobada."""
+        venta = get_object_or_404(VentaViaje, pk=self.kwargs['pk'])
+        user_rol = get_user_role(self.request.user)
+        if user_rol == 'CONTADOR':
+            return False
+        
+        # Verificar que existe una solicitud aprobada
+        if not hasattr(venta, 'solicitud_cancelacion'):
+            return False
+        
+        solicitud = venta.solicitud_cancelacion
+        if solicitud.estado != 'APROBADA':
+            return False
+        
+        return venta.vendedor == self.request.user or user_rol == 'JEFE'
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "No tienes permiso para cancelar esta venta o la solicitud no está aprobada.")
+        return redirect('detalle_venta', pk=self.kwargs['pk'], slug=get_object_or_404(VentaViaje, pk=self.kwargs['pk']).slug_safe)
+    
+    def post(self, request, *args, **kwargs):
+        venta = get_object_or_404(VentaViaje, pk=self.kwargs['pk'])
+        solicitud = venta.solicitud_cancelacion
+        
+        # Verificar que la solicitud está aprobada
+        if solicitud.estado != 'APROBADA':
+            messages.error(request, "La solicitud de cancelación debe estar aprobada antes de cancelar definitivamente.")
+            return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+        
+        # Verificar si la venta ya estaba cancelada
+        if venta.estado == 'CANCELADA':
+            messages.info(request, f"La venta #{venta.pk} ya estaba cancelada.")
+            return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+        
+        # Usar el servicio para cancelar definitivamente
+        try:
+            resultado = CancelacionService.cancelar_venta_definitivamente(venta, solicitud)
+            
+            if resultado['exito']:
+                mensaje = f"La venta #{venta.folio or venta.pk} ha sido cancelada definitivamente."
+                detalles = []
+                
+                if resultado['km_revertidos'] > 0:
+                    detalles.append(f"Se revirtieron {resultado['km_revertidos']:,.2f} km acumulados")
+                if resultado['km_devueltos'] > 0:
+                    detalles.append(f"Se devolvieron {resultado['km_devueltos']:,.2f} km redimidos")
+                if resultado['promociones_revertidas'] > 0:
+                    detalles.append(f"Se revirtieron {resultado['promociones_revertidas']} promociones")
+                if resultado['comisiones_canceladas'] > 0:
+                    detalles.append(f"Se cancelaron {resultado['comisiones_canceladas']} comisiones")
+                
+                if detalles:
+                    mensaje += " " + " y ".join(detalles) + "."
+                
+                if resultado['errores']:
+                    mensaje += f" Advertencias: {'; '.join(resultado['errores'])}"
+                
+                messages.success(request, mensaje)
+            else:
+                messages.error(request, f"Error al cancelar la venta: {'; '.join(resultado['errores'])}")
+        except Exception as e:
+            logger.exception(f"❌ Error al cancelar venta {venta.pk}: {e}")
+            messages.error(request, f"Error al cancelar la venta: {str(e)}")
+        
+        # Crear notificación para el director administrativo
+        director = User.objects.filter(username='daviddiaz').first()
+        if not director:
+            director = User.objects.filter(perfil__rol='JEFE').first()
+        
+        if director:
+            mensaje_notif = (
+                f"La venta #{venta.folio or venta.pk} - Cliente: {venta.cliente.nombre_completo_display} "
+                f"ha sido cancelada definitivamente por {request.user.get_full_name() or request.user.username}"
+            )
+            Notificacion.objects.create(
+                usuario=director,
+                tipo='CANCELACION_DEFINITIVA',
+                mensaje=mensaje_notif,
+                venta=venta,
+                solicitud_cancelacion=solicitud,
+                vista=False
             )
         
         return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+
+
+class ReciclarVentaView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Vista para reciclar una venta cancelada, creando una nueva venta con los datos de la cancelada."""
+    
+    def test_func(self):
+        """Solo el vendedor de la venta cancelada o JEFE pueden reciclar."""
+        venta = get_object_or_404(VentaViaje, pk=self.kwargs['pk'])
+        user_rol = get_user_role(self.request.user)
+        
+        # Solo se puede reciclar si la venta está cancelada
+        if venta.estado != 'CANCELADA':
+            return False
+        
+        return venta.vendedor == self.request.user or user_rol == 'JEFE'
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "No tienes permiso para reciclar esta venta o la venta no está cancelada.")
+        return redirect('detalle_venta', pk=self.kwargs['pk'], slug=get_object_or_404(VentaViaje, pk=self.kwargs['pk']).slug_safe)
+    
+    def post(self, request, *args, **kwargs):
+        venta_original = get_object_or_404(VentaViaje, pk=self.kwargs['pk'])
+        
+        if venta_original.estado != 'CANCELADA':
+            messages.error(request, "Solo se pueden reciclar ventas canceladas.")
+            return redirect('detalle_venta', pk=venta_original.pk, slug=venta_original.slug_safe)
+        
+        try:
+            with transaction.atomic():
+                # Crear nueva venta copiando datos de la original
+                nueva_venta = VentaViaje.objects.create(
+                    cliente=venta_original.cliente,
+                    vendedor=venta_original.vendedor,
+                    pasajeros=venta_original.pasajeros,
+                    edades_menores=venta_original.edades_menores,
+                    servicios_seleccionados=venta_original.servicios_seleccionados,
+                    servicios_detalle=venta_original.servicios_detalle,
+                    proveedor=venta_original.proveedor,
+                    tipo_viaje=venta_original.tipo_viaje,
+                    fecha_inicio_viaje=venta_original.fecha_inicio_viaje,
+                    fecha_fin_viaje=venta_original.fecha_fin_viaje,
+                    # NO copiar: folio (se genera nuevo), estado (siempre ACTIVA)
+                    # NO copiar: cantidad_apertura, abonos, logística, etc.
+                    costo_neto=Decimal('0.00'),
+                    costo_venta_final=Decimal('0.00'),
+                    estado='ACTIVA',
+                    # Campos internacionales si aplica
+                    tarifa_base_usd=venta_original.tarifa_base_usd if venta_original.tipo_viaje == 'INT' else None,
+                    impuestos_usd=venta_original.impuestos_usd if venta_original.tipo_viaje == 'INT' else None,
+                    suplementos_usd=venta_original.suplementos_usd if venta_original.tipo_viaje == 'INT' else None,
+                    tours_usd=venta_original.tours_usd if venta_original.tipo_viaje == 'INT' else None,
+                    tipo_cambio=venta_original.tipo_cambio if venta_original.tipo_viaje == 'INT' else None,
+                )
+                
+                # Copiar abonos de la venta original (referenciando la venta original)
+                # Los abonos se referencian a la venta original para tener contexto
+                for abono_original in venta_original.abonos.all():
+                    AbonoPago.objects.create(
+                        venta=nueva_venta,
+                        monto=abono_original.monto,
+                        forma_pago=abono_original.forma_pago,
+                        fecha_pago=abono_original.fecha_pago,
+                        registrado_por=abono_original.registrado_por,
+                        monto_usd=abono_original.monto_usd,
+                        tipo_cambio_aplicado=abono_original.tipo_cambio_aplicado,
+                        confirmado=abono_original.confirmado,
+                        confirmado_por=abono_original.confirmado_por,
+                        confirmado_en=abono_original.confirmado_en,
+                        requiere_factura=abono_original.requiere_factura,
+                        # Nota: estos abonos referencian la nueva venta pero provienen de la original
+                    )
+                
+                # Copiar cantidad de apertura si existe
+                if venta_original.cantidad_apertura and venta_original.cantidad_apertura > 0:
+                    nueva_venta.cantidad_apertura = venta_original.cantidad_apertura
+                    nueva_venta.modo_pago_apertura = venta_original.modo_pago_apertura
+                    nueva_venta.requiere_factura_apertura = venta_original.requiere_factura_apertura
+                    nueva_venta.save(update_fields=['cantidad_apertura', 'modo_pago_apertura', 'requiere_factura_apertura'])
+                
+                messages.success(
+                    request,
+                    f"Venta reciclada exitosamente. Nueva venta #{nueva_venta.folio or nueva_venta.pk} creada."
+                )
+                logger.info(
+                    f"✅ Venta {venta_original.pk} reciclada, nueva venta {nueva_venta.pk} creada por {request.user.username}"
+                )
+                
+                return redirect('editar_venta', pk=nueva_venta.pk)
+                
+        except Exception as e:
+            logger.exception(f"❌ Error al reciclar venta {venta_original.pk}: {e}")
+            messages.error(request, f"Error al reciclar la venta: {str(e)}")
+            return redirect('detalle_venta', pk=venta_original.pk, slug=venta_original.slug_safe)
 
 
 # ------------------- 5. GESTIÓN DE ABONOS (REMOVIDA/INTEGRADA) -------------------

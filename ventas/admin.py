@@ -13,6 +13,7 @@ from .models import (
     ConfirmacionVenta,
     LogisticaServicio,
     AbonoProveedor,
+    SolicitudCancelacion,
 ) # Importar modelos
 
 # =================================================================
@@ -250,3 +251,28 @@ class AbonoProveedorAdmin(admin.ModelAdmin):
     search_fields = ('venta__id', 'proveedor', 'solicitud_por__username')
     date_hierarchy = 'fecha_solicitud'
     readonly_fields = ('fecha_creacion', 'fecha_actualizacion', 'fecha_solicitud', 'fecha_aprobacion', 'fecha_confirmacion', 'fecha_cancelacion')
+
+# --- 6. SolicitudCancelacion Admin ---
+@admin.register(SolicitudCancelacion)
+class SolicitudCancelacionAdmin(admin.ModelAdmin):
+    list_display = ('venta', 'estado', 'solicitado_por', 'fecha_solicitud', 'aprobado_por', 'fecha_aprobacion')
+    list_filter = ('estado', 'fecha_solicitud')
+    search_fields = ('venta__id', 'venta__folio', 'solicitado_por__username', 'motivo')
+    date_hierarchy = 'fecha_solicitud'
+    readonly_fields = ('fecha_solicitud', 'fecha_aprobacion', 'fecha_cancelacion_definitiva')
+    fieldsets = (
+        ('Información de la Venta', {
+            'fields': ('venta',)
+        }),
+        ('Solicitud', {
+            'fields': ('solicitado_por', 'motivo', 'estado', 'fecha_solicitud')
+        }),
+        ('Aprobación/Rechazo', {
+            'fields': ('aprobado_por', 'fecha_aprobacion', 'motivo_rechazo'),
+            'classes': ('collapse',)
+        }),
+        ('Cancelación Definitiva', {
+            'fields': ('fecha_cancelacion_definitiva',),
+            'classes': ('collapse',)
+        }),
+    )

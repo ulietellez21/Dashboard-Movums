@@ -589,12 +589,34 @@
                         <i class="fas fa-arrow-left me-2"></i> Volver
                     </a>
                     <div class="d-flex gap-2">
-                        {% if object %}
-                        {# Botón de Cancelar Venta - Solo visible al editar #}
-                        <button type="button" class="btn btn-danger px-4 shadow-sm" data-bs-toggle="modal"
-                            data-bs-target="#cancelarVentaModal">
-                            <i class="fas fa-times-circle me-2"></i> Cancelar Venta
+                        {% if object and object.estado == 'ACTIVA' %}
+                        {# Botón de Solicitar Cancelación - Solo visible al editar ventas activas #}
+                        {% if solicitud_cancelacion %}
+                            {% if solicitud_cancelacion.estado == 'PENDIENTE' %}
+                            <span class="btn btn-info px-4 shadow-sm disabled">
+                                <i class="fas fa-clock me-2"></i> Cancelación Pendiente
+                            </span>
+                            {% elif solicitud_cancelacion.estado == 'APROBADA' %}
+                            <span class="btn btn-success px-4 shadow-sm disabled">
+                                <i class="fas fa-check-circle me-2"></i> Cancelación Aprobada
+                            </span>
+                            {% elif solicitud_cancelacion.estado == 'RECHAZADA' %}
+                            <button type="button" class="btn btn-warning px-4 shadow-sm" data-bs-toggle="modal"
+                                data-bs-target="#solicitarCancelacionModal">
+                                <i class="fas fa-exclamation-triangle me-2"></i> Solicitar Cancelación (Nuevamente)
+                            </button>
+                            {% else %}
+                            <button type="button" class="btn btn-warning px-4 shadow-sm" data-bs-toggle="modal"
+                                data-bs-target="#solicitarCancelacionModal">
+                                <i class="fas fa-exclamation-triangle me-2"></i> Solicitar Cancelación
+                            </button>
+                            {% endif %}
+                        {% else %}
+                        <button type="button" class="btn btn-warning px-4 shadow-sm" data-bs-toggle="modal"
+                            data-bs-target="#solicitarCancelacionModal">
+                            <i class="fas fa-exclamation-triangle me-2"></i> Solicitar Cancelación
                         </button>
+                        {% endif %}
                         {% endif %}
                         <button type="submit" class="btn btn-success px-4 shadow-sm">
                             <i class="fas fa-save me-2"></i>
@@ -606,39 +628,58 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
-{# Modal de Confirmación para Cancelar Venta - Solo visible al editar #}
-{% if object %}
-<div class="modal fade" id="cancelarVentaModal" tabindex="-1" aria-labelledby="cancelarVentaModalLabel"
+{% block modals %}
+{# Modal de Solicitud de Cancelación - Solo visible al editar ventas activas #}
+{% if object and object.estado == 'ACTIVA' %}
+<div class="modal fade" id="solicitarCancelacionModal" tabindex="-1" aria-labelledby="solicitarCancelacionModalLabel"
     aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title" id="cancelarVentaModalLabel">
-                    <i class="fas fa-exclamation-triangle me-2"></i>Confirmar Cancelación de Venta
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="solicitarCancelacionModalLabel">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Solicitar Cancelación de Venta
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                <button type="button" class="btn-close" data-bs-dismiss="modal"
                     aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <p>¿Estás seguro de que deseas cancelar la <strong>Venta #{{ object.pk }}</strong>?</p>
-                <p class="text-muted small mb-0">
-                    <i class="fas fa-info-circle me-1"></i>
-                    Al cancelar, el estado de la venta cambiará a "Cancelada". Esta acción puede revertirse editando la
-                    venta nuevamente.
-                </p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="fas fa-times me-1"></i> No Cancelar
-                </button>
-                <form method="post" action="{% url 'cancelar_venta' pk=object.pk %}" style="display: inline;">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-danger">
-                        <i class="fas fa-check me-1"></i> Sí, Cancelar Venta
+            <form method="post" action="{% url 'solicitar_cancelacion' pk=object.pk %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <p>Estás a punto de solicitar la cancelación de la <strong>Venta #{{ object.folio|default:object.pk }}</strong>.</p>
+                    <p class="text-muted small mb-3">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Tu solicitud será revisada por el director administrativo. Una vez aprobada, podrás proceder con la cancelación definitiva.
+                    </p>
+                    <div class="mb-3">
+                        <label for="id_motivo" class="form-label fw-bold">
+                            <i class="fas fa-comment-alt me-2"></i>Motivo de la Cancelación <span class="text-danger">*</span>
+                        </label>
+                        <textarea 
+                            class="form-control form-control-lg" 
+                            id="id_motivo" 
+                            name="motivo" 
+                            rows="5" 
+                            placeholder="Describe el motivo de la cancelación de la venta (mínimo 10 caracteres)..." 
+                            required
+                            minlength="10"
+                            style="resize: vertical; min-height: 120px; width: 100%;"></textarea>
+                        <div class="form-text text-muted mt-2">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Proporciona una explicación detallada del motivo por el cual se solicita cancelar esta venta (mínimo 10 caracteres).
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i> Cancelar
                     </button>
-                </form>
-            </div>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-paper-plane me-1"></i> Enviar Solicitud
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

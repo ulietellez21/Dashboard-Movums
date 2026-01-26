@@ -2,7 +2,7 @@ from django import forms
 from django.forms import modelformset_factory
 import json
 from django.db.models import Case, When, Value, IntegerField
-from .models import AbonoPago, Logistica, VentaViaje, Proveedor, Ejecutivo, LogisticaServicio, Cotizacion, AbonoProveedor # Aseguramos la importación de VentaViaje
+from .models import AbonoPago, Logistica, VentaViaje, Proveedor, Ejecutivo, LogisticaServicio, Cotizacion, AbonoProveedor, SolicitudCancelacion # Aseguramos la importación de VentaViaje
 from django.contrib.auth.models import User
 from crm.models import Cliente # Importamos Cliente para usarlo en el queryset si es necesario
 from crm.services import KilometrosService
@@ -2335,3 +2335,33 @@ class CotizacionForm(forms.ModelForm):
         if commit:
             instance.save()
         return instance
+
+
+# ------------------- SolicitudCancelacionForm -------------------
+
+class SolicitudCancelacionForm(forms.ModelForm):
+    """Formulario para solicitar la cancelación de una venta."""
+    
+    class Meta:
+        model = SolicitudCancelacion
+        fields = ['motivo']
+        widgets = {
+            'motivo': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 5,
+                'placeholder': 'Describe el motivo de la cancelación de la venta...',
+                'required': True
+            }),
+        }
+        labels = {
+            'motivo': 'Motivo de la Cancelación',
+        }
+        help_texts = {
+            'motivo': 'Proporciona una explicación detallada del motivo por el cual se solicita cancelar esta venta.',
+        }
+    
+    def clean_motivo(self):
+        motivo = self.cleaned_data.get('motivo')
+        if motivo and len(motivo.strip()) < 10:
+            raise forms.ValidationError('El motivo de cancelación debe tener al menos 10 caracteres.')
+        return motivo

@@ -1611,6 +1611,10 @@ class Notificacion(models.Model):
         ('ABONO_PROVEEDOR_APROBADO', 'Abono a Proveedor Aprobado'),
         ('ABONO_PROVEEDOR_COMPLETADO', 'Abono a Proveedor Completado'),
         ('ABONO_PROVEEDOR_CANCELADO', 'Abono a Proveedor Cancelado'),
+        ('SOLICITUD_CANCELACION', 'Solicitud de Cancelación'),
+        ('CANCELACION_APROBADA', 'Cancelación Aprobada'),
+        ('CANCELACION_RECHAZADA', 'Cancelación Rechazada'),
+        ('CANCELACION_DEFINITIVA', 'Cancelación Definitiva'),
     ]
     
     usuario = models.ForeignKey(
@@ -1666,6 +1670,15 @@ class Notificacion(models.Model):
         null=True,
         blank=True,
         verbose_name="Abono a Proveedor Relacionado"
+    )
+    # Relación con SolicitudCancelacion
+    solicitud_cancelacion = models.ForeignKey(
+        'ventas.SolicitudCancelacion',
+        on_delete=models.CASCADE,
+        related_name='notificaciones',
+        null=True,
+        blank=True,
+        verbose_name="Solicitud de Cancelación Relacionada"
     )
     
     class Meta:
@@ -1918,6 +1931,18 @@ class ComisionVenta(models.Model):
         verbose_name="Fecha de Actualización"
     )
     
+    # Campo para marcar comisiones canceladas por cancelación de venta
+    cancelada = models.BooleanField(
+        default=False,
+        verbose_name="Cancelada",
+        help_text="Indica si la comisión fue cancelada debido a la cancelación de la venta"
+    )
+    fecha_cancelacion = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Fecha de Cancelación"
+    )
+    
     class Meta:
         verbose_name = "Comisión de Venta"
         verbose_name_plural = "Comisiones de Ventas"
@@ -1925,6 +1950,7 @@ class ComisionVenta(models.Model):
         indexes = [
             models.Index(fields=['vendedor', 'mes', 'anio']),
             models.Index(fields=['venta']),
+            models.Index(fields=['cancelada']),
         ]
     
     def __str__(self):
@@ -2034,6 +2060,85 @@ class ComisionMensual(models.Model):
     
     def __str__(self):
         return f"Comisión Mensual - {self.vendedor.username} - {self.mes}/{self.anio}"
+
+
+# ------------------- MODELO: SolicitudCancelacion -------------------
+
+class SolicitudCancelacion(models.Model):
+    """
+    Modelo para gestionar las solicitudes de cancelación de ventas.
+    Flujo: Vendedor solicita → Director aprueba → Vendedor cancela definitivamente
+    """
+    ESTADO_CHOICES = [
+        ('PENDIENTE', 'Pendiente de Aprobación'),
+        ('APROBADA', 'Aprobada'),
+        ('RECHAZADA', 'Rechazada'),
+        ('CANCELADA', 'Cancelada Definitivamente'),
+    ]
+    
+    venta = models.OneToOneField(
+        VentaViaje,
+        on_delete=models.CASCADE,
+        related_name='solicitud_cancelacion',
+        verbose_name="Venta"
+    )
+    solicitado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='solicitudes_cancelacion',
+        verbose_name="Solicitado Por"
+    )
+    motivo = models.TextField(
+        verbose_name="Motivo de la Cancelación",
+        help_text="Razón por la cual se solicita la cancelación de la venta"
+    )
+    estado = models.CharField(
+        max_length=20,
+        choices=ESTADO_CHOICES,
+        default='PENDIENTE',
+        verbose_name="Estado"
+    )
+    aprobado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='cancelaciones_aprobadas',
+        verbose_name="Aprobado Por"
+    )
+    fecha_solicitud = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Fecha de Solicitud"
+    )
+    fecha_aprobacion = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Fecha de Aprobación"
+    )
+    fecha_cancelacion_definitiva = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Fecha de Cancelación Definitiva"
+    )
+    motivo_rechazo = models.TextField(
+        blank=True,
+        verbose_name="Motivo de Rechazo",
+        help_text="Razón por la cual se rechazó la solicitud de cancelación"
+    )
+    
+    class Meta:
+        verbose_name = "Solicitud de Cancelación"
+        verbose_name_plural = "Solicitudes de Cancelación"
+        ordering = ['-fecha_solicitud']
+        indexes = [
+            models.Index(fields=['venta', 'estado']),
+            models.Index(fields=['estado', 'fecha_solicitud']),
+            models.Index(fields=['solicitado_por']),
+        ]
+    
+    def __str__(self):
+        return f"Solicitud Cancelación Venta #{self.venta.pk} - {self.get_estado_display()}"
 
 
 # ------------------- SIGNALS -------------------

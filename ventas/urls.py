@@ -30,6 +30,10 @@ from .views import (
     ConfirmarPagoView,
     ConfirmarAbonoView,
     CancelarVentaView,
+    SolicitarCancelacionView,
+    AprobarCancelacionView,
+    RechazarCancelacionView,
+    ReciclarVentaView,
     ClienteKilometrosResumenView,
     CotizacionListView,
     CotizacionCreateView,
@@ -129,7 +133,11 @@ urlpatterns = [
     path('clientes/<int:cliente_id>/kilometros/', ClienteKilometrosResumenView.as_view(), name='cliente_kilometros_resumen'),
     # path('<int:pk>/eliminar/', VentaViajeDeleteView.as_view(), name='eliminar_venta'),  # Eliminado: ventas no se eliminan manualmente
     path('<int:pk>/editar/', VentaViajeUpdateView.as_view(), name='editar_venta'),
+    path('<int:pk>/solicitar-cancelacion/', SolicitarCancelacionView.as_view(), name='solicitar_cancelacion'),
     path('<int:pk>/cancelar/', CancelarVentaView.as_view(), name='cancelar_venta'),
+    path('<int:pk>/reciclar/', ReciclarVentaView.as_view(), name='reciclar_venta'),
+    path('solicitud-cancelacion/<int:pk>/aprobar/', AprobarCancelacionView.as_view(), name='aprobar_cancelacion'),
+    path('solicitud-cancelacion/<int:pk>/rechazar/', RechazarCancelacionView.as_view(), name='rechazar_cancelacion'),
 
     
     # ******************************************************************************
