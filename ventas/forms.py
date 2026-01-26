@@ -1525,33 +1525,21 @@ class VentaViajeForm(forms.ModelForm):
             )
         
         # Agregar campos de edición solo cuando se está editando una venta existente
-        # y que ya tenga algún costo de modificación o que haya sido guardada previamente
+        # Mostrar costo_modificacion siempre al editar una venta existente
         if self.instance and self.instance.pk:
-            # Solo mostrar costo_modificacion si la venta ya tiene un valor o si tiene abonos/confirmaciones
-            # Esto evita mostrarlo en ventas recién creadas desde cotización
-            mostrar_costo_modificacion = False
-            if hasattr(self.instance, 'costo_modificacion') and self.instance.costo_modificacion:
-                if self.instance.costo_modificacion > 0:
-                    mostrar_costo_modificacion = True
-            # También mostrar si la venta tiene abonos confirmados (ya fue procesada)
-            if hasattr(self.instance, 'abonos'):
-                if self.instance.abonos.filter(confirmado=True).exists():
-                    mostrar_costo_modificacion = True
-            
-            if mostrar_costo_modificacion:
-                # Campo costo_modificacion
-                self.fields['costo_modificacion'] = forms.DecimalField(
-                    max_digits=10,
-                    decimal_places=2,
-                    required=False,
-                    initial=getattr(self.instance, 'costo_modificacion', Decimal('0.00')),
-                    widget=forms.TextInput(attrs={
-                        'class': 'form-control',
-                        'placeholder': '0.00'
-                    }),
-                    label='Costo de Modificación',
-                    help_text='Costo adicional por modificar esta venta. Se sumará al costo total.'
-                )
+            # Campo costo_modificacion - siempre visible al editar
+            self.fields['costo_modificacion'] = forms.DecimalField(
+                max_digits=10,
+                decimal_places=2,
+                required=False,
+                initial=getattr(self.instance, 'costo_modificacion', Decimal('0.00')),
+                widget=forms.TextInput(attrs={
+                    'class': 'form-control',
+                    'placeholder': '0.00'
+                }),
+                label='Costo de Modificación',
+                help_text='Costo adicional por modificar esta venta. Se sumará al costo total.'
+            )
 
     def clean_documentos_cliente(self):
         """Valida que no se suban más de 5 archivos y maneja múltiples archivos"""
