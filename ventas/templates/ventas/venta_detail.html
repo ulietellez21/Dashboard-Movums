@@ -778,8 +778,7 @@
                                                 <tr class="{% if venta.estado_confirmacion == 'EN_CONFIRMACION' %}table-warning{% else %}table-info{% endif %}">
                                                     <td>{{ venta.fecha_creacion|date:"d/M/y H:i" }}</td>
                                                 {% if venta.tipo_viaje == 'INT' and venta.tipo_cambio %}
-                                                    {% widthratio venta.cantidad_apertura venta.tipo_cambio 1 as apertura_usd %}
-                                                    <td><strong>USD ${{ apertura_usd|floatformat:2|intcomma }}</strong></td>
+                                                    <td><strong>${{ venta.cantidad_apertura|floatformat:2|intcomma }} MXN</strong></td>
                                                 {% else %}
                                                     <td><strong>${{ venta.cantidad_apertura|floatformat:2|intcomma }}</strong></td>
                                                 {% endif %}
@@ -825,10 +824,10 @@
                                                     <td>{{ abono.fecha_pago|date:"d/M/y H:i" }}</td>
                                                     {% if venta.tipo_viaje == 'INT' and venta.tipo_cambio %}
                                                         {% if abono.monto_usd %}
-                                                            <td><strong>USD ${{ abono.monto_usd|floatformat:2|intcomma }}</strong></td>
+                                                            {% widthratio abono.monto_usd 1 venta.tipo_cambio as abono_mxn %}
+                                                            <td><strong>${{ abono_mxn|floatformat:2|intcomma }} MXN</strong></td>
                                                         {% else %}
-                                                            {% widthratio abono.monto venta.tipo_cambio 1 as abono_usd %}
-                                                            <td><strong>USD ${{ abono_usd|floatformat:2|intcomma }}</strong></td>
+                                                            <td><strong>${{ abono.monto|floatformat:2|intcomma }} MXN</strong></td>
                                                         {% endif %}
                                                     {% else %}
                                                         <td><strong>${{ abono.monto|floatformat:2|intcomma }}</strong></td>
@@ -1145,7 +1144,6 @@
                                             <th>Proveedor</th>
                                             <th>Fecha Solicitud</th>
                                             <th>Monto (MXN)</th>
-                                            <th>Monto (USD)</th>
                                             <th>Estado</th>
                                             <th>Solicitado Por</th>
                                             <th>Notas</th>
@@ -1157,8 +1155,12 @@
                                         <tr>
                                             <td><strong>{{ abono.proveedor }}</strong></td>
                                             <td>{{ abono.fecha_solicitud|date:"d/m/Y H:i" }}</td>
-                                            <td>${{ abono.monto|floatformat:2|intcomma }}</td>
-                                            <td>${{ abono.monto_usd|floatformat:2|intcomma|default:"0.00" }}</td>
+                                            {% if abono.monto_usd and venta.tipo_cambio %}
+                                                {% widthratio abono.monto_usd 1 venta.tipo_cambio as monto_mxn %}
+                                                <td>${{ monto_mxn|floatformat:2|intcomma }}</td>
+                                            {% else %}
+                                                <td>${{ abono.monto|floatformat:2|intcomma }}</td>
+                                            {% endif %}
                                             <td>
                                                 {% if abono.estado == 'PENDIENTE' %}
                                                     <span class="badge bg-warning text-dark">Pendiente</span>
@@ -1776,9 +1778,11 @@
                     {% csrf_token %}
                     <div class="modal-body">
                         <p class="text-muted">Proveedor: <strong>{{ abono.proveedor }}</strong></p>
-                        <p class="text-muted">Monto: <strong>${{ abono.monto|floatformat:2|intcomma }} MXN</strong></p>
-                        {% if abono.monto_usd %}
-                        <p class="text-muted">Monto (USD): <strong>${{ abono.monto_usd|floatformat:2|intcomma }} USD</strong></p>
+                        {% if abono.monto_usd and venta.tipo_cambio %}
+                            {% widthratio abono.monto_usd 1 venta.tipo_cambio as monto_mxn %}
+                            <p class="text-muted">Monto: <strong>${{ monto_mxn|floatformat:2|intcomma }} MXN</strong></p>
+                        {% else %}
+                            <p class="text-muted">Monto: <strong>${{ abono.monto|floatformat:2|intcomma }} MXN</strong></p>
                         {% endif %}
                         <hr>
                         <div class="mb-3">
