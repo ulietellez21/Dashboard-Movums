@@ -645,13 +645,16 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
             context['abonos_proveedor'] = venta.abonos_proveedor.all().select_related(
                 'solicitud_por', 'aprobado_por', 'confirmado_por', 'cancelado_por'
             ).order_by('-fecha_solicitud')
-            context['total_abonado_proveedor'] = venta.total_abonado_proveedor
-            context['saldo_pendiente_proveedor'] = venta.saldo_pendiente_proveedor
-            # Para ventas internacionales: mostrar total en USD, para nacionales: en MXN
-            if venta.tipo_viaje == 'INT':
-                context['total_usd_venta'] = venta.total_usd
-                context['moneda_abonos'] = 'USD'
+            # Para ventas internacionales: convertir todo a MXN usando tipo de cambio
+            if venta.tipo_viaje == 'INT' and venta.tipo_cambio:
+                # Convertir totales de USD a MXN
+                context['total_usd_venta'] = (venta.total_usd * venta.tipo_cambio).quantize(Decimal('0.01'))
+                context['total_abonado_proveedor'] = (venta.total_abonado_proveedor * venta.tipo_cambio).quantize(Decimal('0.01'))
+                context['saldo_pendiente_proveedor'] = (venta.saldo_pendiente_proveedor * venta.tipo_cambio).quantize(Decimal('0.01'))
+                context['moneda_abonos'] = 'MXN'
             else:
+                context['total_abonado_proveedor'] = venta.total_abonado_proveedor
+                context['saldo_pendiente_proveedor'] = venta.saldo_pendiente_proveedor
                 context['total_usd_venta'] = venta.costo_venta_final or Decimal('0.00')
                 context['moneda_abonos'] = 'MXN'
             from .forms import SolicitarAbonoProveedorForm
