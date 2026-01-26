@@ -2031,6 +2031,36 @@ class ComisionMensual(models.Model):
         verbose_name="Comisión Total"
     )
     
+    # Campos para ajuste manual de comisión (especialmente para ISLA)
+    porcentaje_ajustado_manual = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Porcentaje Ajustado Manualmente (%)",
+        help_text="Porcentaje de comisión ajustado manualmente. Si está presente, sobrescribe el cálculo automático."
+    )
+    ajustado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='comisiones_ajustadas',
+        verbose_name="Ajustado Por",
+        help_text="Usuario que realizó el ajuste manual"
+    )
+    fecha_ajuste = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Fecha de Ajuste",
+        help_text="Fecha en que se realizó el ajuste manual"
+    )
+    nota_ajuste = models.TextField(
+        blank=True,
+        verbose_name="Nota del Ajuste",
+        help_text="Justificación o nota sobre el ajuste manual realizado"
+    )
+    
     fecha_calculo = models.DateTimeField(
         auto_now_add=True,
         verbose_name="Fecha de Cálculo"
