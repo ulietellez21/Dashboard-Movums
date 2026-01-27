@@ -191,13 +191,18 @@ body {
 
 /* Ajuste específico para cotizaciones de paquetes: menos espacio en la segunda página */
 .cotizacion-paquete .content-wrapper {
-    padding-top: 144px; /* 6 saltos de línea (quitar 1 salto = 24px menos) */
+    padding-top: 96px; /* 4 saltos de línea (reducido para subir las tablas de vuelo) */
+}
+
+/* Ajuste específico para cotizaciones de vuelos: menos espacio en la segunda página */
+.cotizacion-vuelos .content-wrapper {
+    padding-top: 96px; /* 4 saltos de línea (reducido para subir las tablas de vuelo) */
 }
 
 /* Wrapper para términos y condiciones - visible y posicionado correctamente */
 .terminos-wrapper {
     width: 100%;
-    margin: 0;
+    margin: 312px 0 0 0; /* 13 saltos de línea (24px cada uno = 312px) desde info_cliente */
     padding: 0;
     box-sizing: border-box;
     display: block !important;
@@ -206,6 +211,22 @@ body {
     page-break-inside: avoid;
     visibility: visible !important;
     opacity: 1 !important;
+}
+
+.terminos-paquete {
+    margin-top: 60px !important; /* Ajuste para bajar el texto de términos y condiciones un poco más */
+    margin-bottom: 8px;
+    padding: 0;
+    page-break-before: avoid !important;
+    page-break-inside: avoid !important;
+}
+
+.terminos-vuelos {
+    margin-top: 60px !important; /* Ajuste para bajar el texto de términos y condiciones un poco más */
+    margin-bottom: 8px;
+    padding: 0;
+    page-break-before: avoid !important;
+    page-break-inside: avoid !important;
 }
 
 /* Evitar que las cards y secciones se partan entre páginas */
@@ -981,7 +1002,7 @@ body {
    TÉRMINOS Y CONDICIONES - DISCRETO
    ============================================ */
 .terminos-condiciones {
-    margin-top: 264px;
+    margin-top: 20px; /* Margen reducido para posicionar correctamente en la primera página */
     margin-bottom: 8px;
     margin-left: 0;
     margin-right: 0;
@@ -1136,7 +1157,7 @@ strong {
 }
     </style>
 </head>
-<body{% if tipo == 'paquete' %} class="cotizacion-paquete"{% elif tipo == 'generica' %} class="cotizacion-generica"{% endif %}>
+<body{% if tipo == 'paquete' %} class="cotizacion-paquete"{% elif tipo == 'generica' %} class="cotizacion-generica"{% elif tipo == 'vuelos' %} class="cotizacion-vuelos"{% endif %}>
     {% include "ventas/pdf/components/header.html" %}
     
     <div class="cotizacion-container">
@@ -1146,7 +1167,7 @@ strong {
         {% include "ventas/pdf/components/info_cliente.html" %}
         
         <!-- Términos y condiciones - en la primera página, antes del content-wrapper -->
-        <div class="terminos-wrapper">
+        <div class="terminos-wrapper{% if tipo == 'paquete' %} terminos-paquete{% elif tipo == 'vuelos' %} terminos-vuelos{% endif %}">
             {% block terminos_condiciones %}{% endblock %}
         </div>
         
