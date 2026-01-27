@@ -201,6 +201,18 @@ body {
 /* Ajuste específico para cotizaciones de vuelos: menos espacio en la segunda página */
 .cotizacion-vuelos .content-wrapper {
     padding-top: 96px; /* 4 saltos de línea (reducido para subir las tablas de vuelo) */
+    overflow: visible !important; /* Asegurar que todo el contenido sea visible */
+    page-break-inside: auto !important; /* Permitir que el contenido fluya entre páginas */
+    height: auto !important; /* Sin límite de altura */
+    max-height: none !important; /* Sin límite máximo de altura */
+}
+
+/* Asegurar que el content-page-wrapper para vuelos permita múltiples páginas */
+.cotizacion-vuelos .content-page-wrapper {
+    overflow: visible !important; /* Asegurar que todo el contenido sea visible */
+    page-break-inside: auto !important; /* Permitir que el contenido fluya entre páginas */
+    height: auto !important; /* Sin límite de altura */
+    max-height: none !important; /* Sin límite máximo de altura */
 }
 
 /* Wrapper para términos y condiciones - visible y posicionado correctamente */
