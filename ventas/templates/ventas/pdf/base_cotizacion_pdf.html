@@ -215,6 +215,23 @@ body {
     max-height: none !important; /* Sin límite máximo de altura */
 }
 
+/* Ajuste específico para cotizaciones de hospedaje: menos espacio en la segunda página */
+.cotizacion-hospedaje .content-wrapper {
+    padding-top: 96px; /* 4 saltos de línea (reducido para subir las tablas de hoteles) */
+    overflow: visible !important; /* Asegurar que todo el contenido sea visible */
+    page-break-inside: auto !important; /* Permitir que el contenido fluya entre páginas */
+    height: auto !important; /* Sin límite de altura */
+    max-height: none !important; /* Sin límite máximo de altura */
+}
+
+/* Asegurar que el content-page-wrapper para hospedaje permita múltiples páginas */
+.cotizacion-hospedaje .content-page-wrapper {
+    overflow: visible !important; /* Asegurar que todo el contenido sea visible */
+    page-break-inside: auto !important; /* Permitir que el contenido fluya entre páginas */
+    height: auto !important; /* Sin límite de altura */
+    max-height: none !important; /* Sin límite máximo de altura */
+}
+
 /* Wrapper para términos y condiciones - visible y posicionado correctamente */
 .terminos-wrapper {
     width: 100%;
@@ -238,6 +255,14 @@ body {
 }
 
 .terminos-vuelos {
+    margin-top: 60px !important; /* Ajuste para bajar el texto de términos y condiciones un poco más */
+    margin-bottom: 8px;
+    padding: 0;
+    page-break-before: avoid !important;
+    page-break-inside: avoid !important;
+}
+
+.terminos-hospedaje {
     margin-top: 60px !important; /* Ajuste para bajar el texto de términos y condiciones un poco más */
     margin-bottom: 8px;
     padding: 0;
@@ -1119,6 +1144,12 @@ body {
     page-break-before: auto; /* Permitir que aparezca en cualquier página */
 }
 
+.cotizacion-hospedaje .card {
+    page-break-inside: avoid; /* Mantener la card completa */
+    page-break-after: auto; /* Permitir salto natural para que todas las cards se muestren */
+    page-break-before: auto; /* Permitir que aparezca en cualquier página */
+}
+
 /* Mantener secciones de información juntas */
 .info-section {
     page-break-inside: avoid;
@@ -1180,7 +1211,7 @@ strong {
 }
     </style>
 </head>
-<body{% if tipo == 'paquete' %} class="cotizacion-paquete"{% elif tipo == 'generica' %} class="cotizacion-generica"{% elif tipo == 'vuelos' %} class="cotizacion-vuelos"{% endif %}>
+<body{% if tipo == 'paquete' %} class="cotizacion-paquete"{% elif tipo == 'generica' %} class="cotizacion-generica"{% elif tipo == 'vuelos' %} class="cotizacion-vuelos"{% elif tipo == 'hospedaje' %} class="cotizacion-hospedaje"{% endif %}>
     {% include "ventas/pdf/components/header.html" %}
     
     <div class="cotizacion-container">
@@ -1190,7 +1221,7 @@ strong {
         {% include "ventas/pdf/components/info_cliente.html" %}
         
         <!-- Términos y condiciones - en la primera página, antes del content-wrapper -->
-        <div class="terminos-wrapper{% if tipo == 'paquete' %} terminos-paquete{% elif tipo == 'vuelos' %} terminos-vuelos{% endif %}">
+        <div class="terminos-wrapper{% if tipo == 'paquete' %} terminos-paquete{% elif tipo == 'vuelos' %} terminos-vuelos{% elif tipo == 'hospedaje' %} terminos-hospedaje{% endif %}">
             {% block terminos_condiciones %}{% endblock %}
         </div>
         
