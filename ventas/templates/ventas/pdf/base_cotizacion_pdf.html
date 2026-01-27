@@ -165,6 +165,8 @@ body {
 .content-page-wrapper {
     page-break-before: always; /* Forzar salto de página antes del wrapper */
     box-sizing: border-box;
+    overflow: visible !important; /* Asegurar que todo el contenido sea visible */
+    page-break-inside: auto !important; /* Permitir que el contenido fluya entre páginas */
 }
 
 /* Para cotizaciones genéricas, no forzar salto de página */
@@ -181,6 +183,8 @@ body {
     padding-top: 168px; /* 7 saltos de línea (24px cada uno = 168px) */
     padding-bottom: 0;
     box-sizing: border-box;
+    overflow: visible !important; /* Asegurar que todo el contenido sea visible */
+    page-break-inside: auto !important; /* Permitir que el contenido fluya entre páginas */
 }
 
 /* Para cotizaciones genéricas, reducir padding superior y permitir flujo */
@@ -233,7 +237,7 @@ body {
 .card {
     page-break-before: auto;
     page-break-inside: avoid; /* Evitar que la card se parta */
-    page-break-after: avoid; /* Mantener la card junta con su total */
+    page-break-after: auto; /* Permitir que fluya a la siguiente página si es necesario */
     margin-top: 0;
     margin-bottom: 8px; /* Espaciado reducido a la mitad entre cards (16px → 8px) */
 }
@@ -276,7 +280,7 @@ body {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); /* Sombra sutil */
     page-break-inside: avoid; /* Evitar que la card se parta */
     page-break-before: auto;
-    page-break-after: avoid; /* Mantener card y total juntos */
+    page-break-after: auto; /* Permitir que fluya a la siguiente página si es necesario */
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
@@ -1093,7 +1097,14 @@ body {
 /* Mantener cards completas sin partirse (excepto genéricas) */
 .card:not(.card-generica) {
     page-break-inside: avoid;
-    page-break-after: avoid;
+    page-break-after: auto; /* Permitir que las cards fluyan a la siguiente página si es necesario */
+}
+
+/* Para cotizaciones de vuelos, permitir mejor flujo entre páginas */
+.cotizacion-vuelos .card {
+    page-break-inside: avoid; /* Mantener la card completa */
+    page-break-after: auto; /* Permitir salto natural para que todas las cards se muestren */
+    page-break-before: auto; /* Permitir que aparezca en cualquier página */
 }
 
 /* Mantener secciones de información juntas */
