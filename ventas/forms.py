@@ -1221,10 +1221,21 @@ class VentaViajeForm(forms.ModelForm):
                                         dynamic_initial['servicios_seleccionados'] = existing_initial['servicios_seleccionados'].copy()
             
             elif tipo_cotizacion == 'paquete' and propuestas.get('paquete'):
-                # Para paquete, procesar vuelo y hotel
+                # Para paquete, usar 'Paquete' como servicio principal (no 'Vuelo' y 'Hospedaje' por separado)
                 paquete = propuestas.get('paquete', {})
                 if isinstance(paquete, dict):
-                    # Procesar vuelo
+                    # Pre-seleccionar servicio Paquete (no Vuelo y Hospedaje por separado)
+                    if 'servicios_seleccionados' not in existing_initial:
+                        existing_initial['servicios_seleccionados'] = []
+                        dynamic_initial['servicios_seleccionados'] = []
+                    if 'Paquete' not in existing_initial['servicios_seleccionados']:
+                        existing_initial['servicios_seleccionados'].append('Paquete')
+                        if 'servicios_seleccionados' in dynamic_initial:
+                            dynamic_initial['servicios_seleccionados'].append('Paquete')
+                        else:
+                            dynamic_initial['servicios_seleccionados'] = existing_initial['servicios_seleccionados'].copy()
+                    
+                    # Procesar vuelo (para proveedor, pero no para servicios_seleccionados)
                     vuelo = paquete.get('vuelo', {})
                     if isinstance(vuelo, dict):
                         nombre_aerolinea = vuelo.get('aerolinea', '')
@@ -1232,18 +1243,8 @@ class VentaViajeForm(forms.ModelForm):
                             proveedor = buscar_proveedor_por_nombre(nombre_aerolinea)
                             if proveedor:
                                 dynamic_initial['proveedor_vuelo'] = proveedor
-                                # Pre-seleccionar servicio Vuelo
-                                if 'servicios_seleccionados' not in existing_initial:
-                                    existing_initial['servicios_seleccionados'] = []
-                                    dynamic_initial['servicios_seleccionados'] = []
-                                if 'Vuelo' not in existing_initial['servicios_seleccionados']:
-                                    existing_initial['servicios_seleccionados'].append('Vuelo')
-                                    if 'servicios_seleccionados' in dynamic_initial:
-                                        dynamic_initial['servicios_seleccionados'].append('Vuelo')
-                                    else:
-                                        dynamic_initial['servicios_seleccionados'] = existing_initial['servicios_seleccionados'].copy()
                     
-                    # Procesar hotel
+                    # Procesar hotel (para proveedor, pero no para servicios_seleccionados)
                     hotel = paquete.get('hotel', {})
                     if isinstance(hotel, dict):
                         nombre_hotel = hotel.get('nombre', '')
@@ -1251,16 +1252,6 @@ class VentaViajeForm(forms.ModelForm):
                             proveedor = buscar_proveedor_por_nombre(nombre_hotel)
                             if proveedor:
                                 dynamic_initial['proveedor_hospedaje'] = proveedor
-                                # Pre-seleccionar servicio Hospedaje
-                                if 'servicios_seleccionados' not in existing_initial:
-                                    existing_initial['servicios_seleccionados'] = []
-                                    dynamic_initial['servicios_seleccionados'] = []
-                                if 'Hospedaje' not in existing_initial['servicios_seleccionados']:
-                                    existing_initial['servicios_seleccionados'].append('Hospedaje')
-                                    if 'servicios_seleccionados' in dynamic_initial:
-                                        dynamic_initial['servicios_seleccionados'].append('Hospedaje')
-                                    else:
-                                        dynamic_initial['servicios_seleccionados'] = existing_initial['servicios_seleccionados'].copy()
             
             elif tipo_cotizacion == 'tours' and propuestas.get('tours'):
                 # Para tours, procesar el proveedor de tours

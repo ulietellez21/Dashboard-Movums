@@ -2640,7 +2640,34 @@ class ContratoVentaPDFView(LoginRequiredMixin, DetailView):
         if venta.servicios_seleccionados and 'HOS' in venta.servicios_seleccionados:
             # Redirigir a la vista específica de hospedaje
             from django.urls import reverse
-            return HttpResponseRedirect(reverse('generar_contrato_hospedaje_pdf', kwargs={'pk': venta.pk, 'slug': venta.slug}))
+            return HttpResponseRedirect(reverse('generar_contrato_hospedaje_pdf', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}))
+        
+        # Verificar si es paquete nacional (directamente o por cotización)
+        es_paquete_nacional = False
+        if venta.servicios_seleccionados and 'PAQ' in venta.servicios_seleccionados and venta.tipo_viaje == 'NAC':
+            es_paquete_nacional = True
+        elif venta.tipo_viaje == 'NAC' and venta.cotizacion_origen:
+            # Si no tiene PAQ pero tiene cotización, verificar el tipo de cotización
+            cotizacion = venta.cotizacion_origen
+            if isinstance(cotizacion.propuestas, str):
+                try:
+                    import json
+                    propuestas = json.loads(cotizacion.propuestas)
+                except:
+                    propuestas = {}
+            elif isinstance(cotizacion.propuestas, dict):
+                propuestas = cotizacion.propuestas
+            else:
+                propuestas = {}
+            
+            tipo_cot = propuestas.get('tipo', '')
+            if tipo_cot == 'paquete':
+                es_paquete_nacional = True
+        
+        if es_paquete_nacional:
+            # Redirigir a la vista específica de paquete nacional
+            from django.urls import reverse
+            return HttpResponseRedirect(reverse('generar_contrato_paquete_nacional_pdf', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}))
         
         try:
             from docx import Document
@@ -3802,6 +3829,768 @@ class ContratoHospedajePDFView(LoginRequiredMixin, DetailView):
         
         nombre_cliente_safe = cliente.nombre_completo_display.replace(' ', '_').replace('/', '_')
         filename = f"Contrato_Hospedaje_{venta.pk}_{nombre_cliente_safe}.docx"
+        
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Length'] = str(len(buffer.getvalue()))
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
+        
+        buffer.close()
+        return response
+
+
+class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
+    """
+    Vista para generar contrato específico de paquetes nacionales en formato DOCX.
+    Reemplaza el contrato genérico para ventas de tipo PAQ y tipo_viaje NAC.
+    """
+    model = VentaViaje
+    
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object() 
+        venta = self.object
+        cliente = venta.cliente
+        
+        # Verificar que sea paquete nacional
+        # Verificar si es PAQ directamente o si tiene cotización de tipo 'paquete'
+        es_paquete = False
+        if venta.servicios_seleccionados and 'PAQ' in venta.servicios_seleccionados:
+            es_paquete = True
+        elif venta.cotizacion_origen:
+            # Si no tiene PAQ pero tiene cotización, verificar el tipo de cotización
+            cotizacion = venta.cotizacion_origen
+            if isinstance(cotizacion.propuestas, str):
+                try:
+                    import json
+                    propuestas = json.loads(cotizacion.propuestas)
+                except:
+                    propuestas = {}
+            elif isinstance(cotizacion.propuestas, dict):
+                propuestas = cotizacion.propuestas
+            else:
+                propuestas = {}
+            
+            tipo_cot = propuestas.get('tipo', '')
+            if tipo_cot == 'paquete':
+                es_paquete = True
+        
+        if not es_paquete:
+            return HttpResponse("Error: Esta venta no es de paquete.", status=400)
+        
+        if venta.tipo_viaje != 'NAC':
+            return HttpResponse("Error: Esta venta no es nacional.", status=400)
+        
+        # Obtener datos de la cotización si existe
+        origen = ''
+        destino = ''
+        vuelo_aerolinea = ''
+        vuelo_salida = ''
+        vuelo_regreso = ''
+        vuelo_incluye = ''
+        hotel_nombre = ''
+        habitacion = ''
+        plan_alimentos = ''
+        tours = []
+        traslado_info = ''  # Nueva variable para traslados
+        
+        # DEBUG: Log para verificar datos
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        if venta.cotizacion_origen:
+            cotizacion = venta.cotizacion_origen
+            
+            # Convertir propuestas a dict si es string JSON
+            if isinstance(cotizacion.propuestas, str):
+                try:
+                    import json
+                    propuestas = json.loads(cotizacion.propuestas)
+                except:
+                    propuestas = {}
+            elif isinstance(cotizacion.propuestas, dict):
+                propuestas = cotizacion.propuestas
+            else:
+                propuestas = {}
+            
+            logger.info(f"DEBUG: Propuestas tipo: {type(propuestas)}, contenido: {propuestas}")
+            
+            # Origen y destino desde cotización
+            origen = (cotizacion.origen or '').strip()
+            destino = (cotizacion.destino or '').strip()
+            
+            # Obtener información del paquete
+            paquete = propuestas.get('paquete', {})
+            logger.info(f"DEBUG: Paquete encontrado: {bool(paquete)}, tipo: {type(paquete)}")
+            
+            if paquete:
+                # Información del vuelo - PRIMERO intentar desde paquete
+                vuelo = paquete.get('vuelo', {})
+                logger.info(f"DEBUG: Vuelo desde paquete: {bool(vuelo)}, tipo: {type(vuelo)}, contenido: {vuelo}")
+                
+                if vuelo and isinstance(vuelo, dict):
+                    vuelo_aerolinea = (vuelo.get('aerolinea', '') or '').strip()
+                    vuelo_salida = (vuelo.get('salida', '') or '').strip()
+                    vuelo_regreso = (vuelo.get('regreso', '') or '').strip()
+                    vuelo_incluye = (vuelo.get('incluye', '') or '').strip()
+                    logger.info(f"DEBUG: Vuelo extraído desde paquete - aerolinea: {vuelo_aerolinea}, salida: {vuelo_salida}, regreso: {vuelo_regreso}, incluye: {vuelo_incluye}")
+                
+                # FALLBACK: Si no hay vuelo en paquete o está vacío, buscar en propuestas['vuelos']
+                if not vuelo_aerolinea and propuestas.get('vuelos'):
+                    vuelos_lista = propuestas.get('vuelos', [])
+                    logger.info(f"DEBUG: Buscando vuelo en propuestas['vuelos']: {bool(vuelos_lista)}, tipo: {type(vuelos_lista)}")
+                    
+                    if isinstance(vuelos_lista, list) and len(vuelos_lista) > 0:
+                        # Tomar el primer vuelo de la lista
+                        vuelo_fallback = vuelos_lista[0] if isinstance(vuelos_lista[0], dict) else {}
+                        logger.info(f"DEBUG: Vuelo fallback encontrado: {vuelo_fallback}")
+                        
+                        if vuelo_fallback:
+                            # Si no tenemos aerolínea, intentar obtenerla del vuelo fallback
+                            if not vuelo_aerolinea:
+                                vuelo_aerolinea = (vuelo_fallback.get('aerolinea', '') or vuelo_fallback.get('aerolinea_nombre', '') or '').strip()
+                            if not vuelo_salida:
+                                vuelo_salida = (vuelo_fallback.get('salida', '') or vuelo_fallback.get('fecha_salida', '') or vuelo_fallback.get('ida', '') or '').strip()
+                            if not vuelo_regreso:
+                                vuelo_regreso = (vuelo_fallback.get('regreso', '') or vuelo_fallback.get('fecha_regreso', '') or vuelo_fallback.get('vuelta', '') or '').strip()
+                            if not vuelo_incluye:
+                                vuelo_incluye = (vuelo_fallback.get('incluye', '') or vuelo_fallback.get('equipaje', '') or '').strip()
+                            logger.info(f"DEBUG: Vuelo extraído desde fallback - aerolinea: {vuelo_aerolinea}, salida: {vuelo_salida}, regreso: {vuelo_regreso}, incluye: {vuelo_incluye}")
+                    elif isinstance(vuelos_lista, dict):
+                        # Si es un diccionario único, usarlo directamente
+                        if not vuelo_aerolinea:
+                            vuelo_aerolinea = (vuelos_lista.get('aerolinea', '') or vuelos_lista.get('aerolinea_nombre', '') or '').strip()
+                        if not vuelo_salida:
+                            vuelo_salida = (vuelos_lista.get('salida', '') or vuelos_lista.get('fecha_salida', '') or vuelos_lista.get('ida', '') or '').strip()
+                        if not vuelo_regreso:
+                            vuelo_regreso = (vuelos_lista.get('regreso', '') or vuelos_lista.get('fecha_regreso', '') or vuelos_lista.get('vuelta', '') or '').strip()
+                        if not vuelo_incluye:
+                            vuelo_incluye = (vuelos_lista.get('incluye', '') or vuelos_lista.get('equipaje', '') or '').strip()
+                
+                # Información del hotel - PRIMERO intentar desde paquete
+                hotel = paquete.get('hotel', {})
+                logger.info(f"DEBUG: Hotel desde paquete: {bool(hotel)}, tipo: {type(hotel)}, contenido: {hotel}")
+                
+                if hotel and isinstance(hotel, dict):
+                    hotel_nombre = (hotel.get('nombre', '') or '').strip()
+                    habitacion = (hotel.get('habitacion', '') or '').strip()
+                    plan_alimentos = (hotel.get('plan', '') or '').strip()
+                    logger.info(f"DEBUG: Hotel extraído desde paquete - nombre: {hotel_nombre}, habitacion: {habitacion}, plan: {plan_alimentos}")
+            
+            # FALLBACK: Si no hay hotel en paquete o está vacío, buscar en propuestas['hoteles']
+            if (not hotel_nombre or not habitacion or not plan_alimentos) and propuestas.get('hoteles'):
+                hoteles_lista = propuestas.get('hoteles', [])
+                logger.info(f"DEBUG: Buscando hotel en propuestas['hoteles']: {bool(hoteles_lista)}, tipo: {type(hoteles_lista)}")
+                
+                if isinstance(hoteles_lista, list) and len(hoteles_lista) > 0:
+                    # Tomar el primer hotel de la lista
+                    hotel_fallback = hoteles_lista[0] if isinstance(hoteles_lista[0], dict) else {}
+                    logger.info(f"DEBUG: Hotel fallback encontrado: {hotel_fallback}")
+                    
+                    if hotel_fallback:
+                        # Si no tenemos nombre, intentar obtenerlo del hotel fallback
+                        if not hotel_nombre:
+                            hotel_nombre = (hotel_fallback.get('nombre', '') or hotel_fallback.get('hotel', '') or '').strip()
+                        if not habitacion:
+                            habitacion = (hotel_fallback.get('habitacion', '') or hotel_fallback.get('tipo_habitacion', '') or '').strip()
+                        if not plan_alimentos:
+                            plan_alimentos = (hotel_fallback.get('plan', '') or hotel_fallback.get('plan_alimentos', '') or hotel_fallback.get('alimentos', '') or '').strip()
+                        logger.info(f"DEBUG: Hotel extraído desde fallback - nombre: {hotel_nombre}, habitacion: {habitacion}, plan: {plan_alimentos}")
+                elif isinstance(hoteles_lista, dict):
+                    # Si es un diccionario único, usarlo directamente
+                    if not hotel_nombre:
+                        hotel_nombre = (hoteles_lista.get('nombre', '') or hoteles_lista.get('hotel', '') or '').strip()
+                    if not habitacion:
+                        habitacion = (hoteles_lista.get('habitacion', '') or hoteles_lista.get('tipo_habitacion', '') or '').strip()
+                    if not plan_alimentos:
+                        plan_alimentos = (hoteles_lista.get('plan', '') or hoteles_lista.get('plan_alimentos', '') or hoteles_lista.get('alimentos', '') or '').strip()
+                
+                # Tours/Adicionales - PRIMERO intentar desde paquete
+                tours_raw = paquete.get('tours', [])
+                logger.info(f"DEBUG: Tours desde paquete: {bool(tours_raw)}, tipo: {type(tours_raw)}, contenido: {tours_raw}")
+                
+                if tours_raw:
+                    if isinstance(tours_raw, list):
+                        tours = tours_raw
+                    elif isinstance(tours_raw, dict):
+                        # Si es un diccionario, convertirlo a lista
+                        tours = [tours_raw]
+                    else:
+                        tours = []
+                else:
+                    tours = []
+            
+            # FALLBACK: Si no hay tours en paquete, buscar en propuestas['tours']
+            if (not tours or len(tours) == 0) and propuestas.get('tours'):
+                tours_fallback = propuestas.get('tours', [])
+                logger.info(f"DEBUG: Buscando tours en propuestas['tours']: {bool(tours_fallback)}, tipo: {type(tours_fallback)}")
+                
+                if isinstance(tours_fallback, list) and len(tours_fallback) > 0:
+                    tours = tours_fallback
+                    logger.info(f"DEBUG: Tours encontrados desde fallback: {len(tours)}")
+                elif isinstance(tours_fallback, dict):
+                    # Si es un diccionario único, convertirlo a lista
+                    tours = [tours_fallback]
+                    logger.info(f"DEBUG: Tours encontrados desde fallback (dict único)")
+            
+            # Extraer información de traslados desde propuestas['traslados']
+            traslados_data = propuestas.get('traslados', {})
+            logger.info(f"DEBUG: Traslados encontrados: {bool(traslados_data)}, tipo: {type(traslados_data)}, contenido: {traslados_data}")
+            
+            if traslados_data:
+                if isinstance(traslados_data, dict):
+                    # Intentar extraer descripción, proveedor o tipo de traslado
+                    traslado_info = (
+                        traslados_data.get('descripcion', '') or 
+                        traslados_data.get('proveedor', '') or 
+                        traslados_data.get('tipo', '') or 
+                        traslados_data.get('servicio', '') or 
+                        traslados_data.get('nombre', '') or 
+                        ''
+                    ).strip()
+                    logger.info(f"DEBUG: Traslado extraído: {traslado_info}")
+                elif isinstance(traslados_data, list) and len(traslados_data) > 0:
+                    # Si es una lista, tomar el primer elemento
+                    primer_traslado = traslados_data[0] if isinstance(traslados_data[0], dict) else {}
+                    if primer_traslado:
+                        traslado_info = (
+                            primer_traslado.get('descripcion', '') or 
+                            primer_traslado.get('proveedor', '') or 
+                            primer_traslado.get('tipo', '') or 
+                            primer_traslado.get('servicio', '') or 
+                            primer_traslado.get('nombre', '') or 
+                            ''
+                        ).strip()
+                        logger.info(f"DEBUG: Traslado extraído desde lista: {traslado_info}")
+        
+        # Si no hay origen/destino en cotización, usar valores por defecto
+        if not origen:
+            origen = 'AIFA (FELIPE ANGELES)'  # Valor por defecto según imagen
+        if not destino:
+            destino = (venta.servicios_detalle or 'PAQUETE NACIONAL').strip()
+        
+        # Calcular valores financieros
+        from decimal import Decimal
+        precio_total = venta.costo_total_con_modificacion or Decimal('0.00')
+        anticipo = venta.cantidad_apertura or Decimal('0.00')
+        saldo_pendiente = max(Decimal('0.00'), precio_total - venta.total_pagado)
+        fecha_limite_pago = venta.fecha_vencimiento_pago
+        
+        # Convertir montos a texto
+        anticipo_texto = numero_a_texto(float(anticipo))
+        anticipo_texto = anticipo_texto.replace('M.N.', 'MXN')
+        
+        try:
+            from docx import Document
+            from docx.shared import Pt, RGBColor, Inches
+            from docx.oxml.ns import qn
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+            from docx.enum.section import WD_SECTION
+        except ImportError:
+            return HttpResponse("Error: python-docx no está instalado. Ejecuta: pip install python-docx", status=500)
+        
+        # Usar plantilla con membrete si existe
+        template_path = os.path.join(settings.BASE_DIR, 'static', 'docx', 'membrete.docx')
+        if os.path.exists(template_path):
+            doc = Document(template_path)
+        else:
+            doc = Document()
+        
+        # Configurar fuente predeterminada
+        style = doc.styles['Normal']
+        style.font.name = 'Arial'
+        style.font.size = Pt(12)
+        style._element.rPr.rFonts.set(qn('w:eastAsia'), 'Arial')
+        
+        # Colores
+        MOVUMS_BLUE = RGBColor(0, 74, 142)  # #004a8e
+        TEXT_COLOR = RGBColor(47, 47, 47)  # #2f2f2f
+        
+        def set_run_font(run, size=12, bold=False, color=TEXT_COLOR):
+            run.font.name = 'Arial'
+            run.font.size = Pt(size)
+            run.bold = bold
+            run.font.color.rgb = color
+        
+        def format_date(value):
+            if not value:
+                return ''
+            try:
+                if isinstance(value, date):
+                    # Formato: DD MES YYYY (ej: 15 DICIEMBRE 2025)
+                    meses = {
+                        1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL',
+                        5: 'MAYO', 6: 'JUNIO', 7: 'JULIO', 8: 'AGOSTO',
+                        9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'
+                    }
+                    return f"{value.day:02d} {meses[value.month]} {value.year}"
+                return str(value)
+            except:
+                return ''
+        
+        def format_currency(value):
+            """Formatea un valor Decimal como moneda"""
+            if not value:
+                return '0.00'
+            return f"{value:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+        
+        # ============================================
+        # PÁGINA 1: CONTRATO PRINCIPAL
+        # ============================================
+        
+        # Título principal
+        p_titulo = doc.add_paragraph()
+        p_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_titulo.paragraph_format.space_before = Pt(0)
+        p_titulo.paragraph_format.space_after = Pt(12)
+        run_titulo = p_titulo.add_run('CONTRATO DE SERVICIOS TURÍSTICOS')
+        set_run_font(run_titulo, size=18, bold=True, color=MOVUMS_BLUE)
+        
+        # Fecha (alineada a la derecha)
+        p_fecha = doc.add_paragraph()
+        p_fecha.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        p_fecha.paragraph_format.space_after = Pt(12)
+        run_fecha_label = p_fecha.add_run('Fecha: ')
+        set_run_font(run_fecha_label, size=12, bold=True)
+        run_fecha_val = p_fecha.add_run(format_date(date.today()))
+        set_run_font(run_fecha_val, size=12)
+        
+        # Origen / Destino
+        p_origen_destino = doc.add_paragraph()
+        p_origen_destino.paragraph_format.space_after = Pt(12)
+        run_origen_label = p_origen_destino.add_run('Origen / Destino: ')
+        set_run_font(run_origen_label, size=12, bold=True)
+        run_origen_val = p_origen_destino.add_run(origen.upper() if origen else '')
+        set_run_font(run_origen_val, size=12)
+        run_separador = p_origen_destino.add_run(' / ')
+        set_run_font(run_separador, size=12)
+        run_destino_val = p_origen_destino.add_run(destino.upper() if destino else '')
+        set_run_font(run_destino_val, size=12, bold=True)
+        
+        # Información del cliente y monto recibido
+        p_cliente = doc.add_paragraph()
+        p_cliente.paragraph_format.space_after = Pt(6)
+        run_texto1 = p_cliente.add_run('Movums The travel Store, con domicilio Plaza Mora, Juárez Sur 321 Local 18 CP. 56100 Texcoco Estado de México, recibió de: ')
+        set_run_font(run_texto1, size=12)
+        run_cliente = p_cliente.add_run(cliente.nombre_completo_display.upper())
+        set_run_font(run_cliente, size=12, bold=True)
+        run_cliente.font.underline = True
+        run_texto2 = p_cliente.add_run(' la cantidad de:')
+        set_run_font(run_texto2, size=12)
+        
+        # Monto recibido
+        p_monto = doc.add_paragraph()
+        p_monto.paragraph_format.space_after = Pt(6)
+        run_monto_num = p_monto.add_run(f'${format_currency(anticipo)}')
+        set_run_font(run_monto_num, size=12, bold=True)
+        run_monto_num.font.underline = True
+        run_monto_texto = p_monto.add_run(f' ({anticipo_texto}) por concepto de:')
+        set_run_font(run_monto_texto, size=12)
+        
+        # Agregar espacio
+        p_espacio = doc.add_paragraph()
+        p_espacio.paragraph_format.space_after = Pt(6)
+        
+        # Detalles del paquete - Labels sin negritas, valores en negritas, espaciado compacto
+        # FECHA DE IDA
+        p_ida = doc.add_paragraph()
+        p_ida.paragraph_format.space_after = Pt(2)  # Espaciado compacto
+        run_ida_label = p_ida.add_run('FECHA DE IDA: ')
+        set_run_font(run_ida_label, size=12, bold=False)  # Label sin negritas
+        run_ida_val = p_ida.add_run(format_date(venta.fecha_inicio_viaje) if venta.fecha_inicio_viaje else '')
+        set_run_font(run_ida_val, size=12, bold=True)  # Valor en negritas
+        
+        # FECHA DE REGRESO
+        p_regreso = doc.add_paragraph()
+        p_regreso.paragraph_format.space_after = Pt(2)  # Espaciado compacto
+        run_regreso_label = p_regreso.add_run('FECHA DE REGRESO: ')
+        set_run_font(run_regreso_label, size=12, bold=False)  # Label sin negritas
+        run_regreso_val = p_regreso.add_run(format_date(venta.fecha_fin_viaje) if venta.fecha_fin_viaje else '')
+        set_run_font(run_regreso_val, size=12, bold=True)  # Valor en negritas
+        
+        # PASAJEROS
+        adultos = 0
+        menores = 0
+        if venta.cotizacion_origen:
+            cotizacion = venta.cotizacion_origen
+            adultos = cotizacion.adultos or 0
+            menores = cotizacion.menores or 0
+        
+        if adultos == 0 and venta.pasajeros:
+            pasajeros_lista = [p.strip() for p in venta.pasajeros.split('\n') if p.strip()]
+            adultos = len(pasajeros_lista) if pasajeros_lista else 1
+        
+        p_pasajeros = doc.add_paragraph()
+        p_pasajeros.paragraph_format.space_after = Pt(2)  # Espaciado compacto
+        run_pasajeros_label = p_pasajeros.add_run('PASAJEROS: ')
+        set_run_font(run_pasajeros_label, size=12, bold=False)  # Label sin negritas
+        if menores > 0:
+            run_pasajeros_val = p_pasajeros.add_run(f'{adultos} adultos + {menores} Menor')
+        else:
+            run_pasajeros_val = p_pasajeros.add_run(f'{adultos} adultos')
+        set_run_font(run_pasajeros_val, size=12, bold=True)  # Valor en negritas
+        
+        # ACOMPAÑANTES (dejar vacío según instrucciones)
+        p_acompanantes = doc.add_paragraph()
+        p_acompanantes.paragraph_format.space_after = Pt(2)  # Espaciado compacto
+        run_acompanantes_label = p_acompanantes.add_run('ACOMPAÑANTES: ')
+        set_run_font(run_acompanantes_label, size=12, bold=False)  # Label sin negritas
+        run_acompanantes_val = p_acompanantes.add_run('')
+        set_run_font(run_acompanantes_val, size=12, bold=True)  # Valor en negritas
+        
+        # Hotel
+        p_hotel = doc.add_paragraph()
+        p_hotel.paragraph_format.space_after = Pt(2)  # Espaciado compacto
+        run_hotel_label = p_hotel.add_run('Hotel: ')
+        set_run_font(run_hotel_label, size=12, bold=False)  # Label sin negritas
+        run_hotel_val = p_hotel.add_run(hotel_nombre.upper() if hotel_nombre else '')
+        set_run_font(run_hotel_val, size=12, bold=True)  # Valor en negritas
+        
+        # Habitación
+        p_habitacion = doc.add_paragraph()
+        p_habitacion.paragraph_format.space_after = Pt(2)  # Espaciado compacto
+        run_habitacion_label = p_habitacion.add_run('Habitación: ')
+        set_run_font(run_habitacion_label, size=12, bold=False)  # Label sin negritas
+        run_habitacion_val = p_habitacion.add_run(habitacion.upper() if habitacion else '')
+        set_run_font(run_habitacion_val, size=12, bold=True)  # Valor en negritas
+        
+        # Plan de Alimentos
+        p_plan = doc.add_paragraph()
+        p_plan.paragraph_format.space_after = Pt(2)  # Espaciado compacto
+        run_plan_label = p_plan.add_run('Plan de Alimentos: ')
+        set_run_font(run_plan_label, size=12, bold=False)  # Label sin negritas
+        run_plan_val = p_plan.add_run(plan_alimentos.upper() if plan_alimentos else '')
+        set_run_font(run_plan_val, size=12, bold=True)  # Valor en negritas
+        
+        # Vuelos - SIEMPRE mostrar este campo
+        p_vuelos = doc.add_paragraph()
+        p_vuelos.paragraph_format.space_after = Pt(2)  # Espaciado compacto
+        run_vuelos_label = p_vuelos.add_run('Vuelos: ')
+        set_run_font(run_vuelos_label, size=12, bold=False)  # Label sin negritas
+        vuelo_aerolinea_display = vuelo_aerolinea.upper() if vuelo_aerolinea else ''
+        run_vuelos_val = p_vuelos.add_run(vuelo_aerolinea_display)
+        set_run_font(run_vuelos_val, size=12, bold=True)  # Valor en negritas
+        
+        # IDA - SIEMPRE mostrar este campo
+        p_ida_vuelo = doc.add_paragraph()
+        p_ida_vuelo.paragraph_format.space_after = Pt(2)  # Espaciado compacto
+        run_ida_vuelo_label = p_ida_vuelo.add_run('IDA : ')
+        set_run_font(run_ida_vuelo_label, size=12, bold=False)  # Label sin negritas
+        vuelo_salida_display = vuelo_salida if vuelo_salida else ''
+        run_ida_vuelo_val = p_ida_vuelo.add_run(vuelo_salida_display)
+        set_run_font(run_ida_vuelo_val, size=12, bold=True)  # Valor en negritas
+        
+        # REGRESO - SIEMPRE mostrar este campo
+        p_regreso_vuelo = doc.add_paragraph()
+        p_regreso_vuelo.paragraph_format.space_after = Pt(2)  # Espaciado compacto
+        run_regreso_vuelo_label = p_regreso_vuelo.add_run('REGRESO : ')
+        set_run_font(run_regreso_vuelo_label, size=12, bold=False)  # Label sin negritas
+        vuelo_regreso_display = vuelo_regreso if vuelo_regreso else ''
+        run_regreso_vuelo_val = p_regreso_vuelo.add_run(vuelo_regreso_display)
+        set_run_font(run_regreso_vuelo_val, size=12, bold=True)  # Valor en negritas
+        
+        # EQUIPAJE (desde campo "incluye") - SIEMPRE mostrar este campo
+        p_equipaje = doc.add_paragraph()
+        p_equipaje.paragraph_format.space_after = Pt(2)  # Espaciado compacto
+        run_equipaje_label = p_equipaje.add_run('EQUIPAJE: ')
+        set_run_font(run_equipaje_label, size=12, bold=False)  # Label sin negritas
+        vuelo_incluye_display = vuelo_incluye.upper() if vuelo_incluye else ''
+        run_equipaje_val = p_equipaje.add_run(vuelo_incluye_display)
+        set_run_font(run_equipaje_val, size=12, bold=True)  # Valor en negritas
+        
+        # Traslado - SIEMPRE mostrar este campo (usar información extraída si existe)
+        p_traslado = doc.add_paragraph()
+        p_traslado.paragraph_format.space_after = Pt(2)  # Espaciado compacto
+        run_traslado_label = p_traslado.add_run('Traslado: ')
+        set_run_font(run_traslado_label, size=12, bold=False)  # Label sin negritas
+        traslado_display = traslado_info.upper() if traslado_info else ''
+        run_traslado_val = p_traslado.add_run(traslado_display)
+        set_run_font(run_traslado_val, size=12, bold=True)  # Valor en negritas
+        
+        # ADICIONALES (tours) - SIEMPRE mostrar el label
+        p_adicionales = doc.add_paragraph()
+        p_adicionales.paragraph_format.space_after = Pt(0)  # Sin espacio después para compactar
+        run_adicionales_label = p_adicionales.add_run('ADICIONALES: ')
+        set_run_font(run_adicionales_label, size=12, bold=False)  # Label sin negritas
+        
+        # Si no hay tours, no agregar espacio extra
+        # Mostrar tours si existen
+        if tours and len(tours) > 0:
+            for tour in tours:
+                if isinstance(tour, dict):
+                    # Extraer nombre del tour (puede estar en diferentes campos)
+                    tour_nombre = tour.get('nombre', '') or tour.get('descripcion', '') or ''
+                    # Si no hay nombre pero hay especificaciones, usar las primeras palabras
+                    if not tour_nombre:
+                        especificaciones = tour.get('especificaciones', '')
+                        if especificaciones:
+                            # Tomar las primeras palabras como nombre
+                            palabras = especificaciones.split()[:5]
+                            tour_nombre = ' '.join(palabras)
+                    
+                    # Extraer fecha si está disponible (puede estar en especificaciones o en un campo fecha)
+                    tour_fecha = tour.get('fecha', '')
+                    # Intentar extraer fecha de especificaciones si no está en campo fecha
+                    if not tour_fecha:
+                        especificaciones = tour.get('especificaciones', '')
+                        # Buscar patrones de fecha comunes
+                        import re
+                        fecha_match = re.search(r'(\d{1,2}\s*(?:DIC|ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC))', especificaciones.upper())
+                        if fecha_match:
+                            tour_fecha = fecha_match.group(1)
+                    
+                    # Extraer número de pasajeros/adultos
+                    tour_pasajeros = tour.get('pasajeros', '') or tour.get('adultos', '')
+                    if tour_pasajeros and isinstance(tour_pasajeros, (int, str)):
+                        if isinstance(tour_pasajeros, int):
+                            tour_pasajeros = f"{tour_pasajeros} ADULTOS"
+                        elif not 'ADULTOS' in str(tour_pasajeros).upper():
+                            tour_pasajeros = f"{tour_pasajeros} ADULTOS"
+                    
+                    if tour_nombre:
+                        p_tour = doc.add_paragraph()
+                        p_tour.paragraph_format.left_indent = Inches(0.5)
+                        p_tour.paragraph_format.space_after = Pt(0)  # Sin espacio después para compactar
+                        # Formato según imagen: "PARQUE XENSES 2 ADULTOS (16 DIC) / TRASLADO"
+                        tour_texto = f"{tour_nombre.upper()}"
+                        if tour_pasajeros:
+                            tour_texto += f" {tour_pasajeros.upper()}"
+                        if tour_fecha:
+                            tour_texto += f" ({tour_fecha.upper()})"
+                        tour_texto += " / TRASLADO"
+                        run_tour = p_tour.add_run(tour_texto)
+                        set_run_font(run_tour, size=12, bold=True)  # Valor en negritas
+        
+        # PRECIO Y CONDICIONES ECONÓMICAS - Sin espacio extra antes
+        p_seccion = doc.add_paragraph()
+        p_seccion.paragraph_format.space_before = Pt(0)  # Sin espacio antes
+        p_seccion.paragraph_format.space_after = Pt(0)  # Sin espacio después para compactar
+        run_seccion = p_seccion.add_run('PRECIO Y CONDICIONES ECONÓMICAS')
+        set_run_font(run_seccion, size=12, bold=True)
+        
+        # Precio total del paquete
+        p_precio = doc.add_paragraph()
+        p_precio.paragraph_format.space_after = Pt(2)  # Espaciado compacto
+        run_precio_label = p_precio.add_run('•Precio total del paquete: ')
+        set_run_font(run_precio_label, size=12, bold=False)  # Label sin negritas
+        run_precio_dollar = p_precio.add_run('$')
+        set_run_font(run_precio_dollar, size=12, bold=False)
+        run_precio_val = p_precio.add_run(f'{format_currency(precio_total)} MXN')
+        set_run_font(run_precio_val, size=12, bold=True)  # Valor en negritas
+        run_precio_val.font.underline = True
+        
+        # Anticipo recibido
+        p_anticipo = doc.add_paragraph()
+        p_anticipo.paragraph_format.space_after = Pt(2)  # Espaciado compacto
+        run_anticipo_label = p_anticipo.add_run('•Anticipo recibido: ')
+        set_run_font(run_anticipo_label, size=12, bold=False)  # Label sin negritas
+        run_anticipo_dollar = p_anticipo.add_run('$')
+        set_run_font(run_anticipo_dollar, size=12, bold=False)
+        run_anticipo_val = p_anticipo.add_run(f'{format_currency(anticipo)} MXN')
+        set_run_font(run_anticipo_val, size=12, bold=True)  # Valor en negritas
+        run_anticipo_val.font.underline = True
+        
+        # Saldo pendiente
+        p_saldo = doc.add_paragraph()
+        p_saldo.paragraph_format.space_after = Pt(2)  # Espaciado compacto
+        run_saldo_label = p_saldo.add_run('•Saldo pendiente: ')
+        set_run_font(run_saldo_label, size=12, bold=False)  # Label sin negritas
+        run_saldo_dollar = p_saldo.add_run('$')
+        set_run_font(run_saldo_dollar, size=12, bold=False)
+        run_saldo_val = p_saldo.add_run(f'{format_currency(saldo_pendiente)} MXN')
+        set_run_font(run_saldo_val, size=12, bold=True)  # Valor en negritas
+        run_saldo_val.font.underline = True
+        
+        # Fecha límite de pago total
+        p_fecha_limite = doc.add_paragraph()
+        p_fecha_limite.paragraph_format.space_after = Pt(2)  # Espaciado compacto
+        run_fecha_limite_label = p_fecha_limite.add_run('•Fecha límite de pago total: ')
+        set_run_font(run_fecha_limite_label, size=12, bold=False)  # Label sin negritas
+        if fecha_limite_pago:
+            meses_cortos = {
+                1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL',
+                5: 'MAYO', 6: 'JUNIO', 7: 'JULIO', 8: 'AGOSTO',
+                9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'
+            }
+            fecha_texto = f"{fecha_limite_pago.day:02d}/{meses_cortos[fecha_limite_pago.month]}/{fecha_limite_pago.year}"
+            run_fecha_limite_val = p_fecha_limite.add_run(fecha_texto)
+        else:
+            run_fecha_limite_val = p_fecha_limite.add_run('//2025')
+        set_run_font(run_fecha_limite_val, size=12, bold=True)
+        run_fecha_limite_val.font.underline = True
+        
+        # Desglose de pagos (parcialidades) - dejar en blanco para llenar manualmente
+        p_desglose = doc.add_paragraph()
+        p_desglose.paragraph_format.space_after = Pt(0)  # Sin espacio después
+        run_desglose_label = p_desglose.add_run('•Desglose de pagos (si aplica):')
+        set_run_font(run_desglose_label, size=12, bold=False)  # Label sin negritas
+        
+        for i in range(1, 4):
+            p_parcialidad = doc.add_paragraph()
+            p_parcialidad.paragraph_format.left_indent = Inches(0.5)
+            p_parcialidad.paragraph_format.space_after = Pt(0) if i == 3 else Pt(0)  # Sin espacio después (especialmente en la última)
+            run_parcialidad = p_parcialidad.add_run(f'Parcialidad {i}: $_________ Fecha: //2025')
+            set_run_font(run_parcialidad, size=12, bold=False)  # Sin negritas (campos vacíos)
+        
+        # El footer ya está en el membrete de la plantilla
+        
+        # ============================================
+        # PÁGINA 2: ANEXO DE TÉRMINOS Y CONDICIONES
+        # ============================================
+        
+        # Usar page_break_before en lugar de add_page_break() para evitar página vacía
+        # EL CLIENTE declara que: - Segunda página con fuente 10.5pt
+        p_declara = doc.add_paragraph()
+        p_declara.paragraph_format.page_break_before = True  # Forzar salto de página antes de este párrafo
+        p_declara.paragraph_format.space_before = Pt(0)  # Sin espacio antes
+        p_declara.paragraph_format.space_after = Pt(8)
+        run_declara = p_declara.add_run('EL CLIENTE declara que:')
+        set_run_font(run_declara, size=10.5, bold=True)  # 10.5pt en segunda página
+        
+        declaraciones = [
+            'Ha revisado y entendido toda la información contenida en este Anexo.',
+            'Proporcionó datos veraces y completos.',
+            'Acepta las condiciones del servicio, políticas de proveedores y cláusulas del contrato.',
+        ]
+        
+        for decl in declaraciones:
+            p = doc.add_paragraph()
+            p.paragraph_format.left_indent = Inches(0.5)
+            p.paragraph_format.space_after = Pt(4)
+            run_bullet = p.add_run('•')
+            set_run_font(run_bullet, size=10.5)  # 10.5pt en segunda página
+            run_text = p.add_run(decl)
+            set_run_font(run_text, size=10.5)  # 10.5pt en segunda página
+        
+        # NOTA
+        p_nota = doc.add_paragraph()
+        p_nota.paragraph_format.space_before = Pt(12)
+        p_nota.paragraph_format.space_after = Pt(8)
+        run_nota_label = p_nota.add_run('NOTA: ')
+        set_run_font(run_nota_label, size=10.5, bold=True)  # 10.5pt en segunda página
+        run_nota_text = p_nota.add_run('Movums The Travel Store, se reserva el derecho de cancelar sin previo aviso este contrato, si los depósitos no son recibidos en las fechas pactadas con el "CLIENTE" anteriormente estipuladas.')
+        set_run_font(run_nota_text, size=10.5)  # 10.5pt en segunda página
+        
+        # CANCELACIONES
+        p_cancelaciones = doc.add_paragraph()
+        p_cancelaciones.paragraph_format.space_before = Pt(12)
+        p_cancelaciones.paragraph_format.space_after = Pt(8)
+        run_cancelaciones = p_cancelaciones.add_run('CANCELACIONES:')
+        set_run_font(run_cancelaciones, size=10.5, bold=True)  # 10.5pt en segunda página
+        
+        textos_cancelacion = [
+            'Entre la firma del contrato y pago de anticipo, parcial o total no se reembolsará ningún pago',
+            'No es cancelable, ni reembolsable.',
+            'Cualquier modificación puede ocasionar cargo extra; y están sujetos a disponibilidad'
+        ]
+        
+        for texto in textos_cancelacion:
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(4)
+            run = p.add_run(texto)
+            set_run_font(run, size=10.5)  # 10.5pt en segunda página
+        
+        # VUELOS
+        p_vuelos_seccion = doc.add_paragraph()
+        p_vuelos_seccion.paragraph_format.space_before = Pt(12)
+        p_vuelos_seccion.paragraph_format.space_after = Pt(8)
+        run_vuelos_seccion = p_vuelos_seccion.add_run('VUELOS:')
+        set_run_font(run_vuelos_seccion, size=10.5, bold=True)  # 10.5pt en segunda página
+        
+        texto_vuelos = 'Movums The Travel Store, no se hace responsable por cambios y/o cancelaciones de la aerolínea contratada para el paquete vacacional, en este caso Movums The Travel Store ofrecera las alternativas que nos brinde directamente la aerolínea.'
+        p_vuelos_texto = doc.add_paragraph()
+        p_vuelos_texto.paragraph_format.space_after = Pt(8)
+        run_vuelos_texto = p_vuelos_texto.add_run(texto_vuelos)
+        set_run_font(run_vuelos_texto, size=10.5)  # 10.5pt en segunda página
+        
+        # FECHA DE VALIDEZ DEL CONTRATO
+        p_validez = doc.add_paragraph()
+        p_validez.paragraph_format.space_before = Pt(12)
+        p_validez.paragraph_format.space_after = Pt(8)
+        run_validez = p_validez.add_run('FECHA DE VALIDEZ DEL CONTRATO:')
+        set_run_font(run_validez, size=10.5, bold=True)  # 10.5pt en segunda página
+        
+        texto_validez = (
+            '•Las condiciones y precios antes mencionados serán mantenidos a la fecha límite de pago, a esta fecha el "CLIENTE" deberá haber cubierto el pago total del paquete o servicio turístico contratado. '
+            'La aceptación de este contrato será efectiva una vez que el "CLIENTE" envié el contrato debidamente firmado y con el anticipo, pago parcial o pago total; no reembolsable; para que Movums The travel store, proceda con la reservación del servicio contratado'
+        )
+        
+        p_texto_validez = doc.add_paragraph()
+        p_texto_validez.paragraph_format.space_after = Pt(12)
+        p_texto_validez.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        # Resaltar palabras clave
+        partes = texto_validez.split('fecha límite de pago')
+        if len(partes) > 1:
+            run1 = p_texto_validez.add_run(partes[0])
+            set_run_font(run1, size=10.5)  # 10.5pt en segunda página
+            run2 = p_texto_validez.add_run('fecha límite de pago')
+            set_run_font(run2, size=10.5, bold=True)  # 10.5pt en segunda página
+            resto = 'anticipo, pago parcial o pago total'
+            if resto in partes[1]:
+                partes2 = partes[1].split(resto)
+                run3 = p_texto_validez.add_run(partes2[0])
+                set_run_font(run3, size=10.5)  # 10.5pt en segunda página
+                run4 = p_texto_validez.add_run(resto)
+                set_run_font(run4, size=10.5, bold=True)  # 10.5pt en segunda página
+                if len(partes2) > 1:
+                    run5 = p_texto_validez.add_run(partes2[1])
+                    set_run_font(run5, size=10.5)  # 10.5pt en segunda página
+            else:
+                run3 = p_texto_validez.add_run(partes[1])
+                set_run_font(run3, size=10.5)  # 10.5pt en segunda página
+        else:
+            run = p_texto_validez.add_run(texto_validez)
+            set_run_font(run, size=10.5)  # 10.5pt en segunda página
+        
+        # FIRMAS
+        p_firmas = doc.add_paragraph()
+        p_firmas.paragraph_format.space_before = Pt(12)
+        p_firmas.paragraph_format.space_after = Pt(8)
+        run_firmas = p_firmas.add_run('FIRMAS:')
+        set_run_font(run_firmas, size=10.5, bold=True)  # 10.5pt en segunda página
+        
+        # CLIENTE
+        p_cliente_firma = doc.add_paragraph()
+        p_cliente_firma.paragraph_format.space_before = Pt(12)
+        p_cliente_firma.paragraph_format.space_after = Pt(6)
+        run_cliente_firma = p_cliente_firma.add_run('CLIENTE:')
+        set_run_font(run_cliente_firma, size=10.5, bold=True)  # 10.5pt en segunda página
+        
+        p_nombre_firma = doc.add_paragraph()
+        p_nombre_firma.paragraph_format.space_after = Pt(6)
+        run_nombre_firma_label = p_nombre_firma.add_run('Nombre y firma: ')
+        set_run_font(run_nombre_firma_label, size=10.5)  # 10.5pt en segunda página
+        run_linea1 = p_nombre_firma.add_run('_' * 50)
+        set_run_font(run_linea1, size=10.5)  # 10.5pt en segunda página
+        
+        # AGENCIA
+        p_agencia_firma = doc.add_paragraph()
+        p_agencia_firma.paragraph_format.space_before = Pt(12)
+        p_agencia_firma.paragraph_format.space_after = Pt(6)
+        run_agencia_firma = p_agencia_firma.add_run('AGENCIA – Movums The Travel Store')
+        set_run_font(run_agencia_firma, size=10.5, bold=True)  # 10.5pt en segunda página
+        
+        p_representante = doc.add_paragraph()
+        p_representante.paragraph_format.space_after = Pt(6)
+        run_representante_label = p_representante.add_run('Nombre y firma del representante: ')
+        set_run_font(run_representante_label, size=10.5)  # 10.5pt en segunda página
+        run_linea2 = p_representante.add_run('_' * 50)
+        set_run_font(run_linea2, size=10.5)  # 10.5pt en segunda página
+        
+        # El footer ya está en el membrete de la plantilla
+        
+        # Preparar respuesta HTTP
+        from io import BytesIO
+        buffer = BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+        
+        nombre_cliente_safe = cliente.nombre_completo_display.replace(' ', '_').replace('/', '_')
+        filename = f"Contrato_Paquete_Nacional_{venta.pk}_{nombre_cliente_safe}.docx"
         
         response = HttpResponse(
             buffer.getvalue(),
@@ -10394,9 +11183,9 @@ class CotizacionConvertirView(LoginRequiredMixin, View):
         }
         servicios_seleccionados = servicios_mapeo.get(tipo, [])
         
-        # Para paquetes, siempre incluir Vuelo y Hospedaje, y Tour solo si hay tours
+        # Para paquetes, usar 'Paquete' como servicio principal (no 'Vuelo' y 'Hospedaje' por separado)
         if tipo == 'paquete':
-            servicios_seleccionados = ['Vuelo', 'Hospedaje']
+            servicios_seleccionados = ['Paquete']  # Cambiar a 'Paquete' para que se guarde como 'PAQ'
             # Verificar si hay tours en el paquete
             paquete = propuestas.get('paquete', {})
             if isinstance(paquete, dict) and paquete.get('tours'):
