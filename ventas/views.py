@@ -2628,10 +2628,20 @@ class ContratoVentaPDFView(LoginRequiredMixin, DetailView):
     """
     Vista para generar el Contrato de Venta en formato DOCX.
     Utiliza python-docx para generar un documento Word editable.
+    Si la venta es de hospedaje, redirige a ContratoHospedajePDFView.
     """
     model = VentaViaje
     
     def get(self, request, *args, **kwargs):
+        self.object = self.get_object() 
+        venta = self.object
+        
+        # Si es hospedaje, usar el contrato específico
+        if venta.servicios_seleccionados and 'HOS' in venta.servicios_seleccionados:
+            # Redirigir a la vista específica de hospedaje
+            from django.urls import reverse
+            return HttpResponseRedirect(reverse('generar_contrato_hospedaje_pdf', kwargs={'pk': venta.pk, 'slug': venta.slug}))
+        
         try:
             from docx import Document
             from docx.shared import Pt, RGBColor, Inches
@@ -2640,8 +2650,6 @@ class ContratoVentaPDFView(LoginRequiredMixin, DetailView):
         except ImportError:
             return HttpResponse("Error: python-docx no está instalado. Ejecuta: pip install python-docx", status=500)
 
-        self.object = self.get_object() 
-        venta = self.object
         cliente = venta.cliente
         
         # Calcular saldo pendiente (asegurarse de que no sea negativo)
@@ -3338,6 +3346,462 @@ class ContratoVentaPDFView(LoginRequiredMixin, DetailView):
         
         nombre_cliente_safe = venta.cliente.nombre_completo_display.replace(' ', '_').replace('/', '_')
         filename = f"Contrato_Venta_{venta.pk}_{nombre_cliente_safe}.docx"
+        
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Length'] = str(len(buffer.getvalue()))
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
+        
+        buffer.close()
+        return response
+
+
+class ContratoHospedajePDFView(LoginRequiredMixin, DetailView):
+    """
+    Vista para generar el Contrato de Hospedaje en formato DOCX.
+    Formato específico para ventas de hospedaje basado en las imágenes proporcionadas.
+    """
+    model = VentaViaje
+    
+    def get(self, request, *args, **kwargs):
+        try:
+            from docx import Document
+            from docx.shared import Pt, RGBColor, Inches
+            from docx.oxml.ns import qn
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+            from docx.enum.section import WD_SECTION
+        except ImportError:
+            return HttpResponse("Error: python-docx no está instalado. Ejecuta: pip install python-docx", status=500)
+
+        self.object = self.get_object() 
+        venta = self.object
+        cliente = venta.cliente
+        
+        # Verificar que sea hospedaje
+        if not venta.servicios_seleccionados or 'HOS' not in venta.servicios_seleccionados:
+            return HttpResponse("Error: Esta venta no es de hospedaje.", status=400)
+        
+        # Obtener datos de la cotización si existe
+        hotel_nombre = ''
+        habitacion = ''
+        plan_alimentos = ''
+        destino = ''
+        
+        if venta.cotizacion_origen:
+            cotizacion = venta.cotizacion_origen
+            propuestas = cotizacion.propuestas if isinstance(cotizacion.propuestas, dict) else {}
+            
+            # Obtener información del hotel desde propuestas
+            if propuestas.get('hoteles'):
+                hoteles = propuestas.get('hoteles', [])
+                if isinstance(hoteles, list) and len(hoteles) > 0:
+                    hotel_data = hoteles[0] if isinstance(hoteles[0], dict) else {}
+                    hotel_nombre = hotel_data.get('hotel', '') or hotel_data.get('nombre', '')
+                    habitacion = hotel_data.get('habitacion', '') or hotel_data.get('tipo_habitacion', '')
+                    plan_alimentos = hotel_data.get('plan_alimentos', '') or hotel_data.get('regimen', '')
+            
+            # Obtener destino desde cotización
+            destino = cotizacion.destino or ''
+        
+        # Si no hay destino en cotización, usar servicios_detalle o un valor por defecto
+        if not destino:
+            destino = venta.servicios_detalle or 'HOSPEDAJE'
+        
+        # Calcular valores financieros
+        from decimal import Decimal
+        precio_total = venta.costo_total_con_modificacion or Decimal('0.00')
+        anticipo = venta.cantidad_apertura or Decimal('0.00')
+        saldo_pendiente = max(Decimal('0.00'), precio_total - venta.total_pagado)
+        fecha_limite_pago = venta.fecha_vencimiento_pago
+        
+        # Convertir montos a texto (la función retorna "tres mil pesos 00/100 M.N.")
+        anticipo_texto = numero_a_texto(float(anticipo))
+        # Ajustar formato: cambiar "M.N." por "MXN" y ajustar formato según imagen
+        anticipo_texto = anticipo_texto.replace('M.N.', 'MXN')
+        
+        # Usar plantilla con membrete si existe
+        template_path = os.path.join(settings.BASE_DIR, 'static', 'docx', 'membrete.docx')
+        if os.path.exists(template_path):
+            doc = Document(template_path)
+        else:
+            doc = Document()
+        
+        # Configurar fuente predeterminada
+        style = doc.styles['Normal']
+        style.font.name = 'Arial'
+        style.font.size = Pt(12)
+        style._element.rPr.rFonts.set(qn('w:eastAsia'), 'Arial')
+        
+        # Colores
+        MOVUMS_BLUE = RGBColor(0, 74, 142)  # #004a8e
+        TEXT_COLOR = RGBColor(47, 47, 47)  # #2f2f2f
+        
+        def set_run_font(run, size=12, bold=False, color=TEXT_COLOR):
+            run.font.name = 'Arial'
+            run.font.size = Pt(size)
+            run.bold = bold
+            run.font.color.rgb = color
+        
+        def format_date(value):
+            if not value:
+                return ''
+            try:
+                if isinstance(value, date):
+                    # Formato: DD MES YYYY (ej: 02 ABRIL 2026)
+                    meses = {
+                        1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL',
+                        5: 'MAYO', 6: 'JUNIO', 7: 'JULIO', 8: 'AGOSTO',
+                        9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'
+                    }
+                    return f"{value.day:02d} {meses[value.month]} {value.year}"
+                return str(value)
+            except:
+                return ''
+        
+        def format_currency(value):
+            if value in (None, '', 0):
+                return '0.00'
+            try:
+                number = Decimal(str(value).replace(',', ''))
+            except:
+                return str(value)
+            return f"{number:,.2f}"
+        
+        # ============================================
+        # PÁGINA 1: CONTRATO PRINCIPAL
+        # ============================================
+        # El membrete ya está en la plantilla, no necesitamos agregarlo manualmente
+        
+        # Título principal
+        p_titulo = doc.add_paragraph()
+        p_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_titulo.paragraph_format.space_before = Pt(0)
+        p_titulo.paragraph_format.space_after = Pt(12)
+        run_titulo = p_titulo.add_run('CONTRATO DE SERVICIOS TURÍSTICOS')
+        set_run_font(run_titulo, size=18, bold=True, color=MOVUMS_BLUE)
+        
+        # Fecha y Destino (en la misma línea)
+        p_fecha_destino = doc.add_paragraph()
+        p_fecha_destino.paragraph_format.space_after = Pt(12)
+        run_fecha_label = p_fecha_destino.add_run('Fecha: ')
+        set_run_font(run_fecha_label, size=12, bold=True)
+        run_fecha_val = p_fecha_destino.add_run(format_date(date.today()))
+        set_run_font(run_fecha_val, size=12)
+        
+        # Destino en línea separada
+        p_destino = doc.add_paragraph()
+        p_destino.paragraph_format.space_after = Pt(12)
+        run_destino_label = p_destino.add_run('Destino: ')
+        set_run_font(run_destino_label, size=12, bold=True)
+        run_destino_val = p_destino.add_run(destino.upper() if destino else 'HOSPEDAJE')
+        set_run_font(run_destino_val, size=12, bold=True)
+        
+        # Información del cliente y monto recibido
+        p_cliente = doc.add_paragraph()
+        p_cliente.paragraph_format.space_after = Pt(6)
+        run_texto1 = p_cliente.add_run('Movums The travel Store, con domicilio Plaza Mora, Juárez Sur 321 Local 18 CP. 56100 Texcoco Estado de México, recibió de: ')
+        set_run_font(run_texto1, size=12)
+        run_cliente = p_cliente.add_run(cliente.nombre_completo_display.upper())
+        set_run_font(run_cliente, size=12, bold=True)
+        run_cliente.font.underline = True
+        run_texto2 = p_cliente.add_run(' la cantidad de:')
+        set_run_font(run_texto2, size=12)
+        
+        # Monto recibido
+        p_monto = doc.add_paragraph()
+        p_monto.paragraph_format.space_after = Pt(12)
+        run_monto_num = p_monto.add_run(f'${format_currency(anticipo)}')
+        set_run_font(run_monto_num, size=12, bold=True)
+        run_monto_num.font.underline = True
+        run_monto_texto = p_monto.add_run(f' ({anticipo_texto}) por concepto de:')
+        set_run_font(run_monto_texto, size=12)
+        
+        # Agregar espacio antes de los detalles del hospedaje
+        p_espacio = doc.add_paragraph()
+        p_espacio.paragraph_format.space_after = Pt(6)
+        
+        # Detalles del hospedaje
+        p_detalles = doc.add_paragraph()
+        p_detalles.paragraph_format.space_after = Pt(6)
+        
+        # FECHA DE IDA
+        run_ida_label = p_detalles.add_run('FECHA DE IDA: ')
+        set_run_font(run_ida_label, size=12, bold=True)
+        run_ida_val = p_detalles.add_run(format_date(venta.fecha_inicio_viaje) if venta.fecha_inicio_viaje else '')
+        set_run_font(run_ida_val, size=12, bold=True)
+        
+        p_detalles2 = doc.add_paragraph()
+        p_detalles2.paragraph_format.space_after = Pt(6)
+        run_regreso_label = p_detalles2.add_run('FECHA DE REGRESO: ')
+        set_run_font(run_regreso_label, size=12, bold=True)
+        run_regreso_val = p_detalles2.add_run(format_date(venta.fecha_fin_viaje) if venta.fecha_fin_viaje else '')
+        set_run_font(run_regreso_val, size=12, bold=True)
+        
+        # Pasajeros - obtener desde cotización si existe
+        adultos = 0
+        menores = 0
+        if venta.cotizacion_origen:
+            cotizacion = venta.cotizacion_origen
+            adultos = cotizacion.adultos or 0
+            menores = cotizacion.menores or 0
+        
+        # Si no hay cotización, intentar contar desde pasajeros
+        if adultos == 0 and venta.pasajeros:
+            # Contar líneas no vacías como aproximación
+            pasajeros_lista = [p.strip() for p in venta.pasajeros.split('\n') if p.strip()]
+            adultos = len(pasajeros_lista) if pasajeros_lista else 1
+        
+        p_pasajeros = doc.add_paragraph()
+        p_pasajeros.paragraph_format.space_after = Pt(6)
+        edades_menores_texto = ''
+        if venta.edades_menores:
+            edades_menores_texto = f' ({venta.edades_menores})'
+        elif menores > 0:
+            edades_menores_texto = ' (Edades: )'  # Dejar espacio para completar manualmente
+        
+        run_pasajeros_label = p_pasajeros.add_run('PASAJEROS: ')
+        set_run_font(run_pasajeros_label, size=12, bold=True)
+        if menores > 0:
+            run_pasajeros_val = p_pasajeros.add_run(f'{adultos} adultos + {menores} Menor{edades_menores_texto}')
+        else:
+            run_pasajeros_val = p_pasajeros.add_run(f'{adultos} adultos')
+        set_run_font(run_pasajeros_val, size=12, bold=True)
+        
+        # Hotel
+        p_hotel = doc.add_paragraph()
+        p_hotel.paragraph_format.space_after = Pt(6)
+        run_hotel_label = p_hotel.add_run('Hotel: ')
+        set_run_font(run_hotel_label, size=12, bold=True)
+        run_hotel_val = p_hotel.add_run(hotel_nombre.upper() if hotel_nombre else '')
+        set_run_font(run_hotel_val, size=12, bold=True)
+        
+        # Habitación
+        p_habitacion = doc.add_paragraph()
+        p_habitacion.paragraph_format.space_after = Pt(6)
+        run_habitacion_label = p_habitacion.add_run('Habitación: ')
+        set_run_font(run_habitacion_label, size=12, bold=True)
+        run_habitacion_val = p_habitacion.add_run(habitacion.upper() if habitacion else '')
+        set_run_font(run_habitacion_val, size=12, bold=True)
+        
+        # Plan de Alimentos
+        p_plan = doc.add_paragraph()
+        p_plan.paragraph_format.space_after = Pt(12)
+        run_plan_label = p_plan.add_run('Plan de Alimentos: ')
+        set_run_font(run_plan_label, size=12, bold=True)
+        if plan_alimentos:
+            run_plan_val = p_plan.add_run(f'/ {plan_alimentos.upper()} /')
+        else:
+            run_plan_val = p_plan.add_run('/ SIN ALIMENTOS / SIN BEBIDAS /')
+        set_run_font(run_plan_val, size=12, bold=True)
+        
+        # Agregar espacio antes de la sección económica
+        p_espacio2 = doc.add_paragraph()
+        p_espacio2.paragraph_format.space_after = Pt(6)
+        
+        # PRECIO Y CONDICIONES ECONÓMICAS
+        p_seccion = doc.add_paragraph()
+        p_seccion.paragraph_format.space_before = Pt(12)
+        p_seccion.paragraph_format.space_after = Pt(8)
+        run_seccion = p_seccion.add_run('PRECIO Y CONDICIONES ECONÓMICAS')
+        set_run_font(run_seccion, size=12, bold=True)
+        
+        # Precio total
+        p_precio = doc.add_paragraph()
+        p_precio.paragraph_format.space_after = Pt(6)
+        run_precio_label = p_precio.add_run('Precio total del paquete: ')
+        set_run_font(run_precio_label, size=12, bold=True)
+        run_precio_val = p_precio.add_run(f'${format_currency(precio_total)} MXN')
+        set_run_font(run_precio_val, size=12, bold=True)
+        run_precio_val.font.underline = True
+        
+        # Anticipo recibido
+        p_anticipo = doc.add_paragraph()
+        p_anticipo.paragraph_format.space_after = Pt(6)
+        run_anticipo_label = p_anticipo.add_run('Anticipo recibido: ')
+        set_run_font(run_anticipo_label, size=12, bold=True)
+        run_anticipo_val = p_anticipo.add_run(f'${format_currency(anticipo)} MXN')
+        set_run_font(run_anticipo_val, size=12, bold=True)
+        run_anticipo_val.font.underline = True
+        
+        # Saldo pendiente
+        p_saldo = doc.add_paragraph()
+        p_saldo.paragraph_format.space_after = Pt(6)
+        run_saldo_label = p_saldo.add_run('Saldo pendiente: ')
+        set_run_font(run_saldo_label, size=12, bold=True)
+        run_saldo_val = p_saldo.add_run(f'${format_currency(saldo_pendiente)} MXN')
+        set_run_font(run_saldo_val, size=12, bold=True)
+        run_saldo_val.font.underline = True
+        
+        # Fecha límite de pago
+        p_fecha_limite = doc.add_paragraph()
+        p_fecha_limite.paragraph_format.space_after = Pt(12)
+        run_fecha_limite_label = p_fecha_limite.add_run('Fecha límite de pago total: ')
+        set_run_font(run_fecha_limite_label, size=12, bold=True)
+        if fecha_limite_pago:
+            # Formato especial: DD/MES/YYYY (ej: 06/MARZO/2026)
+            meses_cortos = {
+                1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL',
+                5: 'MAYO', 6: 'JUNIO', 7: 'JULIO', 8: 'AGOSTO',
+                9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'
+            }
+            fecha_texto = f"{fecha_limite_pago.day:02d}/{meses_cortos[fecha_limite_pago.month]}/{fecha_limite_pago.year}"
+            run_fecha_limite_val = p_fecha_limite.add_run(fecha_texto)
+        else:
+            run_fecha_limite_val = p_fecha_limite.add_run('')
+        set_run_font(run_fecha_limite_val, size=12, bold=True)
+        run_fecha_limite_val.font.underline = True
+        
+        # El footer ya está en el membrete de la plantilla, no necesitamos agregarlo manualmente
+        
+        # ============================================
+        # PÁGINA 2: ANEXO DE TÉRMINOS Y CONDICIONES
+        # ============================================
+        
+        doc.add_page_break()
+        
+        # Título del anexo (si es necesario, aunque en la imagen no aparece explícitamente)
+        
+        # EL CLIENTE declara que:
+        p_declara = doc.add_paragraph()
+        p_declara.paragraph_format.space_before = Pt(12)
+        p_declara.paragraph_format.space_after = Pt(8)
+        run_declara = p_declara.add_run('EL CLIENTE declara que:')
+        set_run_font(run_declara, size=12, bold=True)
+        
+        declaraciones = [
+            'Ha revisado y entendido toda la información contenida en este Anexo.',
+            'Proporcionó datos veraces y completos.',
+            'Acepta las condiciones del servicio, políticas de proveedores y cláusulas del contrato.',
+        ]
+        
+        for decl in declaraciones:
+            p = doc.add_paragraph()
+            p.paragraph_format.left_indent = Inches(0.5)
+            p.paragraph_format.space_after = Pt(4)
+            run_bullet = p.add_run('• ')
+            set_run_font(run_bullet, size=12)
+            run_text = p.add_run(decl)
+            set_run_font(run_text, size=12)
+        
+        # NOTA
+        p_nota = doc.add_paragraph()
+        p_nota.paragraph_format.space_before = Pt(12)
+        p_nota.paragraph_format.space_after = Pt(8)
+        run_nota_label = p_nota.add_run('NOTA: Movums The Travel Store, ')
+        set_run_font(run_nota_label, size=12, bold=True)
+        run_nota_text = p_nota.add_run('se reserva el derecho de cancelar el contrato sin previo aviso en caso de que no se reciban los depósitos en las fechas estipuladas.')
+        set_run_font(run_nota_text, size=12)
+        
+        # CANCELACIONES
+        p_cancelaciones = doc.add_paragraph()
+        p_cancelaciones.paragraph_format.space_before = Pt(12)
+        p_cancelaciones.paragraph_format.space_after = Pt(8)
+        run_cancelaciones = p_cancelaciones.add_run('CANCELACIONES:')
+        set_run_font(run_cancelaciones, size=12, bold=True)
+        
+        textos_cancelacion = [
+            'Entre la firma del contrato y pago de anticipo, parcial o total no se reembolsará ningún pago',
+            'No es cancelable, ni reembolsable.',
+            'Cualquier modificación puede ocasionar cargo extra; y están sujetos a disponibilidad'
+        ]
+        
+        for texto in textos_cancelacion:
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(4)
+            run = p.add_run(texto)
+            set_run_font(run, size=12)
+        
+        # FECHA DE VALIDEZ DEL CONTRATO
+        p_validez = doc.add_paragraph()
+        p_validez.paragraph_format.space_before = Pt(12)
+        p_validez.paragraph_format.space_after = Pt(8)
+        run_validez = p_validez.add_run('FECHA DE VALIDEZ DEL CONTRATO:')
+        set_run_font(run_validez, size=12, bold=True)
+        
+        texto_validez = (
+            'Las condiciones y precios antes mencionados serán mantenidos a la '
+            'fecha límite de pago, a esta fecha el "CLIENTE" deberá haber cubierto el pago total del paquete o servicio turístico contratado. '
+            'La aceptación de este contrato será efectiva una vez que el "CLIENTE" envié el contrato debidamente firmado y con el '
+            'anticipo, pago parcial o pago total; no reembolsable; para que Movums The travel store, proceda con la reservación del servicio contratado'
+        )
+        
+        p_texto_validez = doc.add_paragraph()
+        p_texto_validez.paragraph_format.space_after = Pt(12)
+        p_texto_validez.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        # Resaltar palabras clave
+        partes = texto_validez.split('fecha límite de pago')
+        if len(partes) > 1:
+            run1 = p_texto_validez.add_run(partes[0])
+            set_run_font(run1, size=12)
+            run2 = p_texto_validez.add_run('fecha límite de pago')
+            set_run_font(run2, size=12, bold=True)
+            resto = 'anticipo, pago parcial o pago total'
+            if resto in partes[1]:
+                partes2 = partes[1].split(resto)
+                run3 = p_texto_validez.add_run(partes2[0])
+                set_run_font(run3, size=12)
+                run4 = p_texto_validez.add_run(resto)
+                set_run_font(run4, size=12, bold=True)
+                if len(partes2) > 1:
+                    run5 = p_texto_validez.add_run(partes2[1])
+                    set_run_font(run5, size=12)
+            else:
+                run3 = p_texto_validez.add_run(partes[1])
+                set_run_font(run3, size=12)
+        else:
+            run = p_texto_validez.add_run(texto_validez)
+            set_run_font(run, size=12)
+        
+        # FIRMAS
+        p_firmas = doc.add_paragraph()
+        p_firmas.paragraph_format.space_before = Pt(20)
+        p_firmas.paragraph_format.space_after = Pt(8)
+        run_firmas = p_firmas.add_run('FIRMAS')
+        set_run_font(run_firmas, size=12, bold=True)
+        
+        # CLIENTE
+        p_cliente_firma = doc.add_paragraph()
+        p_cliente_firma.paragraph_format.space_before = Pt(12)
+        p_cliente_firma.paragraph_format.space_after = Pt(6)
+        run_cliente_firma = p_cliente_firma.add_run('CLIENTE')
+        set_run_font(run_cliente_firma, size=12, bold=True)
+        
+        p_nombre_firma = doc.add_paragraph()
+        p_nombre_firma.paragraph_format.space_after = Pt(6)
+        run_nombre_label = p_nombre_firma.add_run('Nombre y firma: ')
+        set_run_font(run_nombre_label, size=12)
+        run_linea = p_nombre_firma.add_run('_' * 50)
+        set_run_font(run_linea, size=12)
+        
+        # AGENCIA
+        p_agencia_firma = doc.add_paragraph()
+        p_agencia_firma.paragraph_format.space_before = Pt(12)
+        p_agencia_firma.paragraph_format.space_after = Pt(6)
+        run_agencia_firma = p_agencia_firma.add_run('AGENCIA - Movums The Travel Store')
+        set_run_font(run_agencia_firma, size=12, bold=True)
+        
+        p_representante = doc.add_paragraph()
+        p_representante.paragraph_format.space_after = Pt(6)
+        run_representante_label = p_representante.add_run('Nombre y firma del representante: ')
+        set_run_font(run_representante_label, size=12)
+        run_linea2 = p_representante.add_run('_' * 50)
+        set_run_font(run_linea2, size=12)
+        
+        # El footer ya está en el membrete de la plantilla, no necesitamos agregarlo manualmente
+        
+        # Preparar respuesta HTTP
+        from io import BytesIO
+        buffer = BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+        
+        nombre_cliente_safe = cliente.nombre_completo_display.replace(' ', '_').replace('/', '_')
+        filename = f"Contrato_Hospedaje_{venta.pk}_{nombre_cliente_safe}.docx"
         
         response = HttpResponse(
             buffer.getvalue(),

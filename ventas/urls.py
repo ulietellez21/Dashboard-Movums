@@ -46,7 +46,8 @@ from .views import (
     
     # ----------------------------------------------------
     # IMPORTACIÓN DE LA NUEVA VISTA DE PDF DEL CONTRATO
-    ContratoVentaPDFView, 
+    ContratoVentaPDFView,
+    ContratoHospedajePDFView, 
     
     # Plantillas de Confirmación
     ListarConfirmacionesView,
@@ -159,6 +160,13 @@ urlpatterns = [
         '<slug:slug>-<int:pk>/contrato-venta/', 
         ContratoVentaPDFView.as_view(), 
         name='generar_contrato_pdf' # Nombre clave para el botón
+    ),
+    
+    # 3.2.1 RUTA PDF CONTRATO DE HOSPEDAJE (Específico para hospedaje)
+    path(
+        '<slug:slug>-<int:pk>/contrato-hospedaje/', 
+        ContratoHospedajePDFView.as_view(), 
+        name='generar_contrato_hospedaje_pdf'
     ),
 
     # 3.3 RUTA PDF COMPROBANTE DE ABONOS (Actualizada para usar SLUG y PK)
