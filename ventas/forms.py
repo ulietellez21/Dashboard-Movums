@@ -7,6 +7,7 @@ from django.contrib.auth.models import User
 from crm.models import Cliente # Importamos Cliente para usarlo en el queryset si es necesario
 from crm.services import KilometrosService
 from ventas.services.promociones import PromocionesService
+from ventas.services.cotizaciones_campo import aplicar_ajustes_cotizacion_campo
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import date
 
@@ -2310,6 +2311,47 @@ class CotizacionForm(forms.ModelForm):
                 total_estimado = limpiar_y_convertir_total(renta_autos.get('total'))
         
         instance.total_estimado = total_estimado
+        
+        # Aplicar ajustes para asesores de campo
+        # Los ajustes se aplican SIEMPRE para asesores de campo, independientemente de la forma de pago
+        if instance.vendedor:
+            try:
+                # Obtener tipo de cambio si está disponible en las propuestas
+                tipo_cambio = None
+                if isinstance(propuestas, dict):
+                    # Buscar tipo de cambio en diferentes lugares de las propuestas
+                    tipo_cambio_str = propuestas.get('tipo_cambio')
+                    if tipo_cambio_str:
+                        try:
+                            tipo_cambio = Decimal(str(tipo_cambio_str))
+                        except (ValueError, InvalidOperation):
+                            pass
+                
+                # Aplicar ajustes de campo
+                resultado_ajustes = aplicar_ajustes_cotizacion_campo(instance, tipo_cambio=tipo_cambio)
+                
+                # Actualizar el total_estimado con el total final después de ajustes
+                if resultado_ajustes['total_ajustes'] > Decimal('0.00'):
+                    instance.total_estimado = resultado_ajustes['total_final']
+                    
+                    # Guardar información de ajustes en las propuestas para referencia
+                    if not isinstance(instance.propuestas, dict):
+                        instance.propuestas = {}
+                    
+                    # Guardar información de ajustes aplicados
+                    instance.propuestas['ajustes_campo'] = {
+                        'aplicado': True,
+                        'ajustes': resultado_ajustes['ajustes_aplicados'],
+                        'total_ajustes': str(resultado_ajustes['total_ajustes']),
+                        'total_base': str(total_estimado),
+                        'total_final': str(resultado_ajustes['total_final'])
+                    }
+            except Exception as e:
+                # Si hay algún error al aplicar ajustes, continuar sin ajustes
+                # pero registrar el error para debugging
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Error al aplicar ajustes de campo en cotización: {e}")
         
         if commit:
             instance.save()
