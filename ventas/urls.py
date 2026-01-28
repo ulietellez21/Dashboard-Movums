@@ -48,7 +48,8 @@ from .views import (
     # IMPORTACIÓN DE LA NUEVA VISTA DE PDF DEL CONTRATO
     ContratoVentaPDFView,
     ContratoHospedajePDFView,
-    ContratoPaqueteNacionalPDFView, 
+    ContratoPaqueteNacionalPDFView,
+    ContratoPaqueteInternacionalPDFView, 
     
     # Plantillas de Confirmación
     ListarConfirmacionesView,
@@ -175,6 +176,13 @@ urlpatterns = [
         '<slug:slug>-<int:pk>/contrato-paquete-nacional/', 
         ContratoPaqueteNacionalPDFView.as_view(), 
         name='generar_contrato_paquete_nacional_pdf'
+    ),
+    
+    # 3.2.3 RUTA PDF CONTRATO DE PAQUETE INTERNACIONAL (Específico para paquetes internacionales)
+    path(
+        '<slug:slug>-<int:pk>/contrato-paquete-internacional/', 
+        ContratoPaqueteInternacionalPDFView.as_view(), 
+        name='generar_contrato_paquete_internacional_pdf'
     ),
 
     # 3.3 RUTA PDF COMPROBANTE DE ABONOS (Actualizada para usar SLUG y PK)
