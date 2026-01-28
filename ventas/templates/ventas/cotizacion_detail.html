@@ -377,6 +377,31 @@
         </div>
         {% endif %}
 
+        {# Ajustes de Asesor de Campo #}
+        {% if cotizacion.propuestas.ajustes_campo and cotizacion.propuestas.ajustes_campo.aplicado %}
+        <div class="mb-3 p-3 bg-light border border-warning rounded">
+            <h6 class="text-warning mb-2">
+                <i class="fas fa-walking me-2"></i>Ajustes de Asesor de Campo
+            </h6>
+            {% for ajuste in cotizacion.propuestas.ajustes_campo.ajustes %}
+            <div class="small mb-2">
+                <strong>Tipo de Servicio:</strong> {{ ajuste.tipo_servicio }}<br>
+                <strong>Tipo de Ajuste:</strong> 
+                {% if ajuste.tipo_ajuste == 'porcentaje' %}
+                    {{ ajuste.valor_ajuste|floatformat:0 }}%
+                {% elif ajuste.tipo_ajuste == 'fijo' %}
+                    Monto fijo: {{ ajuste.valor_ajuste|formato_moneda_mx }}
+                {% elif ajuste.tipo_ajuste == 'fijo_usd' %}
+                    Monto fijo: ${{ ajuste.valor_ajuste|floatformat:2 }} USD
+                {% endif %}<br>
+                <strong>Ajuste Aplicado:</strong> {{ ajuste.ajuste_aplicado|formato_moneda_mx }}<br>
+                <strong>Total Base:</strong> {{ ajuste.total_base|formato_moneda_mx }}<br>
+                <strong>Total Final:</strong> <span class="fw-bold text-success">{{ ajuste.total_final|formato_moneda_mx }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         <p><strong>Estado:</strong> <span class="badge bg-secondary">{{ cotizacion.get_estado_display }}</span></p>
     </div>
 </div>

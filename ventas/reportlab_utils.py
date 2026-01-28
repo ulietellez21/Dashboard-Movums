@@ -991,6 +991,83 @@ def generate_cotizacion_pdf(cotizacion):
     # Total estimado si existe
     if cotizacion.total_estimado and cotizacion.total_estimado > 0:
         story.append(Spacer(1, 0.5*cm))
+        
+        # Verificar si hay ajustes de campo aplicados
+        ajustes_campo = propuestas.get('ajustes_campo', {}) if isinstance(propuestas, dict) else {}
+        if ajustes_campo.get('aplicado'):
+            # Mostrar desglose de ajustes
+            story.append(Spacer(1, 0.3*cm))
+            ajustes_info = ajustes_campo.get('ajustes', [])
+            if ajustes_info:
+                for ajuste in ajustes_info:
+                    # Mostrar información del ajuste
+                    tipo_servicio = ajuste.get('tipo_servicio', '')
+                    tipo_ajuste = ajuste.get('tipo_ajuste', '')
+                    valor_ajuste = ajuste.get('valor_ajuste', Decimal('0.00'))
+                    ajuste_aplicado = Decimal(str(ajuste.get('ajuste_aplicado', '0.00')))
+                    total_base = Decimal(str(ajuste.get('total_base', '0.00')))
+                    
+                    # Crear texto del ajuste
+                    if tipo_ajuste == 'porcentaje':
+                        texto_ajuste = f"{valor_ajuste * 100:.0f}%"
+                    elif tipo_ajuste == 'fijo':
+                        texto_ajuste = format_currency(valor_ajuste)
+                    elif tipo_ajuste == 'fijo_usd':
+                        texto_ajuste = f"${valor_ajuste:.2f} USD"
+                    else:
+                        texto_ajuste = format_currency(ajuste_aplicado)
+                    
+                    # Crear tabla con información de ajuste
+                    ajuste_data = [
+                        [
+                            Paragraph(
+                                f"<font color='{TEXT_MEDIUM.hexval()}'><b>Ajuste de Asesor de Campo ({tipo_servicio}):</b></font>",
+                                styles['TextoPrincipal']
+                            ),
+                            Paragraph(
+                                f"<font color='{TEXT_DARK.hexval()}'>{texto_ajuste}</font>",
+                                styles['TextoPrincipal']
+                            )
+                        ],
+                        [
+                            Paragraph(
+                                f"<font color='{TEXT_MEDIUM.hexval()}'>Total Base:</font>",
+                                styles['TextoPrincipal']
+                            ),
+                            Paragraph(
+                                f"<font color='{TEXT_DARK.hexval()}'>{format_currency(total_base)}</font>",
+                                styles['TextoPrincipal']
+                            )
+                        ],
+                        [
+                            Paragraph(
+                                f"<font color='{TEXT_MEDIUM.hexval()}'>Ajuste Aplicado:</font>",
+                                styles['TextoPrincipal']
+                            ),
+                            Paragraph(
+                                f"<font color='{MEDIUM_BLUE.hexval()}'><b>+{format_currency(ajuste_aplicado)}</b></font>",
+                                styles['TextoPrincipal']
+                            )
+                        ]
+                    ]
+                    
+                    ajuste_table = Table(ajuste_data, colWidths=[12*cm, 7*cm])
+                    ajuste_table.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, -1), LIGHT_GRAY),
+                        ('TEXTCOLOR', (0, 0), (-1, -1), TEXT_DARK),
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+                        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 10),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                        ('TOPPADDING', (0, 0), (-1, -1), 6),
+                        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+                        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+                        ('GRID', (0, 0), (-1, -1), 0, BORDER_GRAY),
+                    ]))
+                    story.append(ajuste_table)
+                    story.append(Spacer(1, 0.2*cm))
+        
         total_para = create_total(cotizacion.total_estimado)
         story.append(total_para)
     
