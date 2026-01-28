@@ -19,12 +19,54 @@
         margin: 3.5cm 2.0cm 3.0cm 2.0cm;
         /* NOTA: background-image se maneja en body::before para full-bleed */
     }
+
+    /* Para vuelos/hospedaje: usar páginas nombradas y margen superior consistente
+       (2 saltos extra) en TODAS las páginas después de la primera */
+    body.cotizacion-vuelos,
+    body.cotizacion-hospedaje {
+        page: cotizacion-servicios;
+    }
+
+    @page cotizacion-servicios:first {
+        size: letter;
+        margin: 3.5cm 2.0cm 3.0cm 2.0cm;
+    }
+
+    @page cotizacion-servicios {
+        size: letter;
+        /* 2 saltos de línea extra (~48px) a partir de la 2da página */
+        /* 48px ≈ 1.27cm (a 96dpi). 3.5cm + 1.27cm = 4.77cm */
+        margin-top: 4.77cm;
+        margin-right: 2.0cm;
+        margin-bottom: 3.0cm;
+        margin-left: 2.0cm;
+    }
     
 {% else %}
     /* CONFIGURACIÓN SIN MEMBRETE (DEFAULT) */
     @page {
         size: letter;
         margin: 1.5cm;
+    }
+
+    /* Para vuelos/hospedaje sin membrete, aplicar el mismo criterio */
+    body.cotizacion-vuelos,
+    body.cotizacion-hospedaje {
+        page: cotizacion-servicios;
+    }
+
+    @page cotizacion-servicios:first {
+        size: letter;
+        margin: 1.5cm;
+    }
+
+    @page cotizacion-servicios {
+        size: letter;
+        /* 48px ≈ 1.27cm (a 96dpi). 1.5cm + 1.27cm = 2.77cm */
+        margin-top: 2.77cm;
+        margin-right: 1.5cm;
+        margin-bottom: 1.5cm;
+        margin-left: 1.5cm;
     }
 {% endif %}
 
@@ -143,6 +185,16 @@ body {
     max-height: none !important;
 }
 
+/* Para cotizaciones de vuelos y hospedaje, evitar flex (WeasyPrint pagina mejor en block) */
+.cotizacion-vuelos .cotizacion-container,
+.cotizacion-hospedaje .cotizacion-container {
+    display: block !important;
+    gap: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+}
+
 
 .cotizacion-generica .content-wrapper {
     padding-top: 48px !important; /* Solo el spacer-top */
@@ -200,7 +252,7 @@ body {
 
 /* Ajuste específico para cotizaciones de vuelos: menos espacio en la segunda página */
 .cotizacion-vuelos .content-wrapper {
-    padding-top: 96px; /* 4 saltos de línea (reducido para subir las tablas de vuelo) */
+    padding-top: 0; /* El margen superior lo controla @page cotizacion-servicios */
     overflow: visible !important; /* Asegurar que todo el contenido sea visible */
     page-break-inside: auto !important; /* Permitir que el contenido fluya entre páginas */
     height: auto !important; /* Sin límite de altura */
@@ -217,7 +269,7 @@ body {
 
 /* Ajuste específico para cotizaciones de hospedaje: menos espacio en la segunda página */
 .cotizacion-hospedaje .content-wrapper {
-    padding-top: 96px; /* 4 saltos de línea (reducido para subir las tablas de hoteles) */
+    padding-top: 0; /* El margen superior lo controla @page cotizacion-servicios */
     overflow: visible !important; /* Asegurar que todo el contenido sea visible */
     page-break-inside: auto !important; /* Permitir que el contenido fluya entre páginas */
     height: auto !important; /* Sin límite de altura */
@@ -322,6 +374,16 @@ body {
     max-width: 100%;
     box-sizing: border-box;
     overflow: hidden; /* Asegurar que el contenido respete el border-radius */
+}
+
+/* Para vuelos/hospedaje, permitir que WeasyPrint mueva cards a la siguiente página sin recortar */
+.cotizacion-vuelos .card,
+.cotizacion-hospedaje .card {
+    page-break-before: auto;
+    page-break-after: auto;
+    page-break-inside: avoid;
+    break-inside: avoid-page;
+    overflow: visible; /* Evita que se “pierda” contenido al paginar */
 }
 
 /* Excepción VITAL para cotizaciones genéricas con texto largo */
