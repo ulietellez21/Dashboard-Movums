@@ -11909,6 +11909,30 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
         propuestas = cotizacion.propuestas if isinstance(cotizacion.propuestas, dict) else {}
         tipo = propuestas.get('tipo', 'vuelos')
         
+        # Para cotizaciones de paquete: normalizar tours para que siempre se muestren en el PDF
+        if tipo == 'paquete':
+            propuestas = dict(propuestas)
+            paquete = propuestas.get('paquete')
+            if paquete is None:
+                paquete = {}
+                propuestas['paquete'] = paquete
+            else:
+                paquete = dict(paquete)
+                propuestas['paquete'] = paquete
+            
+            tours_raw = paquete.get('tours') or paquete.get('Tours')
+            if tours_raw is None and propuestas.get('tours'):
+                tours_raw = propuestas.get('tours')
+            
+            if isinstance(tours_raw, list):
+                tours_list = [t for t in tours_raw if isinstance(t, dict)]
+            elif isinstance(tours_raw, dict) and tours_raw:
+                tours_list = [tours_raw]
+            else:
+                tours_list = []
+            
+            paquete['tours'] = tours_list
+        
         # Determinar template según tipo
         template_map = {
             'vuelos': 'ventas/pdf/cotizacion_vuelos_pdf.html',
@@ -11990,7 +12014,7 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
             # Si no hay fecha en propuestas, usar fecha de creación
             fecha_cotizacion_obj = cotizacion.creada_en.date() if cotizacion.creada_en else None
         
-        return {
+        contexto = {
             'cotizacion': cotizacion,
             'propuestas': propuestas,
             'tipo': tipo,
@@ -12003,6 +12027,10 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
             'ejecutivo_email': ejecutivo_email,
             'fecha_cotizacion': fecha_cotizacion_obj,  # Objeto date para usar con filtro |date
         }
+        # Lista explícita de tours del paquete para el PDF (evita problemas de visualización en template)
+        if tipo == 'paquete':
+            contexto['paquete_tours'] = propuestas.get('paquete', {}).get('tours', [])
+        return contexto
     
     def _generar_pdf(self, cotizacion):
         """
