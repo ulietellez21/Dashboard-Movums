@@ -8,6 +8,7 @@ from .views import (
     VentaViajeUpdateView,
     LogisticaPendienteView, 
     ReporteFinancieroView,
+    ExportarReporteFinancieroExcelView,
     VentaViajeDeleteView, 
     ComisionesVendedoresView,
     DetalleComisionesView,
@@ -85,6 +86,7 @@ urlpatterns = [
     # 2. Reportes y Logística
     path('logistica-pendiente/', LogisticaPendienteView.as_view(), name='logistica_pendiente'), 
     path('reporte-financiero/', ReporteFinancieroView.as_view(), name='reporte_financiero'),
+    path('reporte-financiero/exportar-excel/', ExportarReporteFinancieroExcelView.as_view(), name='reporte_financiero_exportar_excel'),
     # Comisiones (Legacy - mantener por compatibilidad)
     path('comisiones/', ComisionesVendedoresView.as_view(), name='reporte_comisiones'),
     path('comisiones/<int:pk>/detalle/', DetalleComisionesView.as_view(), name='detalle_comisiones'),
