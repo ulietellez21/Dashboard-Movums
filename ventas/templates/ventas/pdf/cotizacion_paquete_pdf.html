@@ -11,7 +11,12 @@
             {% include "ventas/pdf/components/seccion_hotel.html" with hotel=paquete.hotel %}
         {% endif %}
         
-        {% if paquete.tours %}
+        {% comment %}Tours: usar paquete_tours (lista explícita del contexto) o paquete.tours para asegurar que se rendericen en el PDF{% endcomment %}
+        {% if paquete_tours %}
+            {% for tour in paquete_tours %}
+                {% include "ventas/pdf/components/seccion_tour.html" with tour=tour tour_index=forloop.counter %}
+            {% endfor %}
+        {% elif paquete.tours %}
             {% for tour in paquete.tours %}
                 {% include "ventas/pdf/components/seccion_tour.html" with tour=tour tour_index=forloop.counter %}
             {% endfor %}
