@@ -36,3 +36,4 @@ pytest==9.0.2
 pytest-django==4.11.1
 factory-boy==3.3.3
 Faker==40.1.2
+sentry-sdk==2.19.0
