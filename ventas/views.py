@@ -1062,32 +1062,33 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
         choices = dict(VentaViaje.SERVICIOS_CHOICES)
         existentes = {serv.codigo_servicio: serv for serv in venta.servicios_logisticos.all()}
 
-        # Extraer opciones de proveedor desde servicios_detalle
-        opciones_proveedor = {}
+        # Extraer nombre del proveedor (dropdown) desde servicios_detalle para la columna "Nombre del proveedor".
+        # Formato: "Servicio - Proveedor: Nombre" o "Servicio - Proveedor: Nombre - Opción: Opción elegida"
+        nombres_proveedor = {}
         if venta.servicios_detalle:
             servicios_detalle = venta.servicios_detalle.split('\n')
             for linea in servicios_detalle:
                 linea = linea.strip()
                 if not linea:
                     continue
-                # Formato: "Servicio - Proveedor: Nombre - Opción: Opción elegida"
-                if ' - Opción: ' in linea:
-                    partes = linea.split(' - Opción: ')
-                    if len(partes) == 2:
-                        servicio_parte = partes[0].strip()
-                        opcion = partes[1].strip()
-                        # Extraer el nombre del servicio (antes de " - Proveedor:")
-                        if ' - Proveedor: ' in servicio_parte:
-                            nombre_servicio = servicio_parte.split(' - Proveedor: ')[0].strip()
-                        else:
-                            nombre_servicio = servicio_parte.strip()
-                        opciones_proveedor[nombre_servicio] = opcion
+                if ' - Proveedor: ' not in linea:
+                    continue
+                partes = linea.split(' - Proveedor: ', 1)
+                if len(partes) != 2:
+                    continue
+                nombre_servicio = partes[0].strip()
+                resto = partes[1].strip()
+                # resto es "Nombre" o "Nombre - Opción: Opción elegida"
+                nombre_proveedor = resto.split(' - Opción: ')[0].strip() if ' - Opción: ' in resto else resto
+                if nombre_proveedor:
+                    nombres_proveedor[nombre_servicio] = nombre_proveedor
 
         for idx, code in enumerate(servicios_codes):
             nombre = choices.get(code)
             if not nombre:
                 continue
-            opcion_proveedor = opciones_proveedor.get(nombre, '')
+            # Usar el nombre del proveedor (dropdown) para la columna "Nombre del proveedor"
+            opcion_proveedor = nombres_proveedor.get(nombre, '')
             if code not in existentes:
                 # Para registros nuevos, asignar el valor parseado inicial
                 LogisticaServicio.objects.create(
@@ -1103,12 +1104,10 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                 if serv.orden != idx:
                     serv.orden = idx
                     update_fields.append('orden')
-                # Solo actualizar opcion_proveedor si el campo en BD está vacío
-                # Esto permite que las ediciones manuales del usuario persistan
-                if not serv.opcion_proveedor or serv.opcion_proveedor.strip() == '':
-                    if opcion_proveedor:  # Solo actualizar si hay un valor parseado
-                        serv.opcion_proveedor = opcion_proveedor
-                        update_fields.append('opcion_proveedor')
+                # Actualizar opcion_proveedor con el nombre del proveedor (dropdown) cuando venga de servicios_detalle
+                if opcion_proveedor:
+                    serv.opcion_proveedor = opcion_proveedor
+                    update_fields.append('opcion_proveedor')
                 if update_fields:
                     serv.save(update_fields=update_fields)
 
