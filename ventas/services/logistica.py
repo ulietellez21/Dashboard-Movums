@@ -27,8 +27,10 @@ def build_financial_summary(venta, servicios_qs):
         total=Coalesce(Sum('monto_planeado'), Decimal('0.00'))
     )['total']
 
-    # Saldo disponible para servicios = Servicios planificados - Servicios pagados
-    saldo_disponible = max(Decimal('0.00'), total_servicios_planeados - pagado_servicios)
+    # Saldo disponible para servicios = parte del cobrado (apertura+abonos) asignada a servicios, menos lo ya pagado
+    # Se capa por servicios_planificados: lo que pase de eso es ganancia, no "saldo para servicios"
+    parte_para_servicios = min(total_pagado, total_servicios_planeados)
+    saldo_disponible = max(Decimal('0.00'), parte_para_servicios - pagado_servicios)
     ganancia_estimada = max(Decimal('0.00'), total_venta - total_servicios_planeados)
     ganancia_en_mano = max(Decimal('0.00'), total_pagado - total_servicios_planeados)
     ganancia_pendiente = max(Decimal('0.00'), ganancia_estimada - ganancia_en_mano)
