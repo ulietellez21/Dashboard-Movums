@@ -2006,18 +2006,9 @@
             });
         }
 
-        // Sincronización de fechas: fecha de fin no puede ser anterior a fecha de inicio
+        // Fechas inicio/fin: se pueden editar ambas; solo se valida que fecha fin >= fecha inicio
         const fechaInicio = document.getElementById('id_fecha_inicio');
         const fechaFin = document.getElementById('id_fecha_fin');
-
-        // IMPORTANTE: Guardar los valores iniciales de las fechas ANTES de ejecutar cargarPropuestasDesdeHidden()
-        // para preservarlos durante la restauración de datos
-        let fechaInicioInicial = '';
-        let fechaFinInicial = '';
-        if (fechaInicio && fechaFin) {
-            fechaInicioInicial = fechaInicio.value || '';
-            fechaFinInicial = fechaFin.value || '';
-        }
 
         // ========== FORMATO DE MONEDA MEXICANA PARA CAMPOS TOTAL MXN ==========
         // Función para formatear número a formato de moneda mexicana ($25,000.00)
@@ -2327,77 +2318,38 @@
         // Inicializar listeners para cálculo de total de tours después de aplicar formato
         // (Ya se inicializa en toggleSection cuando se muestra la sección de tours)
 
-        // Después de cargar propuestas, restaurar las fechas si fueron modificadas
-        // Usar múltiples intentos para asegurar que las fechas se preserven
+        // Fechas inicio/fin: permitir editar ambos sin que se reseteen (solo validar que fin >= inicio)
         if (fechaInicio && fechaFin) {
-            // Función para restaurar fechas
-            function restaurarFechas() {
-                if (fechaInicioInicial && fechaInicio.value !== fechaInicioInicial) {
-                    fechaInicio.value = fechaInicioInicial;
-                }
-                if (fechaFinInicial && fechaFin.value !== fechaFinInicial) {
-                    fechaFin.value = fechaFinInicial;
-                }
-            }
-
-            // Restaurar inmediatamente después de cargar propuestas
-            restaurarFechas();
-
-            // Restaurar después de un pequeño delay (por si hay código asíncrono)
-            setTimeout(restaurarFechas, 50);
-            setTimeout(restaurarFechas, 100);
-            setTimeout(restaurarFechas, 200);
-
-            // También restaurar cuando el formulario recibe foco (por si se pierden al cambiar de pestaña)
-            form.addEventListener('focus', restaurarFechas, true);
-
-            // Función para actualizar la fecha mínima de fin y pre-llenar si está vacía
+            // Actualizar fecha mínima de fin y, solo si el usuario cambia inicio, ajustar fin si está vacía o anterior
             function actualizarFechaMinimaFin(esCambioUsuario = false) {
                 const fechaInicioValor = fechaInicio.value;
                 if (fechaInicioValor) {
-                    // Establecer la fecha mínima de fin como la fecha de inicio
                     fechaFin.min = fechaInicioValor;
-
-                    // Solo modificar valores si:
-                    // 1. El campo de fin está vacío Y es un cambio del usuario (no carga inicial)
-                    // 2. O si es un cambio del usuario y la fecha de fin es anterior a la fecha de inicio
                     if (esCambioUsuario) {
                         if (!fechaFin.value) {
-                            // Solo pre-llenar si el usuario está cambiando la fecha de inicio
                             fechaFin.value = fechaInicioValor;
                         } else if (fechaFin.value < fechaInicioValor) {
-                            // Solo actualizar si la fecha de fin es anterior a la fecha de inicio
                             fechaFin.value = fechaInicioValor;
                         }
                     }
-                    // Si no es un cambio del usuario (carga inicial), solo establecer el min sin modificar el valor
                 }
             }
 
-            // Pre-llenar fecha de fin con fecha de inicio cuando se hace clic si está vacía
             function prellenarFechaFin() {
                 const fechaInicioValor = fechaInicio.value;
-                // Si el campo de fin está vacío y hay una fecha de inicio, pre-llenarlo
                 if (!fechaFin.value && fechaInicioValor) {
                     fechaFin.value = fechaInicioValor;
                     actualizarFechaMinimaFin(true);
                 }
             }
 
-            // Restauración final después de que todo se haya inicializado completamente
-            setTimeout(restaurarFechas, 300);
-            setTimeout(restaurarFechas, 500);
-
-            // Usar tanto 'focus' como 'click' para mayor compatibilidad
             fechaFin.addEventListener('focus', prellenarFechaFin);
             fechaFin.addEventListener('click', prellenarFechaFin);
 
-            // Ejecutar al cargar la página solo para establecer el min, sin modificar valores existentes
             if (fechaInicio.value) {
                 fechaFin.min = fechaInicio.value;
             }
 
-            // Ejecutar cuando cambie la fecha de inicio (solo cuando el usuario hace un cambio)
             fechaInicio.addEventListener('change', function () {
                 actualizarFechaMinimaFin(true);
             });
