@@ -17,24 +17,32 @@ def build_financial_summary(venta, servicios_qs):
     total_neto = venta.costo_neto or Decimal('0.00')
     total_pagado = venta.total_pagado or Decimal('0.00')
 
-    total_servicios_planeados = servicios_qs.aggregate(
+    # Servicios planificados = costo neto de la venta (asignado al crear la venta)
+    total_servicios_planeados = venta.costo_neto or Decimal('0.00')
+    # Suma real de los montos planificados asignados en la tabla (debe coincidir con costo_neto)
+    suma_montos_planeados = servicios_qs.aggregate(
         total=Coalesce(Sum('monto_planeado'), Decimal('0.00'))
     )['total']
     pagado_servicios = servicios_qs.filter(pagado=True).aggregate(
         total=Coalesce(Sum('monto_planeado'), Decimal('0.00'))
     )['total']
 
-    saldo_disponible = max(Decimal('0.00'), total_pagado - pagado_servicios)
-    # Ganancia estimada se calcula desde servicios planificados (total_venta - total_servicios_planeados)
+    # Saldo disponible para servicios = Servicios planificados - Servicios pagados
+    saldo_disponible = max(Decimal('0.00'), total_servicios_planeados - pagado_servicios)
     ganancia_estimada = max(Decimal('0.00'), total_venta - total_servicios_planeados)
     ganancia_en_mano = max(Decimal('0.00'), total_pagado - total_servicios_planeados)
     ganancia_pendiente = max(Decimal('0.00'), ganancia_estimada - ganancia_en_mano)
+
+    # Cuadre: la suma de montos planificados debe ser igual al costo neto (tolerancia 0.01)
+    montos_cuadran = abs(suma_montos_planeados - total_servicios_planeados) < Decimal('0.01')
 
     return {
         'total_venta': total_venta,
         'total_neto': total_neto,
         'total_pagado': total_pagado,
         'total_servicios_planeados': total_servicios_planeados,
+        'suma_montos_planeados': suma_montos_planeados,
+        'montos_cuadran': montos_cuadran,
         'monto_pagado_servicios': pagado_servicios,
         'saldo_disponible_servicios': saldo_disponible,
         'ganancia_estimada': ganancia_estimada,

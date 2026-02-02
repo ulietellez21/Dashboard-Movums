@@ -855,6 +855,20 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                     if nuevo_pagado:
                         total_marcado_pagado += nuevo_monto
                 
+                # Validar que la suma de montos planificados sea igual al costo neto de la venta
+                costo_neto_venta = self.object.costo_neto or Decimal('0.00')
+                suma_planeados = sum(
+                    (orig.monto_planeado or Decimal('0.00')) for orig in originales_limpios.values()
+                )
+                if abs(suma_planeados - costo_neto_venta) >= Decimal('0.01'):
+                    formset._non_form_errors = formset.error_class([
+                        "La suma de los montos planificados debe ser igual al campo Servicios planificados "
+                        f"(${costo_neto_venta:,.2f}). Actualmente suma ${suma_planeados:,.2f}. Verifique las cantidades asignadas."
+                    ])
+                    context = self.get_context_data()
+                    self._prepare_logistica_finanzas_context(context, self.object, formset=formset, servicios_qs=servicios_qs)
+                    return self.render_to_response(context)
+
                 # Validar que el total marcado como pagado no exceda el total pagado
                 if total_marcado_pagado > total_pagado + Decimal('0.01'):
                     formset._non_form_errors = formset.error_class([

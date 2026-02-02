@@ -1049,6 +1049,12 @@
                             </small>
                         </div>
                         {% endif %}
+                            {% if not logistica_finanzas.montos_cuadran %}
+                                <div class="alert alert-danger mb-3" role="alert">
+                                    <strong><i class="fas fa-exclamation-triangle me-1"></i>Verifique las cantidades asignadas.</strong>
+                                    La suma de los montos planificados (${{ logistica_finanzas.suma_montos_planeados|floatformat:2|intcomma }}) debe ser igual a Servicios planificados (${{ logistica_finanzas.total_servicios_planeados|floatformat:2|intcomma }}).
+                                </div>
+                            {% endif %}
                             {% if servicios_financieros_formset.non_form_errors %}
                                 <div class="alert alert-danger">
                                     {% for error in servicios_financieros_formset.non_form_errors %}
