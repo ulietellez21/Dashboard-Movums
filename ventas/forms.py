@@ -1371,15 +1371,17 @@ class VentaViajeForm(forms.ModelForm):
         
         # Crear campos dinámicos de proveedores DESPUÉS de super().__init__()
         # para servicios específicos (con dropdown)
+        from django.db.models import Q
         for servicio_nombre, servicio_codigo in SERVICIO_PROVEEDOR_MAP.items():
             field_name = f'proveedor_{servicio_nombre.lower().replace(" ", "_")}'
             if field_name not in self.fields:
-                # ✅ Filtrar proveedores que ofrecen este servicio o "TODO"
-                # El campo 'servicios' es un TextField que almacena códigos separados por comas
-                from django.db.models import Q
-                queryset = Proveedor.objects.filter(
-                    Q(servicios__icontains=servicio_codigo) | Q(servicios__icontains='TODO')
-                ).distinct().order_by('nombre')
+                # Queryset: proveedores del servicio o "TODO". Incluir siempre el proveedor inicial si existe (para edición).
+                initial_proveedor = dynamic_initial.get(field_name)
+                initial_pk = initial_proveedor.pk if isinstance(initial_proveedor, Proveedor) else None
+                q = Q(servicios__icontains=servicio_codigo) | Q(servicios__icontains='TODO')
+                if initial_pk:
+                    q = q | Q(pk=initial_pk)
+                queryset = Proveedor.objects.filter(q).distinct().order_by('nombre')
                 
                 self.fields[field_name] = SafeProveedorModelChoiceField(
                     queryset=queryset,
@@ -1443,13 +1445,9 @@ class VentaViajeForm(forms.ModelForm):
             # IMPORTANTE: Asegurarse de que los valores se establezcan ANTES de que el template los acceda
             for key, value in self._dynamic_initial.items():
                 if (key.startswith('proveedor_') or key.endswith('_opcion')) and key in self.fields:
-                    # Para ModelChoiceField de proveedor: usar pk para evitar get() que devuelve múltiples
-                    if key.startswith('proveedor_') and hasattr(value, 'pk') and not key.endswith('_opcion'):
-                        self.initial[key] = value.pk
-                        self.fields[key].initial = value.pk
-                    else:
-                        self.initial[key] = value
-                        self.fields[key].initial = value
+                    # Conservar proveedor (instancia) y opción (texto) para que al editar se muestren correctamente
+                    self.initial[key] = value
+                    self.fields[key].initial = value
                     # DEBUG: Verificar que el valor se está estableciendo
                     # print(f"DEBUG: Establecido proveedor {key} = {value} (tipo: {type(value)})")
             
