@@ -1,5 +1,6 @@
 from django import forms
 from django.forms import modelformset_factory
+from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 import json
 from django.db.models import Case, When, Value, IntegerField
 from .models import AbonoPago, Logistica, VentaViaje, Proveedor, Ejecutivo, LogisticaServicio, Cotizacion, AbonoProveedor, SolicitudCancelacion # Aseguramos la importación de VentaViaje
@@ -10,6 +11,33 @@ from ventas.services.promociones import PromocionesService
 from ventas.services.cotizaciones_campo import aplicar_ajustes_cotizacion_campo
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import date
+
+
+class SafeProveedorModelChoiceField(forms.ModelChoiceField):
+    """
+    ModelChoiceField para Proveedor que evita MultipleObjectsReturned:
+    usa filter().first() en lugar de get() al resolver el valor.
+    """
+    def to_python(self, value):
+        if value in self.empty_values:
+            return None
+        key = self.to_field_name or 'pk'
+        try:
+            return self.queryset.get(**{key: value})
+        except (ValueError, TypeError):
+            raise forms.ValidationError(
+                self.error_messages['invalid_choice'],
+                code='invalid_choice',
+                params={'value': value},
+            )
+        except ObjectDoesNotExist:
+            raise forms.ValidationError(
+                self.error_messages['invalid_choice'],
+                code='invalid_choice',
+                params={'value': value},
+            )
+        except MultipleObjectsReturned:
+            return self.queryset.filter(**{key: value}).order_by('pk').first()
 
 # Widget personalizado para fechas que use formato ISO para inputs de tipo 'date'
 class ISODateInput(forms.DateInput):
@@ -1071,26 +1099,16 @@ class VentaViajeForm(forms.ModelForm):
                             
                             if nombre_servicio in SERVICIO_PROVEEDOR_MAP:
                                 # Servicio con dropdown de proveedores
+                                # Usar filter().first() por si hay varios Proveedor con el mismo nombre (evita MultipleObjectsReturned)
                                 field_name = f'proveedor_{nombre_servicio.lower().replace(" ", "_")}'
-                                try:
-                                    proveedor_obj = Proveedor.objects.get(nombre=nombre_proveedor)
+                                proveedor_obj = Proveedor.objects.filter(nombre=nombre_proveedor).order_by('pk').first()
+                                if not proveedor_obj:
+                                    proveedor_obj = Proveedor.objects.filter(nombre__icontains=nombre_proveedor).order_by('pk').first()
+                                if proveedor_obj:
                                     dynamic_initial[field_name] = proveedor_obj
-                                    # Añadir opción si existe
                                     if nombre_opcion:
                                         opcion_field_name = f'{field_name}_opcion'
                                         dynamic_initial[opcion_field_name] = nombre_opcion
-                                except Proveedor.DoesNotExist:
-                                    # Si no se encuentra el proveedor, intentar buscar por nombre similar
-                                    try:
-                                        proveedor_obj = Proveedor.objects.filter(nombre__icontains=nombre_proveedor).first()
-                                        if proveedor_obj:
-                                            dynamic_initial[field_name] = proveedor_obj
-                                            # Añadir opción si existe
-                                            if nombre_opcion:
-                                                opcion_field_name = f'{field_name}_opcion'
-                                                dynamic_initial[opcion_field_name] = nombre_opcion
-                                    except:
-                                        pass
                             else:
                                 # Servicio con campo de texto
                                 field_name = f'proveedor_{nombre_servicio.lower().replace(" ", "_").replace("/", "_")}'
@@ -1131,15 +1149,14 @@ class VentaViajeForm(forms.ModelForm):
             tipo_cotizacion = propuestas.get('tipo', '')
             
             # Función auxiliar para buscar proveedor por nombre
+            # Usar filter().first() por si hay varios con el mismo nombre (evita MultipleObjectsReturned)
             def buscar_proveedor_por_nombre(nombre_proveedor):
                 if not nombre_proveedor:
                     return None
-                try:
-                    # Intentar búsqueda exacta primero
-                    return Proveedor.objects.get(nombre=nombre_proveedor)
-                except Proveedor.DoesNotExist:
-                    # Intentar búsqueda parcial
-                    return Proveedor.objects.filter(nombre__icontains=nombre_proveedor).first()
+                proveedor = Proveedor.objects.filter(nombre=nombre_proveedor).order_by('pk').first()
+                if not proveedor:
+                    proveedor = Proveedor.objects.filter(nombre__icontains=nombre_proveedor).order_by('pk').first()
+                return proveedor
             
             # Obtener índices seleccionados de la sesión (si existen)
             opcion_vuelo_index = None
@@ -1362,9 +1379,9 @@ class VentaViajeForm(forms.ModelForm):
                 from django.db.models import Q
                 queryset = Proveedor.objects.filter(
                     Q(servicios__icontains=servicio_codigo) | Q(servicios__icontains='TODO')
-                ).order_by('nombre')
+                ).distinct().order_by('nombre')
                 
-                self.fields[field_name] = forms.ModelChoiceField(
+                self.fields[field_name] = SafeProveedorModelChoiceField(
                     queryset=queryset,
                     required=False,
                     widget=forms.Select(attrs={
@@ -1426,10 +1443,13 @@ class VentaViajeForm(forms.ModelForm):
             # IMPORTANTE: Asegurarse de que los valores se establezcan ANTES de que el template los acceda
             for key, value in self._dynamic_initial.items():
                 if (key.startswith('proveedor_') or key.endswith('_opcion')) and key in self.fields:
-                    # Establecer el valor en form.initial (esto es lo que el template accede)
-                    self.initial[key] = value
-                    # También establecer el valor en el campo directamente
-                    self.fields[key].initial = value
+                    # Para ModelChoiceField de proveedor: usar pk para evitar get() que devuelve múltiples
+                    if key.startswith('proveedor_') and hasattr(value, 'pk') and not key.endswith('_opcion'):
+                        self.initial[key] = value.pk
+                        self.fields[key].initial = value.pk
+                    else:
+                        self.initial[key] = value
+                        self.fields[key].initial = value
                     # DEBUG: Verificar que el valor se está estableciendo
                     # print(f"DEBUG: Establecido proveedor {key} = {value} (tipo: {type(value)})")
             
@@ -2022,7 +2042,7 @@ class CotizacionForm(forms.ModelForm):
             self.fields[f'vuelo_proveedor_{i}'] = forms.ModelChoiceField(
                 queryset=Proveedor.objects.filter(
                     servicios__icontains='VUELOS'
-                ).order_by('nombre'),
+                ).distinct().order_by('nombre'),
                 required=False,
                 empty_label="Selecciona una aerolínea...",
                 widget=forms.Select(attrs={'class': 'form-select form-select-sm', 'id': f'vuelo_proveedor_{i}'}),
@@ -2036,7 +2056,7 @@ class CotizacionForm(forms.ModelForm):
             self.fields[f'hotel_proveedor_{i}'] = forms.ModelChoiceField(
                 queryset=Proveedor.objects.filter(
                     servicios__icontains='HOTELES'
-                ).order_by('nombre'),
+                ).distinct().order_by('nombre'),
                 required=False,
                 empty_label="Selecciona un hotel...",
                 widget=forms.Select(attrs={'class': 'form-select form-select-sm', 'id': f'hotel_proveedor_{i}'}),
@@ -2049,7 +2069,7 @@ class CotizacionForm(forms.ModelForm):
         self.fields['paquete_proveedor_vuelo'] = forms.ModelChoiceField(
             queryset=Proveedor.objects.filter(
                 servicios__icontains='VUELOS'
-            ).order_by('nombre'),
+            ).distinct().order_by('nombre'),
             required=False,
             empty_label="Selecciona una aerolínea...",
             widget=forms.Select(attrs={'class': 'form-select form-select-sm', 'id': 'paquete_proveedor_vuelo'}),
@@ -2060,7 +2080,7 @@ class CotizacionForm(forms.ModelForm):
         self.fields['paquete_proveedor_hotel'] = forms.ModelChoiceField(
             queryset=Proveedor.objects.filter(
                 servicios__icontains='HOTELES'
-            ).order_by('nombre'),
+            ).distinct().order_by('nombre'),
             required=False,
             empty_label="Selecciona un hotel...",
             widget=forms.Select(attrs={'class': 'form-select form-select-sm', 'id': 'paquete_proveedor_hotel'}),
@@ -2072,7 +2092,7 @@ class CotizacionForm(forms.ModelForm):
         self.fields['tour_proveedor'] = forms.ModelChoiceField(
             queryset=Proveedor.objects.filter(
                 servicios__icontains='TOURS'
-            ).order_by('nombre'),
+            ).distinct().order_by('nombre'),
             required=False,
             empty_label="Selecciona un proveedor de tours...",
             widget=forms.Select(attrs={'class': 'form-select', 'id': 'tour_proveedor'}),
@@ -2084,7 +2104,7 @@ class CotizacionForm(forms.ModelForm):
         self.fields['traslado_proveedor'] = forms.ModelChoiceField(
             queryset=Proveedor.objects.filter(
                 servicios__icontains='TRASLADOS'
-            ).order_by('nombre'),
+            ).distinct().order_by('nombre'),
             required=False,
             empty_label="Selecciona un proveedor de traslados...",
             widget=forms.Select(attrs={'class': 'form-select', 'id': 'traslado_proveedor'}),
