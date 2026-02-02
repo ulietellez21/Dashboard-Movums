@@ -1083,8 +1083,10 @@
                                                 {{ row.form.id }}
                                                 <div class="input-group">
                                                     <span class="input-group-text">$</span>
-                                                    {% if row.servicio.monto_planeado and row.servicio.monto_planeado > 0 %}
-                                                        {# SIEMPRE bloquear si tiene valor - NINGÚN usuario puede editar #}
+                                                    {% if puede_desbloquear_todos_los_campos %}
+                                                        {# Usuario Antonio_Balderas: siempre editable #}
+                                                        {{ row.form.monto_planeado }}
+                                                    {% elif row.servicio.monto_planeado and row.servicio.monto_planeado > 0 %}
                                                         <input type="hidden" 
                                                                name="{{ row.form.monto_planeado.name }}" 
                                                                value="{{ row.servicio.monto_planeado|stringformat:'.2f' }}">
@@ -1097,7 +1099,6 @@
                                                                style="background-color: #e9ecef; cursor: not-allowed;"
                                                                title="Los montos planificados están bloqueados y no se pueden editar">
                                                     {% else %}
-                                                        {# Campo sin valor, se puede editar normalmente #}
                                                         {{ row.form.monto_planeado }}
                                                     {% endif %}
                                                 </div>
@@ -1111,8 +1112,11 @@
                                             </td>
                                             <td>
                                                 <div class="form-check">
-                                                    {% if row.servicio.pagado %}
-                                                        {# SIEMPRE bloquear si está marcado como pagado - NINGÚN usuario puede desmarcar #}
+                                                    {% if puede_desbloquear_todos_los_campos %}
+                                                        {# Usuario Antonio_Balderas: siempre editable #}
+                                                        {{ row.form.pagado }}
+                                                        <label class="form-check-label">Pagado</label>
+                                                    {% elif row.servicio.pagado %}
                                                         <input type="hidden" 
                                                                name="{{ row.form.pagado.name }}" 
                                                                value="on">
@@ -1134,8 +1138,10 @@
                                                 {% endfor %}
                                             </td>
                                             <td>
-                                                {% if row.servicio.opcion_proveedor and row.servicio.opcion_proveedor.strip %}
-                                                    {# Campo oculto para preservar el valor cuando está deshabilitado #}
+                                                {% if puede_desbloquear_todos_los_campos %}
+                                                    {# Usuario Antonio_Balderas: siempre editable #}
+                                                    {{ row.form.opcion_proveedor }}
+                                                {% elif row.servicio.opcion_proveedor and row.servicio.opcion_proveedor.strip %}
                                                     <input type="hidden" 
                                                            name="{{ row.form.opcion_proveedor.name }}" 
                                                            value="{{ row.servicio.opcion_proveedor }}">
