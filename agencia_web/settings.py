@@ -113,15 +113,8 @@ WSGI_APPLICATION = 'agencia_web.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
-# Local (DEBUG=True): siempre SQLite. Servidor (DEBUG=False): PostgreSQL si DB_ENGINE está en .env.
-if DEBUG:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
-elif os.environ.get('DB_ENGINE') == 'django.db.backends.postgresql':
+# Servidor: DB_ENGINE=postgresql en .env → PostgreSQL. Local: no definir DB_ENGINE (o comentar) → SQLite.
+if os.environ.get('DB_ENGINE') == 'django.db.backends.postgresql':
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
