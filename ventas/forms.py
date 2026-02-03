@@ -1537,18 +1537,19 @@ class VentaViajeForm(forms.ModelForm):
         # Agregar campos de edición solo cuando se está editando una venta existente
         # Mostrar costo_modificacion siempre al editar una venta existente
         if self.instance and self.instance.pk:
-            # Campo costo_modificacion - siempre visible al editar
+            # Campo costo_modificacion: siempre mostrar 0 al abrir el formulario.
+            # El monto que se ingrese se suma al acumulado al guardar; el acumulado ya está en el total.
             self.fields['costo_modificacion'] = forms.DecimalField(
                 max_digits=10,
                 decimal_places=2,
                 required=False,
-                initial=getattr(self.instance, 'costo_modificacion', Decimal('0.00')),
+                initial=Decimal('0.00'),
                 widget=forms.TextInput(attrs={
                     'class': 'form-control',
                     'placeholder': '0.00'
                 }),
                 label='Costo de Modificación',
-                help_text='Costo adicional por modificar esta venta. Se sumará al costo total.'
+                help_text='Costo adicional por modificar esta venta. Se sumará al costo total. Deje en 0 si no aplica.'
             )
 
     def clean_documentos_cliente(self):
