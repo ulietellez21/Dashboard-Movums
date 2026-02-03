@@ -73,6 +73,7 @@ from .views import (
     SolicitarAbonoProveedorView,
     AprobarAbonoProveedorView,
     ConfirmarAbonoProveedorView,
+    EliminarComprobanteAbonoProveedorView,
     CancelarAbonoProveedorView,
     ListaAbonosProveedorView,
 )
@@ -133,6 +134,7 @@ urlpatterns = [
     path('ventas/<int:pk>/abonos-proveedor/solicitar/', SolicitarAbonoProveedorView.as_view(), name='solicitar_abono_proveedor'),
     path('abonos-proveedor/<int:abono_id>/aprobar/', AprobarAbonoProveedorView.as_view(), name='aprobar_abono_proveedor'),
     path('abonos-proveedor/<int:abono_id>/confirmar/', ConfirmarAbonoProveedorView.as_view(), name='confirmar_abono_proveedor'),
+    path('abonos-proveedor/<int:abono_id>/eliminar-comprobante/', EliminarComprobanteAbonoProveedorView.as_view(), name='eliminar_comprobante_abono_proveedor'),
     path('abonos-proveedor/<int:abono_id>/cancelar/', CancelarAbonoProveedorView.as_view(), name='cancelar_abono_proveedor'),
 
     # 3. CRUD de Ventas
