@@ -12683,12 +12683,13 @@ class ConfirmarAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View)
         return redirect('dashboard')
     
     def post(self, request, abono_id):
-        """Confirma un abono a proveedor con comprobante."""
+        """Confirma un abono a proveedor con comprobante, o reemplaza el comprobante si ya está COMPLETADO."""
         abono = get_object_or_404(AbonoProveedor, pk=abono_id)
-        
-        if abono.estado != 'APROBADO':
+        if abono.estado not in ('APROBADO', 'COMPLETADO'):
             messages.error(request, "Este abono debe estar aprobado antes de confirmarlo.")
             return redirect(reverse('detalle_venta', kwargs={'pk': abono.venta.pk, 'slug': abono.venta.slug_safe}) + '?tab=logistica')
+        # COMPLETADO: solo reemplazar comprobante; APROBADO: confirmar y marcar COMPLETADO
+        es_reemplazo = abono.estado == 'COMPLETADO'
         
         from .forms import ConfirmarAbonoProveedorForm
         form = ConfirmarAbonoProveedorForm(request.POST, request.FILES, instance=abono)
@@ -12697,34 +12698,67 @@ class ConfirmarAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View)
             try:
                 with transaction.atomic():
                     abono = form.save(commit=False)
-                    abono.estado = 'COMPLETADO'
-                    abono.confirmado_por = request.user
-                    abono.fecha_confirmacion = timezone.now()
-                    # Si hay nota de confirmación, reemplazar la nota de solicitud para que el vendedor la vea
-                    if abono.nota_confirmacion:
-                        abono.nota_solicitud = abono.nota_confirmacion
-                    abono.save()
-                    
-                    # Notificar al vendedor que solicitó
-                    if abono.solicitud_por:
-                        Notificacion.objects.create(
-                            usuario=abono.solicitud_por,
-                            tipo='ABONO_PROVEEDOR_COMPLETADO',
-                            mensaje=f"Abono a {abono.proveedor} por ${abono.monto:,.2f} MXN completado (Venta #{abono.venta.folio or abono.venta.pk})",
-                            venta=abono.venta,
-                            abono_proveedor=abono
-                        )
-                    
-                    messages.success(request, f"Abono a {abono.proveedor} confirmado con comprobante.")
+                    if not es_reemplazo:
+                        abono.estado = 'COMPLETADO'
+                        abono.confirmado_por = request.user
+                        abono.fecha_confirmacion = timezone.now()
+                        if abono.nota_confirmacion:
+                            abono.nota_solicitud = abono.nota_confirmacion
+                        abono.save()
+                        if abono.solicitud_por:
+                            Notificacion.objects.create(
+                                usuario=abono.solicitud_por,
+                                tipo='ABONO_PROVEEDOR_COMPLETADO',
+                                mensaje=f"Abono a {abono.proveedor} por ${abono.monto:,.2f} MXN completado (Venta #{abono.venta.folio or abono.venta.pk})",
+                                venta=abono.venta,
+                                abono_proveedor=abono
+                            )
+                        messages.success(request, f"Abono a {abono.proveedor} confirmado con comprobante.")
+                    else:
+                        abono.save(update_fields=['comprobante', 'nota_confirmacion'])
+                        if abono.nota_confirmacion:
+                            abono.nota_solicitud = abono.nota_confirmacion
+                            abono.save(update_fields=['nota_solicitud'])
+                        messages.success(request, "Comprobante actualizado correctamente.")
             except Exception as e:
-                messages.error(request, f"Error al confirmar el abono: {str(e)}")
-                logger.exception(f"Error al confirmar abono a proveedor: {str(e)}")
+                messages.error(request, f"Error al guardar: {str(e)}")
+                logger.exception(f"Error al confirmar/reemplazar abono a proveedor: {str(e)}")
         else:
             messages.error(request, "Por favor, corrige los errores en el formulario.")
             for field, errors in form.errors.items():
                 for error in errors:
                     messages.error(request, f"{field}: {error}")
         
+        return redirect(reverse('detalle_venta', kwargs={'pk': abono.venta.pk, 'slug': abono.venta.slug_safe}) + '?tab=logistica')
+
+
+class EliminarComprobanteAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Vista para que el contador elimine el comprobante de un abono a proveedor (COMPLETADO) y pueda subir otro."""
+    
+    def test_func(self):
+        user_rol = get_user_role(self.request.user)
+        return user_rol == 'CONTADOR'
+    
+    def handle_no_permission(self):
+        messages.error(self.request, "No tienes permiso para eliminar comprobantes de abonos a proveedores.")
+        return redirect('dashboard')
+    
+    def post(self, request, abono_id):
+        abono = get_object_or_404(AbonoProveedor, pk=abono_id)
+        if abono.estado != 'COMPLETADO':
+            messages.error(request, "Solo se puede eliminar el comprobante de un abono ya completado.")
+            return redirect(reverse('detalle_venta', kwargs={'pk': abono.venta.pk, 'slug': abono.venta.slug_safe}) + '?tab=logistica')
+        if not abono.comprobante:
+            messages.info(request, "Este abono no tiene comprobante.")
+            return redirect(reverse('detalle_venta', kwargs={'pk': abono.venta.pk, 'slug': abono.venta.slug_safe}) + '?tab=logistica')
+        try:
+            abono.comprobante.delete(save=False)
+            abono.comprobante = None
+            abono.save(update_fields=['comprobante'])
+            messages.success(request, "Comprobante eliminado. Puedes subir el comprobante correcto.")
+        except Exception as e:
+            messages.error(request, f"Error al eliminar el comprobante: {str(e)}")
+            logger.exception(f"Error al eliminar comprobante abono proveedor: {e}")
         return redirect(reverse('detalle_venta', kwargs={'pk': abono.venta.pk, 'slug': abono.venta.slug_safe}) + '?tab=logistica')
 
 

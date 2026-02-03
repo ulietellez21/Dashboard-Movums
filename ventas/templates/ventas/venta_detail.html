@@ -1284,6 +1284,22 @@
                                                             <i class="fas fa-upload"></i>
                                                         </button>
                                                     {% endif %}
+                                                    {% if abono.estado == 'COMPLETADO' and puede_confirmar_abono_proveedor and not abono.comprobante %}
+                                                        <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#modalConfirmarAbonoProveedor{{ abono.id }}" title="Subir comprobante">
+                                                            <i class="fas fa-upload me-1"></i> Subir comprobante
+                                                        </button>
+                                                    {% endif %}
+                                                    {% if abono.estado == 'COMPLETADO' and puede_confirmar_abono_proveedor and abono.comprobante %}
+                                                        <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#modalConfirmarAbonoProveedor{{ abono.id }}" title="Reemplazar comprobante">
+                                                            <i class="fas fa-exchange-alt me-1"></i> Reemplazar
+                                                        </button>
+                                                        <form method="post" action="{% url 'eliminar_comprobante_abono_proveedor' abono_id=abono.id %}" style="display: inline;" onsubmit="return confirm('¿Eliminar el comprobante actual? Podrás subir el correcto después.');">
+                                                            {% csrf_token %}
+                                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Eliminar comprobante">
+                                                                <i class="fas fa-trash-alt"></i>
+                                                            </button>
+                                                        </form>
+                                                    {% endif %}
                                                     {% if abono.comprobante %}
                                                         <a href="{{ abono.comprobante.url }}" target="_blank" class="btn btn-outline-primary btn-sm" title="Ver comprobante subido por el contador">
                                                             <i class="fas fa-file-invoice me-1"></i> Ver comprobante
@@ -1849,17 +1865,21 @@
     }
 </script>
 
-<!-- Modales para confirmar abonos a proveedor (uno por cada abono aprobado) -->
+<!-- Modales para confirmar/reemplazar comprobante de abonos a proveedor (contador: APROBADO = confirmar, COMPLETADO = reemplazar) -->
 {% for abono in abonos_proveedor %}
-    {% if abono.estado == 'APROBADO' and puede_confirmar_abono_proveedor %}
+    {% if puede_confirmar_abono_proveedor and abono.estado == 'APROBADO' or puede_confirmar_abono_proveedor and abono.estado == 'COMPLETADO' %}
     <div class="modal fade" id="modalConfirmarAbonoProveedor{{ abono.id }}" tabindex="-1" aria-labelledby="modalConfirmarAbonoProveedor{{ abono.id }}Label" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <div class="modal-header bg-success text-white">
+                <div class="modal-header {% if abono.estado == 'COMPLETADO' %}bg-warning text-dark{% else %}bg-success text-white{% endif %}">
                     <h5 class="modal-title" id="modalConfirmarAbonoProveedor{{ abono.id }}Label">
-                        <i class="fas fa-check-circle"></i> Confirmar Abono a Proveedor
+                        {% if abono.estado == 'COMPLETADO' %}
+                            <i class="fas fa-exchange-alt"></i> Reemplazar Comprobante
+                        {% else %}
+                            <i class="fas fa-check-circle"></i> Confirmar Abono a Proveedor
+                        {% endif %}
                     </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close {% if abono.estado == 'COMPLETADO' %}btn-close-dark{% else %}btn-close-white{% endif %}" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form method="post" action="{% url 'confirmar_abono_proveedor' abono_id=abono.id %}" enctype="multipart/form-data">
                     {% csrf_token %}
@@ -1874,7 +1894,7 @@
                         <hr>
                         <div class="mb-3">
                             <label for="comprobante_abono_{{ abono.id }}" class="form-label">
-                                Comprobante de Abono <span class="text-danger">*</span>
+                                {% if abono.estado == 'COMPLETADO' %}Nuevo comprobante{% else %}Comprobante de Abono{% endif %} <span class="text-danger">*</span>
                             </label>
                             <input type="file" class="form-control" id="comprobante_abono_{{ abono.id }}" name="comprobante" accept="image/*,.pdf" required>
                             <div class="form-text">Sube el comprobante de pago al proveedor (imagen o PDF)</div>
@@ -1883,13 +1903,17 @@
                             <label for="nota_confirmacion_{{ abono.id }}" class="form-label">
                                 Nota de Confirmación
                             </label>
-                            <textarea class="form-control" id="nota_confirmacion_{{ abono.id }}" name="nota_confirmacion" rows="3" placeholder="Notas adicionales sobre la confirmación del abono..."></textarea>
+                            <textarea class="form-control" id="nota_confirmacion_{{ abono.id }}" name="nota_confirmacion" rows="3" placeholder="Notas adicionales...">{{ abono.nota_confirmacion|default:'' }}</textarea>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-success">
-                            <i class="fas fa-check"></i> Confirmar con Comprobante
+                        <button type="submit" class="btn {% if abono.estado == 'COMPLETADO' %}btn-warning{% else %}btn-success{% endif %}">
+                            {% if abono.estado == 'COMPLETADO' %}
+                                <i class="fas fa-upload"></i> Actualizar Comprobante
+                            {% else %}
+                                <i class="fas fa-check"></i> Confirmar con Comprobante
+                            {% endif %}
                         </button>
                     </div>
                 </form>
