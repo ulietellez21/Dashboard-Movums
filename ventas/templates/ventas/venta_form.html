@@ -76,7 +76,7 @@
         </div>
 
         <div class="card p-4 shadow-lg mb-4 border-0 rounded-3">
-            <form method="post" enctype="multipart/form-data" id="ventaForm">
+            <form method="post" enctype="multipart/form-data" id="ventaForm"{% if form.servicios_seleccionados.errors %} data-scroll-servicios="1"{% endif %}>
                 {% csrf_token %}
 
                 {# ------------------- Sección 1: Cliente e Información General ------------------- #}
@@ -237,10 +237,10 @@
                 {% endif %}
 
                 {# ------------------- Sección 2: Servicios Incluidos ------------------- #}
-                <h4 class="mb-3 mt-4 text-secondary border-bottom pb-2">2. Servicios Contratados</h4>
+                <h4 class="mb-3 mt-4 text-secondary border-bottom pb-2" id="seccion-servicios-contratados">2. Servicios Contratados</h4>
 
                 {# Selector de Servicios con Checkboxes Colapsable #}
-                <div class="mb-4">
+                <div class="mb-4" id="card-servicios-contratados">
                     <div class="card border-secondary">
                         <div class="card-header bg-light p-2" style="cursor: pointer;" data-bs-toggle="collapse"
                             data-bs-target="#serviciosCollapse"
@@ -250,11 +250,11 @@
                                 <span class="fw-bold text-secondary">
                                     <i class="fas {% if object.cotizacion_origen or cotizacion_origen %}fa-chevron-up{% else %}fa-chevron-down{% endif %} me-2"
                                         id="serviciosIcon"></i>
-                                    {{ form.servicios_seleccionados.label }}
+                                    {{ form.servicios_seleccionados.label }} <span class="text-danger">*</span>
                                 </span>
                             </div>
                         </div>
-                        <div class="collapse {% if object.cotizacion_origen or cotizacion_origen %}show{% endif %}"
+                        <div class="collapse {% if object.cotizacion_origen or cotizacion_origen or form.servicios_seleccionados.errors %}show{% endif %}"
                             id="serviciosCollapse">
                             <div class="card-body">
                                 <div class="row g-3" id="serviciosCheckboxes">
@@ -275,8 +275,7 @@
                         </div>
                     </div>
                     {% for error in form.servicios_seleccionados.errors %}
-                    <div class="invalid-feedback d-block mt-2"><i class="fas fa-exclamation-circle me-1"></i> {{ error
-                        }}</div>
+                    <div class="alert alert-warning mt-2 mb-0 py-2" role="alert"><i class="fas fa-exclamation-circle me-1"></i> {{ error }}</div>
                     {% endfor %}
                 </div>
 
@@ -2407,5 +2406,14 @@
             setTimeout(manejarModoPagoProveedor, 100);
         }
     });
+
+    // Si hay error de Servicios Contratados, ir a la sección 2 y mostrar el mensaje
+    (function() {
+        const form = document.getElementById('ventaForm');
+        const seccion = document.getElementById('seccion-servicios-contratados');
+        if (form && form.dataset.scrollServicios && seccion) {
+            seccion.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    })();
 </script>
 {% endblock %}

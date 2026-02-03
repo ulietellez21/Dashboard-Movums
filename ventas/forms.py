@@ -1578,9 +1578,16 @@ class VentaViajeForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
 
-        # Validar que si se selecciona "Trámites de Documentación", se especifique el tipo de trámite
+        # Servicios Contratados (punto 2) es obligatorio: al menos un servicio debe estar seleccionado
         servicios_seleccionados = cleaned_data.get('servicios_seleccionados', [])
-        if 'Trámites de Documentación' in servicios_seleccionados:
+        if not servicios_seleccionados:
+            self.add_error(
+                'servicios_seleccionados',
+                'Por favor, llene los campos de Servicios Contratados: seleccione al menos un servicio para poder continuar.'
+            )
+
+        # Validar que si se selecciona "Trámites de Documentación", se especifique el tipo de trámite
+        if servicios_seleccionados and 'Trámites de Documentación' in servicios_seleccionados:
             tipo_tramite = cleaned_data.get('tipo_tramite_documentacion', '').strip()
             if not tipo_tramite:
                 self.add_error('tipo_tramite_documentacion', 'Debes seleccionar si es trámite de Visa o Pasaporte cuando seleccionas "Trámites de Documentación".')
