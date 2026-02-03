@@ -50,6 +50,9 @@ class ClienteForm(forms.ModelForm):
             'pasaporte_vigencia': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control rounded-3', 'type': 'date'}),
             'empresa_asociada': forms.Select(attrs={'class': 'form-select rounded-3'}),
             'preferencias_viaje': forms.Textarea(attrs={'class': 'form-control rounded-3', 'rows': 3}),
+            'participa_kilometros': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'referencia_programa': forms.TextInput(attrs={'class': 'form-control rounded-3', 'placeholder': 'Ej: Número de tarjeta'}),
+            'referido_por': forms.Select(attrs={'class': 'form-select rounded-3'}),
         }
         
     def clean(self):
