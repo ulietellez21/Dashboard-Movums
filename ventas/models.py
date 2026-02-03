@@ -606,7 +606,7 @@ class VentaViaje(models.Model):
     
     @property
     def total_abonado_proveedor(self):
-        """Calcula el total abonado al proveedor (solo abonos COMPLETADOS).
+        """Calcula el total abonado al proveedor (abonos APROBADOS y COMPLETADOS).
         Para ventas internacionales: en USD.
         Para ventas nacionales: en MXN.
         """
@@ -614,7 +614,7 @@ class VentaViaje(models.Model):
             return Decimal('0.00')
         
         total = Decimal('0.00')
-        for abono in self.abonos_proveedor.filter(estado='COMPLETADO'):
+        for abono in self.abonos_proveedor.filter(estado__in=['APROBADO', 'COMPLETADO']):
             if self.tipo_viaje == 'INT':
                 # Ventas internacionales: calcular en USD
                 if abono.monto_usd:
@@ -631,22 +631,26 @@ class VentaViaje(models.Model):
     @property
     def saldo_pendiente_proveedor(self):
         """Calcula el saldo pendiente por abonar al proveedor.
-        Para ventas internacionales: en USD.
-        Para ventas nacionales: en MXN.
+        Base: Servicios planificados (costo_neto), no total del viaje.
+        Para ventas internacionales: base en USD (costo_neto/tipo_cambio).
+        Para ventas nacionales: base en MXN (costo_neto).
         """
         if not self._debe_mostrar_abonos_proveedor():
             return Decimal('0.00')
         
+        base_servicios = self.costo_neto or Decimal('0.00')
+        abonado = self.total_abonado_proveedor
+        
         if self.tipo_viaje == 'INT':
-            # Ventas internacionales: calcular en USD
-            total_usd = self.total_usd
-            abonado = self.total_abonado_proveedor
-            pendiente = total_usd - abonado
+            # Ventas internacionales: base servicios planificados en USD
+            if self.tipo_cambio and self.tipo_cambio > 0:
+                base_usd = (base_servicios / self.tipo_cambio).quantize(Decimal('0.01'))
+            else:
+                base_usd = Decimal('0.00')
+            pendiente = base_usd - abonado
         else:
-            # Ventas nacionales: calcular en MXN
-            total_mxn = self.costo_venta_final or Decimal('0.00')
-            abonado = self.total_abonado_proveedor
-            pendiente = total_mxn - abonado
+            # Ventas nacionales: base servicios planificados en MXN
+            pendiente = base_servicios - abonado
         return max(Decimal('0.00'), pendiente.quantize(Decimal('0.01')))
     
     @property

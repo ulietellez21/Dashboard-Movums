@@ -648,17 +648,16 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
             context['abonos_proveedor'] = venta.abonos_proveedor.all().select_related(
                 'solicitud_por', 'aprobado_por', 'confirmado_por', 'cancelado_por'
             ).order_by('-fecha_solicitud')
-            # Para ventas internacionales: convertir todo a MXN usando tipo de cambio
+            # Base para abonos = Servicios planificados (costo_neto), no total del viaje
+            context['servicios_planificados_abonos'] = venta.costo_neto or Decimal('0.00')
+            # Para ventas internacionales: convertir totales a MXN para mostrar
             if venta.tipo_viaje == 'INT' and venta.tipo_cambio:
-                # Convertir totales de USD a MXN
-                context['total_usd_venta'] = (venta.total_usd * venta.tipo_cambio).quantize(Decimal('0.01'))
                 context['total_abonado_proveedor'] = (venta.total_abonado_proveedor * venta.tipo_cambio).quantize(Decimal('0.01'))
                 context['saldo_pendiente_proveedor'] = (venta.saldo_pendiente_proveedor * venta.tipo_cambio).quantize(Decimal('0.01'))
                 context['moneda_abonos'] = 'MXN'
             else:
                 context['total_abonado_proveedor'] = venta.total_abonado_proveedor
                 context['saldo_pendiente_proveedor'] = venta.saldo_pendiente_proveedor
-                context['total_usd_venta'] = venta.costo_venta_final or Decimal('0.00')
                 context['moneda_abonos'] = 'MXN'
             from .forms import SolicitarAbonoProveedorForm
             context['form_abono_proveedor'] = SolicitarAbonoProveedorForm(venta=venta, user=self.request.user)
@@ -670,8 +669,8 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
             context['abonos_proveedor'] = []
             context['total_abonado_proveedor'] = Decimal('0.00')
             context['saldo_pendiente_proveedor'] = Decimal('0.00')
-            context['total_usd_venta'] = Decimal('0.00')
-            context['moneda_abonos'] = 'USD'
+            context['servicios_planificados_abonos'] = Decimal('0.00')
+            context['moneda_abonos'] = 'MXN'
             context['puede_solicitar_abono_proveedor'] = False
             context['puede_aprobar_abono_proveedor'] = False
             context['puede_confirmar_abono_proveedor'] = False
