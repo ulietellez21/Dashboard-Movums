@@ -3898,7 +3898,7 @@ class ContratoHospedajePDFView(LoginRequiredMixin, DetailView):
         run_monto_num = p_monto.add_run(f'${format_currency(anticipo)}')
         set_run_font(run_monto_num, size=12, bold=True)
         run_monto_num.font.underline = True
-        run_monto_texto = p_monto.add_run(f' ({anticipo_texto}) por concepto de:')
+        run_monto_texto = p_monto.add_run(f' ({anticipo_texto}).')
         set_run_font(run_monto_texto, size=12)
         
         # Agregar espacio antes de los detalles del hospedaje
@@ -4541,7 +4541,7 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         run_monto_num = p_monto.add_run(f'${format_currency(anticipo)}')
         set_run_font(run_monto_num, size=12, bold=True)
         run_monto_num.font.underline = True
-        run_monto_texto = p_monto.add_run(f' ({anticipo_texto}) por concepto de:')
+        run_monto_texto = p_monto.add_run(f' ({anticipo_texto}).')
         set_run_font(run_monto_texto, size=12)
         
         # Agregar espacio

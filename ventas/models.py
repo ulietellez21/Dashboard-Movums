@@ -694,18 +694,23 @@ class VentaViaje(models.Model):
         # Abonos confirmados: tienen confirmado=True y confirmado_en no es None
         tiene_abonos_confirmados = self.abonos.filter(confirmado=True, confirmado_en__isnull=False).exists()
         
-        # Apertura confirmada: tiene comprobante subido y modo de pago que requiere confirmación
-        # Para crédito: no requiere comprobante, solo que el estado no sea EN_CONFIRMACION
-        # IMPORTANTE: No depender del estado actual, solo verificar si la apertura fue confirmada
+        # Apertura confirmada (para no degradar a PENDIENTE y para forzar COMPLETADO solo cuando corresponde):
+        # - CRE: confirmada si el contador ya la validó (estado != EN_CONFIRMACION).
+        # - EFE/LIG/PRO: no se usa aquí para forzar COMPLETADO; el estado se define por nuevo_total >= costo.
+        # - TRN/TAR/DEP: solo confirmada cuando el contador ya la confirmó (estado = COMPLETADO).
+        #   Subir el comprobante NO cuenta; el contador debe aprobar explícitamente.
         if self.modo_pago_apertura == 'CRE':
-            # Para crédito: se considera confirmada si el estado no es EN_CONFIRMACION
             apertura_confirmada = (self.estado_confirmacion != 'EN_CONFIRMACION')
+        elif self.modo_pago_apertura in ['TRN', 'TAR', 'DEP']:
+            apertura_confirmada = (
+                bool(self.cantidad_apertura and self.cantidad_apertura > 0) and
+                self.estado_confirmacion == 'COMPLETADO'
+            )
         else:
-            apertura_confirmada = (self.cantidad_apertura > 0 and 
-                                  self.modo_pago_apertura in ['TRN', 'TAR', 'DEP'] and
-                                  self.comprobante_apertura_subido)
+            # EFE, LIG, PRO: no forzar COMPLETADO por apertura; se usa nuevo_total >= costo
+            apertura_confirmada = False
         
-        # Si hay una apertura confirmada, el estado debe ser COMPLETADO (fue confirmada por el contador)
+        # Si hay una apertura confirmada (por contador en TRN/TAR/DEP o CRE), mantener COMPLETADO
         # y NO debe cambiar, independientemente del total pagado
         if apertura_confirmada:
             # La apertura fue confirmada por el contador, mantener COMPLETADO
