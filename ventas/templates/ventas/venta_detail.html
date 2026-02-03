@@ -1286,12 +1286,12 @@
                                                     {% endif %}
                                                     {% if abono.estado == 'COMPLETADO' and puede_confirmar_abono_proveedor and not abono.comprobante %}
                                                         <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#modalConfirmarAbonoProveedor{{ abono.id }}" title="Subir comprobante">
-                                                            <i class="fas fa-upload me-1"></i> Subir comprobante
+                                                            <i class="fas fa-upload"></i>
                                                         </button>
                                                     {% endif %}
                                                     {% if abono.estado == 'COMPLETADO' and puede_confirmar_abono_proveedor and abono.comprobante %}
                                                         <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#modalConfirmarAbonoProveedor{{ abono.id }}" title="Reemplazar comprobante">
-                                                            <i class="fas fa-exchange-alt me-1"></i> Reemplazar
+                                                            <i class="fas fa-exchange-alt"></i>
                                                         </button>
                                                         <form method="post" action="{% url 'eliminar_comprobante_abono_proveedor' abono_id=abono.id %}" style="display: inline;" onsubmit="return confirm('¿Eliminar el comprobante actual? Podrás subir el correcto después.');">
                                                             {% csrf_token %}
@@ -1302,7 +1302,7 @@
                                                     {% endif %}
                                                     {% if abono.comprobante %}
                                                         <a href="{{ abono.comprobante.url }}" target="_blank" class="btn btn-outline-primary btn-sm" title="Ver comprobante subido por el contador">
-                                                            <i class="fas fa-file-invoice me-1"></i> Ver comprobante
+                                                            <i class="fas fa-file-invoice"></i>
                                                         </a>
                                                     {% endif %}
                                                     {% if abono.estado == 'PENDIENTE' and puede_cancelar_abono_proveedor %}
