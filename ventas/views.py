@@ -889,6 +889,22 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                     if original:
                         original.save(update_fields=['monto_planeado', 'pagado', 'fecha_pagado', 'opcion_proveedor'])
 
+                # Sincronizar venta.proveedor desde la tabla de logística: si algún servicio tiene
+                # "Nombre del proveedor" que coincide con un Proveedor con metodo_pago_preferencial,
+                # asignar ese proveedor a la venta para que se muestre la sección Abonos a Proveedor
+                if self.object.tipo_viaje == 'NAC':
+                    for original in originales_limpios.values():
+                        nombre_prov = (original.opcion_proveedor or '').strip()
+                        if nombre_prov:
+                            proveedor_pref = Proveedor.objects.filter(
+                                nombre__iexact=nombre_prov,
+                                metodo_pago_preferencial=True
+                            ).first()
+                            if proveedor_pref and (not self.object.proveedor or not self.object.proveedor.metodo_pago_preferencial):
+                                self.object.proveedor = proveedor_pref
+                                self.object.save(update_fields=['proveedor'])
+                                break
+
                 messages.success(request, "Control por servicio actualizado correctamente.")
                 return redirect(reverse('detalle_venta', kwargs={'pk': self.object.pk, 'slug': self.object.slug_safe}) + '?tab=logistica')
             else:
