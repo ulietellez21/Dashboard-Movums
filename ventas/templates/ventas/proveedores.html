@@ -200,6 +200,7 @@
                                                         data-proveedor-link="{{ proveedor.link|default:'' }}"
                                                         data-proveedor-servicios="{{ proveedor.servicios|default:'' }}"
                                                         data-proveedor-genera-factura="{{ proveedor.genera_factura|yesno:'true,false' }}"
+                                                        data-proveedor-metodo-pago-preferencial="{{ proveedor.metodo_pago_preferencial|yesno:'true,false' }}"
                                                         data-bs-toggle="modal" 
                                                         data-bs-target="#modalProveedor"
                                                         title="Editar proveedor">
@@ -500,6 +501,7 @@
                 var proveedorLink = this.getAttribute('data-proveedor-link');
                 var proveedorServicios = this.getAttribute('data-proveedor-servicios') || '';
                 var proveedorGeneraFactura = this.getAttribute('data-proveedor-genera-factura') === 'true';
+                var proveedorMetodoPagoPreferencial = this.getAttribute('data-proveedor-metodo-pago-preferencial') === 'true';
                 
                 // Actualizar formulario
                 document.getElementById('proveedor_id').value = proveedorId;
@@ -513,6 +515,7 @@
                 document.getElementById('id_email_ejecutivo').value = proveedorEmailEjecutivo;
                 document.getElementById('id_link').value = proveedorLink;
                 document.getElementById('id_genera_factura').checked = proveedorGeneraFactura;
+                document.getElementById('id_metodo_pago_preferencial').checked = proveedorMetodoPagoPreferencial;
                 
                 // ✅ Actualizar checkboxes de servicios (selección múltiple)
                 // Desmarcar todos primero
