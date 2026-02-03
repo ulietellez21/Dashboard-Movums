@@ -244,6 +244,13 @@
                         </div>
                     </div>
                     
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Información Adicional</label>
+                            <textarea name="informacion_adicional" class="form-control" rows="3" placeholder="Notas, condiciones especiales, etc.">{{ datos.informacion_adicional|default:'' }}</textarea>
+                        </div>
+                    </div>
+                    
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         <a href="{% url 'listar_confirmaciones' pk=venta.pk slug=venta.slug_safe %}" class="btn btn-secondary">Cancelar</a>
                         <button type="submit" class="btn btn-primary">

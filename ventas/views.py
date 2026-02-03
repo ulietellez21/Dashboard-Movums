@@ -9004,11 +9004,26 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         
         return "".join(html_parts)
     
+    def _valor_o_guion(self, valor):
+        """Retorna el valor como string o '-' si está vacío."""
+        if valor is None:
+            return '-'
+        s = str(valor).strip()
+        return s if s else '-'
+
     def _generar_html_vuelo_redondo(self, datos, format_date):
-        """Genera HTML para plantilla de vuelo redondo (EXACTAMENTE igual que cotizaciones con cards)."""
+        """Genera HTML para plantilla de vuelo redondo. Incluye ida, regreso, escalas y toda la información llenada."""
         html_parts = []
-        
-        # Card para Vuelo de Ida (IGUAL QUE COTIZACIONES)
+        datos = datos or {}
+        # Asegurar que escalas sean listas (por si el JSON devuelve otro tipo)
+        escalas_ida = datos.get('escalas_ida')
+        if not isinstance(escalas_ida, list):
+            escalas_ida = []
+        escalas_regreso = datos.get('escalas_regreso')
+        if not isinstance(escalas_regreso, list):
+            escalas_regreso = []
+
+        # ----- VUELO DE IDA -----
         html_parts.append('<div class="card">')
         html_parts.append('<div class="card-header">')
         html_parts.append('<span class="icon">')
@@ -9018,113 +9033,68 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         html_parts.append('</span>')
         html_parts.append('<span>VUELO DE IDA</span>')
         html_parts.append('</div>')
-        
         html_parts.append('<table class="data-table">')
-        
-        if datos.get('clave_reserva'):
-            html_parts.append('<tr>')
-            html_parts.append('<td style="width: 30%;"><strong>Clave de Reserva:</strong></td>')
-            html_parts.append(f'<td>{datos.get("clave_reserva")}</td>')
-            html_parts.append('</tr>')
-        
-        if datos.get('aerolinea_ida'):
-            html_parts.append('<tr>')
-            html_parts.append('<td><strong>Aerolínea:</strong></td>')
-            html_parts.append(f'<td>{datos.get("aerolinea_ida")}</td>')
-            html_parts.append('</tr>')
-        
-        if datos.get('numero_vuelo_ida'):
-            html_parts.append('<tr>')
-            html_parts.append('<td><strong>Vuelo:</strong></td>')
-            html_parts.append(f'<td>{datos.get("numero_vuelo_ida")}</td>')
-            html_parts.append('</tr>')
-        
+
+        html_parts.append('<tr><td style="width: 30%;"><strong>Clave de Reserva:</strong></td>')
+        html_parts.append(f'<td>{self._valor_o_guion(datos.get("clave_reserva"))}</td></tr>')
+        html_parts.append('<tr><td><strong>Aerolínea:</strong></td>')
+        html_parts.append(f'<td>{self._valor_o_guion(datos.get("aerolinea_ida"))}</td></tr>')
+        html_parts.append('<tr><td><strong>Vuelo:</strong></td>')
+        html_parts.append(f'<td>{self._valor_o_guion(datos.get("numero_vuelo_ida"))}</td></tr>')
+
         salida_ida_info = []
         if datos.get('fecha_salida_ida'):
-            salida_ida_info.append(datos.get('fecha_salida_ida'))
+            salida_ida_info.append(format_date(datos.get('fecha_salida_ida')) if format_date else datos.get('fecha_salida_ida'))
         if datos.get('hora_salida_ida'):
             salida_ida_info.append(datos.get('hora_salida_ida'))
         if datos.get('origen_ida'):
             salida_ida_info.append(f"Desde: {datos.get('origen_ida')}")
-        if salida_ida_info:
-            html_parts.append('<tr>')
-            html_parts.append('<td><strong>Salida:</strong></td>')
-            html_parts.append(f'<td>{" | ".join(salida_ida_info)}</td>')
-            html_parts.append('</tr>')
-        
+        html_parts.append('<tr><td><strong>Salida:</strong></td>')
+        html_parts.append(f'<td>{" | ".join(salida_ida_info) if salida_ida_info else self._valor_o_guion(None)}</td></tr>')
+
         llegada_ida_info = []
         if datos.get('hora_llegada_ida'):
             llegada_ida_info.append(datos.get('hora_llegada_ida'))
         if datos.get('destino_ida'):
             llegada_ida_info.append(f"Hasta: {datos.get('destino_ida')}")
-        if llegada_ida_info:
+        html_parts.append('<tr><td><strong>Llegada:</strong></td>')
+        html_parts.append(f'<td>{" | ".join(llegada_ida_info) if llegada_ida_info else self._valor_o_guion(None)}</td></tr>')
+
+        html_parts.append('<tr><td><strong>Tipo de Vuelo:</strong></td>')
+        html_parts.append(f'<td>{self._valor_o_guion(datos.get("tipo_vuelo_ida"))}</td></tr>')
+
+        for i, escala in enumerate(escalas_ida, 1):
             html_parts.append('<tr>')
-            html_parts.append('<td><strong>Llegada:</strong></td>')
-            html_parts.append(f'<td>{" | ".join(llegada_ida_info)}</td>')
+            html_parts.append(f'<td><strong>Escala {i} (Ida):</strong></td>')
+            ciudad = (escala.get('ciudad') or '').strip()
+            aeropuerto = (escala.get('aeropuerto') or '').strip()
+            escala_texto = f"{ciudad} - {aeropuerto}" if (ciudad or aeropuerto) else '-'
+            detalles = []
+            if escala.get('hora_llegada'):
+                detalles.append(f"Llegada: {escala.get('hora_llegada')}")
+            if escala.get('hora_salida'):
+                detalles.append(f"Salida: {escala.get('hora_salida')}")
+            if escala.get('numero_vuelo'):
+                detalles.append(f"Vuelo: {escala.get('numero_vuelo')}")
+            if escala.get('duracion'):
+                detalles.append(f"Duración: {escala.get('duracion')}")
+            if detalles:
+                escala_texto += f" ({' | '.join(detalles)})"
+            html_parts.append(f'<td>{escala_texto}</td>')
             html_parts.append('</tr>')
-        
-        if datos.get('tipo_vuelo_ida'):
-            html_parts.append('<tr>')
-            html_parts.append('<td><strong>Tipo de Vuelo:</strong></td>')
-            html_parts.append(f'<td>{datos.get("tipo_vuelo_ida")}</td>')
-            html_parts.append('</tr>')
-        
-        # Escalas de Ida (dentro de la tabla)
-        escalas_ida = datos.get('escalas_ida', [])
-        if escalas_ida and isinstance(escalas_ida, list) and len(escalas_ida) > 0:
-            for i, escala in enumerate(escalas_ida, 1):
-                html_parts.append('<tr>')
-                html_parts.append(f'<td><strong>Escala {i} (Ida):</strong></td>')
-                escala_texto = f"{escala.get('ciudad', '')} - {escala.get('aeropuerto', '')}"
-                detalles = []
-                if escala.get('hora_llegada'):
-                    detalles.append(f"Llegada: {escala.get('hora_llegada')}")
-                if escala.get('hora_salida'):
-                    detalles.append(f"Salida: {escala.get('hora_salida')}")
-                if escala.get('numero_vuelo'):
-                    detalles.append(f"Vuelo: {escala.get('numero_vuelo')}")
-                if escala.get('duracion'):
-                    detalles.append(f"Duración: {escala.get('duracion')}")
-                if detalles:
-                    escala_texto += f" ({' | '.join(detalles)})"
-                html_parts.append(f'<td>{escala_texto}</td>')
-                html_parts.append('</tr>')
-        
+
         pasajeros = datos.get('pasajeros', '')
-        if pasajeros:
-            pasajeros_texto = ', '.join([p.strip() for p in str(pasajeros).replace('\r\n', '\n').split('\n') if p.strip()])
-            html_parts.append('<tr>')
-            html_parts.append('<td><strong>Pasajeros:</strong></td>')
-            html_parts.append(f'<td>{pasajeros_texto}</td>')
-            html_parts.append('</tr>')
-        
-        if datos.get('equipaje'):
-            html_parts.append('<tr>')
-            html_parts.append('<td><strong>Equipaje:</strong></td>')
-            html_parts.append(f'<td>{datos.get("equipaje")}</td>')
-            html_parts.append('</tr>')
-        
+        pasajeros_texto = ', '.join([p.strip() for p in str(pasajeros).replace('\r\n', '\n').split('\n') if p.strip()]) if pasajeros else ''
+        html_parts.append('<tr><td><strong>Pasajeros:</strong></td>')
+        html_parts.append(f'<td>{pasajeros_texto or self._valor_o_guion(None)}</td></tr>')
+        html_parts.append('<tr><td><strong>Equipaje:</strong></td>')
+        html_parts.append(f'<td>{self._valor_o_guion(datos.get("equipaje"))}</td></tr>')
+
         html_parts.append('</table>')
-        html_parts.append('</div>')  # Cierre de card Ida
-        
-        # Card para Vuelo de Regreso (IGUAL QUE COTIZACIONES)
-        # Verificar si hay datos del vuelo de regreso para mostrar la card
-        tiene_datos_regreso = (
-            datos.get('aerolinea_regreso') or 
-            datos.get('numero_vuelo_regreso') or 
-            datos.get('fecha_salida_regreso') or 
-            datos.get('hora_salida_regreso') or 
-            datos.get('origen_regreso') or 
-            datos.get('hora_llegada_regreso') or 
-            datos.get('destino_regreso') or 
-            datos.get('tipo_vuelo_regreso') or 
-            (datos.get('escalas_regreso') and isinstance(datos.get('escalas_regreso'), list) and len(datos.get('escalas_regreso', [])) > 0) or
-            datos.get('informacion_adicional')
-        )
-        
-        # Siempre mostrar la card del vuelo de regreso (incluso si no hay datos, para que el usuario sepa que debe llenarla)
-        html_parts.append('<div style="page-break-before: always;"></div>')
-        html_parts.append('<div class="card">')
+        html_parts.append('</div>')  # Cierre card Ida
+
+        # ----- VUELO DE REGRESO -----
+        html_parts.append('<div class="card" style="margin-top: 12px;">')
         html_parts.append('<div class="card-header">')
         html_parts.append('<span class="icon">')
         html_parts.append('<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">')
@@ -9133,28 +9103,15 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         html_parts.append('</span>')
         html_parts.append('<span>VUELO DE REGRESO</span>')
         html_parts.append('</div>')
-        
         html_parts.append('<table class="data-table">')
-        
-        # Mostrar campos del vuelo de regreso (mostrar siempre, incluso si están vacíos, para que se vea la estructura)
-        if datos.get('clave_reserva'):
-            html_parts.append('<tr>')
-            html_parts.append('<td style="width: 30%;"><strong>Clave de Reserva:</strong></td>')
-            html_parts.append(f'<td>{datos.get("clave_reserva")}</td>')
-            html_parts.append('</tr>')
-        
-        if datos.get('aerolinea_regreso'):
-            html_parts.append('<tr>')
-            html_parts.append('<td style="width: 30%;"><strong>Aerolínea:</strong></td>')
-            html_parts.append(f'<td>{datos.get("aerolinea_regreso")}</td>')
-            html_parts.append('</tr>')
-        
-        if datos.get('numero_vuelo_regreso'):
-            html_parts.append('<tr>')
-            html_parts.append('<td><strong>Vuelo:</strong></td>')
-            html_parts.append(f'<td>{datos.get("numero_vuelo_regreso")}</td>')
-            html_parts.append('</tr>')
-        
+
+        html_parts.append('<tr><td style="width: 30%;"><strong>Clave de Reserva:</strong></td>')
+        html_parts.append(f'<td>{self._valor_o_guion(datos.get("clave_reserva"))}</td></tr>')
+        html_parts.append('<tr><td><strong>Aerolínea:</strong></td>')
+        html_parts.append(f'<td>{self._valor_o_guion(datos.get("aerolinea_regreso"))}</td></tr>')
+        html_parts.append('<tr><td><strong>Vuelo:</strong></td>')
+        html_parts.append(f'<td>{self._valor_o_guion(datos.get("numero_vuelo_regreso"))}</td></tr>')
+
         salida_regreso_info = []
         if datos.get('fecha_salida_regreso'):
             salida_regreso_info.append(format_date(datos.get('fecha_salida_regreso')) if format_date else datos.get('fecha_salida_regreso'))
@@ -9162,79 +9119,50 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
             salida_regreso_info.append(datos.get('hora_salida_regreso'))
         if datos.get('origen_regreso'):
             salida_regreso_info.append(f"Desde: {datos.get('origen_regreso')}")
-        if salida_regreso_info:
-            html_parts.append('<tr>')
-            html_parts.append('<td><strong>Salida:</strong></td>')
-            html_parts.append(f'<td>{" | ".join(salida_regreso_info)}</td>')
-            html_parts.append('</tr>')
-        
+        html_parts.append('<tr><td><strong>Salida:</strong></td>')
+        html_parts.append(f'<td>{" | ".join(salida_regreso_info) if salida_regreso_info else self._valor_o_guion(None)}</td></tr>')
+
         llegada_regreso_info = []
         if datos.get('hora_llegada_regreso'):
             llegada_regreso_info.append(datos.get('hora_llegada_regreso'))
         if datos.get('destino_regreso'):
             llegada_regreso_info.append(f"Hasta: {datos.get('destino_regreso')}")
-        if llegada_regreso_info:
+        html_parts.append('<tr><td><strong>Llegada:</strong></td>')
+        html_parts.append(f'<td>{" | ".join(llegada_regreso_info) if llegada_regreso_info else self._valor_o_guion(None)}</td></tr>')
+
+        html_parts.append('<tr><td><strong>Tipo de Vuelo:</strong></td>')
+        html_parts.append(f'<td>{self._valor_o_guion(datos.get("tipo_vuelo_regreso"))}</td></tr>')
+
+        for i, escala in enumerate(escalas_regreso, 1):
             html_parts.append('<tr>')
-            html_parts.append('<td><strong>Llegada:</strong></td>')
-            html_parts.append(f'<td>{" | ".join(llegada_regreso_info)}</td>')
+            html_parts.append(f'<td><strong>Escala {i} (Regreso):</strong></td>')
+            ciudad = (escala.get('ciudad') or '').strip()
+            aeropuerto = (escala.get('aeropuerto') or '').strip()
+            escala_texto = f"{ciudad} - {aeropuerto}" if (ciudad or aeropuerto) else '-'
+            detalles = []
+            if escala.get('hora_llegada'):
+                detalles.append(f"Llegada: {escala.get('hora_llegada')}")
+            if escala.get('hora_salida'):
+                detalles.append(f"Salida: {escala.get('hora_salida')}")
+            if escala.get('numero_vuelo'):
+                detalles.append(f"Vuelo: {escala.get('numero_vuelo')}")
+            if escala.get('duracion'):
+                detalles.append(f"Duración: {escala.get('duracion')}")
+            if detalles:
+                escala_texto += f" ({' | '.join(detalles)})"
+            html_parts.append(f'<td>{escala_texto}</td>')
             html_parts.append('</tr>')
-        
-        if datos.get('tipo_vuelo_regreso'):
-            html_parts.append('<tr>')
-            html_parts.append('<td><strong>Tipo de Vuelo:</strong></td>')
-            html_parts.append(f'<td>{datos.get("tipo_vuelo_regreso")}</td>')
-            html_parts.append('</tr>')
-        
-        # Escalas de Regreso (dentro de la tabla)
-        escalas_regreso = datos.get('escalas_regreso', [])
-        if escalas_regreso and isinstance(escalas_regreso, list) and len(escalas_regreso) > 0:
-            for i, escala in enumerate(escalas_regreso, 1):
-                html_parts.append('<tr>')
-                html_parts.append(f'<td><strong>Escala {i} (Regreso):</strong></td>')
-                escala_texto = f"{escala.get('ciudad', '')} - {escala.get('aeropuerto', '')}"
-                detalles = []
-                if escala.get('hora_llegada'):
-                    detalles.append(f"Llegada: {escala.get('hora_llegada')}")
-                if escala.get('hora_salida'):
-                    detalles.append(f"Salida: {escala.get('hora_salida')}")
-                if escala.get('numero_vuelo'):
-                    detalles.append(f"Vuelo: {escala.get('numero_vuelo')}")
-                if escala.get('duracion'):
-                    detalles.append(f"Duración: {escala.get('duracion')}")
-                if detalles:
-                    escala_texto += f" ({' | '.join(detalles)})"
-                html_parts.append(f'<td>{escala_texto}</td>')
-                html_parts.append('</tr>')
-        
-        if datos.get('pasajeros'):
-            pasajeros_texto = ', '.join([p.strip() for p in str(datos.get('pasajeros', '')).replace('\r\n', '\n').split('\n') if p.strip()])
-            if pasajeros_texto:
-                html_parts.append('<tr>')
-                html_parts.append('<td><strong>Pasajeros:</strong></td>')
-                html_parts.append(f'<td>{pasajeros_texto}</td>')
-                html_parts.append('</tr>')
-        
-        if datos.get('equipaje'):
-            html_parts.append('<tr>')
-            html_parts.append('<td><strong>Equipaje:</strong></td>')
-            html_parts.append(f'<td>{datos.get("equipaje")}</td>')
-            html_parts.append('</tr>')
-        
-        if datos.get('informacion_adicional'):
-            html_parts.append('<tr>')
-            html_parts.append('<td><strong>Información Adicional:</strong></td>')
-            html_parts.append(f'<td>{datos.get("informacion_adicional")}</td>')
-            html_parts.append('</tr>')
-        
-        # Si no hay datos del vuelo de regreso, mostrar un mensaje
-        if not tiene_datos_regreso:
-            html_parts.append('<tr>')
-            html_parts.append('<td colspan="2" style="text-align: center; color: #718096; font-style: italic; padding: 20px;">No hay información disponible del vuelo de regreso. Por favor, complete los datos en la plantilla de confirmación.</td>')
-            html_parts.append('</tr>')
-        
+
+        html_parts.append('<tr><td><strong>Pasajeros:</strong></td>')
+        html_parts.append(f'<td>{pasajeros_texto or self._valor_o_guion(None)}</td></tr>')
+        html_parts.append('<tr><td><strong>Equipaje:</strong></td>')
+        html_parts.append(f'<td>{self._valor_o_guion(datos.get("equipaje"))}</td></tr>')
+        html_parts.append('<tr><td><strong>Información Adicional:</strong></td>')
+        html_parts.append(f'<td>{self._valor_o_guion(datos.get("informacion_adicional"))}</td></tr>')
+
         html_parts.append('</table>')
-        html_parts.append('</div>')  # Cierre de card Regreso
-        
+        html_parts.append('</div>')  # Cierre card Regreso
+
         return "".join(html_parts)
     
     def _generar_html_hospedaje(self, datos, format_date, request):
