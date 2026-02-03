@@ -1200,8 +1200,8 @@
                             {# Resumen de abonos #}
                             <div class="row text-center g-3 mb-4">
                                 <div class="col-12 col-md-4">
-                                    <p class="text-muted mb-1">Total del Viaje ({{ moneda_abonos }})</p>
-                                    <h4 class="text-primary mb-0">${{ total_usd_venta|floatformat:2|intcomma }} {{ moneda_abonos }}</h4>
+                                    <p class="text-muted mb-1">Servicios planificados ({{ moneda_abonos }})</p>
+                                    <h4 class="text-primary mb-0">${{ servicios_planificados_abonos|floatformat:2|intcomma }} {{ moneda_abonos }}</h4>
                                 </div>
                                 <div class="col-12 col-md-4">
                                     <p class="text-muted mb-1">Total Abonado al Proveedor</p>
@@ -1771,7 +1771,7 @@
             <form method="post" action="{% url 'solicitar_abono_proveedor' pk=venta.pk %}" id="formSolicitarAbonoProveedor">
                 {% csrf_token %}
                 <div class="modal-body">
-                    <p class="text-muted">Total del viaje: <strong>${{ total_usd_venta|floatformat:2|intcomma }} {{ moneda_abonos }}</strong></p>
+                    <p class="text-muted">Servicios planificados: <strong>${{ servicios_planificados_abonos|floatformat:2|intcomma }} {{ moneda_abonos }}</strong></p>
                     <p class="text-muted">Saldo pendiente: <strong>${{ saldo_pendiente_proveedor|floatformat:2|intcomma }} {{ moneda_abonos }}</strong></p>
                     <hr>
                     {% if form_abono_proveedor %}
