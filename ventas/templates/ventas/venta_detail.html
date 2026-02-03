@@ -1285,8 +1285,8 @@
                                                         </button>
                                                     {% endif %}
                                                     {% if abono.comprobante %}
-                                                        <a href="{{ abono.comprobante.url }}" target="_blank" class="btn btn-outline-primary btn-sm" title="Ver comprobante">
-                                                            <i class="fas fa-eye"></i>
+                                                        <a href="{{ abono.comprobante.url }}" target="_blank" class="btn btn-outline-primary btn-sm" title="Ver comprobante subido por el contador">
+                                                            <i class="fas fa-file-invoice me-1"></i> Ver comprobante
                                                         </a>
                                                     {% endif %}
                                                     {% if abono.estado == 'PENDIENTE' and puede_cancelar_abono_proveedor %}
