@@ -1304,12 +1304,13 @@ class AbonoProveedor(models.Model):
         blank=True,
         verbose_name="Fecha de Confirmación"
     )
-    comprobante = models.ImageField(
+    comprobante = models.FileField(
         upload_to='comprobantes_proveedor/%Y/%m/%d/',
         null=True,
         blank=True,
         verbose_name="Comprobante de Abono",
-        help_text="Imagen del comprobante de pago al proveedor"
+        help_text="Comprobante de pago al proveedor (imagen JPG, PNG o PDF)",
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png'])],
     )
     nota_confirmacion = models.TextField(
         blank=True,
