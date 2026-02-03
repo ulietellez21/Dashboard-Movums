@@ -1841,16 +1841,23 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         # Obtener el costo de modificación del formulario
         costo_modificacion = form.cleaned_data.get('costo_modificacion', Decimal('0.00')) or Decimal('0.00')
         previo_modificacion = form.instance.costo_modificacion or Decimal('0.00')
-        
+        _uname = (self.request.user.username or '').strip().lower()
+        es_antonio_balderas = (_uname == 'antonio_balderas')
+
         # Guardar la instancia
         self.object = form.save()
-        
+
         # Obtener valores nuevos DESPUÉS de guardar
         aplica_descuento_nuevo = self.object.aplica_descuento_kilometros
         descuento_nuevo = self.object.descuento_kilometros_mxn or Decimal('0.00')
-        
+
         mensaje = "Venta actualizada correctamente."
-        if costo_modificacion > 0:
+        if es_antonio_balderas:
+            # Antonio_Balderas: el valor del campo reemplaza el acumulado (puede restar/ajustar)
+            self.object.costo_modificacion = max(Decimal('0.00'), costo_modificacion)
+            self.object.save(update_fields=['costo_modificacion'])
+            mensaje = f"Venta actualizada. Costo de modificación ajustado a ${self.object.costo_modificacion:,.2f}."
+        elif costo_modificacion > 0:
             total_mod = previo_modificacion + costo_modificacion
             self.object.costo_modificacion = total_mod
             self.object.save(update_fields=['costo_modificacion'])
