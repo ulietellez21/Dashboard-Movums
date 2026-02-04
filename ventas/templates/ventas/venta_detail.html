@@ -859,13 +859,23 @@
                                                 {% endif %}
                                                     <td><span class="badge bg-info">{{ venta.get_modo_pago_apertura_display }}</span></td>
                                                     <td>
-                                                        {# Solo está pendiente si la venta está en confirmación Y NO hay otros abonos pendientes #}
-                                                        {% if venta.estado_confirmacion == 'EN_CONFIRMACION' and venta.modo_pago_apertura in 'TRN,TAR,DEP,CRE' and not tiene_abonos_pendientes %}
-                                                            <span class="badge bg-warning text-dark"><i class="fas fa-clock"></i> Pendiente</span>
-                                                        {% elif venta.modo_pago_apertura in 'EFE,LIG,PRO' %}
+                                                        {# Apertura confirmada solo cuando el contador la aprobó (y comprobante). TRN/TAR/DEP usan apertura_confirmada; EFE/LIG/PRO no requieren contador. #}
+                                                        {% if venta.modo_pago_apertura in 'EFE,LIG,PRO' %}
                                                             <span class="badge bg-success"><i class="fas fa-check"></i> Confirmado</span>
+                                                        {% elif venta.modo_pago_apertura in 'TRN,TAR,DEP' %}
+                                                            {% if venta.apertura_confirmada %}
+                                                                <span class="badge bg-success"><i class="fas fa-check"></i> Confirmado</span>
+                                                            {% else %}
+                                                                <span class="badge bg-warning text-dark"><i class="fas fa-clock"></i> Pendiente</span>
+                                                            {% endif %}
+                                                        {% elif venta.modo_pago_apertura == 'CRE' %}
+                                                            {% if venta.estado_confirmacion == 'EN_CONFIRMACION' %}
+                                                                <span class="badge bg-warning text-dark"><i class="fas fa-clock"></i> Pendiente</span>
+                                                            {% else %}
+                                                                <span class="badge bg-success"><i class="fas fa-check"></i> Confirmado</span>
+                                                            {% endif %}
                                                         {% else %}
-                                                            <span class="badge bg-success"><i class="fas fa-check"></i> Confirmado</span>
+                                                            <span class="badge bg-warning text-dark"><i class="fas fa-clock"></i> Pendiente</span>
                                                         {% endif %}
                                                     </td>
                                                     <td>
