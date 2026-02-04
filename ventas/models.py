@@ -193,6 +193,11 @@ class VentaViaje(models.Model):
         verbose_name="Estado de Confirmación",
         help_text="Estado de confirmación del pago por el contador"
     )
+    apertura_confirmada = models.BooleanField(
+        default=False,
+        verbose_name="Apertura confirmada por contador",
+        help_text="True solo cuando el contador ha confirmado explícitamente el pago de apertura (y comprobante subido). Para TRN/TAR/DEP la apertura no cuenta en total_pagado hasta que sea True."
+    )
     
     costo_neto = models.DecimalField(
         max_digits=10, 
@@ -484,16 +489,16 @@ class VentaViaje(models.Model):
             # a 'COMPLETADO' y luego puede cambiar a 'PENDIENTE' si aún falta pagar. En ambos casos,
             # la apertura debe contarse porque ya fue confirmada.
             elif self.modo_pago_apertura in ['TRN', 'TAR', 'DEP', 'CRE']:
-                # IMPORTANTE: La lógica es simple:
-                # - Si está en 'EN_CONFIRMACION', NO se cuenta (pendiente de confirmación del contador)
-                # - Si NO está en 'EN_CONFIRMACION', se cuenta porque:
-                #   1. Ya fue confirmada por el contador (estado cambió de EN_CONFIRMACION a COMPLETADO/PENDIENTE)
-                #   2. O nunca necesitó confirmación (estado siempre fue PENDIENTE desde el inicio)
-                # Una vez que el contador confirma, el estado cambia de 'EN_CONFIRMACION' a 'COMPLETADO'
-                # y luego puede cambiar a 'PENDIENTE' si aún falta pagar. En ambos casos, la apertura
-                # debe contarse porque ya fue confirmada.
-                if self.estado_confirmacion != 'EN_CONFIRMACION':
-                    monto_apertura = self.cantidad_apertura
+                # TRN/TAR/DEP: la apertura solo cuenta cuando el contador la confirmó explícitamente
+                # (apertura_confirmada=True). Subir comprobante no basta; el contador debe confirmar.
+                # CRE: se cuenta si el contador ya validó (estado != EN_CONFIRMACION).
+                if self.modo_pago_apertura == 'CRE':
+                    if self.estado_confirmacion != 'EN_CONFIRMACION':
+                        monto_apertura = self.cantidad_apertura
+                else:
+                    # TRN, TAR, DEP: solo contar si el contador confirmó (comprobante se valida al confirmar)
+                    if self.apertura_confirmada:
+                        monto_apertura = self.cantidad_apertura
         
         total = total_abonos + monto_apertura
 
@@ -698,20 +703,17 @@ class VentaViaje(models.Model):
         # Abonos confirmados: tienen confirmado=True y confirmado_en no es None
         tiene_abonos_confirmados = self.abonos.filter(confirmado=True, confirmado_en__isnull=False).exists()
         
-        # Apertura confirmada (para no degradar a PENDIENTE y para forzar COMPLETADO solo cuando corresponde):
+        # Apertura confirmada (para no degradar a PENDIENTE y forzar COMPLETADO solo cuando corresponde):
         # - CRE: confirmada si el contador ya la validó (estado != EN_CONFIRMACION).
-        # - EFE/LIG/PRO: no se usa aquí para forzar COMPLETADO; el estado se define por nuevo_total >= costo.
-        # - TRN/TAR/DEP: solo confirmada cuando el contador ya la confirmó (estado = COMPLETADO).
-        #   Subir el comprobante NO cuenta; el contador debe aprobar explícitamente.
+        # - EFE/LIG/PRO: no se usa aquí para forzar COMPLETADO.
+        # - TRN/TAR/DEP: solo confirmada cuando el contador la aprobó explícitamente (apertura_confirmada=True).
         if self.modo_pago_apertura == 'CRE':
             apertura_confirmada = (self.estado_confirmacion != 'EN_CONFIRMACION')
         elif self.modo_pago_apertura in ['TRN', 'TAR', 'DEP']:
-            apertura_confirmada = (
-                bool(self.cantidad_apertura and self.cantidad_apertura > 0) and
-                self.estado_confirmacion == 'COMPLETADO'
+            apertura_confirmada = bool(
+                self.cantidad_apertura and self.cantidad_apertura > 0 and self.apertura_confirmada
             )
         else:
-            # EFE, LIG, PRO: no forzar COMPLETADO por apertura; se usa nuevo_total >= costo
             apertura_confirmada = False
         
         # Si hay una apertura confirmada (por contador en TRN/TAR/DEP o CRE), mantener COMPLETADO

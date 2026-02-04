@@ -2003,6 +2003,14 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
                     confirmado=True
                 )
         
+        # Si tiene apertura TRN/TAR/DEP y aún no la confirmó el contador, mantener EN_CONFIRMACION
+        cantidad_apertura = getattr(self.object, 'cantidad_apertura', None) or Decimal('0.00')
+        if (modo_pago in ['TRN', 'TAR', 'DEP'] and cantidad_apertura > 0 and
+                not getattr(self.object, 'apertura_confirmada', False)):
+            if self.object.estado_confirmacion != 'COMPLETADO':
+                self.object.estado_confirmacion = 'EN_CONFIRMACION'
+                self.object.save(update_fields=['estado_confirmacion'])
+        
         self.object.actualizar_estado_financiero()
         messages.success(self.request, mensaje)
         return super().form_valid(form)
@@ -7413,8 +7421,11 @@ class ConfirmarPagoView(LoginRequiredMixin, UserPassesTestMixin, View):
             venta = notificacion.venta
             abono = notificacion.abono
             
-            # Confirmar el abono (si existe)
+            # Confirmar el abono (si existe): requiere comprobante subido
             if abono:
+                if abono.forma_pago in ['TRN', 'TAR', 'DEP'] and not abono.comprobante_subido:
+                    messages.error(request, "No se puede confirmar este abono: debe estar subido el comprobante.")
+                    return redirect(reverse('pagos_por_confirmar'))
                 abono.confirmado = True
                 abono.confirmado_por = request.user
                 abono.confirmado_en = timezone.now()
@@ -7445,18 +7456,16 @@ class ConfirmarPagoView(LoginRequiredMixin, UserPassesTestMixin, View):
                 else:
                     venta.estado_confirmacion = 'PENDIENTE'
             else:
-                # Si no hay abono, es una apertura - confirmarla
-                # Cuando se confirma la apertura, se establece estado_confirmacion a COMPLETADO
-                # Esto hará que total_pagado cuente la cantidad_apertura (según la lógica del modelo)
+                # Si no hay abono, es una apertura - confirmarla solo si hay comprobante subido
+                if venta.modo_pago_apertura in ['TRN', 'TAR', 'DEP'] and not venta.comprobante_apertura_subido:
+                    messages.error(request, "No se puede confirmar la apertura: debe estar subido el comprobante de apertura.")
+                    return redirect(reverse('pagos_por_confirmar'))
+                venta.apertura_confirmada = True
                 venta.estado_confirmacion = 'COMPLETADO'
-                # Refrescar desde BD para asegurar que tenemos los valores actualizados
                 venta.refresh_from_db()
-                
-                # Verificar si la venta está completamente pagada después de confirmar la apertura
                 venta_liquidada = venta.total_pagado >= venta.costo_total_con_modificacion
                 if venta_liquidada:
-                    # Si ya está pagada completamente, mantener COMPLETADO
-                    # Crear notificación de liquidación para el VENDEDOR
+                    venta.estado_confirmacion = 'COMPLETADO'
                     if venta.vendedor:
                         mensaje_liquidacion = f"¡Venta #{venta.pk} completamente liquidada! - Cliente: {venta.cliente.nombre_completo_display} - Total: ${venta.costo_venta_final:,.2f}"
                         Notificacion.objects.create(
@@ -7467,10 +7476,12 @@ class ConfirmarPagoView(LoginRequiredMixin, UserPassesTestMixin, View):
                             confirmado=False
                         )
                 else:
-                    # Si aún falta pagar, cambiar a PENDIENTE para permitir más abonos
                     venta.estado_confirmacion = 'PENDIENTE'
             
-            venta.save(update_fields=['estado_confirmacion'])
+            update_fields = ['estado_confirmacion']
+            if not abono:
+                update_fields.append('apertura_confirmada')
+            venta.save(update_fields=update_fields)
             
             # Actualizar notificación del CONTADOR: cambiar de PAGO_PENDIENTE a PAGO_CONFIRMADO
             notificacion.tipo = 'PAGO_CONFIRMADO'
@@ -7611,6 +7622,11 @@ class ConfirmarAbonoView(LoginRequiredMixin, UserPassesTestMixin, View):
             # Verificar que el abono es de tipo Transferencia/Tarjeta/Depósito (requiere confirmación)
             if abono.forma_pago not in ['TRN', 'TAR', 'DEP']:
                 messages.warning(request, "Solo se pueden confirmar abonos de Transferencia, Tarjeta o Depósito.")
+                return redirect(reverse('detalle_venta', kwargs={'pk': abono.venta.pk, 'slug': abono.venta.slug_safe}) + '?tab=abonos')
+            
+            # Requiere comprobante subido para que el contador pueda confirmar
+            if not abono.comprobante_subido:
+                messages.error(request, "No se puede confirmar este abono: debe estar subido el comprobante.")
                 return redirect(reverse('detalle_venta', kwargs={'pk': abono.venta.pk, 'slug': abono.venta.slug_safe}) + '?tab=abonos')
             
             venta = abono.venta
