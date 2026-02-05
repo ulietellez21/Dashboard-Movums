@@ -715,8 +715,8 @@ class VentaViaje(models.Model):
         for code, servicios in servicios_por_codigo.items():
             nombre_servicio = choices.get(code, servicios[0].nombre_servicio)
             
-            # Para TOU y VUE: mostrar cada fila con su proveedor
-            if code in ['TOU', 'VUE']:
+            # Para TOU, VUE y HOS: mostrar cada fila con su proveedor
+            if code in ['TOU', 'VUE', 'HOS']:
                 for serv in servicios:
                     if serv.opcion_proveedor and serv.opcion_proveedor.strip():
                         servicios_list.append(f"{nombre_servicio} - Proveedor: {serv.opcion_proveedor}")

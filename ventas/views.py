@@ -94,13 +94,13 @@ def get_user_role(user):
 
 
 def _get_logistica_servicio_formset(venta, request_POST=None, queryset=None, prefix='servicios'):
-    """Formset de servicios logísticos. Con extra=3 cuando hay Tour o Vuelo: se muestran 0–3 filas vacías según el selector (JS)."""
+    """Formset de servicios logísticos. Con extra filas cuando hay Tour, Vuelo o Hospedaje: 3 por cada uno, mostradas según el selector (JS)."""
     servicios_codes = [c.strip() for c in (venta.servicios_seleccionados or '').split(',') if c.strip()]
     has_tou = 'TOU' in servicios_codes
     has_vue = 'VUE' in servicios_codes
-    # Si hay TOU y VUE, necesitamos 6 filas extras (3 para cada uno)
-    # Si solo hay uno, 3 filas extras
-    extra = 6 if (has_tou and has_vue) else (3 if (has_tou or has_vue) else 0)
+    has_hos = 'HOS' in servicios_codes
+    # 3 filas extras por cada tipo (TOU, VUE, HOS) que tenga la venta
+    extra = (3 if has_tou else 0) + (3 if has_vue else 0) + (3 if has_hos else 0)
     FormSetClass = modelformset_factory(
         LogisticaServicio,
         form=LogisticaServicioForm,
@@ -813,21 +813,21 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
             )
 
             if formset.is_valid():
-                # Crear nuevos TOU y VUE desde formularios extra que tengan datos (filas mostradas al seleccionar en el dropdown)
+                # Crear nuevos TOU, VUE y HOS desde formularios extra que tengan datos (filas mostradas al seleccionar en el dropdown)
                 choices = dict(VentaViaje.SERVICIOS_CHOICES)
                 nombre_tou = choices.get('TOU', 'Tour y Actividades')
                 nombre_vue = choices.get('VUE', 'Vuelo')
+                nombre_hos = choices.get('HOS', 'Hospedaje')
                 
                 servicios_codes = [c.strip() for c in (self.object.servicios_seleccionados or '').split(',') if c.strip()]
                 has_tou = 'TOU' in servicios_codes
                 has_vue = 'VUE' in servicios_codes
+                has_hos = 'HOS' in servicios_codes
                 
                 # Contar filas existentes (con pk) para determinar índices de filas extras (sin pk)
                 num_existentes = sum(1 for form in formset.forms if form.instance.pk)
                 
-                # Las primeras 3 extras (índices num_existentes a num_existentes+2) son para TOU si existe
-                # Las siguientes 3 extras (índices num_existentes+3 a num_existentes+5) son para VUE si existe
-                # Si solo hay uno de los servicios, todas las extras son para ese servicio
+                # Orden de extras: TOU (0-2), VUE (3-5), HOS (6-8). Si falta alguno, los siguientes se desplazan.
                 
                 # Crear nuevos TOU desde filas extras
                 if has_tou:
@@ -838,9 +838,8 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                     for idx, form in enumerate(formset.forms):
                         if form.instance.pk or not form.cleaned_data:
                             continue
-                        # Determinar si esta fila extra es para TOU
-                        if has_tou and has_vue:
-                            # Hay ambos: TOU son índices num_existentes a num_existentes+2
+                        # Determinar si esta fila extra es para TOU (siempre primeras 3 extras)
+                        if has_vue or has_hos:
                             if idx < num_existentes or idx >= num_existentes + 3:
                                 continue
                         elif has_tou:
@@ -871,13 +870,14 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                     for idx, form in enumerate(formset.forms):
                         if form.instance.pk or not form.cleaned_data:
                             continue
-                        # Determinar si esta fila extra es para VUE
+                        # Determinar si esta fila extra es para VUE (índices 3-5 cuando hay TOU y/o HOS)
                         if has_tou and has_vue:
-                            # Hay ambos: VUE son índices num_existentes+3 en adelante
-                            if idx < num_existentes + 3:
+                            if idx < num_existentes + 3 or idx >= num_existentes + 6:
+                                continue
+                        elif has_vue and has_hos:
+                            if idx < num_existentes or idx >= num_existentes + 3:
                                 continue
                         elif has_vue:
-                            # Solo VUE: todas las extras son VUE
                             if idx < num_existentes:
                                 continue
                         else:
@@ -894,6 +894,40 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                             opcion_proveedor=(cd.get('opcion_proveedor') or '').strip(),
                         )
                         next_orden_vue += 1
+
+                # Crear nuevos HOS desde filas extras
+                if has_hos:
+                    max_orden_hos = self.object.servicios_logisticos.filter(codigo_servicio='HOS').aggregate(
+                        mx=Max('orden')
+                    )['mx']
+                    next_orden_hos = (max_orden_hos if max_orden_hos is not None else 0) + 1
+                    for idx, form in enumerate(formset.forms):
+                        if form.instance.pk or not form.cleaned_data:
+                            continue
+                        # Determinar si esta fila extra es para HOS
+                        if has_tou and has_vue and has_hos:
+                            if idx < num_existentes + 6:
+                                continue
+                        elif (has_tou and has_hos) or (has_vue and has_hos):
+                            if idx < num_existentes + 3:
+                                continue
+                        elif has_hos:
+                            if idx < num_existentes:
+                                continue
+                        else:
+                            continue
+                        cd = form.cleaned_data
+                        if not cd.get('opcion_proveedor') and not cd.get('monto_planeado'):
+                            continue
+                        LogisticaServicio.objects.create(
+                            venta=self.object,
+                            codigo_servicio='HOS',
+                            nombre_servicio=nombre_hos,
+                            orden=next_orden_hos,
+                            monto_planeado=cd.get('monto_planeado') or Decimal('0.00'),
+                            opcion_proveedor=(cd.get('opcion_proveedor') or '').strip(),
+                        )
+                        next_orden_hos += 1
 
                 # Recargar tras posibles altas
                 servicios_qs = self.object.servicios_logisticos.all().order_by('orden', 'pk')
@@ -1028,6 +1062,13 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                     self.object.servicios_logisticos.filter(codigo_servicio='VUE')
                 )
                 for s in vue_vacios:
+                    if (s.monto_planeado or Decimal('0.00')) <= Decimal('0.00') and not (s.opcion_proveedor or '').strip():
+                        s.delete()
+
+                hos_vacios = list(
+                    self.object.servicios_logisticos.filter(codigo_servicio='HOS')
+                )
+                for s in hos_vacios:
                     if (s.monto_planeado or Decimal('0.00')) <= Decimal('0.00') and not (s.opcion_proveedor or '').strip():
                         s.delete()
 
@@ -1349,47 +1390,22 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
         formset_forms = list(formset.forms)
         filas = build_service_rows(servicios_qs, resumen, formset_forms[: len(servicios_qs)], venta=venta)
         
-        # Filas extra para "otro(s) proveedor(es) Tour y Vuelo": se muestran según el selector numérico (JS)
+        # Filas extra para "otro(s) proveedor(es) Tour, Vuelo y Hospedaje": se muestran según el selector numérico (JS)
         servicios_codes = [c.strip() for c in (venta.servicios_seleccionados or '').split(',') if c.strip()]
         has_tou = 'TOU' in servicios_codes
         has_vue = 'VUE' in servicios_codes
+        has_hos = 'HOS' in servicios_codes
         
         num_existentes = len(servicios_qs)
+        tou_end = num_existentes + (3 if has_tou else 0)
+        vue_end = tou_end + (3 if has_vue else 0)
+        hos_end = vue_end + (3 if has_hos else 0)
         extra_index_tou = 1
         extra_index_vue = 1
+        extra_index_hos = 1
         
         for i in range(num_existentes, len(formset_forms)):
-            # Determinar si esta fila extra es para TOU o VUE
-            if has_tou and has_vue:
-                # Hay ambos: primeras 3 extras son TOU, siguientes 3 son VUE
-                if i < num_existentes + 3:
-                    # Fila extra de TOU
-                    filas.append({
-                        'form': formset_forms[i],
-                        'servicio': None,
-                        'status': 'new',
-                        'badge_class': 'secondary',
-                        'status_label': 'Nuevo',
-                        'status_hint': 'Complete y guarde para agregar otro proveedor',
-                        'es_extra_tou': True,
-                        'extra_index': extra_index_tou,
-                    })
-                    extra_index_tou += 1
-                else:
-                    # Fila extra de VUE
-                    filas.append({
-                        'form': formset_forms[i],
-                        'servicio': None,
-                        'status': 'new',
-                        'badge_class': 'secondary',
-                        'status_label': 'Nuevo',
-                        'status_hint': 'Complete y guarde para agregar otro proveedor',
-                        'es_extra_vue': True,
-                        'extra_index': extra_index_vue,
-                    })
-                    extra_index_vue += 1
-            elif has_tou:
-                # Solo TOU: todas las extras son TOU
+            if i < tou_end:
                 filas.append({
                     'form': formset_forms[i],
                     'servicio': None,
@@ -1401,8 +1417,7 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                     'extra_index': extra_index_tou,
                 })
                 extra_index_tou += 1
-            elif has_vue:
-                # Solo VUE: todas las extras son VUE
+            elif i < vue_end:
                 filas.append({
                     'form': formset_forms[i],
                     'servicio': None,
@@ -1414,10 +1429,24 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                     'extra_index': extra_index_vue,
                 })
                 extra_index_vue += 1
+            elif i < hos_end:
+                filas.append({
+                    'form': formset_forms[i],
+                    'servicio': None,
+                    'status': 'new',
+                    'badge_class': 'secondary',
+                    'status_label': 'Nuevo',
+                    'status_hint': 'Complete y guarde para agregar otro proveedor',
+                    'es_extra_hos': True,
+                    'extra_index': extra_index_hos,
+                })
+                extra_index_hos += 1
+            # si hay más formas que slots (no debería), se ignoran
 
         context['servicios_financieros_formset'] = formset
         context['tiene_tou_para_otro_proveedor'] = has_tou
         context['tiene_vue_para_otro_proveedor'] = has_vue
+        context['tiene_hos_para_otro_proveedor'] = has_hos
         context['logistica_finanzas'] = resumen
         context['servicios_logisticos_rows'] = filas
         context['servicios_logisticos_queryset'] = servicios_qs

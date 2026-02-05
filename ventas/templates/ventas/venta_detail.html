@@ -1088,7 +1088,7 @@
                                     </thead>
                                     <tbody>
                                         {% for row in servicios_logisticos_rows %}
-                                        <tr class="logistica-servicio-row status-{{ row.status }}{% if row.es_extra_tou %} d-none logistica-extra-tou-row{% endif %}{% if row.es_extra_vue %} d-none logistica-extra-vue-row{% endif %}"{% if row.es_extra_tou %} id="logistica-extra-tou-row-{{ row.extra_index }}"{% endif %}{% if row.es_extra_vue %} id="logistica-extra-vue-row-{{ row.extra_index }}"{% endif %}>
+                                        <tr class="logistica-servicio-row status-{{ row.status }}{% if row.es_extra_tou %} d-none logistica-extra-tou-row{% endif %}{% if row.es_extra_vue %} d-none logistica-extra-vue-row{% endif %}{% if row.es_extra_hos %} d-none logistica-extra-hos-row{% endif %}"{% if row.es_extra_tou %} id="logistica-extra-tou-row-{{ row.extra_index }}"{% endif %}{% if row.es_extra_vue %} id="logistica-extra-vue-row-{{ row.extra_index }}"{% endif %}{% if row.es_extra_hos %} id="logistica-extra-hos-row-{{ row.extra_index }}"{% endif %}>
                                             <td>
                                                 {% if row.servicio %}
                                                 <strong>{{ row.servicio.nombre_servicio }}</strong>
@@ -1101,6 +1101,9 @@
                                                     <small class="d-block text-muted">Complete y guarde para agregar otro proveedor</small>
                                                     {% elif row.es_extra_vue %}
                                                     <strong class="text-muted">Vuelo (nuevo)</strong>
+                                                    <small class="d-block text-muted">Complete y guarde para agregar otro proveedor</small>
+                                                    {% elif row.es_extra_hos %}
+                                                    <strong class="text-muted">Hospedaje (nuevo)</strong>
                                                     <small class="d-block text-muted">Complete y guarde para agregar otro proveedor</small>
                                                     {% else %}
                                                     <strong class="text-muted">Servicio (nuevo)</strong>
@@ -1202,8 +1205,19 @@
                                             </select>
                                         </div>
                                         {% endif %}
+                                        {% if tiene_hos_para_otro_proveedor %}
+                                        <div class="d-flex align-items-center gap-2">
+                                            <label for="id_cantidad_filas_hos" class="form-label mb-0">Filas vacías para otro(s) proveedor(es) de Hospedaje:</label>
+                                            <select id="id_cantidad_filas_hos" name="cantidad_filas_hos" class="form-select form-select-sm" style="width: auto;">
+                                                <option value="0" selected>0</option>
+                                                <option value="1">1</option>
+                                                <option value="2">2</option>
+                                                <option value="3">3</option>
+                                            </select>
+                                        </div>
+                                        {% endif %}
                                     </div>
-                                    <div class="text-end {% if not tiene_tou_para_otro_proveedor and not tiene_vue_para_otro_proveedor %}ms-auto{% endif %}">
+                                    <div class="text-end {% if not tiene_tou_para_otro_proveedor and not tiene_vue_para_otro_proveedor and not tiene_hos_para_otro_proveedor %}ms-auto{% endif %}">
                                         <button type="submit" class="btn btn-info">
                                             <i class="fas fa-save me-1"></i> Guardar ajustes
                                         </button>
@@ -1236,6 +1250,23 @@
                                         var n = parseInt(sel.value, 10) || 0;
                                         for (var i = 1; i <= 3; i++) {
                                             var row = document.getElementById('logistica-extra-vue-row-' + i);
+                                            if (row) row.classList.toggle('d-none', i > n);
+                                        }
+                                    }
+                                    sel.addEventListener('change', actualizarFilas);
+                                    actualizarFilas();
+                                })();
+                                </script>
+                                {% endif %}
+                                {% if tiene_hos_para_otro_proveedor %}
+                                <script>
+                                (function() {
+                                    var sel = document.getElementById('id_cantidad_filas_hos');
+                                    if (!sel) return;
+                                    function actualizarFilas() {
+                                        var n = parseInt(sel.value, 10) || 0;
+                                        for (var i = 1; i <= 3; i++) {
+                                            var row = document.getElementById('logistica-extra-hos-row-' + i);
                                             if (row) row.classList.toggle('d-none', i > n);
                                         }
                                     }
