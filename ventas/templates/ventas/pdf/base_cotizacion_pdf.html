@@ -198,14 +198,21 @@ body {
 
 
 .cotizacion-generica .content-wrapper {
-    padding-top: 48px !important; /* Solo el spacer-top */
+    padding-top: 0 !important; /* Sin padding superior para comenzar en primera página */
     padding-bottom: 0 !important;
     margin-bottom: 0 !important; /* Sin margen inferior adicional */
+    margin-top: 0 !important; /* Sin margen superior */
     page-break-inside: auto !important;
     overflow: visible !important;
     height: auto !important;
     max-height: none !important;
     min-height: 0 !important;
+}
+
+/* Ocultar spacer-top para cotizaciones genéricas */
+.cotizacion-generica .spacer-top {
+    display: none !important;
+    height: 0 !important;
 }
 
 /* Spacer para separar el contenido del membrete */
@@ -222,13 +229,29 @@ body {
     page-break-inside: auto !important; /* Permitir que el contenido fluya entre páginas */
 }
 
-/* Para cotizaciones genéricas, no forzar salto de página */
+/* Para cotizaciones genéricas, no forzar salto de página y eliminar padding excesivo */
 .cotizacion-generica .content-page-wrapper {
     page-break-before: auto !important; /* No forzar salto */
     break-before: auto !important;
     page-break-inside: auto !important;
     break-inside: auto !important;
     overflow: visible !important;
+    margin-top: 0 !important; /* Sin margen superior */
+    padding-top: 0 !important; /* Sin padding superior */
+}
+
+/* Para cotizaciones genéricas, el contenido debe comenzar inmediatamente */
+.cotizacion-generica .cotizacion-container {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+/* Ocultar spacer-top para cotizaciones genéricas */
+.cotizacion-generica .spacer-top {
+    display: none !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
 /* Wrapper para el contenido (vuelos, hoteles, etc.) con espacio superior */
@@ -333,6 +356,21 @@ body {
     padding: 0;
     page-break-before: avoid !important;
     page-break-inside: avoid !important;
+}
+
+/* Para cotizaciones genéricas: reducir márgenes para que el contenido comience en primera página */
+.terminos-generica,
+.cotizacion-generica .terminos-wrapper {
+    margin-top: 20px !important; /* Margen mínimo después de info_cliente */
+    margin-bottom: 20px !important;
+    padding: 0;
+    page-break-before: avoid !important;
+    page-break-inside: avoid !important;
+}
+
+/* Asegurar que info_cliente no tenga márgenes excesivos en genéricas */
+.cotizacion-generica .info-section {
+    margin-bottom: 20px !important;
 }
 
 /* Evitar que las cards y secciones se partan entre páginas */
@@ -1297,7 +1335,7 @@ strong {
         {% include "ventas/pdf/components/info_cliente.html" %}
         
         <!-- Términos y condiciones - en la primera página, antes del content-wrapper -->
-        <div class="terminos-wrapper{% if tipo == 'paquete' %} terminos-paquete{% elif tipo == 'vuelos' %} terminos-vuelos{% elif tipo == 'hospedaje' %} terminos-hospedaje{% endif %}">
+        <div class="terminos-wrapper{% if tipo == 'paquete' %} terminos-paquete{% elif tipo == 'vuelos' %} terminos-vuelos{% elif tipo == 'hospedaje' %} terminos-hospedaje{% elif tipo == 'generica' %} terminos-generica{% endif %}">
             {% block terminos_condiciones %}{% endblock %}
         </div>
         
