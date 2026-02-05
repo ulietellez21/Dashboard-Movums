@@ -695,6 +695,8 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
             context['puede_aprobar_abono_proveedor'] = False
             context['puede_confirmar_abono_proveedor'] = False
             context['puede_cancelar_abono_proveedor'] = False
+        # El template debe usar esta variable (no duplicar la lógica): incluye proveedor en logística
+        context['debe_mostrar_abonos'] = debe_mostrar_abonos
         
         # Inicialización del Formulario de Confirmaciones
         context['confirmaciones'] = venta.confirmaciones.select_related('subido_por').order_by('-fecha_subida')

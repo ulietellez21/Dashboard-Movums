@@ -1216,8 +1216,8 @@
                     </div>
 
                     {# Sección de Abonos a Proveedor #}
-                    {# Mostrar para: ventas internacionales (siempre) o ventas nacionales con proveedor preferencial #}
-                    {% if venta.tipo_viaje == 'INT' or venta.proveedor and venta.proveedor.metodo_pago_preferencial %}
+                    {# Usar variable de la vista: incluye venta.proveedor Y proveedores en logística (Traslado, Tour, etc.) #}
+                    {% if debe_mostrar_abonos %}
                     <div class="card mb-4 shadow border-warning" id="abonosProveedorCard">
                         <div class="card-header bg-warning text-dark">
                             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center">
@@ -1802,7 +1802,7 @@
 </script>
 
 {# Modales para Abonos a Proveedor #}
-{% if venta.tipo_viaje == 'INT' or venta.proveedor and venta.proveedor.metodo_pago_preferencial %}
+{% if debe_mostrar_abonos %}
 <!-- Modal para solicitar abono a proveedor -->
 <div class="modal fade" id="modalSolicitarAbonoProveedor" tabindex="-1" aria-labelledby="modalSolicitarAbonoProveedorLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
