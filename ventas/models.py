@@ -604,9 +604,21 @@ class VentaViaje(models.Model):
         # Ventas internacionales: siempre mostrar
         if self.tipo_viaje == 'INT':
             return True
-        # Ventas nacionales: solo si tienen proveedor con método de pago preferencial
-        if self.tipo_viaje == 'NAC' and self.proveedor:
-            return self.proveedor.metodo_pago_preferencial
+        # Ventas nacionales: proveedor principal con método de pago preferencial
+        if self.tipo_viaje == 'NAC' and self.proveedor and self.proveedor.metodo_pago_preferencial:
+            return True
+        # Ventas nacionales: alguna fila de logística con proveedor preferencial (p. ej. YameviTravel solo en Tour)
+        if self.tipo_viaje == 'NAC':
+            nombres = list({
+                s.opcion_proveedor.strip() for s in self.servicios_logisticos.all()
+                if s.opcion_proveedor and s.opcion_proveedor.strip()
+            })
+            if nombres:
+                q_nombres = Q()
+                for n in nombres:
+                    q_nombres |= Q(nombre__iexact=n)
+                if Proveedor.objects.filter(q_nombres, metodo_pago_preferencial=True).exists():
+                    return True
         return False
     
     @property
