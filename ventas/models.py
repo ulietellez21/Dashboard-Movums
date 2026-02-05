@@ -688,6 +688,51 @@ class VentaViaje(models.Model):
         return ", ".join(names)
     
     @property
+    def servicios_detalle_desde_logistica(self):
+        """
+        Construye servicios_detalle desde servicios_logisticos, incluyendo TODOS los proveedores
+        de Tours y Vuelos (múltiples filas). Si hay servicios en logística, los usa;
+        si no, usa servicios_detalle original.
+        """
+        servicios_logisticos = self.servicios_logisticos.all().order_by('orden', 'pk')
+        if not servicios_logisticos.exists():
+            # Si no hay servicios en logística, usar servicios_detalle original
+            return self.servicios_detalle or ''
+        
+        # Construir lista de servicios desde logística
+        servicios_list = []
+        choices = dict(self.SERVICIOS_CHOICES)
+        
+        # Agrupar por código de servicio para manejar múltiples proveedores
+        servicios_por_codigo = {}
+        for serv in servicios_logisticos:
+            code = serv.codigo_servicio
+            if code not in servicios_por_codigo:
+                servicios_por_codigo[code] = []
+            servicios_por_codigo[code].append(serv)
+        
+        # Construir líneas de servicios
+        for code, servicios in servicios_por_codigo.items():
+            nombre_servicio = choices.get(code, servicios[0].nombre_servicio)
+            
+            # Para TOU y VUE: mostrar cada fila con su proveedor
+            if code in ['TOU', 'VUE']:
+                for serv in servicios:
+                    if serv.opcion_proveedor and serv.opcion_proveedor.strip():
+                        servicios_list.append(f"{nombre_servicio} - Proveedor: {serv.opcion_proveedor}")
+                    else:
+                        servicios_list.append(nombre_servicio)
+            else:
+                # Para otros servicios: mostrar solo una vez con el proveedor (si existe)
+                serv = servicios[0]  # Tomar el primero
+                if serv.opcion_proveedor and serv.opcion_proveedor.strip():
+                    servicios_list.append(f"{nombre_servicio} - Proveedor: {serv.opcion_proveedor}")
+                else:
+                    servicios_list.append(nombre_servicio)
+        
+        return '\n'.join(servicios_list)
+    
+    @property
     def is_logistica_completa(self):
         """Verifica si la logística está completamente confirmada."""
         try:

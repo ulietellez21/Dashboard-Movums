@@ -275,7 +275,7 @@ def generar_contrato_para_venta(venta_viaje_id):
         # Añade otras variables de VentaViaje que se usan en la plantilla de contrato (BD)
         'fecha_inicio_viaje': formats.date_format(venta.fecha_inicio_viaje, r"j \d\e F \d\e Y"),
         'fecha_fin_viaje': formats.date_format(venta.fecha_fin_viaje, r"j \d\e F \d\e Y") if venta.fecha_fin_viaje else 'Fecha no definida',
-        'destino_viaje': venta.servicios_detalle or 'No especificado',  # Usar servicios_detalle como descripción del destino
+        'destino_viaje': venta.servicios_detalle_desde_logistica or 'No especificado',  # Usar servicios_detalle_desde_logistica para incluir todos los proveedores
         'pasajeros_detalle': venta.pasajeros or 'No especificado',
         
         # Información detallada de pasajeros (formateada)
@@ -286,7 +286,7 @@ def generar_contrato_para_venta(venta_viaje_id):
         # Información detallada de servicios (lista y texto)
         'servicios_lista': venta.servicios_seleccionados.split(',') if venta.servicios_seleccionados else [],
         'servicios_cantidad': len(venta.servicios_seleccionados.split(',')) if venta.servicios_seleccionados else 0,
-        'servicios_detalle_texto': venta.servicios_detalle.replace('\n', ', ') if venta.servicios_detalle else 'No especificado',
+        'servicios_detalle_texto': venta.servicios_detalle_desde_logistica.replace('\n', ', ') if venta.servicios_detalle_desde_logistica else 'No especificado',
         
         # Información adicional del cliente
         'cliente_rfc': cliente.rfc or 'No especificado',
