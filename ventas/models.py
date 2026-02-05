@@ -1044,7 +1044,7 @@ class LogisticaServicio(models.Model):
         verbose_name = "Servicio logístico"
         verbose_name_plural = "Servicios logísticos"
         ordering = ['orden', 'pk']
-        unique_together = ('venta', 'codigo_servicio')
+        # Sin unique_together: se permiten múltiples filas TOU (Tour) por venta desde Logística.
 
     def __str__(self):
         return f"{self.nombre_servicio} - Venta {self.venta.pk}"
