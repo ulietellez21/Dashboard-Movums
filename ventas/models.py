@@ -607,17 +607,19 @@ class VentaViaje(models.Model):
         # Ventas nacionales: proveedor principal con método de pago preferencial
         if self.tipo_viaje == 'NAC' and self.proveedor and self.proveedor.metodo_pago_preferencial:
             return True
-        # Ventas nacionales: alguna fila de logística con proveedor preferencial (p. ej. YameviTravel solo en Tour)
+        # Ventas nacionales: alguna fila de logística con proveedor preferencial (Traslado, Tour, etc.)
         if self.tipo_viaje == 'NAC':
-            nombres = list({
-                s.opcion_proveedor.strip() for s in self.servicios_logisticos.all()
+            def _normalizar(n):
+                return (n or '').strip().lower().replace(' ', '').replace('\t', '')
+            nombres_logistica = list({
+                _normalizar(s.opcion_proveedor) for s in self.servicios_logisticos.all()
                 if s.opcion_proveedor and s.opcion_proveedor.strip()
             })
-            if nombres:
-                q_nombres = Q()
-                for n in nombres:
-                    q_nombres |= Q(nombre__iexact=n)
-                if Proveedor.objects.filter(q_nombres, metodo_pago_preferencial=True).exists():
+            if not nombres_logistica:
+                return False
+            # Comparar normalizado: "YameviTravel" y "Yamevi Travel" deben coincidir
+            for p in Proveedor.objects.filter(metodo_pago_preferencial=True).only('nombre'):
+                if _normalizar(p.nombre) in nombres_logistica:
                     return True
         return False
     
