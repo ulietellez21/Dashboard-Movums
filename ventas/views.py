@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from django.template.loader import render_to_string
 from django.urls import reverse_lazy, reverse
 from django.db.models.functions import Coalesce
-from django.db.models import Sum, Count, F, Q, Value, IntegerField, ExpressionWrapper
+from django.db.models import Sum, Max, Count, F, Q, Value, IntegerField, ExpressionWrapper
 from django.db.models import DecimalField as ModelDecimalField
 from django.db import transaction
 from django.contrib import messages
@@ -61,9 +61,11 @@ from crm.models import Cliente
 from crm.services import KilometrosService
 from usuarios.models import Perfil
 from .services.cancelacion import CancelacionService
+from django.forms import modelformset_factory
 from .forms import (
     VentaViajeForm,
     LogisticaForm,
+    LogisticaServicioForm,
     LogisticaServicioFormSet,
     AbonoPagoForm,
     ProveedorForm,
@@ -89,6 +91,24 @@ def get_user_role(user):
         return user.perfil.rol
     except AttributeError:
         return 'INVITADO'
+
+
+def _get_logistica_servicio_formset(venta, request_POST=None, queryset=None, prefix='servicios'):
+    """Formset de servicios logísticos. Con extra=3 cuando hay Tour: se muestran 0–3 filas vacías según el selector (JS)."""
+    servicios_codes = [c.strip() for c in (venta.servicios_seleccionados or '').split(',') if c.strip()]
+    has_tou = 'TOU' in servicios_codes
+    extra = 3 if has_tou else 0  # hasta 3 filas vacías para otro(s) proveedor(es)
+    FormSetClass = modelformset_factory(
+        LogisticaServicio,
+        form=LogisticaServicioForm,
+        extra=extra,
+        can_delete=False,
+    )
+    qs = queryset if queryset is not None else venta.servicios_logisticos.all().order_by('orden', 'pk')
+    kwargs = {'queryset': qs, 'prefix': prefix}
+    if request_POST is not None:
+        kwargs['data'] = request_POST
+    return FormSetClass(**kwargs)
 
 class ContratoGeneradoDetailView(LoginRequiredMixin, DetailView):
     """
@@ -778,26 +798,52 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
             servicios_db_list = list(self.object.servicios_logisticos.all())
             originales_limpios = {s.pk: s for s in servicios_db_list}
             
-            # Paso 2: Crear el formset normalmente
+            # Paso 2: Crear el formset (permite múltiples TOU: extra=1 y can_delete cuando hay Tour)
             servicios_qs = self.object.servicios_logisticos.all().order_by('orden', 'pk')
-            formset = LogisticaServicioFormSet(
-                request.POST,
+            formset = _get_logistica_servicio_formset(
+                self.object,
+                request_POST=request.POST,
                 queryset=servicios_qs,
-                prefix='servicios'
+                prefix='servicios',
             )
 
             if formset.is_valid():
-                # BLOQUEO TEMPORAL: Durante pruebas, TODOS los montos planificados ya asignados están bloqueados
-                # TODO: En producción, implementar permisos por rol (GERENTE puede editar)
+                # Crear nuevos TOU desde formularios extra que tengan datos (fila mostrada al marcar el checkbox)
+                choices = dict(VentaViaje.SERVICIOS_CHOICES)
+                nombre_tou = choices.get('TOU', 'Tour y Actividades')
+                max_orden_tou = self.object.servicios_logisticos.filter(codigo_servicio='TOU').aggregate(
+                    mx=Max('orden')
+                )['mx']
+                next_orden = (max_orden_tou if max_orden_tou is not None else 0) + 1
+                for form in formset.forms:
+                    if form.instance.pk or not form.cleaned_data:
+                        continue
+                    cd = form.cleaned_data
+                    if not cd.get('opcion_proveedor') and not cd.get('monto_planeado'):
+                        continue
+                    LogisticaServicio.objects.create(
+                        venta=self.object,
+                        codigo_servicio='TOU',
+                        nombre_servicio=nombre_tou,
+                        orden=next_orden,
+                        monto_planeado=cd.get('monto_planeado') or Decimal('0.00'),
+                        opcion_proveedor=(cd.get('opcion_proveedor') or '').strip(),
+                    )
+                    next_orden += 1
+
+                # Recargar tras posibles altas
+                servicios_qs = self.object.servicios_logisticos.all().order_by('orden', 'pk')
+                servicios_db_list = list(servicios_qs)
+                originales_limpios = {s.pk: s for s in servicios_db_list}
+
                 total_pagado = self.object.total_pagado
                 total_marcado_pagado = Decimal('0.00')
-                
+
                 for form in formset.forms:
                     if not form.cleaned_data:
                         continue
                     
                     servicio_id = form.instance.pk if form.instance.pk else None
-                    # Usar la copia limpia de la BD para comparar
                     original = originales_limpios.get(servicio_id) if servicio_id else None
                     
                     if not original:
@@ -834,9 +880,11 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                         if original.pagado:
                             nuevo_pagado = True
 
-                        # 3. OPCIÓN PROVEEDOR: una vez asignado, no se puede modificar
-                        nuevo_opcion_proveedor = form.cleaned_data.get('opcion_proveedor', '')
+                        # 3. OPCIÓN PROVEEDOR: una vez asignado no se modifica (incluye TOU)
+                        nuevo_opcion_proveedor = (form.cleaned_data.get('opcion_proveedor', '') or '').strip()
                         if original.opcion_proveedor and original.opcion_proveedor.strip():
+                            nuevo_opcion_proveedor = original.opcion_proveedor
+                        elif not nuevo_opcion_proveedor and original.opcion_proveedor:
                             nuevo_opcion_proveedor = original.opcion_proveedor
                     
                     # --- APLICAR CAMBIOS ---
@@ -903,6 +951,14 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                                 self.object.proveedor = proveedor_pref
                                 self.object.save(update_fields=['proveedor'])
                                 break
+
+                # Eliminar filas TOU vacías (monto 0 y sin nombre de proveedor) al guardar
+                tou_vacios = list(
+                    self.object.servicios_logisticos.filter(codigo_servicio='TOU')
+                )
+                for s in tou_vacios:
+                    if (s.monto_planeado or Decimal('0.00')) <= Decimal('0.00') and not (s.opcion_proveedor or '').strip():
+                        s.delete()
 
                 messages.success(request, "Control por servicio actualizado correctamente.")
                 return redirect(reverse('detalle_venta', kwargs={'pk': self.object.pk, 'slug': self.object.slug_safe}) + '?tab=logistica')
@@ -1129,8 +1185,9 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                 if serv.orden != idx:
                     serv.orden = idx
                     update_fields.append('orden')
-                # Actualizar opcion_proveedor con el nombre del proveedor (dropdown) cuando venga de servicios_detalle
-                if opcion_proveedor:
+                # No actualizar opcion_proveedor para TOU: hay múltiples filas TOU y existentes[code]
+                # es solo una de ellas; sobrescribiría valores que el usuario asignó en Logística.
+                if code != 'TOU' and opcion_proveedor:
                     serv.opcion_proveedor = opcion_proveedor
                     update_fields.append('opcion_proveedor')
                 if update_fields:
@@ -1160,7 +1217,7 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
             servicios_qs = venta.servicios_logisticos.all().order_by('orden', 'pk')
 
         if formset is None:
-            formset = LogisticaServicioFormSet(queryset=servicios_qs, prefix='servicios')
+            formset = _get_logistica_servicio_formset(venta, queryset=servicios_qs, prefix='servicios')
 
         # Determinar si el usuario es JEFE
         user_rol = get_user_role(self.request.user)
@@ -1190,9 +1247,50 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                         form.fields['opcion_proveedor'].widget.attrs['readonly'] = 'readonly'
 
         resumen = build_financial_summary(venta, servicios_qs)
-        filas = build_service_rows(servicios_qs, resumen, list(formset.forms), venta=venta)
+        # Suma efectiva desde el formset (valores del formulario o POST) para que el alert muestre lo que el usuario ve
+        if formset.is_bound and formset.forms:
+            suma_efectiva = Decimal('0.00')
+            for form in formset.forms:
+                if form.cleaned_data is not None:
+                    m = form.cleaned_data.get('monto_planeado')
+                elif form.instance and form.instance.pk:
+                    m = getattr(form.instance, 'monto_planeado', None)
+                else:
+                    m = None
+                if m is None and form.data:
+                    raw = form.data.get(form.add_prefix('monto_planeado'), '')
+                    if raw:
+                        try:
+                            raw_limpio = str(raw).replace('$', '').replace(',', '').replace(' ', '').strip()
+                            if raw_limpio:
+                                m = Decimal(raw_limpio)
+                        except (InvalidOperation, ValueError):
+                            pass
+                suma_efectiva += (m or Decimal('0.00'))
+            resumen['suma_montos_planeados'] = suma_efectiva
+            resumen['montos_cuadran'] = abs(suma_efectiva - (resumen['total_servicios_planeados'] or Decimal('0.00'))) < Decimal('0.01')
+
+        formset_forms = list(formset.forms)
+        filas = build_service_rows(servicios_qs, resumen, formset_forms[: len(servicios_qs)], venta=venta)
+        # Filas extra para "otro(s) proveedor(es) Tour": se muestran según el selector numérico (JS)
+        extra_index = 1
+        for i in range(len(servicios_qs), len(formset_forms)):
+            filas.append({
+                'form': formset_forms[i],
+                'servicio': None,
+                'status': 'new',
+                'badge_class': 'secondary',
+                'status_label': 'Nuevo',
+                'status_hint': 'Complete y guarde para agregar otro proveedor',
+                'es_extra_tou': True,
+                'extra_index': extra_index,
+            })
+            extra_index += 1
 
         context['servicios_financieros_formset'] = formset
+        context['tiene_tou_para_otro_proveedor'] = (
+            venta.servicios_seleccionados and 'TOU' in [c.strip() for c in venta.servicios_seleccionados.split(',') if c.strip()]
+        )
         context['logistica_finanzas'] = resumen
         context['servicios_logisticos_rows'] = filas
         context['servicios_logisticos_queryset'] = servicios_qs
