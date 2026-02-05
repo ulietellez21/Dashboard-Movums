@@ -600,14 +600,15 @@ class VentaViaje(models.Model):
         return self.saldo_restante <= Decimal('0.00')
     
     def _debe_mostrar_abonos_proveedor(self):
-        """Determina si se deben mostrar abonos al proveedor."""
+        """Determina si se deben mostrar abonos al proveedor (lógica interna).
+        No duplicar en vistas: usar la propiedad puede_solicitar_abonos_proveedor."""
         # Ventas internacionales: siempre mostrar
         if self.tipo_viaje == 'INT':
             return True
         # Ventas nacionales: proveedor principal con método de pago preferencial
         if self.tipo_viaje == 'NAC' and self.proveedor and self.proveedor.metodo_pago_preferencial:
             return True
-        # Ventas nacionales: alguna fila de logística con proveedor preferencial (Traslado, Tour, etc.)
+        # Ventas nacionales: alguna fila de logística con proveedor preferencial (Traslado, Tour, HOS, etc.)
         if self.tipo_viaje == 'NAC':
             def _normalizar(n):
                 return (n or '').strip().lower().replace(' ', '').replace('\t', '')
@@ -622,6 +623,13 @@ class VentaViaje(models.Model):
                 if _normalizar(p.nombre) in nombres_logistica:
                     return True
         return False
+
+    @property
+    def puede_solicitar_abonos_proveedor(self):
+        """Única fuente de verdad para "esta venta permite abonos a proveedor".
+        Usar SIEMPRE en vistas: tanto para mostrar la sección (debe_mostrar_abonos)
+        como para validar el POST de solicitud de abono. No duplicar la lógica en vistas."""
+        return self._debe_mostrar_abonos_proveedor()
     
     @property
     def total_abonado_proveedor(self):
