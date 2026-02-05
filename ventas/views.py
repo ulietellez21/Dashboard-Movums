@@ -664,9 +664,8 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
         if mostrar_tab_logistica:
             self._prepare_logistica_finanzas_context(context, venta)
         
-        # Abonos a Proveedor
-        # Mostrar para: ventas internacionales (siempre) o ventas nacionales con proveedor preferencial
-        debe_mostrar_abonos = venta._debe_mostrar_abonos_proveedor()
+        # Abonos a Proveedor: usar SIEMPRE venta.puede_solicitar_abonos_proveedor (misma regla que POST)
+        debe_mostrar_abonos = venta.puede_solicitar_abonos_proveedor
         if debe_mostrar_abonos:
             context['abonos_proveedor'] = venta.abonos_proveedor.all().select_related(
                 'solicitud_por', 'aprobado_por', 'confirmado_por', 'cancelado_por'
@@ -7716,7 +7715,8 @@ class ConfirmarPagoView(LoginRequiredMixin, UserPassesTestMixin, View):
                     return redirect(reverse('pagos_por_confirmar'))
                 venta.apertura_confirmada = True
                 venta.estado_confirmacion = 'COMPLETADO'
-                venta.refresh_from_db()
+                # No hacer refresh_from_db() aquí: borraría apertura_confirmada=True en memoria
+                # y al guardar se persistiría False. total_pagado usa venta.apertura_confirmada.
                 venta_liquidada = venta.total_pagado >= venta.costo_total_con_modificacion
                 if venta_liquidada:
                     venta.estado_confirmacion = 'COMPLETADO'
@@ -12825,9 +12825,8 @@ class SolicitarAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View)
         """Procesa la solicitud de abono a proveedor."""
         venta = get_object_or_404(VentaViaje, pk=pk)
         
-        # Usar la misma regla que la sección de abonos: INT siempre; NAC si proveedor principal
-        # o algún proveedor en logística tiene método de pago preferencial (ej. TESORO HOTELS en fila HOS)
-        puede_solicitar = venta._debe_mostrar_abonos_proveedor()
+        # Única fuente de verdad: venta.puede_solicitar_abonos_proveedor (no duplicar lógica)
+        puede_solicitar = venta.puede_solicitar_abonos_proveedor
         
         if not puede_solicitar:
             messages.error(request, "No se pueden solicitar abonos a proveedores para esta venta.")
