@@ -94,10 +94,13 @@ def get_user_role(user):
 
 
 def _get_logistica_servicio_formset(venta, request_POST=None, queryset=None, prefix='servicios'):
-    """Formset de servicios logísticos. Con extra=3 cuando hay Tour: se muestran 0–3 filas vacías según el selector (JS)."""
+    """Formset de servicios logísticos. Con extra=3 cuando hay Tour o Vuelo: se muestran 0–3 filas vacías según el selector (JS)."""
     servicios_codes = [c.strip() for c in (venta.servicios_seleccionados or '').split(',') if c.strip()]
     has_tou = 'TOU' in servicios_codes
-    extra = 3 if has_tou else 0  # hasta 3 filas vacías para otro(s) proveedor(es)
+    has_vue = 'VUE' in servicios_codes
+    # Si hay TOU y VUE, necesitamos 6 filas extras (3 para cada uno)
+    # Si solo hay uno, 3 filas extras
+    extra = 6 if (has_tou and has_vue) else (3 if (has_tou or has_vue) else 0)
     FormSetClass = modelformset_factory(
         LogisticaServicio,
         form=LogisticaServicioForm,
@@ -810,28 +813,87 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
             )
 
             if formset.is_valid():
-                # Crear nuevos TOU desde formularios extra que tengan datos (fila mostrada al marcar el checkbox)
+                # Crear nuevos TOU y VUE desde formularios extra que tengan datos (filas mostradas al seleccionar en el dropdown)
                 choices = dict(VentaViaje.SERVICIOS_CHOICES)
                 nombre_tou = choices.get('TOU', 'Tour y Actividades')
-                max_orden_tou = self.object.servicios_logisticos.filter(codigo_servicio='TOU').aggregate(
-                    mx=Max('orden')
-                )['mx']
-                next_orden = (max_orden_tou if max_orden_tou is not None else 0) + 1
-                for form in formset.forms:
-                    if form.instance.pk or not form.cleaned_data:
-                        continue
-                    cd = form.cleaned_data
-                    if not cd.get('opcion_proveedor') and not cd.get('monto_planeado'):
-                        continue
-                    LogisticaServicio.objects.create(
-                        venta=self.object,
-                        codigo_servicio='TOU',
-                        nombre_servicio=nombre_tou,
-                        orden=next_orden,
-                        monto_planeado=cd.get('monto_planeado') or Decimal('0.00'),
-                        opcion_proveedor=(cd.get('opcion_proveedor') or '').strip(),
-                    )
-                    next_orden += 1
+                nombre_vue = choices.get('VUE', 'Vuelo')
+                
+                servicios_codes = [c.strip() for c in (self.object.servicios_seleccionados or '').split(',') if c.strip()]
+                has_tou = 'TOU' in servicios_codes
+                has_vue = 'VUE' in servicios_codes
+                
+                # Contar filas existentes (con pk) para determinar índices de filas extras (sin pk)
+                num_existentes = sum(1 for form in formset.forms if form.instance.pk)
+                
+                # Las primeras 3 extras (índices num_existentes a num_existentes+2) son para TOU si existe
+                # Las siguientes 3 extras (índices num_existentes+3 a num_existentes+5) son para VUE si existe
+                # Si solo hay uno de los servicios, todas las extras son para ese servicio
+                
+                # Crear nuevos TOU desde filas extras
+                if has_tou:
+                    max_orden_tou = self.object.servicios_logisticos.filter(codigo_servicio='TOU').aggregate(
+                        mx=Max('orden')
+                    )['mx']
+                    next_orden_tou = (max_orden_tou if max_orden_tou is not None else 0) + 1
+                    for idx, form in enumerate(formset.forms):
+                        if form.instance.pk or not form.cleaned_data:
+                            continue
+                        # Determinar si esta fila extra es para TOU
+                        if has_tou and has_vue:
+                            # Hay ambos: TOU son índices num_existentes a num_existentes+2
+                            if idx < num_existentes or idx >= num_existentes + 3:
+                                continue
+                        elif has_tou:
+                            # Solo TOU: todas las extras son TOU
+                            if idx < num_existentes:
+                                continue
+                        else:
+                            continue
+                        cd = form.cleaned_data
+                        if not cd.get('opcion_proveedor') and not cd.get('monto_planeado'):
+                            continue
+                        LogisticaServicio.objects.create(
+                            venta=self.object,
+                            codigo_servicio='TOU',
+                            nombre_servicio=nombre_tou,
+                            orden=next_orden_tou,
+                            monto_planeado=cd.get('monto_planeado') or Decimal('0.00'),
+                            opcion_proveedor=(cd.get('opcion_proveedor') or '').strip(),
+                        )
+                        next_orden_tou += 1
+                
+                # Crear nuevos VUE desde filas extras
+                if has_vue:
+                    max_orden_vue = self.object.servicios_logisticos.filter(codigo_servicio='VUE').aggregate(
+                        mx=Max('orden')
+                    )['mx']
+                    next_orden_vue = (max_orden_vue if max_orden_vue is not None else 0) + 1
+                    for idx, form in enumerate(formset.forms):
+                        if form.instance.pk or not form.cleaned_data:
+                            continue
+                        # Determinar si esta fila extra es para VUE
+                        if has_tou and has_vue:
+                            # Hay ambos: VUE son índices num_existentes+3 en adelante
+                            if idx < num_existentes + 3:
+                                continue
+                        elif has_vue:
+                            # Solo VUE: todas las extras son VUE
+                            if idx < num_existentes:
+                                continue
+                        else:
+                            continue
+                        cd = form.cleaned_data
+                        if not cd.get('opcion_proveedor') and not cd.get('monto_planeado'):
+                            continue
+                        LogisticaServicio.objects.create(
+                            venta=self.object,
+                            codigo_servicio='VUE',
+                            nombre_servicio=nombre_vue,
+                            orden=next_orden_vue,
+                            monto_planeado=cd.get('monto_planeado') or Decimal('0.00'),
+                            opcion_proveedor=(cd.get('opcion_proveedor') or '').strip(),
+                        )
+                        next_orden_vue += 1
 
                 # Recargar tras posibles altas
                 servicios_qs = self.object.servicios_logisticos.all().order_by('orden', 'pk')
@@ -954,11 +1016,18 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                                 self.object.save(update_fields=['proveedor'])
                                 break
 
-                # Eliminar filas TOU vacías (monto 0 y sin nombre de proveedor) al guardar
+                # Eliminar filas TOU y VUE vacías (monto 0 y sin nombre de proveedor) al guardar
                 tou_vacios = list(
                     self.object.servicios_logisticos.filter(codigo_servicio='TOU')
                 )
                 for s in tou_vacios:
+                    if (s.monto_planeado or Decimal('0.00')) <= Decimal('0.00') and not (s.opcion_proveedor or '').strip():
+                        s.delete()
+                
+                vue_vacios = list(
+                    self.object.servicios_logisticos.filter(codigo_servicio='VUE')
+                )
+                for s in vue_vacios:
                     if (s.monto_planeado or Decimal('0.00')) <= Decimal('0.00') and not (s.opcion_proveedor or '').strip():
                         s.delete()
 
@@ -1187,11 +1256,16 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                 if serv.orden != idx:
                     serv.orden = idx
                     update_fields.append('orden')
-                # No actualizar opcion_proveedor para TOU: hay múltiples filas TOU y existentes[code]
-                # es solo una de ellas; sobrescribiría valores que el usuario asignó en Logística.
-                if code != 'TOU' and opcion_proveedor:
-                    serv.opcion_proveedor = opcion_proveedor
-                    update_fields.append('opcion_proveedor')
+                # IMPORTANTE: No sobrescribir opcion_proveedor si ya tiene un valor asignado.
+                # TOU y VUE pueden tener múltiples filas con diferentes proveedores, y existentes[code]
+                # solo contiene una de ellas. Además, el usuario puede haber asignado proveedores
+                # manualmente en Logística que no deben sobrescribirse.
+                # Solo asignar el proveedor inicial desde servicios_detalle si el campo está vacío.
+                if opcion_proveedor:
+                    # Para todos los servicios: solo asignar si el campo está vacío (nunca sobrescribir)
+                    if not serv.opcion_proveedor or not serv.opcion_proveedor.strip():
+                        serv.opcion_proveedor = opcion_proveedor
+                        update_fields.append('opcion_proveedor')
                 if update_fields:
                     serv.save(update_fields=update_fields)
 
@@ -1274,25 +1348,76 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
 
         formset_forms = list(formset.forms)
         filas = build_service_rows(servicios_qs, resumen, formset_forms[: len(servicios_qs)], venta=venta)
-        # Filas extra para "otro(s) proveedor(es) Tour": se muestran según el selector numérico (JS)
-        extra_index = 1
-        for i in range(len(servicios_qs), len(formset_forms)):
-            filas.append({
-                'form': formset_forms[i],
-                'servicio': None,
-                'status': 'new',
-                'badge_class': 'secondary',
-                'status_label': 'Nuevo',
-                'status_hint': 'Complete y guarde para agregar otro proveedor',
-                'es_extra_tou': True,
-                'extra_index': extra_index,
-            })
-            extra_index += 1
+        
+        # Filas extra para "otro(s) proveedor(es) Tour y Vuelo": se muestran según el selector numérico (JS)
+        servicios_codes = [c.strip() for c in (venta.servicios_seleccionados or '').split(',') if c.strip()]
+        has_tou = 'TOU' in servicios_codes
+        has_vue = 'VUE' in servicios_codes
+        
+        num_existentes = len(servicios_qs)
+        extra_index_tou = 1
+        extra_index_vue = 1
+        
+        for i in range(num_existentes, len(formset_forms)):
+            # Determinar si esta fila extra es para TOU o VUE
+            if has_tou and has_vue:
+                # Hay ambos: primeras 3 extras son TOU, siguientes 3 son VUE
+                if i < num_existentes + 3:
+                    # Fila extra de TOU
+                    filas.append({
+                        'form': formset_forms[i],
+                        'servicio': None,
+                        'status': 'new',
+                        'badge_class': 'secondary',
+                        'status_label': 'Nuevo',
+                        'status_hint': 'Complete y guarde para agregar otro proveedor',
+                        'es_extra_tou': True,
+                        'extra_index': extra_index_tou,
+                    })
+                    extra_index_tou += 1
+                else:
+                    # Fila extra de VUE
+                    filas.append({
+                        'form': formset_forms[i],
+                        'servicio': None,
+                        'status': 'new',
+                        'badge_class': 'secondary',
+                        'status_label': 'Nuevo',
+                        'status_hint': 'Complete y guarde para agregar otro proveedor',
+                        'es_extra_vue': True,
+                        'extra_index': extra_index_vue,
+                    })
+                    extra_index_vue += 1
+            elif has_tou:
+                # Solo TOU: todas las extras son TOU
+                filas.append({
+                    'form': formset_forms[i],
+                    'servicio': None,
+                    'status': 'new',
+                    'badge_class': 'secondary',
+                    'status_label': 'Nuevo',
+                    'status_hint': 'Complete y guarde para agregar otro proveedor',
+                    'es_extra_tou': True,
+                    'extra_index': extra_index_tou,
+                })
+                extra_index_tou += 1
+            elif has_vue:
+                # Solo VUE: todas las extras son VUE
+                filas.append({
+                    'form': formset_forms[i],
+                    'servicio': None,
+                    'status': 'new',
+                    'badge_class': 'secondary',
+                    'status_label': 'Nuevo',
+                    'status_hint': 'Complete y guarde para agregar otro proveedor',
+                    'es_extra_vue': True,
+                    'extra_index': extra_index_vue,
+                })
+                extra_index_vue += 1
 
         context['servicios_financieros_formset'] = formset
-        context['tiene_tou_para_otro_proveedor'] = (
-            venta.servicios_seleccionados and 'TOU' in [c.strip() for c in venta.servicios_seleccionados.split(',') if c.strip()]
-        )
+        context['tiene_tou_para_otro_proveedor'] = has_tou
+        context['tiene_vue_para_otro_proveedor'] = has_vue
         context['logistica_finanzas'] = resumen
         context['servicios_logisticos_rows'] = filas
         context['servicios_logisticos_queryset'] = servicios_qs
