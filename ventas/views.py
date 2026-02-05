@@ -12825,14 +12825,9 @@ class SolicitarAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View)
         """Procesa la solicitud de abono a proveedor."""
         venta = get_object_or_404(VentaViaje, pk=pk)
         
-        # Verificar que se pueda solicitar abono:
-        # - Ventas internacionales: siempre permitido
-        # - Ventas nacionales: solo si tienen proveedor con método de pago preferencial
-        puede_solicitar = False
-        if venta.tipo_viaje == 'INT':
-            puede_solicitar = True
-        elif venta.tipo_viaje == 'NAC' and venta.proveedor and venta.proveedor.metodo_pago_preferencial:
-            puede_solicitar = True
+        # Usar la misma regla que la sección de abonos: INT siempre; NAC si proveedor principal
+        # o algún proveedor en logística tiene método de pago preferencial (ej. TESORO HOTELS en fila HOS)
+        puede_solicitar = venta._debe_mostrar_abonos_proveedor()
         
         if not puede_solicitar:
             messages.error(request, "No se pueden solicitar abonos a proveedores para esta venta.")
