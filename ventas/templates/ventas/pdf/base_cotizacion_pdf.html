@@ -384,6 +384,7 @@ body {
 
 /* Excepción: cards genéricas pueden partirse */
 .card.card-generica {
+    page-break-before: always !important; /* Forzar que la tabla de cotización genérica comience en segunda página */
     page-break-inside: auto !important;
     page-break-after: auto !important;
 }
@@ -456,7 +457,7 @@ body {
     box-sizing: border-box !important;
     overflow: visible !important; /* CRÍTICO: Permitir que el contenido fluya */
     page-break-inside: auto !important; /* CRÍTICO: Permitir que se parta entre páginas */
-    page-break-before: auto !important;
+    page-break-before: always !important; /* CRÍTICO: Forzar que la tabla de cotización genérica comience en segunda página */
     page-break-after: auto !important;
 }
 
