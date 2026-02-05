@@ -113,3 +113,22 @@ class TestVentaViajeModel:
         assert 'Venta' in str_representation
         assert str(venta.pk) in str_representation
         assert str(cliente_particular) in str_representation
+
+    def test_venta_tiene_puede_solicitar_abonos_proveedor(self, cliente_particular, normal_user, db):
+        """VentaViaje debe tener la propiedad puede_solicitar_abonos_proveedor (evita AttributeError en vistas)."""
+        fecha_inicio = date.today() + timedelta(days=30)
+        venta = VentaViaje.objects.create(
+            cliente=cliente_particular,
+            vendedor=normal_user,
+            tipo_viaje='NAC',
+            fecha_inicio_viaje=fecha_inicio,
+            costo_venta_final=Decimal('10000.00'),
+            cantidad_apertura=Decimal('3000.00'),
+            costo_neto=Decimal('8000.00'),
+        )
+        assert hasattr(venta, "puede_solicitar_abonos_proveedor"), (
+            "VentaViaje debe tener propiedad puede_solicitar_abonos_proveedor; "
+            "incluir ventas/models.py en el mismo commit que ventas/views.py al desplegar."
+        )
+        result = venta.puede_solicitar_abonos_proveedor
+        assert isinstance(result, bool)
