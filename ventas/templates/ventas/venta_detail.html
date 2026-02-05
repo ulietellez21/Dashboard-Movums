@@ -1088,7 +1088,7 @@
                                     </thead>
                                     <tbody>
                                         {% for row in servicios_logisticos_rows %}
-                                        <tr class="logistica-servicio-row status-{{ row.status }}{% if row.es_extra_tou %} d-none logistica-extra-tou-row{% endif %}"{% if row.es_extra_tou %} id="logistica-extra-tou-row-{{ row.extra_index }}"{% endif %}>
+                                        <tr class="logistica-servicio-row status-{{ row.status }}{% if row.es_extra_tou %} d-none logistica-extra-tou-row{% endif %}{% if row.es_extra_vue %} d-none logistica-extra-vue-row{% endif %}"{% if row.es_extra_tou %} id="logistica-extra-tou-row-{{ row.extra_index }}"{% endif %}{% if row.es_extra_vue %} id="logistica-extra-vue-row-{{ row.extra_index }}"{% endif %}>
                                             <td>
                                                 {% if row.servicio %}
                                                 <strong>{{ row.servicio.nombre_servicio }}</strong>
@@ -1096,8 +1096,16 @@
                                                     <div class="text-muted small">Actualizado: {{ row.servicio.fecha_pagado|date:"d/m/Y H:i" }}</div>
                                                 {% endif %}
                                                 {% else %}
-                                                <strong class="text-muted">Tour y Actividades (nuevo)</strong>
-                                                <small class="d-block text-muted">Complete y guarde para agregar otro proveedor</small>
+                                                    {% if row.es_extra_tou %}
+                                                    <strong class="text-muted">Tour y Actividades (nuevo)</strong>
+                                                    <small class="d-block text-muted">Complete y guarde para agregar otro proveedor</small>
+                                                    {% elif row.es_extra_vue %}
+                                                    <strong class="text-muted">Vuelo (nuevo)</strong>
+                                                    <small class="d-block text-muted">Complete y guarde para agregar otro proveedor</small>
+                                                    {% else %}
+                                                    <strong class="text-muted">Servicio (nuevo)</strong>
+                                                    <small class="d-block text-muted">Complete y guarde para agregar otro proveedor</small>
+                                                    {% endif %}
                                                 {% endif %}
                                             </td>
                                             <td>
@@ -1171,18 +1179,31 @@
                                 </table>
                                 {% if puede_editar_servicios_financieros %}
                                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mt-3">
-                                    {% if tiene_tou_para_otro_proveedor %}
-                                    <div class="d-flex align-items-center gap-2">
-                                        <label for="id_cantidad_filas_tou" class="form-label mb-0">Filas vacías para otro(s) proveedor(es) de Tour:</label>
-                                        <select id="id_cantidad_filas_tou" name="cantidad_filas_tou" class="form-select form-select-sm" style="width: auto;">
-                                            <option value="0" selected>0</option>
-                                            <option value="1">1</option>
-                                            <option value="2">2</option>
-                                            <option value="3">3</option>
-                                        </select>
+                                    <div class="d-flex flex-wrap align-items-center gap-3">
+                                        {% if tiene_tou_para_otro_proveedor %}
+                                        <div class="d-flex align-items-center gap-2">
+                                            <label for="id_cantidad_filas_tou" class="form-label mb-0">Filas vacías para otro(s) proveedor(es) de Tour:</label>
+                                            <select id="id_cantidad_filas_tou" name="cantidad_filas_tou" class="form-select form-select-sm" style="width: auto;">
+                                                <option value="0" selected>0</option>
+                                                <option value="1">1</option>
+                                                <option value="2">2</option>
+                                                <option value="3">3</option>
+                                            </select>
+                                        </div>
+                                        {% endif %}
+                                        {% if tiene_vue_para_otro_proveedor %}
+                                        <div class="d-flex align-items-center gap-2">
+                                            <label for="id_cantidad_filas_vue" class="form-label mb-0">Filas vacías para otro(s) proveedor(es) de Vuelo:</label>
+                                            <select id="id_cantidad_filas_vue" name="cantidad_filas_vue" class="form-select form-select-sm" style="width: auto;">
+                                                <option value="0" selected>0</option>
+                                                <option value="1">1</option>
+                                                <option value="2">2</option>
+                                                <option value="3">3</option>
+                                            </select>
+                                        </div>
+                                        {% endif %}
                                     </div>
-                                    {% endif %}
-                                    <div class="text-end {% if not tiene_tou_para_otro_proveedor %}ms-auto{% endif %}">
+                                    <div class="text-end {% if not tiene_tou_para_otro_proveedor and not tiene_vue_para_otro_proveedor %}ms-auto{% endif %}">
                                         <button type="submit" class="btn btn-info">
                                             <i class="fas fa-save me-1"></i> Guardar ajustes
                                         </button>
@@ -1198,6 +1219,23 @@
                                         var n = parseInt(sel.value, 10) || 0;
                                         for (var i = 1; i <= 3; i++) {
                                             var row = document.getElementById('logistica-extra-tou-row-' + i);
+                                            if (row) row.classList.toggle('d-none', i > n);
+                                        }
+                                    }
+                                    sel.addEventListener('change', actualizarFilas);
+                                    actualizarFilas();
+                                })();
+                                </script>
+                                {% endif %}
+                                {% if tiene_vue_para_otro_proveedor %}
+                                <script>
+                                (function() {
+                                    var sel = document.getElementById('id_cantidad_filas_vue');
+                                    if (!sel) return;
+                                    function actualizarFilas() {
+                                        var n = parseInt(sel.value, 10) || 0;
+                                        for (var i = 1; i <= 3; i++) {
+                                            var row = document.getElementById('logistica-extra-vue-row-' + i);
                                             if (row) row.classList.toggle('d-none', i > n);
                                         }
                                     }
