@@ -697,10 +697,10 @@
                                 <i class="fas fa-info-circle me-2"></i>Detalles Adicionales
                             </div>
                             <div class="card-body">
-                                {% if venta.servicios_detalle %}
+                                {% if venta.servicios_detalle_desde_logistica %}
                                 <p class="mb-3">
                                     <strong class="text-muted d-block mb-2">Descripción Detallada de Servicios:</strong>
-                                    <div class="bg-light p-3 rounded" style="max-height: 200px; overflow-y: auto;">{{ venta.servicios_detalle|linebreaksbr }}</div>
+                                    <div class="bg-light p-3 rounded" style="max-height: 200px; overflow-y: auto;">{{ venta.servicios_detalle_desde_logistica|linebreaksbr }}</div>
                                 </p>
                                 {% endif %}
                                 {% if venta.comprobante_apertura_subido_por %}

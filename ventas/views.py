@@ -4020,9 +4020,9 @@ class ContratoHospedajePDFView(LoginRequiredMixin, DetailView):
             # Obtener destino desde cotización
             destino = cotizacion.destino or ''
         
-        # Si no hay destino en cotización, usar servicios_detalle o un valor por defecto
+        # Si no hay destino en cotización, usar servicios_detalle_desde_logistica o un valor por defecto
         if not destino:
-            destino = venta.servicios_detalle or 'HOSPEDAJE'
+            destino = venta.servicios_detalle_desde_logistica or 'HOSPEDAJE'
         
         # Calcular valores financieros
         from decimal import Decimal
@@ -4656,7 +4656,7 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         if not origen:
             origen = 'AIFA (FELIPE ANGELES)'  # Valor por defecto según imagen
         if not destino:
-            destino = (venta.servicios_detalle or 'PAQUETE NACIONAL').strip()
+            destino = (venta.servicios_detalle_desde_logistica or 'PAQUETE NACIONAL').strip()
         
         # Calcular valores financieros
         from decimal import Decimal
