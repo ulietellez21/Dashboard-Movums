@@ -7992,8 +7992,12 @@ class ConfirmarAbonoView(LoginRequiredMixin, UserPassesTestMixin, View):
                 vendedor_es_jefe = venta.vendedor.perfil.rol == 'JEFE' if hasattr(venta.vendedor, 'perfil') else False
                 
                 if not vendedor_es_jefe:
-                    # Solo crear notificación para vendedor si NO es JEFE
-                    mensaje_vendedor = f"✅ Tu abono de ${abono.monto:,.2f} ha sido confirmado por el contador. Venta #{venta.pk}"
+                    # Solo crear notificación para vendedor si NO es JEFE (INT: mostrar USD)
+                    if venta.tipo_viaje == 'INT' and abono.monto_usd_para_display is not None:
+                        monto_texto = f"USD ${abono.monto_usd_para_display:,.2f}"
+                    else:
+                        monto_texto = f"${abono.monto:,.2f}"
+                    mensaje_vendedor = f"✅ Tu abono de {monto_texto} ha sido confirmado por el contador. Venta #{venta.pk}"
                     Notificacion.objects.create(
                         usuario=venta.vendedor,
                         tipo='PAGO_CONFIRMADO',
@@ -8003,9 +8007,13 @@ class ConfirmarAbonoView(LoginRequiredMixin, UserPassesTestMixin, View):
                         confirmado=True
                     )
             
-            # Actualizar notificaciones existentes del JEFE en lugar de crear nuevas
+            # Actualizar notificaciones existentes del JEFE en lugar de crear nuevas (INT: mostrar USD)
             jefes = User.objects.filter(perfil__rol='JEFE')
-            mensaje_jefe_actualizado = f"✅ Abono confirmado por el contador: ${abono.monto:,.2f} ({abono.get_forma_pago_display()}) - Venta #{venta.pk}"
+            if venta.tipo_viaje == 'INT' and abono.monto_usd_para_display is not None:
+                monto_texto_jefe = f"USD ${abono.monto_usd_para_display:,.2f}"
+            else:
+                monto_texto_jefe = f"${abono.monto:,.2f}"
+            mensaje_jefe_actualizado = f"✅ Abono confirmado por el contador: {monto_texto_jefe} ({abono.get_forma_pago_display()}) - Venta #{venta.pk}"
             
             for jefe in jefes:
                 # Buscar la notificación pendiente existente del mismo abono
@@ -8036,7 +8044,10 @@ class ConfirmarAbonoView(LoginRequiredMixin, UserPassesTestMixin, View):
                         confirmado=True
                     )
             
-            messages.success(request, f"✅ Abono de ${abono.monto:,.2f} confirmado exitosamente.")
+            if venta.tipo_viaje == 'INT' and abono.monto_usd_para_display is not None:
+                messages.success(request, f"✅ Abono de USD ${abono.monto_usd_para_display:,.2f} confirmado exitosamente.")
+            else:
+                messages.success(request, f"✅ Abono de ${abono.monto:,.2f} confirmado exitosamente.")
             return redirect(reverse('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}) + '?tab=abonos')
             
         except AbonoPago.DoesNotExist:
@@ -11682,10 +11693,14 @@ class ConfirmarPagoDesdeListaView(LoginRequiredMixin, UserPassesTestMixin, View)
                         confirmado=True
                     )
             
-            # Actualizar notificaciones del JEFE
+            # Actualizar notificaciones del JEFE (INT: mostrar USD)
             jefes = User.objects.filter(perfil__rol='JEFE')
             forma_pago_display = dict(AbonoPago.FORMA_PAGO_CHOICES).get(abono.forma_pago, abono.forma_pago)
-            mensaje_jefe = f"✅ Pago confirmado por el contador: ${abono.monto:,.2f} ({forma_pago_display}) - Venta #{venta.pk}"
+            if venta.tipo_viaje == 'INT' and abono.monto_usd_para_display is not None:
+                monto_texto_jefe = f"USD ${abono.monto_usd_para_display:,.2f}"
+            else:
+                monto_texto_jefe = f"${abono.monto:,.2f}"
+            mensaje_jefe = f"✅ Pago confirmado por el contador: {monto_texto_jefe} ({forma_pago_display}) - Venta #{venta.pk}"
             
             for jefe in jefes:
                 # Actualizar notificaciones pendientes
@@ -11714,7 +11729,10 @@ class ConfirmarPagoDesdeListaView(LoginRequiredMixin, UserPassesTestMixin, View)
                         confirmado=True
                     )
             
-            messages.success(request, f"Abono de ${abono.monto:,.2f} confirmado exitosamente.")
+            if venta.tipo_viaje == 'INT' and abono.monto_usd_para_display is not None:
+                messages.success(request, f"Abono de USD ${abono.monto_usd_para_display:,.2f} confirmado exitosamente.")
+            else:
+                messages.success(request, f"Abono de ${abono.monto:,.2f} confirmado exitosamente.")
             
         elif tipo == 'apertura':
             venta = get_object_or_404(VentaViaje, pk=pk)

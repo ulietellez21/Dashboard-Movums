@@ -73,7 +73,21 @@
                                                     </a>
                                                 </td>
                                                 <td>{{ abono.venta.cliente.nombre_completo_display }}</td>
-                                                <td><strong>${{ abono.monto|floatformat:2|intcomma }}</strong></td>
+                                                <td>
+                                                    {% if abono.venta.tipo_viaje == 'INT' %}
+                                                        {% with tc_abono=abono.tipo_cambio_para_display|default:abono.venta.tipo_cambio %}
+                                                        {% if abono.monto_usd_para_display %}
+                                                            <strong>USD ${{ abono.monto_usd_para_display|floatformat:2|intcomma }}</strong>
+                                                            {% if tc_abono %}<br><small class="text-muted">TC: ${{ tc_abono|floatformat:4 }} MXN/USD</small>{% endif %}
+                                                        {% else %}
+                                                            <strong>${{ abono.monto|floatformat:2|intcomma }} MXN</strong>
+                                                            {% if tc_abono %}<br><small class="text-muted">TC: ${{ tc_abono|floatformat:4 }} MXN/USD</small>{% endif %}
+                                                        {% endif %}
+                                                        {% endwith %}
+                                                    {% else %}
+                                                        <strong>${{ abono.monto|floatformat:2|intcomma }}</strong>
+                                                    {% endif %}
+                                                </td>
                                                 <td>
                                                     <span class="badge {% if abono.forma_pago == 'TRN' %}bg-primary{% elif abono.forma_pago == 'TAR' %}bg-info{% elif abono.forma_pago == 'DEP' %}bg-secondary{% elif abono.forma_pago == 'EFE' %}bg-success{% else %}bg-secondary{% endif %}">
                                                         {{ abono.get_forma_pago_display }}

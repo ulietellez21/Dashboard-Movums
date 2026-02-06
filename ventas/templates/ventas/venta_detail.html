@@ -1648,7 +1648,7 @@
                 <form method="post" action="{% url 'subir_comprobante_abono' pk=abono.pk %}" enctype="multipart/form-data">
                     {% csrf_token %}
                     <div class="modal-body">
-                        <p class="text-muted">Abono: <strong>${{ abono.monto|floatformat:2|intcomma }}</strong> - {{ abono.get_forma_pago_display }}</p>
+                        <p class="text-muted mb-0">Abono: {% if venta.tipo_viaje == 'INT' and abono.monto_usd_para_display %}<strong>USD ${{ abono.monto_usd_para_display|floatformat:2|intcomma }}</strong>{% if abono.tipo_cambio_para_display or venta.tipo_cambio %} <small class="text-muted">(TC: ${{ abono.tipo_cambio_para_display|default:venta.tipo_cambio|floatformat:4 }} MXN/USD)</small>{% endif %}{% else %}<strong>${{ abono.monto|floatformat:2|intcomma }}</strong>{% endif %} - {{ abono.get_forma_pago_display }}</p>
                         <p class="text-muted">Por favor, sube una imagen del comprobante de pago (recibo, screenshot, ticket, etc.).</p>
                         <div class="mb-3">
                             <label for="comprobante_imagen{{ abono.pk }}" class="form-label">Imagen del Comprobante <span class="text-danger">*</span></label>
@@ -1682,7 +1682,7 @@
                 <form method="post" action="{% url 'subir_comprobante_abono' pk=abono.pk %}" enctype="multipart/form-data">
                     {% csrf_token %}
                     <div class="modal-body">
-                        <p class="text-muted">Abono: <strong>${{ abono.monto|floatformat:2|intcomma }}</strong> - {{ abono.get_forma_pago_display }}</p>
+                        <p class="text-muted mb-0">Abono: {% if venta.tipo_viaje == 'INT' and abono.monto_usd_para_display %}<strong>USD ${{ abono.monto_usd_para_display|floatformat:2|intcomma }}</strong>{% if abono.tipo_cambio_para_display or venta.tipo_cambio %} <small class="text-muted">(TC: ${{ abono.tipo_cambio_para_display|default:venta.tipo_cambio|floatformat:4 }} MXN/USD)</small>{% endif %}{% else %}<strong>${{ abono.monto|floatformat:2|intcomma }}</strong>{% endif %} - {{ abono.get_forma_pago_display }}</p>
                         {% if abono.comprobante_imagen %}
                         <div class="mb-3">
                             <label class="form-label">Comprobante actual:</label>
