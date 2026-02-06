@@ -624,17 +624,23 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
         context['abonos'] = venta.abonos.all().order_by('-fecha_pago')
 
         # Control de habilitación de documentos (contrato y comprobante de abonos)
+        # Se desbloquean cuando hay al menos un abono confirmado O la apertura está confirmada
         tiene_abono_confirmado = venta.abonos.filter(confirmado=True).exists()
         
-        # Si el pago de apertura es en efectivo (EFE), está confirmado automáticamente
-        # Si es otro método de pago, necesita confirmación del contador
+        # Apertura confirmada: para NAC cantidad_apertura > 0; para INT cantidad_apertura_usd (o resuelto) > 0
         apertura_confirmada = False
-        if venta.cantidad_apertura > 0:
+        tiene_apertura = False
+        if venta.tipo_viaje == 'INT':
+            apertura_usd = getattr(venta, 'cantidad_apertura_usd', None)
+            if (apertura_usd is None or apertura_usd <= 0) and venta.tipo_cambio and venta.cantidad_apertura:
+                apertura_usd = (venta.cantidad_apertura / venta.tipo_cambio).quantize(Decimal('0.01'))
+            tiene_apertura = apertura_usd and apertura_usd > 0
+        else:
+            tiene_apertura = (venta.cantidad_apertura or 0) > 0
+        if tiene_apertura:
             if venta.modo_pago_apertura == 'EFE':
-                # Pago en efectivo: confirmado automáticamente
                 apertura_confirmada = True
             else:
-                # Otros métodos de pago: necesita confirmación del contador
                 apertura_confirmada = venta.estado_confirmacion == 'COMPLETADO'
         
         context['puede_generar_documentos'] = tiene_abono_confirmado or apertura_confirmada
@@ -670,13 +676,23 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
             context['abonos_proveedor'] = venta.abonos_proveedor.all().select_related(
                 'solicitud_por', 'aprobado_por', 'confirmado_por', 'cancelado_por'
             ).order_by('-fecha_solicitud')
-            # Base para abonos = Servicios planificados (costo_neto), no total del viaje
-            context['servicios_planificados_abonos'] = venta.costo_neto or Decimal('0.00')
-            # Para ventas internacionales: convertir totales a MXN para mostrar
-            if venta.tipo_viaje == 'INT' and venta.tipo_cambio:
-                context['total_abonado_proveedor'] = (venta.total_abonado_proveedor * venta.tipo_cambio).quantize(Decimal('0.01'))
-                context['saldo_pendiente_proveedor'] = (venta.saldo_pendiente_proveedor * venta.tipo_cambio).quantize(Decimal('0.01'))
-                context['moneda_abonos'] = 'MXN'
+            # Base para abonos = Servicios planificados (costo_neto en NAC; costo_neto_usd o suma tabla en INT)
+            if venta.tipo_viaje == 'INT':
+                base_abonos = venta.costo_neto_usd if (getattr(venta, 'costo_neto_usd', None) is not None and venta.costo_neto_usd > 0) else None
+                if base_abonos is None or base_abonos <= 0:
+                    from django.db.models import Sum
+                    from django.db.models.functions import Coalesce
+                    suma_logistica = venta.servicios_logisticos.aggregate(
+                        total=Coalesce(Sum('monto_planeado'), Decimal('0.00'))
+                    )['total']
+                    base_abonos = suma_logistica or Decimal('0.00')
+                context['servicios_planificados_abonos'] = base_abonos
+            else:
+                context['servicios_planificados_abonos'] = venta.costo_neto or Decimal('0.00')
+            if venta.tipo_viaje == 'INT':
+                context['total_abonado_proveedor'] = venta.total_abonado_proveedor
+                context['saldo_pendiente_proveedor'] = venta.saldo_pendiente_proveedor
+                context['moneda_abonos'] = 'USD'
             else:
                 context['total_abonado_proveedor'] = venta.total_abonado_proveedor
                 context['saldo_pendiente_proveedor'] = venta.saldo_pendiente_proveedor
@@ -705,13 +721,20 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
         context['confirmacion_form'] = ConfirmacionVentaForm()
         context['puede_subir_confirmaciones'] = self._puede_subir_confirmaciones(self.request.user, venta)
         
-        # Calcular descuentos para el contexto
-        descuento_km = venta.descuento_kilometros_mxn or Decimal('0.00')
-        descuento_promo = venta.descuento_promociones_mxn or Decimal('0.00')
-        total_descuentos = descuento_km + descuento_promo
-        costo_base = (venta.costo_venta_final or Decimal('0.00')) + (venta.costo_modificacion or Decimal('0.00'))
-        total_final = costo_base - total_descuentos
-        
+        # Calcular descuentos y totales para el contexto (INT: usar propiedades en USD)
+        if venta.tipo_viaje == 'INT':
+            total_final = venta.costo_total_con_modificacion
+            costo_base = total_final
+            total_descuentos = Decimal('0.00')
+            descuento_km = Decimal('0.00')
+            descuento_promo = Decimal('0.00')
+        else:
+            descuento_km = venta.descuento_kilometros_mxn or Decimal('0.00')
+            descuento_promo = venta.descuento_promociones_mxn or Decimal('0.00')
+            total_descuentos = descuento_km + descuento_promo
+            costo_base = (venta.costo_venta_final or Decimal('0.00')) + (venta.costo_modificacion or Decimal('0.00'))
+            total_final = costo_base - total_descuentos
+
         context['total_descuentos'] = total_descuentos
         context['costo_base'] = costo_base
         context['total_final'] = total_final
@@ -999,15 +1022,19 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                     if nuevo_pagado:
                         total_marcado_pagado += nuevo_monto
                 
-                # Validar que la suma de montos planificados sea igual al costo neto de la venta
-                costo_neto_venta = self.object.costo_neto or Decimal('0.00')
+                # Validar que la suma de montos planificados coincida con el objetivo (costo neto o, para INT, la suma si no hay costo_neto_usd)
                 suma_planeados = sum(
                     (orig.monto_planeado or Decimal('0.00')) for orig in originales_limpios.values()
                 )
-                if abs(suma_planeados - costo_neto_venta) >= Decimal('0.01'):
+                if self.object.tipo_viaje == 'INT':
+                    objetivo_servicios = (self.object.costo_neto_usd if (getattr(self.object, 'costo_neto_usd', None) is not None and self.object.costo_neto_usd > 0) else None) or suma_planeados
+                else:
+                    objetivo_servicios = self.object.costo_neto or Decimal('0.00')
+                if abs(suma_planeados - objetivo_servicios) >= Decimal('0.01'):
+                    etq_moneda = "USD " if self.object.tipo_viaje == 'INT' else ""
                     formset._non_form_errors = formset.error_class([
                         "La suma de los montos planificados debe ser igual al campo Servicios planificados "
-                        f"(${costo_neto_venta:,.2f}). Actualmente suma ${suma_planeados:,.2f}. Verifique las cantidades asignadas."
+                        f"({etq_moneda}${objetivo_servicios:,.2f}). Actualmente suma {etq_moneda}${suma_planeados:,.2f}. Verifique las cantidades asignadas."
                     ])
                     context = self.get_context_data()
                     self._prepare_logistica_finanzas_context(context, self.object, formset=formset, servicios_qs=servicios_qs)
@@ -1032,6 +1059,11 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                     
                     if original:
                         original.save(update_fields=['monto_planeado', 'pagado', 'fecha_pagado', 'opcion_proveedor'])
+
+                # Para INT: si costo_neto_usd no estaba definido, persistir la suma de la tabla como "servicios planificados"
+                if self.object.tipo_viaje == 'INT' and (getattr(self.object, 'costo_neto_usd', None) is None or self.object.costo_neto_usd <= 0) and suma_planeados > 0:
+                    self.object.costo_neto_usd = suma_planeados
+                    self.object.save(update_fields=['costo_neto_usd'])
 
                 # Sincronizar venta.proveedor desde la tabla de logística: si algún servicio tiene
                 # "Nombre del proveedor" que coincide con un Proveedor con metodo_pago_preferencial,
@@ -1086,11 +1118,29 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                 messages.error(request, "No tienes permiso para registrar abonos. Solo puedes visualizarlos.")
                 return redirect(reverse('detalle_venta', kwargs={'pk': self.object.pk, 'slug': self.object.slug_safe}) + '?tab=abonos')
             
-            abono_form = AbonoPagoForm(request.POST)
+            # Para INT el usuario ingresa monto_usd en el template; el form requiere monto > 0, pasamos 1 y luego sobrescribimos
+            post_abono = request.POST.copy()
+            if self.object.tipo_viaje == 'INT' and not (post_abono.get('monto') or '').strip():
+                post_abono['monto'] = '1'
+            abono_form = AbonoPagoForm(post_abono)
             if abono_form.is_valid():
                 abono = abono_form.save(commit=False)
                 abono.venta = self.object
                 abono.registrado_por = request.user
+
+                # Ventas internacionales: monto ingresado es USD; guardar monto_usd y tipo_cambio (referencia)
+                if self.object.tipo_viaje == 'INT':
+                    monto_usd_str = (request.POST.get('monto_usd') or '').replace('$', '').replace(',', '').strip()
+                    tc_abono_str = (request.POST.get('tipo_cambio_abono') or '').replace(',', '').strip()
+                    try:
+                        monto_usd_val = Decimal(monto_usd_str) if monto_usd_str else None
+                        tc_abono_val = Decimal(tc_abono_str) if tc_abono_str else None
+                    except (ValueError, InvalidOperation):
+                        monto_usd_val = tc_abono_val = None
+                    if monto_usd_val is not None and monto_usd_val > 0:
+                        abono.monto_usd = monto_usd_val.quantize(Decimal('0.01'))
+                        abono.tipo_cambio_aplicado = tc_abono_val or self.object.tipo_cambio
+                        abono.monto = Decimal('0.00')  # INT: no usar MXN; fuente de verdad es monto_usd
                 
                 # Obtener la forma de pago del formulario
                 forma_pago = abono_form.cleaned_data.get('forma_pago', 'EFE')
@@ -1130,7 +1180,9 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                     self.object.actualizar_estado_financiero()
                     
                     forma_pago_display = dict(AbonoPago.FORMA_PAGO_CHOICES).get(forma_pago, forma_pago)
-                    messages.success(request, f"Abono de ${abono.monto:,.2f} ({forma_pago_display}) registrado exitosamente. ⏳ Por favor, sube el comprobante para enviarlo al contador.")
+                    monto_abono = abono.monto_usd if (self.object.tipo_viaje == 'INT' and abono.monto_usd is not None) else abono.monto
+                    moneda_abono = 'USD' if self.object.tipo_viaje == 'INT' else 'MXN'
+                    messages.success(request, f"Abono de ${monto_abono:,.2f} {moneda_abono} ({forma_pago_display}) registrado exitosamente. ⏳ Por favor, sube el comprobante para enviarlo al contador.")
                 else:
                     # ⚠️ FLUJO AUTOMÁTICO SOLO PARA EFECTIVO
                     
@@ -1162,7 +1214,9 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                             confirmado=False
                         )
                     
-                    messages.success(request, f"Abono de ${abono.monto:,.2f} ({forma_pago_display}) registrado exitosamente. ✅ Confirmado automáticamente.")
+                    monto_abono = abono.monto_usd if (self.object.tipo_viaje == 'INT' and abono.monto_usd is not None) else abono.monto
+                    moneda_abono = 'USD' if self.object.tipo_viaje == 'INT' else 'MXN'
+                    messages.success(request, f"Abono de ${monto_abono:,.2f} {moneda_abono} ({forma_pago_display}) registrado exitosamente. ✅ Confirmado automáticamente.")
                 
                 # Redirige a la pestaña de Abonos
                 # ******************************************************************
@@ -1384,7 +1438,12 @@ class VentaViajeDetailView(LoginRequiredMixin, DetailView):
                             pass
                 suma_efectiva += (m or Decimal('0.00'))
             resumen['suma_montos_planeados'] = suma_efectiva
-            resumen['montos_cuadran'] = abs(suma_efectiva - (resumen['total_servicios_planeados'] or Decimal('0.00'))) < Decimal('0.01')
+            # Para INT: si el total de servicios planificados viene en 0 (BD) pero el usuario ya ingresó montos en el form, usar esa suma como objetivo
+            total_objetivo = resumen.get('total_servicios_planeados') or Decimal('0.00')
+            if venta.tipo_viaje == 'INT' and total_objetivo <= 0 and suma_efectiva > 0:
+                resumen['total_servicios_planeados'] = suma_efectiva
+                total_objetivo = suma_efectiva
+            resumen['montos_cuadran'] = abs(suma_efectiva - total_objetivo) < Decimal('0.01')
 
         formset_forms = list(formset.forms)
         filas = build_service_rows(servicios_qs, resumen, formset_forms[: len(servicios_qs)], venta=venta)
@@ -3148,16 +3207,24 @@ class ComprobanteAbonoPDFView(LoginRequiredMixin, DetailView):
         self.object = self.get_object() 
         venta = self.object
         
-        # Calcular totales para el PDF (usar la propiedad total_pagado que ya incluye apertura confirmada)
+        # Calcular totales para el PDF (total_pagado/saldo_restante ya en USD para INT)
         total_pagado = venta.total_pagado
         saldo_restante = venta.saldo_restante
-        
-        # Calcular descuentos y totales igual que en VentaViajeDetailView
-        descuento_km = venta.descuento_kilometros_mxn or Decimal('0.00')
-        descuento_promo = venta.descuento_promociones_mxn or Decimal('0.00')
-        total_descuentos = descuento_km + descuento_promo
-        costo_base = (venta.costo_venta_final or Decimal('0.00')) + (venta.costo_modificacion or Decimal('0.00'))
-        total_final = costo_base - total_descuentos
+        moneda_pdf = 'USD' if venta.tipo_viaje == 'INT' else 'MXN'
+
+        # Total final y descuentos (INT: costo_total_con_modificacion ya en USD)
+        if venta.tipo_viaje == 'INT':
+            total_final = venta.costo_total_con_modificacion
+            costo_base = total_final
+            total_descuentos = Decimal('0.00')
+            descuento_km = Decimal('0.00')
+            descuento_promo = Decimal('0.00')
+        else:
+            descuento_km = venta.descuento_kilometros_mxn or Decimal('0.00')
+            descuento_promo = venta.descuento_promociones_mxn or Decimal('0.00')
+            total_descuentos = descuento_km + descuento_promo
+            costo_base = (venta.costo_venta_final or Decimal('0.00')) + (venta.costo_modificacion or Decimal('0.00'))
+            total_final = costo_base - total_descuentos
         
         # Preparar ruta absoluta file:// para el membrete (WeasyPrint necesita URL absoluta)
         membrete_path = os.path.join(settings.BASE_DIR, 'static', 'img', 'membrete_movums.jpg')
@@ -3177,6 +3244,7 @@ class ComprobanteAbonoPDFView(LoginRequiredMixin, DetailView):
             'now': datetime.datetime.now(),
             'total_pagado': total_pagado,
             'saldo_restante': saldo_restante,
+            'moneda_pdf': moneda_pdf,
             # Incluir TODOS los abonos para el detalle en el PDF (mostrar todos, incluso pendientes)
             'abonos': venta.abonos.all().order_by('fecha_pago'),
             'membrete_url': membrete_url,  # URL absoluta file:// para WeasyPrint
@@ -10923,23 +10991,24 @@ class AjustarComisionIslaView(LoginRequiredMixin, UserPassesTestMixin, View):
         comision_total_calculada = Decimal('0.00')
         
         for venta in ventas_mes:
-            # Calcular comisión para esta venta
+            # Calcular comisión para esta venta (INT: base en USD)
             total_pagado = venta.total_pagado
             costo_total = venta.costo_total_con_modificacion
-            
+            monto_base = (venta.costo_venta_final_usd or venta.total_usd) if venta.tipo_viaje == 'INT' else (venta.costo_venta_final or Decimal('0.00'))
+
             if total_pagado >= costo_total:
                 # Venta pagada: 100% de comisión
-                comision_venta = venta.costo_venta_final * porcentaje_decimal_normalizado
+                comision_venta = monto_base * porcentaje_decimal_normalizado
                 comision_pagada = comision_venta
                 comision_pendiente = Decimal('0.00')
                 estado_pago = 'PAGADA'
             else:
                 # Venta pendiente: 30% pagada, 70% pendiente
-                comision_venta = venta.costo_venta_final * porcentaje_decimal_normalizado
+                comision_venta = monto_base * porcentaje_decimal_normalizado
                 comision_pagada = comision_venta * Decimal('0.30')
                 comision_pendiente = comision_venta * Decimal('0.70')
                 estado_pago = 'PENDIENTE'
-            
+
             # Actualizar o crear ComisionVenta
             tipo_venta = 'INTERNACIONAL' if venta.tipo_viaje == 'INT' else 'NACIONAL'
             ComisionVenta.objects.update_or_create(
@@ -10949,7 +11018,7 @@ class AjustarComisionIslaView(LoginRequiredMixin, UserPassesTestMixin, View):
                 defaults={
                     'vendedor': vendedor,
                     'tipo_venta': tipo_venta,
-                    'monto_base_comision': venta.costo_venta_final,
+                    'monto_base_comision': monto_base,
                     'porcentaje_aplicado': porcentaje_decimal,
                     'comision_calculada': comision_venta,
                     'comision_pagada': comision_pagada,

@@ -159,6 +159,8 @@
                         <td class="text-end">
                             {% if comision_venta.tipo_venta == 'VUELO' %}
                                 <span class="text-muted">$100 fijo</span>
+                            {% elif comision_venta.tipo_venta == 'INTERNACIONAL' %}
+                                USD ${{ comision_venta.monto_base_comision|floatformat:2|intcomma }}
                             {% else %}
                                 ${{ comision_venta.monto_base_comision|floatformat:2|intcomma }}
                             {% endif %}
@@ -171,7 +173,7 @@
                             {% endif %}
                         </td>
                         <td class="text-end fw-bold">
-                            ${{ comision_venta.comision_calculada|floatformat:2|intcomma }}
+                            {% if comision_venta.tipo_venta == 'INTERNACIONAL' %}USD {% endif %}${{ comision_venta.comision_calculada|floatformat:2|intcomma }}
                         </td>
                         <td class="text-end">
                             {% if comision_venta.estado_pago_venta == 'PAGADA' %}
@@ -181,10 +183,10 @@
                             {% endif %}
                         </td>
                         <td class="text-end text-success fw-bold">
-                            ${{ comision_venta.comision_pagada|floatformat:2|intcomma }}
+                            {% if comision_venta.tipo_venta == 'INTERNACIONAL' %}USD {% endif %}${{ comision_venta.comision_pagada|floatformat:2|intcomma }}
                         </td>
                         <td class="text-end text-warning fw-bold">
-                            ${{ comision_venta.comision_pendiente|floatformat:2|intcomma }}
+                            {% if comision_venta.tipo_venta == 'INTERNACIONAL' %}USD {% endif %}${{ comision_venta.comision_pendiente|floatformat:2|intcomma }}
                         </td>
                     </tr>
                     {% endfor %}
