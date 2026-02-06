@@ -12915,27 +12915,35 @@ class SolicitarAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View)
                     abono.estado = 'PENDIENTE'
                     abono.save()
                     
-                    # Calcular monto_usd si hay tipo de cambio
-                    if abono.tipo_cambio_aplicado and abono.tipo_cambio_aplicado > 0:
-                        abono.monto_usd = (abono.monto / abono.tipo_cambio_aplicado).quantize(Decimal('0.01'))
-                        abono.save()
-                    elif venta.tipo_cambio and venta.tipo_cambio > 0:
-                        abono.monto_usd = (abono.monto / venta.tipo_cambio).quantize(Decimal('0.01'))
-                        abono.tipo_cambio_aplicado = venta.tipo_cambio
-                        abono.save()
+                    # Solo para ventas NAC: calcular monto_usd desde monto (MXN) si hay tipo de cambio
+                    if venta.tipo_viaje != 'INT':
+                        if abono.tipo_cambio_aplicado and abono.tipo_cambio_aplicado > 0 and abono.monto_usd is None:
+                            abono.monto_usd = (abono.monto / abono.tipo_cambio_aplicado).quantize(Decimal('0.01'))
+                            abono.save(update_fields=['monto_usd'])
+                        elif venta.tipo_cambio and venta.tipo_cambio > 0 and abono.monto_usd is None:
+                            abono.monto_usd = (abono.monto / venta.tipo_cambio).quantize(Decimal('0.01'))
+                            abono.tipo_cambio_aplicado = venta.tipo_cambio
+                            abono.save(update_fields=['monto_usd', 'tipo_cambio_aplicado'])
                     
-                    # Notificar a contadores
+                    # Notificar a contadores (INT: mostrar USD; NAC: MXN)
                     contadores = User.objects.filter(perfil__rol='CONTADOR')
+                    if venta.tipo_viaje == 'INT' and abono.monto_usd is not None:
+                        msg_monto = f"USD ${abono.monto_usd:,.2f}"
+                    else:
+                        msg_monto = f"${abono.monto:,.2f} MXN"
                     for contador in contadores:
                         Notificacion.objects.create(
                             usuario=contador,
                             tipo='SOLICITUD_ABONO_PROVEEDOR',
-                            mensaje=f"Solicitud de abono a proveedor: ${abono.monto:,.2f} MXN ({venta.folio or venta.pk})",
+                            mensaje=f"Solicitud de abono a proveedor: {msg_monto} ({venta.folio or venta.pk})",
                             venta=venta,
                             abono_proveedor=abono
                         )
                     
-                    messages.success(request, f"Solicitud de abono a {abono.proveedor} por ${abono.monto:,.2f} MXN enviada correctamente.")
+                    if venta.tipo_viaje == 'INT' and abono.monto_usd is not None:
+                        messages.success(request, f"Solicitud de abono a {abono.proveedor} por USD ${abono.monto_usd:,.2f} enviada correctamente.")
+                    else:
+                        messages.success(request, f"Solicitud de abono a {abono.proveedor} por ${abono.monto:,.2f} MXN enviada correctamente.")
             except Exception as e:
                 messages.error(request, f"Error al solicitar el abono: {str(e)}")
                 logger.exception(f"Error al solicitar abono a proveedor: {str(e)}")

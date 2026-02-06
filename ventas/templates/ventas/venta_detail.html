@@ -1354,11 +1354,20 @@
                                         <tr>
                                             <td><strong>{{ abono.proveedor }}</strong></td>
                                             <td>{{ abono.fecha_solicitud|date:"d/m/Y H:i" }}</td>
-                                            {% if abono.monto_usd and venta.tipo_cambio %}
-                                                {% widthratio abono.monto_usd 1 venta.tipo_cambio as monto_mxn %}
-                                                <td>${{ monto_mxn|floatformat:2|intcomma }}</td>
+                                            {% if venta.tipo_viaje == 'INT' %}
+                                                {% with tc_abono=abono.tipo_cambio_para_display|default:venta.tipo_cambio %}
+                                                <td>
+                                                    {% if abono.monto_usd_para_display %}
+                                                        <strong>USD ${{ abono.monto_usd_para_display|floatformat:2|intcomma }}</strong>
+                                                        {% if tc_abono %}<br><small class="text-muted">TC: ${{ tc_abono|floatformat:4 }} MXN/USD</small>{% endif %}
+                                                    {% else %}
+                                                        <strong>${{ abono.monto|floatformat:2|intcomma }} MXN</strong>
+                                                        {% if tc_abono %}<br><small class="text-muted">TC: ${{ tc_abono|floatformat:4 }} MXN/USD</small>{% endif %}
+                                                    {% endif %}
+                                                </td>
+                                                {% endwith %}
                                             {% else %}
-                                                <td>${{ abono.monto|floatformat:2|intcomma }}</td>
+                                                <td><strong>${{ abono.monto|floatformat:2|intcomma }}</strong></td>
                                             {% endif %}
                                             <td>
                                                 {% if abono.estado == 'PENDIENTE' %}
@@ -1915,7 +1924,7 @@
                         </div>
                         <div class="mb-3">
                             <label for="{{ form_abono_proveedor.monto.id_for_label }}" class="form-label">
-                                {{ form_abono_proveedor.monto.label }} (MXN) <span class="text-danger">*</span>
+                                {{ form_abono_proveedor.monto.label }} <span class="text-danger">*</span>
                             </label>
                             {{ form_abono_proveedor.monto }}
                             <div class="form-text">{{ form_abono_proveedor.monto.help_text }}</div>
