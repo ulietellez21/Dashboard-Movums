@@ -9125,7 +9125,19 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
             logger.error(f"Error obteniendo venta: {e}")
             return HttpResponse(f"Error: No se pudo obtener la venta. {str(e)}", status=400)
         
-        plantillas = PlantillaConfirmacion.objects.filter(venta=venta).order_by('tipo', '-fecha_creacion')
+        # Orden: 1) Vuelos (sencillo + redondo), 2) Hospedaje, 3) Traslado, 4) Genérica
+        from django.db.models import Case, When, Value, IntegerField
+        plantillas = PlantillaConfirmacion.objects.filter(venta=venta).annotate(
+            orden_tipo=Case(
+                When(tipo='VUELO_UNICO', then=Value(0)),
+                When(tipo='VUELO_REDONDO', then=Value(1)),
+                When(tipo='HOSPEDAJE', then=Value(2)),
+                When(tipo='TRASLADO', then=Value(3)),
+                When(tipo='GENERICA', then=Value(4)),
+                default=Value(5),
+                output_field=IntegerField(),
+            )
+        ).order_by('orden_tipo', '-fecha_creacion')
         
         if not plantillas.exists():
             messages.warning(request, "No hay plantillas de confirmación para generar el documento.")
@@ -11742,9 +11754,11 @@ class ConfirmarPagoDesdeListaView(LoginRequiredMixin, UserPassesTestMixin, View)
                 messages.error(request, "Este pago de apertura no tiene comprobante subido.")
                 return redirect('pagos_por_confirmar')
             
-            # Confirmar la apertura (cambiar estado de la venta)
+            # Confirmar la apertura: estado COMPLETADO y apertura_confirmada=True
+            # (apertura_confirmada es lo que usa total_pagado y la UI para mostrar "Confirmado")
             venta.estado_confirmacion = 'COMPLETADO'
-            venta.save(update_fields=['estado_confirmacion'])
+            venta.apertura_confirmada = True
+            venta.save(update_fields=['estado_confirmacion', 'apertura_confirmada'])
             
             # Eliminar notificaciones pendientes del CONTADOR
             Notificacion.objects.filter(
