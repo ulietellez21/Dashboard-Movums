@@ -521,35 +521,32 @@ body {
                 <div class="sidebar-card purple">
                     <div class="sidebar-card-title">RESUMEN FINANCIERO</div>
                     <div class="sidebar-card-content">
-                        {% if venta.tipo_viaje == 'INT' and venta.tipo_cambio and venta.tipo_cambio > 0 %}
+                        {% if venta.tipo_viaje == 'INT' %}
                             <div class="sidebar-card-item">
                                 <div class="sidebar-card-label">Costo Base (sin descuentos)</div>
-                                {% widthratio costo_base venta.tipo_cambio 1 as costo_base_usd %}
-                                <div class="sidebar-card-value">USD ${{ costo_base_usd|floatformat:2|intcomma }}</div>
+                                <div class="sidebar-card-value">USD ${{ costo_base|floatformat:2|intcomma }}</div>
                             </div>
                             {% if total_descuentos > 0 %}
                                 <div class="sidebar-card-item">
                                     <div class="sidebar-card-label">Descuentos</div>
-                                    {% widthratio total_descuentos venta.tipo_cambio 1 as descuentos_usd %}
-                                    <div class="sidebar-card-value" style="color: #8BC34A;">-USD ${{ descuentos_usd|floatformat:2|intcomma }}</div>
+                                    <div class="sidebar-card-value" style="color: #8BC34A;">-USD ${{ total_descuentos|floatformat:2|intcomma }}</div>
                                 </div>
                             {% endif %}
                             <div class="sidebar-card-item">
                                 <div class="sidebar-card-label">Total Final</div>
-                                {% widthratio total_final venta.tipo_cambio 1 as total_final_usd %}
-                                <div class="sidebar-card-value">USD ${{ total_final_usd|floatformat:2|intcomma }}</div>
+                                <div class="sidebar-card-value">USD ${{ total_final|floatformat:2|intcomma }}</div>
                             </div>
                             <div class="sidebar-card-item">
                                 <div class="sidebar-card-label">Total Abonado</div>
-                                <div class="sidebar-card-value">USD ${{ venta.total_pagado_usd|floatformat:2|intcomma }}</div>
+                                <div class="sidebar-card-value">USD ${{ total_pagado|floatformat:2|intcomma }}</div>
                             </div>
                             <div class="sidebar-card-item">
                                 <div class="sidebar-card-label">Saldo Pendiente</div>
-                                <div class="sidebar-card-value total-pendiente">USD ${{ venta.saldo_restante_usd|floatformat:2|intcomma }}</div>
+                                <div class="sidebar-card-value total-pendiente">USD ${{ saldo_restante|floatformat:2|intcomma }}</div>
                             </div>
                             {% if venta.tipo_cambio %}
                                 <div class="sidebar-card-item">
-                                    <div class="sidebar-card-label">Tipo de Cambio</div>
+                                    <div class="sidebar-card-label">Tipo de Cambio (referencia)</div>
                                     <div class="sidebar-card-value">1 USD = ${{ venta.tipo_cambio|floatformat:4|intcomma }} MXN</div>
                                 </div>
                             {% endif %}
@@ -603,7 +600,7 @@ body {
     
     <!-- Detalle de Pagos Realizados -->
     <div class="info-section">
-        {% if abonos or venta.cantidad_apertura > 0 %}
+        {% if abonos or venta.cantidad_apertura > 0 or venta.tipo_viaje == 'INT' and venta.cantidad_apertura_usd %}
         <div class="card">
             <div class="card-header">
                 💳 Historial de Pagos
@@ -619,13 +616,12 @@ body {
                     </tr>
                 </thead>
                 <tbody>
-                    {% if venta.cantidad_apertura > 0 %}
+                    {% if venta.cantidad_apertura and venta.cantidad_apertura > 0 or venta.tipo_viaje == 'INT' and venta.cantidad_apertura_usd %}
                     <tr>
                         <td><strong>Pago de Apertura</strong></td>
                         <td>{{ venta.fecha_creacion|date:"d/m/Y H:i" }}</td>
-                        {% if venta.tipo_viaje == 'INT' and venta.tipo_cambio %}
-                            {% widthratio venta.cantidad_apertura venta.tipo_cambio 1 as apertura_usd %}
-                            <td>USD ${{ apertura_usd|floatformat:2|intcomma }}</td>
+                        {% if venta.tipo_viaje == 'INT' %}
+                            <td>USD ${{ venta.cantidad_apertura_usd|default:0|floatformat:2|intcomma }}</td>
                         {% else %}
                             <td>${{ venta.cantidad_apertura|floatformat:2|intcomma }}</td>
                         {% endif %}

@@ -109,34 +109,27 @@ def calcular_monto_base_comision(venta):
         detalles['monto_vuelo'] = 100.00
         return Decimal('100.00'), detalles
     
-    # Venta internacional: desglose
+    # Venta internacional: monto base y comisión en USD (tipo_cambio solo referencia)
     if venta.tipo_viaje == 'INT':
-        detalles['tipo_calculo'] = 'INTERNACIONAL_DESGLOSADO'
-        
-        # Convertir USD a MXN usando tipo_cambio
-        tipo_cambio = venta.tipo_cambio if venta.tipo_cambio and venta.tipo_cambio > 0 else Decimal('1.0')
-        
-        tarifa_base_mxn = (venta.tarifa_base_usd or Decimal('0.00')) * tipo_cambio
-        suplementos_mxn = (venta.suplementos_usd or Decimal('0.00')) * tipo_cambio
-        tours_mxn = (venta.tours_usd or Decimal('0.00')) * tipo_cambio
-        impuestos_mxn = (venta.impuestos_usd or Decimal('0.00')) * tipo_cambio
-        
-        detalles['tarifa_base_usd'] = float(venta.tarifa_base_usd or Decimal('0.00'))
-        detalles['suplementos_usd'] = float(venta.suplementos_usd or Decimal('0.00'))
-        detalles['tours_usd'] = float(venta.tours_usd or Decimal('0.00'))
-        detalles['impuestos_usd'] = float(venta.impuestos_usd or Decimal('0.00'))
-        detalles['tipo_cambio'] = float(tipo_cambio)
-        
-        detalles['tarifa_base_mxn'] = float(tarifa_base_mxn)
-        detalles['suplementos_mxn'] = float(suplementos_mxn)
-        detalles['tours_mxn'] = float(tours_mxn)
-        detalles['impuestos_mxn'] = float(impuestos_mxn)
+        detalles['tipo_calculo'] = 'INTERNACIONAL_USD'
+        tarifa_base_usd = venta.tarifa_base_usd or Decimal('0.00')
+        suplementos_usd = venta.suplementos_usd or Decimal('0.00')
+        tours_usd = venta.tours_usd or Decimal('0.00')
+        impuestos_usd = venta.impuestos_usd or Decimal('0.00')
+
+        detalles['tarifa_base_usd'] = float(tarifa_base_usd)
+        detalles['suplementos_usd'] = float(suplementos_usd)
+        detalles['tours_usd'] = float(tours_usd)
+        detalles['impuestos_usd'] = float(impuestos_usd)
         detalles['impuestos_excluidos'] = True
-        
-        # Monto base = tarifa_base + suplementos + tours (excluye impuestos)
-        monto_base = tarifa_base_mxn + suplementos_mxn + tours_mxn
+        if venta.tipo_cambio and venta.tipo_cambio > 0:
+            detalles['tipo_cambio_referencia'] = float(venta.tipo_cambio)
+
+        # Monto base en USD = tarifa_base + suplementos + tours (excluye impuestos)
+        monto_base = tarifa_base_usd + suplementos_usd + tours_usd
         detalles['monto_base_calculado'] = float(monto_base)
-        
+        detalles['moneda'] = 'USD'
+
         return monto_base, detalles
     
     # Venta nacional: costo_venta_final
@@ -255,8 +248,16 @@ def calcular_comisiones_mensuales_mostrador(vendedor, mes, anio):
         fecha_creacion__lt=fecha_fin
     )
     
-    # Calcular total de ventas del mes (para determinar porcentaje)
-    total_ventas_mes = sum(venta.costo_venta_final for venta in ventas_mes) or Decimal('0.00')
+    # Calcular total de ventas del mes en MXN (para escala de porcentaje; INT se convierte con tipo_cambio ref)
+    total_ventas_mes = Decimal('0.00')
+    for venta in ventas_mes:
+        if venta.tipo_viaje == 'INT':
+            total_usd = venta.costo_venta_final_usd if getattr(venta, 'costo_venta_final_usd', None) else venta.total_usd
+            tc = venta.tipo_cambio or Decimal('0')
+            if total_usd and tc > 0:
+                total_ventas_mes += (total_usd * tc).quantize(Decimal('0.01'))
+        else:
+            total_ventas_mes += venta.costo_venta_final or Decimal('0.00')
     
     # Determinar porcentaje según escala
     porcentaje_comision = obtener_porcentaje_comision_mostrador(total_ventas_mes)

@@ -6,26 +6,37 @@ from django.utils import timezone
 
 
 def build_financial_summary(venta, servicios_qs):
-    # Calcular total_venta incluyendo modificaciones y restando ambos descuentos
-    costo_base = venta.costo_venta_final or Decimal('0.00')
-    modificaciones = venta.costo_modificacion or Decimal('0.00')
-    descuento_km = venta.descuento_kilometros_mxn or Decimal('0.00')
-    descuento_promo = venta.descuento_promociones_mxn or Decimal('0.00')
-    total_venta = costo_base + modificaciones - descuento_km - descuento_promo
-    total_venta = max(Decimal('0.00'), total_venta)  # Asegurar que no sea negativo
-    
-    total_neto = venta.costo_neto or Decimal('0.00')
-    total_pagado = venta.total_pagado or Decimal('0.00')
-
-    # Servicios planificados = costo neto de la venta (asignado al crear la venta)
-    total_servicios_planeados = venta.costo_neto or Decimal('0.00')
-    # Suma real de los montos planificados asignados en la tabla (debe coincidir con costo_neto)
+    # Para INT: totales en USD (propiedades ya devuelven USD); para NAC en MXN
+    if venta.tipo_viaje == 'INT':
+        total_venta = venta.costo_total_con_modificacion or Decimal('0.00')
+        total_neto = venta.costo_neto_usd if getattr(venta, 'costo_neto_usd', None) is not None else Decimal('0.00')
+        if total_neto == 0 and venta.costo_neto and venta.tipo_cambio and venta.tipo_cambio > 0:
+            total_neto = (venta.costo_neto / venta.tipo_cambio).quantize(Decimal('0.01'))
+        total_pagado = venta.total_pagado or Decimal('0.00')
+        total_servicios_planeados = total_neto
+        modificaciones = venta.costo_modificacion_usd or Decimal('0.00')
+    else:
+        costo_base = venta.costo_venta_final or Decimal('0.00')
+        modificaciones = venta.costo_modificacion or Decimal('0.00')
+        descuento_km = venta.descuento_kilometros_mxn or Decimal('0.00')
+        descuento_promo = venta.descuento_promociones_mxn or Decimal('0.00')
+        total_venta = costo_base + modificaciones - descuento_km - descuento_promo
+        total_venta = max(Decimal('0.00'), total_venta)
+        total_neto = venta.costo_neto or Decimal('0.00')
+        total_pagado = venta.total_pagado or Decimal('0.00')
+        total_servicios_planeados = venta.costo_neto or Decimal('0.00')
+    # Suma real de los montos planificados asignados en la tabla (en USD para INT, MXN para NAC)
     suma_montos_planeados = servicios_qs.aggregate(
         total=Coalesce(Sum('monto_planeado'), Decimal('0.00'))
     )['total']
     pagado_servicios = servicios_qs.filter(pagado=True).aggregate(
         total=Coalesce(Sum('monto_planeado'), Decimal('0.00'))
     )['total']
+
+    # Para INT: si no hay costo_neto_usd pero la tabla tiene montos, usar la suma como "servicios planificados"
+    # así la validación y el resumen reflejan los dólares ingresados en la tabla
+    if venta.tipo_viaje == 'INT' and (total_servicios_planeados is None or total_servicios_planeados <= 0) and suma_montos_planeados and suma_montos_planeados > 0:
+        total_servicios_planeados = suma_montos_planeados
 
     # Saldo disponible para servicios = parte del cobrado (apertura+abonos) asignada a servicios, menos lo ya pagado
     # Se capa por servicios_planificados: lo que pase de eso es ganancia, no "saldo para servicios"
@@ -35,7 +46,7 @@ def build_financial_summary(venta, servicios_qs):
     ganancia_en_mano = max(Decimal('0.00'), total_pagado - total_servicios_planeados)
     ganancia_pendiente = max(Decimal('0.00'), ganancia_estimada - ganancia_en_mano)
 
-    # Cuadre: la suma de montos planificados debe ser igual al costo neto (tolerancia 0.01)
+    # Cuadre: la suma de montos planificados debe ser igual al objetivo (tolerancia 0.01)
     montos_cuadran = abs(suma_montos_planeados - total_servicios_planeados) < Decimal('0.01')
 
     return {
@@ -77,7 +88,8 @@ def build_service_rows(servicios_qs, summary, formset_forms=None, venta=None):
         else:
             status = 'pending'
             faltante = max(Decimal('0.00'), monto - saldo_disponible)
-            hint = f"Faltan ${faltante:,.2f} para cubrir este servicio."
+            prefijo_usd = "USD " if (venta and getattr(venta, 'tipo_viaje', None) == 'INT') else ""
+            hint = f"Faltan {prefijo_usd}${faltante:,.2f} para cubrir este servicio."
 
         badge_class, status_label = badge_map[status]
         

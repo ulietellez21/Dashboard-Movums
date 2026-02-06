@@ -210,8 +210,10 @@
                     <!-- En móviles (col-12), el borde vertical (border-end) se quita usando border-md-end -->
                     <div class="col-12 col-md-4 border-bottom border-md-end pb-3 pb-md-0"> 
                         <h6 class="text-muted">Total Final</h6>
-                        <h2 class="text-success">${{ total_final|floatformat:2|intcomma }}</h2>
-                        {% if venta.costo_modificacion and venta.costo_modificacion > 0 %}
+                        <h2 class="text-success">{% if venta.tipo_viaje == 'INT' %}USD {% endif %}${{ total_final|floatformat:2|intcomma }}</h2>
+                        {% if venta.tipo_viaje == 'INT' and venta.costo_modificacion_usd and venta.costo_modificacion_usd > 0 %}
+                            <p class="text-muted small mb-0">Modificaciones: +USD ${{ venta.costo_modificacion_usd|floatformat:2|intcomma }}</p>
+                        {% elif venta.tipo_viaje != 'INT' and venta.costo_modificacion and venta.costo_modificacion > 0 %}
                             <p class="text-muted small mb-0">Modificaciones: +${{ venta.costo_modificacion|floatformat:2|intcomma }}</p>
                         {% endif %}
                         {% if venta.aplica_descuento_kilometros %}
@@ -224,7 +226,7 @@
                     <!-- Aplicamos border-bottom solo en móviles para separar las tarjetas -->
                     <div class="col-12 col-md-4 border-bottom border-md-end py-3 py-md-0">
                         <h6 class="text-muted">Total Pagado</h6>
-                        <h2 class="text-info">${{ venta.total_pagado|floatformat:2|intcomma }}</h2>
+                        <h2 class="text-info">{% if venta.tipo_viaje == 'INT' %}USD {% endif %}${{ venta.total_pagado|floatformat:2|intcomma }}</h2>
                         {% if venta.descuento_promociones_mxn and venta.descuento_promociones_mxn > 0 %}
                             <p class="text-muted small mb-0">Incluye descuento promo como pago: ${{ venta.descuento_promociones_mxn|floatformat:2|intcomma }}</p>
                         {% endif %}
@@ -232,7 +234,7 @@
                     <div class="col-12 col-md-4 pt-3 pt-md-0">
                         <h6 class="text-muted">Saldo Pendiente</h6>
                         {% if venta.saldo_restante > 0 %}
-                            <h2 class="text-danger">${{ venta.saldo_restante|floatformat:2|intcomma }}</h2>
+                            <h2 class="text-danger">{% if venta.tipo_viaje == 'INT' %}USD {% endif %}${{ venta.saldo_restante|floatformat:2|intcomma }}</h2>
                         {% else %}
                             <h2 class="text-success"><i class="fas fa-check-circle"></i> Pagado</h2>
                         {% endif %}
@@ -639,10 +641,14 @@
                                         </p>
                                         
                                         <!-- 7. Apertura/Anticipo -->
-                                        {% if venta.cantidad_apertura and venta.cantidad_apertura > 0 %}
+                                        {% if venta.cantidad_apertura and venta.cantidad_apertura > 0 or venta.tipo_viaje == 'INT' and venta.cantidad_apertura_usd %}
                                         <p class="mb-2">
                                             <strong class="text-muted d-block mb-1">Apertura/Anticipo:</strong>
-                                            ${{ venta.cantidad_apertura|floatformat:2|intcomma }} MXN
+                                            {% if venta.tipo_viaje == 'INT' %}
+                                                USD ${{ venta.cantidad_apertura_usd|default:0|floatformat:2|intcomma }}
+                                            {% else %}
+                                                ${{ venta.cantidad_apertura|floatformat:2|intcomma }} MXN
+                                            {% endif %}
                                             <span class="badge bg-secondary ms-2">{{ venta.get_modo_pago_apertura_display }}</span>
                                         </p>
                                         {% endif %}
@@ -829,10 +835,10 @@
                     <div class="col-md-8">
                         <div class="card mb-4 shadow-sm">
                             <div class="card-header">
-                                Historial de Pagos ({{ abonos|length }})
+                                Historial de Pagos ({% if venta.cantidad_apertura > 0 or venta.tipo_viaje == 'INT' and venta.cantidad_apertura_usd %}{{ abonos|length|add:1 }}{% else %}{{ abonos|length }}{% endif %})
                             </div>
                             <div class="card-body">
-                                {% if abonos or venta.cantidad_apertura > 0 or venta.descuento_promociones_mxn or venta.descuento_kilometros_mxn %}
+                                {% if abonos or venta.cantidad_apertura > 0 or venta.tipo_viaje == 'INT' and venta.cantidad_apertura_usd or venta.descuento_promociones_mxn or venta.descuento_kilometros_mxn %}
                                     <div class="table-responsive">
                                         <table class="table table-sm table-striped">
                                             <thead class="table-light">
@@ -849,11 +855,11 @@
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {% if venta.cantidad_apertura > 0 %}
+                                                {% if venta.cantidad_apertura > 0 or venta.tipo_viaje == 'INT' and venta.cantidad_apertura_usd %}
                                                 <tr class="{% if venta.estado_confirmacion == 'EN_CONFIRMACION' %}table-warning{% else %}table-info{% endif %}">
                                                     <td>{{ venta.fecha_creacion|date:"d/M/y H:i" }}</td>
-                                                {% if venta.tipo_viaje == 'INT' and venta.tipo_cambio %}
-                                                    <td><strong>${{ venta.cantidad_apertura|floatformat:2|intcomma }} MXN</strong></td>
+                                                {% if venta.tipo_viaje == 'INT' %}
+                                                    <td><strong>USD ${{ venta.cantidad_apertura_usd|default:0|floatformat:2|intcomma }}</strong></td>
                                                 {% else %}
                                                     <td><strong>${{ venta.cantidad_apertura|floatformat:2|intcomma }}</strong></td>
                                                 {% endif %}
@@ -1020,49 +1026,49 @@
                             <div class="row text-center g-3 mb-4">
                                 <div class="col-12 col-md-4">
                                     <p class="text-muted mb-1">Total Venta (con descuentos)</p>
-                                    <h4 class="text-primary mb-0">${{ logistica_finanzas.total_venta|floatformat:2|intcomma }}</h4>
+                                    <h4 class="text-primary mb-0">{% if venta.tipo_viaje == 'INT' %}USD {% endif %}${{ logistica_finanzas.total_venta|floatformat:2|intcomma }}</h4>
                                     {% if descuento_km > 0 or descuento_promo > 0 %}
-                                        <small class="text-muted">Base: ${{ costo_base|floatformat:2|intcomma }}</small>
+                                        <small class="text-muted">Base: {% if venta.tipo_viaje == 'INT' %}USD {% endif %}${{ costo_base|floatformat:2|intcomma }}</small>
                                     {% endif %}
                                 </div>
                                 <div class="col-12 col-md-4">
                                     <p class="text-muted mb-1">Apertura + Abonos</p>
-                                    <h4 class="text-success mb-0">${{ logistica_finanzas.total_pagado|floatformat:2|intcomma }}</h4>
+                                    <h4 class="text-success mb-0">{% if venta.tipo_viaje == 'INT' %}USD {% endif %}${{ logistica_finanzas.total_pagado|floatformat:2|intcomma }}</h4>
                                 </div>
                                 <div class="col-12 col-md-4">
                                     <p class="text-muted mb-1">Saldo disponible para servicios</p>
-                                    <h4 class="text-warning mb-0">${{ logistica_finanzas.saldo_disponible_servicios|floatformat:2|intcomma }}</h4>
+                                    <h4 class="text-warning mb-0">{% if venta.tipo_viaje == 'INT' %}USD {% endif %}${{ logistica_finanzas.saldo_disponible_servicios|floatformat:2|intcomma }}</h4>
                                 </div>
                             </div>
                             <div class="row text-center g-3 mb-4">
                                 <div class="col-12 col-md-4">
                                     <p class="text-muted mb-1">Servicios planificados</p>
-                                    <h5 class="mb-0">${{ logistica_finanzas.total_servicios_planeados|floatformat:2|intcomma }}</h5>
+                                    <h5 class="mb-0">{% if venta.tipo_viaje == 'INT' %}USD {% endif %}${{ logistica_finanzas.total_servicios_planeados|floatformat:2|intcomma }}</h5>
                                     <small class="text-muted">Monto objetivo a cubrir</small>
                                 </div>
                                 <div class="col-12 col-md-4">
                                     <p class="text-muted mb-1">Servicios pagados</p>
-                                    <h5 class="text-success mb-0">${{ logistica_finanzas.monto_pagado_servicios|floatformat:2|intcomma }}</h5>
+                                    <h5 class="text-success mb-0">{% if venta.tipo_viaje == 'INT' %}USD {% endif %}${{ logistica_finanzas.monto_pagado_servicios|floatformat:2|intcomma }}</h5>
                                     <small class="text-muted">Monto ya aplicado</small>
                                 </div>
                                 <div class="col-12 col-md-4">
                                     <p class="text-muted mb-1">Ganancia estimada</p>
-                                    <h5 class="mb-0">${{ logistica_finanzas.ganancia_estimada|floatformat:2|intcomma }}</h5>
-                                    <small class="text-muted">Pendiente: ${{ logistica_finanzas.ganancia_pendiente|floatformat:2|intcomma }}</small>
+                                    <h5 class="mb-0">{% if venta.tipo_viaje == 'INT' %}USD {% endif %}${{ logistica_finanzas.ganancia_estimada|floatformat:2|intcomma }}</h5>
+                                    <small class="text-muted">Pendiente: {% if venta.tipo_viaje == 'INT' %}USD {% endif %}${{ logistica_finanzas.ganancia_pendiente|floatformat:2|intcomma }}</small>
                                 </div>
                             </div>
                         {% if logistica_finanzas.modificaciones and logistica_finanzas.modificaciones > 0 %}
                         <div class="alert alert-light border-start border-info mt-3 py-2">
                             <small>
                                 <i class="fas fa-info-circle me-1 text-info"></i>
-                                Modificaciones acumuladas: <strong>${{ logistica_finanzas.modificaciones|floatformat:2|intcomma }}</strong>
+                                Modificaciones acumuladas: <strong>{% if venta.tipo_viaje == 'INT' %}USD {% endif %}${{ logistica_finanzas.modificaciones|floatformat:2|intcomma }}</strong>
                             </small>
                         </div>
                         {% endif %}
                             {% if not logistica_finanzas.montos_cuadran %}
                                 <div class="alert alert-danger mb-3" role="alert">
                                     <strong><i class="fas fa-exclamation-triangle me-1"></i>Verifique las cantidades asignadas.</strong>
-                                    La suma de los montos planificados (${{ logistica_finanzas.suma_montos_planeados|floatformat:2|intcomma }}) debe ser igual a Servicios planificados (${{ logistica_finanzas.total_servicios_planeados|floatformat:2|intcomma }}).
+                                    La suma de los montos planificados ({% if venta.tipo_viaje == 'INT' %}USD {% endif %}${{ logistica_finanzas.suma_montos_planeados|floatformat:2|intcomma }}) debe ser igual a Servicios planificados ({% if venta.tipo_viaje == 'INT' %}USD {% endif %}${{ logistica_finanzas.total_servicios_planeados|floatformat:2|intcomma }}).
                                 </div>
                             {% endif %}
                             {% if servicios_financieros_formset.non_form_errors %}
@@ -1080,7 +1086,7 @@
                                     <thead class="table-light">
                                         <tr>
                                             <th>Servicio</th>
-                                            <th width="180">Monto Planificado</th>
+                                            <th width="180">Monto Planificado{% if venta.tipo_viaje == 'INT' %} (USD){% endif %}</th>
                                             <th width="200">Estado</th>
                                             <th width="140">Pagado</th>
                                             <th>Nombre del Proveedor</th>
@@ -1114,7 +1120,7 @@
                                             <td>
                                                 {{ row.form.id }}
                                                 <div class="input-group">
-                                                    <span class="input-group-text">$</span>
+                                                    <span class="input-group-text">{% if venta.tipo_viaje == 'INT' %}USD {% endif %}$</span>
                                                     {% if row.servicio %}
                                                     {% if puede_desbloquear_todos_los_campos %}
                                                         {{ row.form.monto_planeado }}
@@ -1328,7 +1334,7 @@
                                         <tr>
                                             <th>Proveedor</th>
                                             <th>Fecha Solicitud</th>
-                                            <th>Monto (MXN)</th>
+                                            <th>Monto ({{ moneda_abonos }})</th>
                                             <th>Estado</th>
                                             <th>Solicitado Por</th>
                                             <th>Notas</th>

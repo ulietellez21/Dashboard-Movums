@@ -289,8 +289,42 @@ class VentaViaje(models.Model):
         default=Decimal('0.0000'),
         blank=True,
         null=True,
-        verbose_name="Tipo de Cambio (USD a MXN)",
-        help_text="Tipo de cambio del día para convertir dólares a pesos mexicanos."
+        verbose_name="Tipo de Cambio (referencia)",
+        help_text="Tipo de cambio del día (solo referencia; ventas internacionales se manejan en USD sin conversión automática)."
+    )
+    
+    # Campos en USD para ventas internacionales (fuente de verdad; no se convierte a MXN)
+    cantidad_apertura_usd = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Cantidad de Apertura/Anticipo (USD)",
+        help_text="Para ventas internacionales: monto de apertura en dólares."
+    )
+    costo_venta_final_usd = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Precio total (USD)",
+        help_text="Para ventas internacionales: precio total que paga el cliente en dólares."
+    )
+    costo_neto_usd = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Costo neto (USD)",
+        help_text="Para ventas internacionales: costo real del viaje en dólares."
+    )
+    costo_modificacion_usd = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Costo de modificación (USD)",
+        help_text="Para ventas internacionales: costo de modificación en dólares."
     )
     
     fecha_vencimiento_pago = models.DateField(
@@ -460,60 +494,55 @@ class VentaViaje(models.Model):
         slug = self.get_slug_or_generate()
         return reverse('detalle_venta', kwargs={'slug': slug, 'pk': self.pk})
     
+    def _apertura_confirmada_para_conteo(self):
+        """Indica si la apertura debe contarse como pagada (MXN o USD según tipo_viaje)."""
+        if self.tipo_viaje == 'INT':
+            monto_apertura = self._cantidad_apertura_usd_resuelto()
+            if not monto_apertura or monto_apertura <= 0:
+                return False
+        else:
+            if not self.cantidad_apertura or self.cantidad_apertura <= 0:
+                return False
+        if self.modo_pago_apertura in ['EFE', 'LIG', 'PRO']:
+            return True
+        if self.modo_pago_apertura in ['TRN', 'TAR', 'DEP']:
+            return bool(self.apertura_confirmada)
+        if self.modo_pago_apertura == 'CRE':
+            return self.estado_confirmacion != 'EN_CONFIRMACION'
+        return False
+
     @property
     def total_pagado(self):
         """
         Calcula el total pagado incluyendo solo abonos confirmados.
-        Para abonos con Transferencia/Tarjeta, solo cuenta los confirmados por el contador.
-        Para abonos con Efectivo, se cuentan todos (ya que se confirman automáticamente).
+        Para ventas INT devuelve el total en USD; para NAC en MXN.
         """
-        # Sumar solo abonos confirmados o abonos en efectivo (que se confirman automáticamente)
-        # Un abono está confirmado si:
-        # 1. confirmado=True (confirmado por contador), O
-        # 2. forma_pago='EFE' (efectivo, se confirma automáticamente)
+        if self.tipo_viaje == 'INT':
+            return self.total_pagado_usd
+
+        # NAC: Sumar solo abonos confirmados o abonos en efectivo
         total_abonos = self.abonos.filter(
             Q(confirmado=True) | Q(forma_pago='EFE')
         ).aggregate(Sum('monto'))['monto__sum']
         total_abonos = total_abonos if total_abonos is not None else Decimal('0.00')
-        
-        # Sumar el monto de apertura solo si está confirmado o es efectivo
-        monto_apertura = Decimal('0.00')
-        if self.cantidad_apertura and self.cantidad_apertura > 0:
-            # Si la apertura es efectivo, liga de pago o directo a proveedor, se cuenta automáticamente
-            if self.modo_pago_apertura in ['EFE', 'LIG', 'PRO']:
-                monto_apertura = self.cantidad_apertura
-            # Si la apertura es transferencia/tarjeta/depósito/crédito:
-            # - Si está en 'EN_CONFIRMACION', NO se cuenta (pendiente de confirmación del contador)
-            # - Si el estado NO es 'EN_CONFIRMACION', se cuenta (significa que ya fue confirmada)
-            # IMPORTANTE: Una vez que el contador confirma la apertura, el estado cambia temporalmente 
-            # a 'COMPLETADO' y luego puede cambiar a 'PENDIENTE' si aún falta pagar. En ambos casos,
-            # la apertura debe contarse porque ya fue confirmada.
-            elif self.modo_pago_apertura in ['TRN', 'TAR', 'DEP', 'CRE']:
-                # TRN/TAR/DEP: la apertura solo cuenta cuando el contador la confirmó explícitamente
-                # (apertura_confirmada=True). Subir comprobante no basta; el contador debe confirmar.
-                # CRE: se cuenta si el contador ya validó (estado != EN_CONFIRMACION).
-                if self.modo_pago_apertura == 'CRE':
-                    if self.estado_confirmacion != 'EN_CONFIRMACION':
-                        monto_apertura = self.cantidad_apertura
-                else:
-                    # TRN, TAR, DEP: solo contar si el contador confirmó (comprobante se valida al confirmar)
-                    if self.apertura_confirmada:
-                        monto_apertura = self.cantidad_apertura
-        
-        total = total_abonos + monto_apertura
 
-        # Restar el abono virtual de promociones si ya se aplicó, para no marcar como pagada
+        monto_apertura = Decimal('0.00')
+        if self._apertura_confirmada_para_conteo():
+            monto_apertura = self.cantidad_apertura
+
+        total = total_abonos + monto_apertura
         if self.descuento_promociones_aplicado_como_pago and self.descuento_promociones_mxn:
             total = total - (self.descuento_promociones_mxn or Decimal('0.00'))
-
         return max(total, Decimal('0.00'))
 
     @property
     def costo_total_con_modificacion(self):
         """
         Calcula el costo total incluyendo el costo de modificación.
-        Este es el costo final que debe pagar el cliente.
+        Para ventas INT devuelve el total en USD; para NAC en MXN.
         """
+        if self.tipo_viaje == 'INT':
+            return self.costo_total_con_modificacion_usd
         costo_mod = self.costo_modificacion if self.costo_modificacion else Decimal('0.00')
         total = self.costo_venta_final + costo_mod
         if self.aplica_descuento_kilometros:
@@ -533,67 +562,81 @@ class VentaViaje(models.Model):
     @property
     def saldo_restante(self):
         """
-        Calcula el saldo restante usando el total final con descuentos (kilómetros y promociones).
+        Calcula el saldo restante. Para ventas INT en USD; para NAC en MXN.
         """
-        # Calcular el total final con descuentos
+        if self.tipo_viaje == 'INT':
+            return self.saldo_restante_usd
         costo_base = (self.costo_venta_final or Decimal('0.00')) + (self.costo_modificacion or Decimal('0.00'))
         descuento_km = self.descuento_kilometros_mxn or Decimal('0.00')
         descuento_promo = self.descuento_promociones_mxn or Decimal('0.00')
-        total_descuentos = descuento_km + descuento_promo
-        total_final = costo_base - total_descuentos
-        
+        total_final = costo_base - descuento_km - descuento_promo
         saldo = total_final - self.total_pagado
-        # Crucial para la estabilidad del dashboard: el saldo nunca es negativo
         return max(Decimal('0.00'), saldo)
     
     # ------------------- PROPIEDADES PARA VENTAS INTERNACIONALES (USD) -------------------
     
     @property
     def total_usd(self):
-        """Calcula el total en USD para ventas internacionales."""
-        if self.tipo_viaje != 'INT' or not self.tipo_cambio or self.tipo_cambio <= 0:
+        """Total de la venta en USD para ventas internacionales (campo o calculado)."""
+        if self.tipo_viaje != 'INT':
             return Decimal('0.00')
+        if self.costo_venta_final_usd is not None:
+            return self.costo_venta_final_usd
         tarifa_base = self.tarifa_base_usd or Decimal('0.00')
         impuestos = self.impuestos_usd or Decimal('0.00')
         suplementos = self.suplementos_usd or Decimal('0.00')
         tours = self.tours_usd or Decimal('0.00')
         return tarifa_base + impuestos + suplementos + tours
-    
-    @property
-    def cantidad_apertura_usd(self):
-        """Convierte la cantidad de apertura de MXN a USD para ventas internacionales."""
-        if self.tipo_viaje != 'INT' or not self.tipo_cambio or self.tipo_cambio <= 0 or not self.cantidad_apertura:
+
+    def _cantidad_apertura_usd_resuelto(self):
+        """Cantidad de apertura en USD: campo si existe, si no conversión legacy para INT."""
+        if self.tipo_viaje != 'INT':
             return Decimal('0.00')
-        return (self.cantidad_apertura / self.tipo_cambio).quantize(Decimal('0.01'))
-    
+        if self.cantidad_apertura_usd is not None:
+            return self.cantidad_apertura_usd
+        if self.tipo_cambio and self.cantidad_apertura:
+            return (self.cantidad_apertura / self.tipo_cambio).quantize(Decimal('0.01'))
+        return Decimal('0.00')
+
+    @property
+    def cantidad_apertura_usd_display(self):
+        """Para plantillas: apertura en USD (campo o legacy) para INT."""
+        return self._cantidad_apertura_usd_resuelto()
+
     @property
     def total_pagado_usd(self):
-        """Convierte el total pagado de MXN a USD para ventas internacionales."""
-        if self.tipo_viaje != 'INT' or not self.tipo_cambio or self.tipo_cambio <= 0:
+        """Total pagado en USD para ventas internacionales (apertura + abonos en USD)."""
+        if self.tipo_viaje != 'INT':
             return Decimal('0.00')
-        total_usd_abonos = Decimal('0.00')
-        for abono in self.abonos.filter(confirmado=True):
+        monto_apertura_usd = Decimal('0.00')
+        if self._apertura_confirmada_para_conteo():
+            monto_apertura_usd = self._cantidad_apertura_usd_resuelto()
+        total_abonos_usd = Decimal('0.00')
+        for abono in self.abonos.filter(Q(confirmado=True) | Q(forma_pago='EFE')):
             if abono.monto_usd is not None and abono.tipo_cambio_aplicado:
-                total_usd_abonos += abono.monto_usd
-            else:
-                total_usd_abonos += (abono.monto / self.tipo_cambio)
-        return (self.cantidad_apertura_usd + total_usd_abonos).quantize(Decimal('0.01'))
-    
-    @property
-    def saldo_restante_usd(self):
-        """Convierte el saldo restante de MXN a USD para ventas internacionales."""
-        if self.tipo_viaje != 'INT' or not self.tipo_cambio or self.tipo_cambio <= 0:
-            return Decimal('0.00')
-        saldo_usd = self.total_usd - self.total_pagado_usd
-        return saldo_usd.quantize(Decimal('0.01')) if saldo_usd > 0 else Decimal('0.00')
-    
+                total_abonos_usd += abono.monto_usd
+            elif abono.tipo_cambio_aplicado and abono.tipo_cambio_aplicado > 0:
+                total_abonos_usd += (abono.monto / abono.tipo_cambio_aplicado).quantize(Decimal('0.01'))
+            elif self.tipo_cambio and self.tipo_cambio > 0:
+                total_abonos_usd += (abono.monto / self.tipo_cambio).quantize(Decimal('0.01'))
+        return (monto_apertura_usd + total_abonos_usd).quantize(Decimal('0.01'))
+
     @property
     def costo_total_con_modificacion_usd(self):
-        """Convierte el costo total con modificación de MXN a USD para ventas internacionales."""
-        if self.tipo_viaje != 'INT' or not self.tipo_cambio or self.tipo_cambio <= 0:
+        """Costo total con modificación en USD para ventas internacionales."""
+        if self.tipo_viaje != 'INT':
             return Decimal('0.00')
-        costo_mxn = self.costo_total_con_modificacion
-        return (costo_mxn / self.tipo_cambio).quantize(Decimal('0.01'))
+        total_venta = self.costo_venta_final_usd if self.costo_venta_final_usd is not None else self.total_usd
+        mod_usd = self.costo_modificacion_usd or Decimal('0.00')
+        return (total_venta + mod_usd).quantize(Decimal('0.01'))
+
+    @property
+    def saldo_restante_usd(self):
+        """Saldo restante en USD para ventas internacionales."""
+        if self.tipo_viaje != 'INT':
+            return Decimal('0.00')
+        saldo = self.costo_total_con_modificacion_usd - self.total_pagado_usd
+        return max(Decimal('0.00'), saldo.quantize(Decimal('0.01')))
     
     @property
     def esta_pagada(self):
@@ -665,18 +708,16 @@ class VentaViaje(models.Model):
         if not self._debe_mostrar_abonos_proveedor():
             return Decimal('0.00')
         
-        base_servicios = self.costo_neto or Decimal('0.00')
         abonado = self.total_abonado_proveedor
-        
+
         if self.tipo_viaje == 'INT':
-            # Ventas internacionales: base servicios planificados en USD
-            if self.tipo_cambio and self.tipo_cambio > 0:
-                base_usd = (base_servicios / self.tipo_cambio).quantize(Decimal('0.01'))
-            else:
-                base_usd = Decimal('0.00')
+            # Ventas internacionales: base en USD (campo o conversión legacy)
+            base_usd = self.costo_neto_usd if self.costo_neto_usd is not None else Decimal('0.00')
+            if base_usd == 0 and self.costo_neto and self.tipo_cambio and self.tipo_cambio > 0:
+                base_usd = (self.costo_neto / self.tipo_cambio).quantize(Decimal('0.01'))
             pendiente = base_usd - abonado
         else:
-            # Ventas nacionales: base servicios planificados en MXN
+            base_servicios = self.costo_neto or Decimal('0.00')
             pendiente = base_servicios - abonado
         return max(Decimal('0.00'), pendiente.quantize(Decimal('0.01')))
     

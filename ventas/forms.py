@@ -1511,19 +1511,29 @@ class VentaViajeForm(forms.ModelForm):
                     if self.fields['fecha_vencimiento_pago'].widget.attrs.get('type') == 'date':
                         self.fields['fecha_vencimiento_pago'].widget.attrs['value'] = fecha_valor.strftime('%Y-%m-%d')
             
-            # Para ventas internacionales, convertir valores de MXN a USD para mostrar en el formulario
-            if instance and instance.pk and instance.tipo_viaje == 'INT' and instance.tipo_cambio and instance.tipo_cambio > 0:
-                # Los campos USD ya están en USD, no necesitan conversión
-                # La cantidad de apertura está en MXN, convertirla a USD para mostrar
-                if instance.cantidad_apertura and instance.cantidad_apertura > 0:
-                    cantidad_apertura_usd = (instance.cantidad_apertura / instance.tipo_cambio).quantize(Decimal('0.01'))
-                    existing_initial['cantidad_apertura'] = cantidad_apertura_usd
-                    dynamic_initial['cantidad_apertura'] = cantidad_apertura_usd
-                # El costo_neto está en MXN, convertirla a USD para mostrar
-                if instance.costo_neto and instance.costo_neto > 0:
+            # Para ventas internacionales: mostrar valores en USD (campo o conversión legacy)
+            if instance and instance.pk and instance.tipo_viaje == 'INT':
+                # Cantidad de apertura en USD (campo o legacy)
+                apertura_usd = getattr(instance, 'cantidad_apertura_usd', None)
+                if apertura_usd is None and instance.tipo_cambio and instance.cantidad_apertura:
+                    apertura_usd = (instance.cantidad_apertura / instance.tipo_cambio).quantize(Decimal('0.01'))
+                if apertura_usd is not None and apertura_usd > 0:
+                    existing_initial['cantidad_apertura'] = apertura_usd
+                    dynamic_initial['cantidad_apertura'] = apertura_usd
+                # Costo neto en USD (campo o legacy)
+                costo_neto_usd = getattr(instance, 'costo_neto_usd', None)
+                if costo_neto_usd is None and instance.tipo_cambio and instance.costo_neto:
                     costo_neto_usd = (instance.costo_neto / instance.tipo_cambio).quantize(Decimal('0.01'))
+                if costo_neto_usd is not None and costo_neto_usd > 0:
                     existing_initial['costo_neto'] = costo_neto_usd
                     dynamic_initial['costo_neto'] = costo_neto_usd
+                # Costo de modificación en USD (campo o legacy)
+                mod_usd = getattr(instance, 'costo_modificacion_usd', None)
+                if mod_usd is None and instance.tipo_cambio and instance.costo_modificacion:
+                    mod_usd = (instance.costo_modificacion / instance.tipo_cambio).quantize(Decimal('0.01'))
+                if mod_usd is not None and mod_usd != 0 and 'costo_modificacion' in existing_initial:
+                    existing_initial['costo_modificacion'] = mod_usd
+                    dynamic_initial['costo_modificacion'] = mod_usd
         
         # Configurar help_text y required para documentos_cliente (múltiples archivos)
         if 'documentos_cliente' in self.fields:
@@ -1749,28 +1759,28 @@ class VentaViajeForm(forms.ModelForm):
             if tarifa_base_usd == 0 and impuestos_usd == 0 and suplementos_usd == 0 and tours_usd == 0:
                 self.add_error('tarifa_base_usd', "Para ventas internacionales, debes llenar al menos uno de los campos: Tarifa Base, Impuestos, Suplementos o Tours.")
             
-            # Calcular el total en USD
+            # Calcular el total en USD (ventas INT se guardan solo en USD; tipo_cambio es referencia)
             total_usd = tarifa_base_usd + impuestos_usd + suplementos_usd + tours_usd
-            
-            # Convertir a MXN usando el tipo de cambio
-            if tipo_cambio > 0 and total_usd > 0:
-                # Para ventas internacionales, calcular costo_venta_final desde USD
-                costo_venta_final_mxn = total_usd * tipo_cambio
-                cleaned_data['costo_venta_final'] = costo_venta_final_mxn.quantize(Decimal('0.01'))
-                
-                # El costo_neto también se ingresa en USD en el formulario, convertir a MXN
-                costo_neto_usd = cleaned_data.get('costo_neto') or Decimal('0.00')
-                if costo_neto_usd > 0:
-                    costo_neto_mxn = costo_neto_usd * tipo_cambio
-                    cleaned_data['costo_neto'] = costo_neto_mxn.quantize(Decimal('0.01'))
-                
-                # La cantidad de apertura se maneja en USD en el formulario, pero se guarda en MXN
-                # Si el usuario ingresa cantidad de apertura, asumimos que está en USD y la convertimos
-                cantidad_apertura_usd = cleaned_data.get('cantidad_apertura') or Decimal('0.00')
-                if cantidad_apertura_usd > 0:
-                    # Convertir cantidad de apertura de USD a MXN
-                    cantidad_apertura_mxn = cantidad_apertura_usd * tipo_cambio
-                    cleaned_data['cantidad_apertura'] = cantidad_apertura_mxn.quantize(Decimal('0.01'))
+
+            # Guardar en campos USD; no convertir a MXN (cantidades INT en dólares)
+            if total_usd > 0:
+                cleaned_data['costo_venta_final_usd'] = total_usd.quantize(Decimal('0.01'))
+                cleaned_data['costo_venta_final'] = Decimal('0.00')  # INT: no usar MXN
+
+            costo_neto_usd = limpiar_valor_moneda(cleaned_data.get('costo_neto')) or Decimal('0.00')
+            cleaned_data['costo_neto_usd'] = costo_neto_usd.quantize(Decimal('0.01')) if costo_neto_usd else Decimal('0.00')
+            cleaned_data['costo_neto'] = Decimal('0.00')  # INT: no usar MXN
+
+            cantidad_apertura_usd = limpiar_valor_moneda(cleaned_data.get('cantidad_apertura')) or Decimal('0.00')
+            cleaned_data['cantidad_apertura_usd'] = cantidad_apertura_usd.quantize(Decimal('0.01')) if cantidad_apertura_usd else None
+            # Directo a Proveedor (PRO): apertura = total en USD
+            if modo_pago_apertura == 'PRO' and total_usd > 0:
+                cleaned_data['cantidad_apertura_usd'] = total_usd.quantize(Decimal('0.01'))
+            cleaned_data['cantidad_apertura'] = Decimal('0.00')  # INT: no usar MXN
+
+            costo_mod = limpiar_valor_moneda(cleaned_data.get('costo_modificacion')) or Decimal('0.00')
+            cleaned_data['costo_modificacion_usd'] = costo_mod.quantize(Decimal('0.01')) if costo_mod else Decimal('0.00')
+            cleaned_data['costo_modificacion'] = Decimal('0.00')  # INT: no usar MXN
         else:
             # Para ventas nacionales, limpiar los campos USD
             cleaned_data['tarifa_base_usd'] = Decimal('0.00')
@@ -1788,9 +1798,16 @@ class VentaViajeForm(forms.ModelForm):
 
         cliente = cleaned_data.get('cliente')
         tipo_viaje = cleaned_data.get('tipo_viaje')
-        if cliente and tipo_viaje and cleaned_data.get('costo_venta_final') is not None:
+        base_total = None
+        if tipo_viaje == 'INT':
+            total_usd = (cleaned_data.get('costo_venta_final_usd') or Decimal('0.00')) + (cleaned_data.get('costo_modificacion_usd') or Decimal('0.00'))
+            tc = cleaned_data.get('tipo_cambio') or Decimal('0.0000')
+            if tc > 0:
+                base_total = (total_usd * tc).quantize(Decimal('0.01'))
+        else:
             costo_mod = getattr(self.instance, 'costo_modificacion', Decimal('0.00')) or Decimal('0.00')
             base_total = (cleaned_data.get('costo_venta_final') or Decimal('0.00')) + costo_mod
+        if cliente and tipo_viaje and base_total is not None:
             promos = PromocionesService.obtener_promos_aplicables(
                 cliente=cliente,
                 tipo_viaje=tipo_viaje,
@@ -1949,6 +1966,13 @@ class VentaViajeForm(forms.ModelForm):
         # Guardar resumen y monto de promociones
         instance.descuento_promociones_mxn = getattr(self, 'total_descuento_promos', Decimal('0.00'))
         instance.resumen_promociones = getattr(self, 'resumen_promos_text', '') or ''
+
+        # Ventas internacionales: persistir campos USD (fuente de verdad; no MXN)
+        if self.cleaned_data.get('tipo_viaje') == 'INT':
+            instance.cantidad_apertura_usd = self.cleaned_data.get('cantidad_apertura_usd')
+            instance.costo_venta_final_usd = self.cleaned_data.get('costo_venta_final_usd')
+            instance.costo_neto_usd = self.cleaned_data.get('costo_neto_usd')
+            instance.costo_modificacion_usd = self.cleaned_data.get('costo_modificacion_usd')
 
         if commit:
             instance.save()
