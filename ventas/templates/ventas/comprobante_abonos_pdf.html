@@ -544,12 +544,6 @@ body {
                                 <div class="sidebar-card-label">Saldo Pendiente</div>
                                 <div class="sidebar-card-value total-pendiente">USD ${{ saldo_restante|floatformat:2|intcomma }}</div>
                             </div>
-                            {% if venta.tipo_cambio %}
-                                <div class="sidebar-card-item">
-                                    <div class="sidebar-card-label">Tipo de Cambio (referencia)</div>
-                                    <div class="sidebar-card-value">1 USD = ${{ venta.tipo_cambio|floatformat:4|intcomma }} MXN</div>
-                                </div>
-                            {% endif %}
                         {% else %}
                             <div class="sidebar-card-item">
                                 <div class="sidebar-card-label">Costo Base (sin descuentos)</div>
