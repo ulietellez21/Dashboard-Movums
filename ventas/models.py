@@ -975,6 +975,21 @@ class AbonoPago(models.Model):
         verbose_name="Requiere Factura",
         help_text="Indica si el cliente requiere factura por este abono."
     )
+
+    @property
+    def monto_usd_para_display(self):
+        """Para ventas INT: monto en USD a mostrar (monto_usd si existe, si no monto/tipo_cambio)."""
+        if self.monto_usd is not None and self.monto_usd > 0:
+            return self.monto_usd
+        tc = self.tipo_cambio_aplicado or (getattr(self.venta, 'tipo_cambio', None) if self.venta_id else None)
+        if tc and tc > 0 and self.monto:
+            return (self.monto / tc).quantize(Decimal('0.01'))
+        return None
+
+    @property
+    def tipo_cambio_para_display(self):
+        """Tipo de cambio usado al registrar (para mostrar en plantillas INT)."""
+        return self.tipo_cambio_aplicado or (getattr(self.venta, 'tipo_cambio', None) if self.venta_id else None)
     
     def comprimir_comprobante(self):
         """Comprime la imagen del comprobante para optimizar espacio."""

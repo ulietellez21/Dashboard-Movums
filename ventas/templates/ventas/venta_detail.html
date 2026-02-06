@@ -917,22 +917,17 @@
                                                 <tr class="{% if not abono.confirmado and abono.forma_pago in 'TRN,TAR,DEP' %}table-warning{% endif %}">
                                                     <td>{{ abono.fecha_pago|date:"d/M/y H:i" }}</td>
                                                     {% if venta.tipo_viaje == 'INT' and venta.tipo_cambio %}
-                                                        {% if abono.monto_usd %}
-                                                            {% with tc_abono=abono.tipo_cambio_aplicado|default:venta.tipo_cambio %}
-                                                            {% widthratio abono.monto_usd 1 tc_abono as abono_mxn %}
-                                                            <td>
-                                                                <strong>${{ abono_mxn|floatformat:2|intcomma }} MXN</strong>
-                                                                <br><small class="text-muted">USD ${{ abono.monto_usd|floatformat:2|intcomma }} · TC: ${{ tc_abono|floatformat:4 }} MXN/USD</small>
-                                                            </td>
-                                                            {% endwith %}
-                                                        {% else %}
-                                                            <td>
+                                                        {% with tc_abono=abono.tipo_cambio_para_display|default:venta.tipo_cambio %}
+                                                        <td>
+                                                            {% if abono.monto_usd_para_display %}
+                                                                <strong>USD ${{ abono.monto_usd_para_display|floatformat:2|intcomma }}</strong>
+                                                                <br><small class="text-muted">TC: ${{ tc_abono|floatformat:4 }} MXN/USD</small>
+                                                            {% else %}
                                                                 <strong>${{ abono.monto|floatformat:2|intcomma }} MXN</strong>
-                                                                {% with tc_abono=abono.tipo_cambio_aplicado|default:venta.tipo_cambio %}
-                                                                <br><small class="text-muted">TC al registrar: ${{ tc_abono|floatformat:4 }} MXN/USD</small>
-                                                                {% endwith %}
-                                                            </td>
-                                                        {% endif %}
+                                                                {% if tc_abono %}<br><small class="text-muted">TC: ${{ tc_abono|floatformat:4 }} MXN/USD</small>{% endif %}
+                                                            {% endif %}
+                                                        </td>
+                                                        {% endwith %}
                                                     {% else %}
                                                         <td><strong>${{ abono.monto|floatformat:2|intcomma }}</strong></td>
                                                     {% endif %}
