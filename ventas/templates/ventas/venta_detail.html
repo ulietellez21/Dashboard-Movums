@@ -2006,9 +2006,16 @@
                     {% csrf_token %}
                     <div class="modal-body">
                         <p class="text-muted">Proveedor: <strong>{{ abono.proveedor }}</strong></p>
-                        {% if abono.monto_usd and venta.tipo_cambio %}
-                            {% widthratio abono.monto_usd 1 venta.tipo_cambio as monto_mxn %}
-                            <p class="text-muted">Monto: <strong>${{ monto_mxn|floatformat:2|intcomma }} MXN</strong></p>
+                        {% if venta.tipo_viaje == 'INT' %}
+                            {% with tc_abono=abono.tipo_cambio_para_display|default:venta.tipo_cambio %}
+                            {% if abono.monto_usd_para_display %}
+                                <p class="text-muted mb-0">Monto: <strong>USD ${{ abono.monto_usd_para_display|floatformat:2|intcomma }}</strong></p>
+                                {% if tc_abono %}<p class="text-muted small mb-0">TC: ${{ tc_abono|floatformat:4 }} MXN/USD</p>{% endif %}
+                            {% else %}
+                                <p class="text-muted mb-0">Monto: <strong>${{ abono.monto|floatformat:2|intcomma }} MXN</strong></p>
+                                {% if tc_abono %}<p class="text-muted small mb-0">TC: ${{ tc_abono|floatformat:4 }} MXN/USD</p>{% endif %}
+                            {% endif %}
+                            {% endwith %}
                         {% else %}
                             <p class="text-muted">Monto: <strong>${{ abono.monto|floatformat:2|intcomma }} MXN</strong></p>
                         {% endif %}
