@@ -9453,7 +9453,8 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         html_parts.append('</table>')
         html_parts.append('</div>')  # Cierre card Ida
 
-        # ----- VUELO DE REGRESO -----
+        # ----- VUELO DE REGRESO (nueva página con espacio superior para no quedar en el borde) -----
+        html_parts.append('<div class="vuelo-regreso-nueva-pagina">')
         html_parts.append('<div class="card" style="margin-top: 12px;">')
         html_parts.append('<div class="card-header">')
         html_parts.append('<span class="icon">')
@@ -9522,6 +9523,7 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
 
         html_parts.append('</table>')
         html_parts.append('</div>')  # Cierre card Regreso
+        html_parts.append('</div>')  # Cierre vuelo-regreso-nueva-pagina
 
         return "".join(html_parts)
     
