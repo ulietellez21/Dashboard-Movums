@@ -544,12 +544,22 @@ class SolicitarAbonoProveedorForm(forms.ModelForm):
         if self.venta and self.venta.proveedor:
             self.fields['proveedor'].initial = self.venta.proveedor.nombre
         
-        # Para ventas nacionales, el tipo de cambio no es requerido
+        # Para ventas internacionales: monto en USD; para nacionales: monto en MXN
+        if self.venta and self.venta.tipo_viaje == 'INT':
+            self.fields['monto'].label = "Monto (USD)"
+            self.fields['monto'].help_text = 'Monto en USD a abonar al proveedor'
+            self.fields['tipo_cambio_aplicado'].required = True
+            self.fields['tipo_cambio_aplicado'].help_text = 'Tipo de cambio del día (MXN/USD) para registrar el abono'
+        else:
+            self.fields['monto'].label = "Monto (MXN)"
+            self.fields['monto'].help_text = 'Monto en MXN a abonar al proveedor'
+        
         if self.venta and self.venta.tipo_viaje == 'NAC':
             self.fields['tipo_cambio_aplicado'].required = False
             self.fields['tipo_cambio_aplicado'].help_text = 'Tipo de cambio (opcional, solo si se requiere conversión a USD)'
+        elif self.venta and self.venta.tipo_viaje == 'INT':
+            pass  # ya configurado arriba
         else:
-            # Para ventas internacionales, el tipo de cambio es requerido
             self.fields['tipo_cambio_aplicado'].required = True
             self.fields['tipo_cambio_aplicado'].help_text = 'Tipo de cambio del día para convertir MXN a USD'
     
@@ -628,24 +638,31 @@ class SolicitarAbonoProveedorForm(forms.ModelForm):
         tipo_cambio = cleaned_data.get('tipo_cambio_aplicado')
         monto = cleaned_data.get('monto')
         
-        # Asegurar que monto y tipo_cambio sean Decimal después de la limpieza
-        # (clean_monto y clean_tipo_cambio_aplicado ya los convierten)
+        if not monto:
+            return cleaned_data
         
-        # Si hay tipo de cambio, calcular monto_usd (solo para ventas internacionales)
-        if tipo_cambio and tipo_cambio > 0 and monto:
-            cleaned_data['monto_usd'] = (monto / tipo_cambio).quantize(Decimal('0.01'))
-        elif self.venta and self.venta.tipo_viaje == 'NAC':
-            # Para ventas nacionales, monto_usd puede ser None
-            cleaned_data['monto_usd'] = None
+        # Ventas internacionales: el campo "monto" recibe USD; guardamos monto_usd y monto (MXN) = monto_usd * tc
+        if self.venta and self.venta.tipo_viaje == 'INT':
+            cleaned_data['monto_usd'] = monto
+            if tipo_cambio and tipo_cambio > 0:
+                cleaned_data['monto'] = (monto * tipo_cambio).quantize(Decimal('0.01'))
+            else:
+                # Sin TC no podemos calcular MXN; mantener monto igual (se validó tipo_cambio en INT)
+                cleaned_data['monto_usd'] = monto
+        else:
+            # Ventas nacionales: monto es MXN; monto_usd opcional
+            if tipo_cambio and tipo_cambio > 0 and monto:
+                cleaned_data['monto_usd'] = (monto / tipo_cambio).quantize(Decimal('0.01'))
+            else:
+                cleaned_data['monto_usd'] = None
         
         return cleaned_data
     
     def save(self, commit=True):
-        """Guarda el formulario asegurando que los valores numéricos sean Decimal."""
+        """Guarda el formulario; asegura monto_usd en la instancia cuando esté en cleaned_data."""
         instance = super().save(commit=False)
-        
-        # Asegurar que monto y tipo_cambio_aplicado sean Decimal
-        # (ya están convertidos por clean_monto y clean_tipo_cambio_aplicado)
+        if 'monto_usd' in self.cleaned_data and self.cleaned_data['monto_usd'] is not None:
+            instance.monto_usd = self.cleaned_data['monto_usd']
         if commit:
             instance.save()
         return instance
