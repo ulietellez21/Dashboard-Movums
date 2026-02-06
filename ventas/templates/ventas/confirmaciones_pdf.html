@@ -120,10 +120,17 @@ body {
     display: block;
 }
 
-/* Wrapper para el contenido con espacio superior en nuevas páginas (vuelo regreso, hospedaje, etc.) */
+/* Wrapper para el contenido con espacio superior en nuevas páginas (solo plantillas 2+, no vuelo redondo) */
 .content-wrapper {
-    page-break-before: always; /* Forzar salto de página antes del wrapper */
-    padding-top: 280px; /* Más espacio superior para centrar la tabla en la página (p. ej. Vuelo de Regreso) */
+    page-break-before: always;
+    padding-top: 168px; /* 7 saltos de línea (24px cada uno) */
+    box-sizing: border-box;
+}
+
+/* Solo para la sección Vuelo de Regreso dentro de la plantilla vuelo redondo: centrar en página 2 */
+.vuelo-regreso-nueva-pagina {
+    page-break-before: always;
+    padding-top: 280px;
     box-sizing: border-box;
 }
 
