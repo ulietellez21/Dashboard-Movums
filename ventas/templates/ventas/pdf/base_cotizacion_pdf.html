@@ -20,13 +20,8 @@
         /* NOTA: background-image se maneja en body::before para full-bleed */
     }
 
-    /* Para vuelos/hospedaje/paquete/traslados/genérica: usar páginas nombradas y margen superior consistente
-       (2 saltos extra) en TODAS las páginas después de la primera */
-    body.cotizacion-vuelos,
-    body.cotizacion-hospedaje,
-    body.cotizacion-paquete,
-    body.cotizacion-traslados,
-    body.cotizacion-generica {
+    /* Global: todas las cotizaciones usan página nombrada → margen 4.77cm en páginas 2+ */
+    body {
         page: cotizacion-servicios;
     }
 
@@ -52,12 +47,8 @@
         margin: 1.5cm;
     }
 
-    /* Para vuelos/hospedaje/paquete/traslados/genérica sin membrete, aplicar el mismo criterio */
-    body.cotizacion-vuelos,
-    body.cotizacion-hospedaje,
-    body.cotizacion-paquete,
-    body.cotizacion-traslados,
-    body.cotizacion-generica {
+    /* Global: todas las cotizaciones usan página nombrada → margen 2.77cm en páginas 2+ */
+    body {
         page: cotizacion-servicios;
     }
 
