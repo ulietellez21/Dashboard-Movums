@@ -123,15 +123,8 @@ body {
 /* Wrapper para plantillas 2+ (Hospedaje, Traslado, etc.): flujo continuo, sin forzar nueva página */
 .content-wrapper {
     page-break-before: auto; /* Si cabe en la página actual, se coloca ahí; si no, baja a la siguiente */
-    margin-top: 120px; /* ~5 saltos de línea: evita que tablas empiecen pegadas al membrete cuando la plantilla empieza en nueva página */
+    margin-top: 28px; /* Separación visual entre secciones cuando van en la misma página */
     padding-top: 0;
-    box-sizing: border-box;
-}
-
-/* Tablas grandes de traslado (2ª, 3ª…): cada una en página propia, con ~5 saltos bajo el membrete */
-.traslado-pagina-completa {
-    page-break-before: always; /* Forzar nueva página para no encimar al membrete */
-    padding-top: 120px; /* ~5 saltos de línea (24px c/u) debajo del área del membrete */
     box-sizing: border-box;
 }
 

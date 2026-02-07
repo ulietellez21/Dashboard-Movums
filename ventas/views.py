@@ -9184,11 +9184,8 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                 traslados_list = datos.get('traslados', [])
                 if traslados_list and isinstance(traslados_list, list):
                     html_parts = []
-                    for i, traslado in enumerate(traslados_list):
-                        card_html = self._generar_html_traslado(traslado, format_date)
-                        if i > 0:
-                            card_html = f'<div class="traslado-pagina-completa">{card_html}</div>'
-                        html_parts.append(card_html)
+                    for traslado in traslados_list:
+                        html_parts.append(self._generar_html_traslado(traslado, format_date))
                     html_plantilla = "".join(html_parts)
                 else:
                     html_plantilla = self._generar_html_traslado(datos, format_date)
