@@ -9183,18 +9183,19 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
             elif tipo == 'TRASLADO':
                 traslados_list = datos.get('traslados', [])
                 if traslados_list and isinstance(traslados_list, list):
-                    html_parts = []
+                    # Cada traslado como plantilla separada: evita bug WeasyPrint con page-break-before que oculta la última tabla
                     for i, traslado in enumerate(traslados_list):
                         card_html = self._generar_html_traslado(traslado, format_date)
                         if i == 0:
                             card_html = f'<div class="traslado-primera-espacio">{card_html}</div>'
                         else:
                             card_html = f'<div class="traslado-tabla-grande">{card_html}</div>'
-                        html_parts.append(card_html)
-                    html_plantilla = "".join(html_parts)
+                        plantillas_html.append(card_html)
                 else:
                     card_html = self._generar_html_traslado(datos, format_date)
                     html_plantilla = f'<div class="traslado-primera-espacio">{card_html}</div>'
+                    plantillas_html.append(html_plantilla)
+                continue  # ya se añadieron a plantillas_html
             elif tipo == 'GENERICA':
                 html_plantilla = self._generar_html_generica(datos)
             

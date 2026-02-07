@@ -136,17 +136,12 @@ body {
     box-sizing: border-box;
 }
 
-/* Solo tablas grandes (2ª y siguientes de Traslado cuando hay varias): una por página, con espacio superior */
+/* 2ª y siguientes tablas Traslado: plantilla separada, flujo natural a nueva página (evita bug WeasyPrint con page-break-before) */
 .traslado-tabla-grande {
-    page-break-before: always;
-    break-before: page; /* Compatibilidad WeasyPrint */
-    padding-top: 80px;
+    padding-top: 80px; /* Espacio bajo membrete cuando empieza en nueva página */
     box-sizing: border-box;
     display: block;
-    overflow: visible; /* Evitar que quede detrás de capas o recorte */
-    position: relative;
-    z-index: 1;
-    min-height: 1px; /* Evitar colapso del contenedor */
+    overflow: visible;
 }
 
 /* Solo para la sección Vuelo de Regreso dentro de la plantilla vuelo redondo: centrar en página 2 */
