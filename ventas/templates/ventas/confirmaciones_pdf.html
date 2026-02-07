@@ -12,16 +12,23 @@
    Generados con WeasyPrint
    ============================================ */
 {% if membrete_url %}
-    /* CONFIGURACIÓN CON MEMBRETE (FONDO COMPLETO) */
+    /* Configuración para páginas 2, 3, etc. */
     @page {
         size: letter;
-        margin: 0; /* IMPORTANTE: Margen 0 para que la imagen toque los bordes */
-        
-        /* Imagen de fondo cubriendo toda la hoja */
+        margin-top: 4.77cm; /* Margen superior para librar el encabezado en páginas extra */
+        margin-right: 0;
+        margin-bottom: 0;
+        margin-left: 0;
+
+        /* Imagen de fondo (aplica a todas) */
         background-image: url("{{ membrete_url }}");
         background-position: center;
         background-repeat: no-repeat;
-        background-size: cover; /* cover asegura que llene toda la hoja sin deformarse */
+        background-size: cover;
+    }
+    /* Sobreescritura para la Página 1 (mantiene lógica actual de body padding) */
+    @page :first {
+        margin-top: 0;
     }
 {% else %}
     /* CONFIGURACIÓN SIN MEMBRETE (DEFAULT) */
