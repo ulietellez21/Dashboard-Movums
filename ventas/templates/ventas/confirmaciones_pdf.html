@@ -123,8 +123,14 @@ body {
 /* Wrapper para plantillas 2+ (Hospedaje, Traslado, etc.): flujo continuo, sin forzar nueva página */
 .content-wrapper {
     page-break-before: auto; /* Si cabe en la página actual, se coloca ahí; si no, baja a la siguiente */
-    margin-top: 28px; /* Separación visual entre secciones cuando van en la misma página */
+    margin-top: 48px; /* Más espacio: evita que tablas empiecen pegadas al borde cuando la plantilla empieza en nueva página */
     padding-top: 0;
+    box-sizing: border-box;
+}
+
+/* Cards 2ª, 3ª… de una plantilla (ej. segundo traslado): espacio arriba para no pegar al borde si bajan a nueva página */
+.card-espacio-arriba {
+    margin-top: 48px;
     box-sizing: border-box;
 }
 
