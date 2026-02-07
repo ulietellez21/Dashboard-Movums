@@ -112,6 +112,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 6px;
+    overflow: visible; /* No recortar contenido (p. ej. 2ª tabla Traslado en última página) */
 }
 
 /* Spacer para separar el contenido del membrete (IGUAL QUE COTIZACIONES) */
@@ -126,6 +127,7 @@ body {
     margin-top: 28px; /* Separación visual entre secciones cuando van en la misma página */
     padding-top: 0;
     box-sizing: border-box;
+    overflow: visible; /* No recortar contenido de plantillas (2ª tabla Traslado, etc.) */
 }
 
 /* Primera tabla de Traslado: ~6 saltos de línea para no quedar sobre el membrete */
@@ -137,8 +139,14 @@ body {
 /* Solo tablas grandes (2ª y siguientes de Traslado cuando hay varias): una por página, con espacio superior */
 .traslado-tabla-grande {
     page-break-before: always;
+    break-before: page; /* Compatibilidad WeasyPrint */
     padding-top: 80px;
     box-sizing: border-box;
+    display: block;
+    overflow: visible; /* Evitar que quede detrás de capas o recorte */
+    position: relative;
+    z-index: 1;
+    min-height: 1px; /* Evitar colapso del contenedor */
 }
 
 /* Solo para la sección Vuelo de Regreso dentro de la plantilla vuelo redondo: centrar en página 2 */
