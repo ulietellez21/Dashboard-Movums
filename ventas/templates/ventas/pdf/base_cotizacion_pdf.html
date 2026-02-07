@@ -20,10 +20,13 @@
         /* NOTA: background-image se maneja en body::before para full-bleed */
     }
 
-    /* Para vuelos/hospedaje: usar páginas nombradas y margen superior consistente
+    /* Para vuelos/hospedaje/paquete/traslados/genérica: usar páginas nombradas y margen superior consistente
        (2 saltos extra) en TODAS las páginas después de la primera */
     body.cotizacion-vuelos,
-    body.cotizacion-hospedaje {
+    body.cotizacion-hospedaje,
+    body.cotizacion-paquete,
+    body.cotizacion-traslados,
+    body.cotizacion-generica {
         page: cotizacion-servicios;
     }
 
@@ -49,9 +52,12 @@
         margin: 1.5cm;
     }
 
-    /* Para vuelos/hospedaje sin membrete, aplicar el mismo criterio */
+    /* Para vuelos/hospedaje/paquete/traslados/genérica sin membrete, aplicar el mismo criterio */
     body.cotizacion-vuelos,
-    body.cotizacion-hospedaje {
+    body.cotizacion-hospedaje,
+    body.cotizacion-paquete,
+    body.cotizacion-traslados,
+    body.cotizacion-generica {
         page: cotizacion-servicios;
     }
 
@@ -1323,6 +1329,12 @@ p {
 strong {
     font-weight: 700;
     color: var(--text-primary);
+}
+
+/* Refuerzo para evitar que las tablas toquen el header en saltos de página */
+.cotizacion-traslados table,
+.cotizacion-paquete table {
+    margin-top: 20px;
 }
     </style>
 </head>
