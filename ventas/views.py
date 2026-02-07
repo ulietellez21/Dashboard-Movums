@@ -9186,12 +9186,15 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                     html_parts = []
                     for i, traslado in enumerate(traslados_list):
                         card_html = self._generar_html_traslado(traslado, format_date)
-                        if i > 0:
+                        if i == 0:
+                            card_html = f'<div class="traslado-primera-espacio">{card_html}</div>'
+                        else:
                             card_html = f'<div class="traslado-tabla-grande">{card_html}</div>'
                         html_parts.append(card_html)
                     html_plantilla = "".join(html_parts)
                 else:
-                    html_plantilla = self._generar_html_traslado(datos, format_date)
+                    card_html = self._generar_html_traslado(datos, format_date)
+                    html_plantilla = f'<div class="traslado-primera-espacio">{card_html}</div>'
             elif tipo == 'GENERICA':
                 html_plantilla = self._generar_html_generica(datos)
             
