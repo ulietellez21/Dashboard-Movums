@@ -12,17 +12,11 @@
    Generados con WeasyPrint
    ============================================ */
 {% if membrete_url %}
-    /* Solución A del análisis: márgenes en @page para TODAS las páginas (1, 2, 3…).
-       Así el área de contenido queda definida por @page y no depende del body padding en página 2+. */
+    /* Márgenes en @page para TODAS las páginas. El membrete va en body::before (full-bleed).
+       En WeasyPrint el background-image en @page solo pinta el área de contenido, no los márgenes. */
     @page {
         size: letter;
         margin: 3.5cm 2.0cm 2.5cm 2.0cm; /* top right bottom left = mismo en todas las páginas */
-
-        /* Imagen de fondo (aplica a todas) */
-        background-image: url("{{ membrete_url }}");
-        background-position: center;
-        background-repeat: no-repeat;
-        background-size: cover;
     }
 {% else %}
     /* CONFIGURACIÓN SIN MEMBRETE (DEFAULT) */
@@ -92,8 +86,27 @@ body {
 }
 
 /* ============================================
-   MEMBRETE COMO FONDO DE PÁGINA
+   MEMBRETE FULL-BLEED (igual que cotizaciones)
+   body::before se repite en cada página y llega a los bordes.
    ============================================ */
+{% if membrete_url %}
+body::before {
+    content: "";
+    display: block;
+    position: fixed;
+    /* Extender hasta los bordes de la hoja (coordenadas = márgenes de @page) */
+    top: -3.5cm;
+    left: -2.0cm;
+    right: -2.0cm;
+    bottom: -2.5cm;
+    z-index: -1000;
+    background-image: url("{{ membrete_url }}");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+}
+{% endif %}
+
 .header {
     display: none; /* Header oculto, el membrete es fondo */
 }
