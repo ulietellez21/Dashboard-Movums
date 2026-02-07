@@ -12,20 +12,17 @@
    Generados con WeasyPrint
    ============================================ */
 {% if membrete_url %}
-    /* Páginas 2, 3, etc.: mismos márgenes que la página 1 (replicar body padding) */
+    /* Solución A del análisis: márgenes en @page para TODAS las páginas (1, 2, 3…).
+       Así el área de contenido queda definida por @page y no depende del body padding en página 2+. */
     @page {
         size: letter;
-        margin: 3.5cm 2.0cm 2.5cm 2.0cm; /* top right bottom left = igual que página 1 */
+        margin: 3.5cm 2.0cm 2.5cm 2.0cm; /* top right bottom left = mismo en todas las páginas */
 
         /* Imagen de fondo (aplica a todas) */
         background-image: url("{{ membrete_url }}");
         background-position: center;
         background-repeat: no-repeat;
         background-size: cover;
-    }
-    /* Página 1: margen 0 en @page, el body padding define el área (3.5cm 2cm 2.5cm 2cm) */
-    @page :first {
-        margin: 0;
     }
 {% else %}
     /* CONFIGURACIÓN SIN MEMBRETE (DEFAULT) */
@@ -90,11 +87,8 @@ body {
     min-height: 100vh;
     box-sizing: border-box;
     
-    /* Padding para proteger el contenido de tocar los bordes del membrete (IGUAL QUE COTIZACIONES) */
-    padding-top: 3.5cm;    /* Espacio para el logo superior */
-    padding-bottom: 2.5cm; /* Espacio para el pie de página */
-    padding-left: 2.0cm;   /* Espacio lateral */
-    padding-right: 2.0cm;  /* Espacio lateral */
+    /* Con membrete el área de contenido la define @page (margin 3.5 2 2.5 2); no duplicar con padding */
+    padding: 0;
 }
 
 /* ============================================
@@ -125,34 +119,36 @@ body {
     display: block;
 }
 
-/* Wrapper para plantillas 2+ (Hospedaje, Traslado, etc.): flujo continuo, sin forzar nueva página */
+/* Wrapper para plantillas 2+ (Hospedaje, Traslado, etc.): flujo continuo, sin forzar nueva página.
+   Refuerzo: margin-top por si WeasyPrint no aplica bien @page al primer elemento tras salto. */
 .content-wrapper {
-    page-break-before: auto; /* Si cabe en la página actual, se coloca ahí; si no, baja a la siguiente */
-    margin-top: 24px; /* Separación uniforme entre secciones/cards en todas las confirmaciones */
+    page-break-before: auto;
+    margin-top: 24px;
     padding-top: 0;
     box-sizing: border-box;
     overflow: visible;
 }
 
-/* Primera tabla de Traslado: espacio bajo membrete cuando la plantilla empieza en nueva página */
+/* Primera tabla de Traslado: separación estándar (el espacio superior lo da @page en pág 2+) */
 .traslado-primera-espacio {
-    margin-top: 120px; /* ~5 saltos (24px c/u) para no quedar sobre el membrete; uniforme */
+    margin-top: 24px;
     box-sizing: border-box;
 }
 
-/* 2ª y siguientes tablas Traslado: misma separación que entre cualquier par de cards (evita hueco enorme en misma página) */
+/* 2ª y siguientes tablas Traslado: misma separación que content-wrapper */
 .traslado-tabla-grande {
-    margin-top: 24px; /* Igual que content-wrapper: separación uniforme entre cards */
+    margin-top: 24px;
     padding-top: 0;
     box-sizing: border-box;
     display: block;
     overflow: visible;
 }
 
-/* Solo para la sección Vuelo de Regreso dentro de la plantilla vuelo redondo: centrar en página 2 */
+/* Vuelo de Regreso: forzar nueva página; el margen superior lo da @page (3.5cm) */
 .vuelo-regreso-nueva-pagina {
     page-break-before: always;
-    padding-top: 184px; /* ~4 saltos menos que 280px para subir la tabla */
+    margin-top: 24px;
+    padding-top: 0;
     box-sizing: border-box;
 }
 
