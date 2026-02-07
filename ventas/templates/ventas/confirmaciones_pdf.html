@@ -12,13 +12,10 @@
    Generados con WeasyPrint
    ============================================ */
 {% if membrete_url %}
-    /* Configuración para páginas 2, 3, etc. */
+    /* Páginas 2, 3, etc.: mismos márgenes que la página 1 (replicar body padding) */
     @page {
         size: letter;
-        margin-top: 4.77cm; /* Margen superior para librar el encabezado en páginas extra */
-        margin-right: 0;
-        margin-bottom: 0;
-        margin-left: 0;
+        margin: 3.5cm 2.0cm 2.5cm 2.0cm; /* top right bottom left = igual que página 1 */
 
         /* Imagen de fondo (aplica a todas) */
         background-image: url("{{ membrete_url }}");
@@ -26,9 +23,9 @@
         background-repeat: no-repeat;
         background-size: cover;
     }
-    /* Sobreescritura para la Página 1 (mantiene lógica actual de body padding) */
+    /* Página 1: margen 0 en @page, el body padding define el área (3.5cm 2cm 2.5cm 2cm) */
     @page :first {
-        margin-top: 0;
+        margin: 0;
     }
 {% else %}
     /* CONFIGURACIÓN SIN MEMBRETE (DEFAULT) */
