@@ -120,10 +120,11 @@ body {
     display: block;
 }
 
-/* Wrapper para el contenido con espacio superior en nuevas páginas (solo plantillas 2+, no vuelo redondo) */
+/* Wrapper para plantillas 2+ (Hospedaje, Traslado, etc.): flujo continuo, sin forzar nueva página */
 .content-wrapper {
-    page-break-before: always;
-    padding-top: 168px; /* 7 saltos de línea (24px cada uno) */
+    page-break-before: auto; /* Si cabe en la página actual, se coloca ahí; si no, baja a la siguiente */
+    margin-top: 28px; /* Separación visual entre secciones cuando van en la misma página */
+    padding-top: 0;
     box-sizing: border-box;
 }
 
