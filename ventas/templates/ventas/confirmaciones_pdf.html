@@ -124,21 +124,22 @@ body {
 /* Wrapper para plantillas 2+ (Hospedaje, Traslado, etc.): flujo continuo, sin forzar nueva página */
 .content-wrapper {
     page-break-before: auto; /* Si cabe en la página actual, se coloca ahí; si no, baja a la siguiente */
-    margin-top: 28px; /* Separación visual entre secciones cuando van en la misma página */
+    margin-top: 24px; /* Separación uniforme entre secciones/cards en todas las confirmaciones */
     padding-top: 0;
     box-sizing: border-box;
-    overflow: visible; /* No recortar contenido de plantillas (2ª tabla Traslado, etc.) */
+    overflow: visible;
 }
 
-/* Primera tabla de Traslado: ~6 saltos de línea para no quedar sobre el membrete */
+/* Primera tabla de Traslado: espacio bajo membrete cuando la plantilla empieza en nueva página */
 .traslado-primera-espacio {
-    margin-top: 144px; /* 6 saltos de línea (24px c/u) debajo del área del membrete */
+    margin-top: 120px; /* ~5 saltos (24px c/u) para no quedar sobre el membrete; uniforme */
     box-sizing: border-box;
 }
 
-/* 2ª y siguientes tablas Traslado: plantilla separada, flujo natural a nueva página (evita bug WeasyPrint con page-break-before) */
+/* 2ª y siguientes tablas Traslado: misma separación que entre cualquier par de cards (evita hueco enorme en misma página) */
 .traslado-tabla-grande {
-    padding-top: 224px; /* Solo esta tabla más abajo: ~3 saltos más que 152px para bajar la última tabla */
+    margin-top: 24px; /* Igual que content-wrapper: separación uniforme entre cards */
+    padding-top: 0;
     box-sizing: border-box;
     display: block;
     overflow: visible;
