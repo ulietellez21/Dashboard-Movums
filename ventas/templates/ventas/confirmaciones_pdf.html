@@ -128,6 +128,13 @@ body {
     box-sizing: border-box;
 }
 
+/* Solo tablas grandes (2ª y siguientes de Traslado cuando hay varias): una por página, con espacio superior */
+.traslado-tabla-grande {
+    page-break-before: always;
+    padding-top: 80px;
+    box-sizing: border-box;
+}
+
 /* Solo para la sección Vuelo de Regreso dentro de la plantilla vuelo redondo: centrar en página 2 */
 .vuelo-regreso-nueva-pagina {
     page-break-before: always;
