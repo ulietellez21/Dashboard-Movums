@@ -1326,7 +1326,7 @@ strong {
 }
     </style>
 </head>
-<body{% if tipo == 'paquete' %} class="cotizacion-paquete"{% elif tipo == 'generica' %} class="cotizacion-generica"{% elif tipo == 'vuelos' %} class="cotizacion-vuelos"{% elif tipo == 'hospedaje' %} class="cotizacion-hospedaje"{% endif %}>
+<body class="cotizacion-{{ tipo|default:'generica' }}">
     {% include "ventas/pdf/components/header.html" %}
     
     <div class="cotizacion-container">
