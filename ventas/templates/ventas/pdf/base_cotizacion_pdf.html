@@ -20,8 +20,10 @@
         /* NOTA: background-image se maneja en body::before para full-bleed */
     }
 
-    /* Global: todas las cotizaciones usan página nombrada → margen 4.77cm en páginas 2+ */
-    body {
+    /* Para vuelos/hospedaje: usar páginas nombradas y margen superior consistente
+       (2 saltos extra) en TODAS las páginas después de la primera */
+    body.cotizacion-vuelos,
+    body.cotizacion-hospedaje {
         page: cotizacion-servicios;
     }
 
@@ -47,8 +49,9 @@
         margin: 1.5cm;
     }
 
-    /* Global: todas las cotizaciones usan página nombrada → margen 2.77cm en páginas 2+ */
-    body {
+    /* Para vuelos/hospedaje sin membrete, aplicar el mismo criterio */
+    body.cotizacion-vuelos,
+    body.cotizacion-hospedaje {
         page: cotizacion-servicios;
     }
 
@@ -1322,14 +1325,9 @@ strong {
     color: var(--text-primary);
 }
 
-/* Refuerzo para evitar que las tablas toquen el header en saltos de página */
-.cotizacion-traslados table,
-.cotizacion-paquete table {
-    margin-top: 20px;
-}
     </style>
 </head>
-<body class="cotizacion-{{ tipo|default:'generica' }}">
+<body{% if tipo == 'paquete' %} class="cotizacion-paquete"{% elif tipo == 'generica' %} class="cotizacion-generica"{% elif tipo == 'vuelos' %} class="cotizacion-vuelos"{% elif tipo == 'hospedaje' %} class="cotizacion-hospedaje"{% endif %}>
     {% include "ventas/pdf/components/header.html" %}
     
     <div class="cotizacion-container">
