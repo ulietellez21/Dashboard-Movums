@@ -15,20 +15,17 @@
     /* Configuración para páginas 2, 3, etc. */
     @page {
         size: letter;
-        margin-top: 4.77cm; /* Margen superior para librar el encabezado en páginas extra */
+        margin-top: 4.77cm; /* Margen maestro obligatorio */
         margin-right: 0;
         margin-bottom: 0;
         margin-left: 0;
-
-        /* Imagen de fondo (aplica a todas) */
         background-image: url("{{ membrete_url }}");
-        background-position: center;
+        background-position: top center; /* CRÍTICO: ancla el fondo arriba */
         background-repeat: no-repeat;
         background-size: cover;
     }
-    /* Sobreescritura para la Página 1 (mantiene lógica actual de body padding) */
     @page :first {
-        margin-top: 0;
+        margin-top: 0; /* Página 1 intacta */
     }
 {% else %}
     /* CONFIGURACIÓN SIN MEMBRETE (DEFAULT) */
@@ -137,26 +134,26 @@ body {
     overflow: visible;
 }
 
-/* Primera tabla de Traslado: espacio bajo membrete cuando la plantilla empieza en nueva página */
-.traslado-primera-espacio {
-    margin-top: 120px; /* ~5 saltos (24px c/u) para no quedar sobre el membrete; uniforme */
+/* Estandarizado: el espacio grande lo da @page (4.77cm). Todas las tablas en pág 2+ al mismo nivel */
+.traslado-primera-espacio,
+.vuelo-regreso-nueva-pagina {
+    margin-top: 24px !important; /* Estandarizado (antes 120px/184px) */
+    padding-top: 0 !important;
     box-sizing: border-box;
 }
 
-/* 2ª y siguientes tablas Traslado: misma separación que entre cualquier par de cards (evita hueco enorme en misma página) */
+/* Vuelo de Regreso: forzar nueva página; el margen superior lo da @page */
+.vuelo-regreso-nueva-pagina {
+    page-break-before: always;
+}
+
+/* 2ª y siguientes tablas Traslado: misma separación que entre cualquier par de cards */
 .traslado-tabla-grande {
-    margin-top: 24px; /* Igual que content-wrapper: separación uniforme entre cards */
+    margin-top: 24px; /* Igual que content-wrapper */
     padding-top: 0;
     box-sizing: border-box;
     display: block;
     overflow: visible;
-}
-
-/* Solo para la sección Vuelo de Regreso dentro de la plantilla vuelo redondo: centrar en página 2 */
-.vuelo-regreso-nueva-pagina {
-    page-break-before: always;
-    padding-top: 184px; /* ~4 saltos menos que 280px para subir la tabla */
-    box-sizing: border-box;
 }
 
 /* Evitar que las cards y secciones se partan entre páginas */
