@@ -12,16 +12,19 @@
    Generados con WeasyPrint
    ============================================ */
 {% if membrete_url %}
-    /* CONFIGURACIÓN CON MEMBRETE (FONDO COMPLETO) */
+    /* CONFIGURACIÓN CON MEMBRETE: márgenes en @page para que TODAS las tablas (pág 1, 2, 3…) queden bien colocadas */
     @page {
         size: letter;
-        margin: 0; /* IMPORTANTE: Margen 0 para que la imagen toque los bordes */
-        
-        /* Imagen de fondo cubriendo toda la hoja */
+        margin: 2.5cm 2cm 2cm 2cm; /* Área de contenido inset en todas las páginas: evita tablas "muy arriba" en pág 2+ */
+        box-sizing: border-box;
         background-image: url("{{ membrete_url }}");
         background-position: center;
         background-repeat: no-repeat;
-        background-size: cover; /* cover asegura que llene toda la hoja sin deformarse */
+        background-size: cover;
+    }
+    @page :first {
+        margin-top: 3.5cm; /* Primera página: mismo espacio superior que antes (logo/membrete) */
+        margin-bottom: 2.5cm;
     }
 {% else %}
     /* CONFIGURACIÓN SIN MEMBRETE (DEFAULT) */
@@ -85,12 +88,15 @@ body {
     width: 100%;
     min-height: 100vh;
     box-sizing: border-box;
-    
-    /* Padding para proteger el contenido de tocar los bordes del membrete (IGUAL QUE COTIZACIONES) */
-    padding-top: 3.5cm;    /* Espacio para el logo superior */
-    padding-bottom: 2.5cm; /* Espacio para el pie de página */
-    padding-left: 2.0cm;   /* Espacio lateral */
-    padding-right: 2.0cm;  /* Espacio lateral */
+    /* Con membrete: el área segura la define @page margin en todas las páginas; sin doble padding */
+{% if membrete_url %}
+    padding: 0;
+{% else %}
+    padding-top: 3.5cm;
+    padding-bottom: 2.5cm;
+    padding-left: 2.0cm;
+    padding-right: 2.0cm;
+{% endif %}
 }
 
 /* ============================================
