@@ -12,16 +12,16 @@
    Generados con WeasyPrint
    ============================================ */
 {% if membrete_url %}
-    /* CONFIGURACIÓN CON MEMBRETE: márgenes en @page para que el contenido NUNCA tape el membrete en ninguna página */
+    /* CONFIGURACIÓN CON MEMBRETE (FONDO COMPLETO) */
     @page {
         size: letter;
-        margin: 3.5cm 2cm 2.5cm 2cm; /* top right bottom left: reserva zona header/footer y laterales en TODAS las páginas */
-        box-sizing: border-box;
+        margin: 0; /* IMPORTANTE: Margen 0 para que la imagen toque los bordes */
+        
         /* Imagen de fondo cubriendo toda la hoja */
         background-image: url("{{ membrete_url }}");
         background-position: center;
         background-repeat: no-repeat;
-        background-size: cover;
+        background-size: cover; /* cover asegura que llene toda la hoja sin deformarse */
     }
 {% else %}
     /* CONFIGURACIÓN SIN MEMBRETE (DEFAULT) */
@@ -85,15 +85,12 @@ body {
     width: 100%;
     min-height: 100vh;
     box-sizing: border-box;
-    /* Con membrete, el área segura se reserva con @page margin; sin membrete, usamos padding */
-{% if membrete_url %}
-    padding: 0; /* @page margin ya reserva header/footer y laterales en todas las páginas */
-{% else %}
-    padding-top: 3.5cm;
-    padding-bottom: 2.5cm;
-    padding-left: 2.0cm;
-    padding-right: 2.0cm;
-{% endif %}
+    
+    /* Padding para proteger el contenido de tocar los bordes del membrete (IGUAL QUE COTIZACIONES) */
+    padding-top: 3.5cm;    /* Espacio para el logo superior */
+    padding-bottom: 2.5cm; /* Espacio para el pie de página */
+    padding-left: 2.0cm;   /* Espacio lateral */
+    padding-right: 2.0cm;  /* Espacio lateral */
 }
 
 /* ============================================
