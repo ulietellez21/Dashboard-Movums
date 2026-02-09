@@ -221,12 +221,15 @@ body {
     display: block;
 }
 
-/* Contenedor padre que agrupa contenido y términos en la misma página */
+/* Contenedor padre que agrupa contenido (tablas) - debe ser visible siempre */
 .content-page-wrapper {
     page-break-before: always; /* Forzar salto de página antes del wrapper */
     box-sizing: border-box;
-    overflow: visible !important; /* Asegurar que todo el contenido sea visible */
-    page-break-inside: auto !important; /* Permitir que el contenido fluya entre páginas */
+    overflow: visible !important;
+    page-break-inside: auto !important;
+    visibility: visible !important;
+    display: block !important;
+    min-height: 0;
 }
 
 /* Para cotizaciones genéricas, no forzar salto de página y eliminar padding excesivo */
@@ -254,13 +257,25 @@ body {
     padding: 0 !important;
 }
 
-/* Wrapper para el contenido (vuelos, hoteles, etc.) con espacio superior */
+/* Wrapper para el contenido (vuelos, hoteles, etc.) - tablas siempre visibles */
 .content-wrapper {
     padding-top: 168px; /* 7 saltos de línea (24px cada uno = 168px) */
     padding-bottom: 0;
     box-sizing: border-box;
-    overflow: visible !important; /* Asegurar que todo el contenido sea visible */
-    page-break-inside: auto !important; /* Permitir que el contenido fluya entre páginas */
+    overflow: visible !important;
+    page-break-inside: auto !important;
+    visibility: visible !important;
+    display: block !important;
+}
+
+.content-wrapper .card,
+.content-wrapper .data-table,
+.content-wrapper table {
+    visibility: visible !important;
+    display: block !important;
+}
+.content-wrapper table {
+    display: table !important;
 }
 
 /* Para cotizaciones genéricas, reducir padding superior y permitir flujo */
@@ -320,51 +335,41 @@ body {
     max-height: none !important; /* Sin límite máximo de altura */
 }
 
-/* Wrapper para términos y condiciones - visible y posicionado correctamente */
+/* Términos y condiciones: primera página, arriba del margen inferior (spacer los empuja abajo) */
+.terminos-spacer {
+    height: 11cm; /* Empuja los términos hacia el pie de la primera página (sin tapar membrete) */
+    min-height: 11cm;
+    display: block;
+    page-break-before: avoid;
+    page-break-inside: avoid;
+}
+
+.cotizacion-generica .terminos-spacer {
+    height: 4cm;
+    min-height: 4cm;
+}
+
 .terminos-wrapper {
     width: 100%;
-    margin: 312px 0 0 0; /* 13 saltos de línea (24px cada uno = 312px) desde info_cliente */
-    padding: 0;
+    margin: 0;
+    padding: 0 0 8px 0;
     box-sizing: border-box;
     display: block !important;
     position: relative;
-    page-break-before: avoid; /* Mantener en la misma página que el contenido */
+    page-break-before: avoid;
     page-break-inside: avoid;
+    page-break-after: always; /* Términos solo en página 1; lo que sigue (tablas) en página 2 */
     visibility: visible !important;
     opacity: 1 !important;
 }
 
-.terminos-paquete {
-    margin-top: 60px !important; /* Ajuste para bajar el texto de términos y condiciones un poco más */
-    margin-bottom: 8px;
-    padding: 0;
-    page-break-before: avoid !important;
-    page-break-inside: avoid !important;
-}
-
-.terminos-vuelos {
-    margin-top: 60px !important; /* Ajuste para bajar el texto de términos y condiciones un poco más */
-    margin-bottom: 8px;
-    padding: 0;
-    page-break-before: avoid !important;
-    page-break-inside: avoid !important;
-}
-
-.terminos-hospedaje {
-    margin-top: 60px !important; /* Ajuste para bajar el texto de términos y condiciones un poco más */
-    margin-bottom: 8px;
-    padding: 0;
-    page-break-before: avoid !important;
-    page-break-inside: avoid !important;
-}
-
-/* Para cotizaciones genéricas: reducir márgenes para que el contenido comience en primera página */
+.terminos-paquete,
+.terminos-vuelos,
+.terminos-hospedaje,
 .terminos-generica,
 .cotizacion-generica .terminos-wrapper {
-    margin-top: 20px !important; /* Margen mínimo después de info_cliente */
-    margin-bottom: 20px !important;
-    padding: 0;
-    page-break-before: avoid !important;
+    margin: 0;
+    padding: 0 0 8px 0;
     page-break-inside: avoid !important;
 }
 
@@ -1336,12 +1341,14 @@ strong {
         
         {% include "ventas/pdf/components/info_cliente.html" %}
         
-        <!-- Términos y condiciones - en la primera página, antes del content-wrapper -->
+        <!-- Espacio para bajar términos al pie de la primera página (arriba del margen inferior) -->
+        <div class="terminos-spacer"></div>
+        <!-- Términos y condiciones: fijos en primera página, arriba del margen inferior, sin tapar membrete -->
         <div class="terminos-wrapper{% if tipo == 'paquete' %} terminos-paquete{% elif tipo == 'vuelos' %} terminos-vuelos{% elif tipo == 'hospedaje' %} terminos-hospedaje{% elif tipo == 'generica' %} terminos-generica{% endif %}">
             {% block terminos_condiciones %}{% endblock %}
         </div>
         
-        <!-- Contenedor que agrupa contenido en la segunda página -->
+        <!-- Contenedor con tablas (vuelos, hospedaje, etc.) en página 2 -->
         <div class="content-page-wrapper">
             <!-- Wrapper para las cards de vuelo/hoteles con espacio superior -->
             <div class="content-wrapper">
