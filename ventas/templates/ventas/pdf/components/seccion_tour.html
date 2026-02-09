@@ -1,5 +1,5 @@
 {% load humanize %}
-<div class="card">
+<div class="card card-tour">
     <div class="card-header">
         <span class="icon">
             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -17,7 +17,7 @@
         {% if tour.especificaciones %}
         <tr>
             <td><strong>Especificaciones:</strong></td>
-            <td>{{ tour.especificaciones|linebreaks }}</td>
+            <td><span class="tour-especificaciones">{{ tour.especificaciones|linebreaks }}</span></td>
         </tr>
         {% endif %}
         {% if tour.forma_pago %}

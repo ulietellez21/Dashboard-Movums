@@ -12566,6 +12566,31 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
             
             paquete['tours'] = tours_list
         
+        # Para cotizaciones de tours: normalizar propuestas['tours'] para que la tabla muestre datos
+        if tipo == 'tours':
+            propuestas = dict(propuestas)
+            tours_raw = propuestas.get('tours') or propuestas.get('Tours') or propuestas.get('tour')
+            if isinstance(tours_raw, list):
+                tours_list = []
+                for t in tours_raw:
+                    if isinstance(t, dict):
+                        tours_list.append({
+                            'nombre': t.get('nombre') or t.get('nombre_tour') or '-',
+                            'especificaciones': t.get('especificaciones') or '',
+                            'forma_pago': t.get('forma_pago') or '',
+                            'total': t.get('total'),
+                        })
+                propuestas['tours'] = tours_list
+            elif isinstance(tours_raw, dict) and tours_raw:
+                propuestas['tours'] = [{
+                    'nombre': tours_raw.get('nombre') or tours_raw.get('nombre_tour') or '-',
+                    'especificaciones': tours_raw.get('especificaciones') or '',
+                    'forma_pago': tours_raw.get('forma_pago') or '',
+                    'total': tours_raw.get('total'),
+                }]
+            else:
+                propuestas['tours'] = []
+
         # Determinar template según tipo
         template_map = {
             'vuelos': 'ventas/pdf/cotizacion_vuelos_pdf.html',

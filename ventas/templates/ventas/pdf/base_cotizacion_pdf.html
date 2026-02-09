@@ -185,10 +185,11 @@ body {
     max-height: none !important;
 }
 
-/* Para cotizaciones de vuelos, hospedaje y paquete: evitar flex (WeasyPrint pagina mejor en block) */
+/* Para cotizaciones de vuelos, hospedaje, paquete y tours: evitar flex (WeasyPrint pagina mejor en block) */
 .cotizacion-vuelos .cotizacion-container,
 .cotizacion-hospedaje .cotizacion-container,
-.cotizacion-paquete .cotizacion-container {
+.cotizacion-paquete .cotizacion-container,
+.cotizacion-tours .cotizacion-container {
     display: block !important;
     gap: 0 !important;
     overflow: visible !important;
@@ -320,6 +321,22 @@ body {
     max-height: none !important; /* Sin límite máximo de altura */
 }
 
+/* Cotizaciones de tours: términos en 1ª página, contenido (tablas) en páginas siguientes */
+.cotizacion-tours .content-wrapper {
+    padding-top: 96px; /* Espacio para que tablas no choquen con header en 2ª página */
+    overflow: visible !important;
+    page-break-inside: auto !important;
+    height: auto !important;
+    max-height: none !important;
+}
+
+.cotizacion-tours .content-page-wrapper {
+    overflow: visible !important;
+    page-break-inside: auto !important;
+    height: auto !important;
+    max-height: none !important;
+}
+
 /* Wrapper para términos y condiciones - visible y posicionado correctamente */
 .terminos-wrapper {
     width: 100%;
@@ -352,6 +369,15 @@ body {
 
 .terminos-hospedaje {
     margin-top: 60px !important; /* Ajuste para bajar el texto de términos y condiciones un poco más */
+    margin-bottom: 8px;
+    padding: 0;
+    page-break-before: avoid !important;
+    page-break-inside: avoid !important;
+}
+
+/* Términos en primera página para cotizaciones de tours (igual que vuelos/hospedaje) */
+.terminos-tours {
+    margin-top: 60px !important;
     margin-bottom: 8px;
     padding: 0;
     page-break-before: avoid !important;
@@ -431,7 +457,8 @@ body {
 /* Para vuelos/hospedaje, permitir que WeasyPrint mueva cards a la siguiente página sin recortar */
 .cotizacion-vuelos .card,
 .cotizacion-hospedaje .card,
-.cotizacion-paquete .card {
+.cotizacion-paquete .card,
+.cotizacion-tours .card {
     page-break-before: auto;
     page-break-after: auto;
     page-break-inside: avoid;
@@ -1076,6 +1103,29 @@ body {
     background: transparent;
 }
 
+/* Tours: permitir mucho texto en tabla (especificaciones largas) sin recortar */
+.cotizacion-tours .data-table {
+    overflow: visible !important;
+    page-break-inside: auto !important; /* Permitir que la tabla se parta si es muy larga */
+}
+
+.cotizacion-tours .data-table td {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    max-width: none !important;
+    min-height: 1em;
+    vertical-align: top !important; /* Alinear arriba para texto multilínea */
+}
+
+.cotizacion-tours .data-table .tour-especificaciones {
+    display: block;
+    white-space: normal;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    line-height: 1.4;
+}
+
 /* ============================================
    SEPARADORES Y ESPACIOS
    ============================================ */
@@ -1326,7 +1376,7 @@ strong {
 }
     </style>
 </head>
-<body{% if tipo == 'paquete' %} class="cotizacion-paquete"{% elif tipo == 'generica' %} class="cotizacion-generica"{% elif tipo == 'vuelos' %} class="cotizacion-vuelos"{% elif tipo == 'hospedaje' %} class="cotizacion-hospedaje"{% endif %}>
+<body{% if tipo == 'paquete' %} class="cotizacion-paquete"{% elif tipo == 'generica' %} class="cotizacion-generica"{% elif tipo == 'vuelos' %} class="cotizacion-vuelos"{% elif tipo == 'hospedaje' %} class="cotizacion-hospedaje"{% elif tipo == 'tours' %} class="cotizacion-tours"{% endif %}>
     {% include "ventas/pdf/components/header.html" %}
     
     <div class="cotizacion-container">
@@ -1336,7 +1386,7 @@ strong {
         {% include "ventas/pdf/components/info_cliente.html" %}
         
         <!-- Términos y condiciones - en la primera página, antes del content-wrapper -->
-        <div class="terminos-wrapper{% if tipo == 'paquete' %} terminos-paquete{% elif tipo == 'vuelos' %} terminos-vuelos{% elif tipo == 'hospedaje' %} terminos-hospedaje{% elif tipo == 'generica' %} terminos-generica{% endif %}">
+        <div class="terminos-wrapper{% if tipo == 'paquete' %} terminos-paquete{% elif tipo == 'vuelos' %} terminos-vuelos{% elif tipo == 'hospedaje' %} terminos-hospedaje{% elif tipo == 'tours' %} terminos-tours{% elif tipo == 'generica' %} terminos-generica{% endif %}">
             {% block terminos_condiciones %}{% endblock %}
         </div>
         
