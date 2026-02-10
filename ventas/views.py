@@ -862,13 +862,14 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
                         cd = form.cleaned_data
                         if not cd.get('opcion_proveedor') and not cd.get('monto_planeado'):
                             continue
+                        opc = (cd.get('opcion_proveedor') or '').strip() if perm.can_edit_logistica_campos_restringidos(request.user, request) else ''
                         LogisticaServicio.objects.create(
                             venta=self.object,
                             codigo_servicio='TOU',
                             nombre_servicio=nombre_tou,
                             orden=next_orden_tou,
                             monto_planeado=cd.get('monto_planeado') or Decimal('0.00'),
-                            opcion_proveedor=(cd.get('opcion_proveedor') or '').strip(),
+                            opcion_proveedor=opc,
                         )
                         next_orden_tou += 1
                 
@@ -896,13 +897,14 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
                         cd = form.cleaned_data
                         if not cd.get('opcion_proveedor') and not cd.get('monto_planeado'):
                             continue
+                        opc = (cd.get('opcion_proveedor') or '').strip() if perm.can_edit_logistica_campos_restringidos(request.user, request) else ''
                         LogisticaServicio.objects.create(
                             venta=self.object,
                             codigo_servicio='VUE',
                             nombre_servicio=nombre_vue,
                             orden=next_orden_vue,
                             monto_planeado=cd.get('monto_planeado') or Decimal('0.00'),
-                            opcion_proveedor=(cd.get('opcion_proveedor') or '').strip(),
+                            opcion_proveedor=opc,
                         )
                         next_orden_vue += 1
 
@@ -930,13 +932,14 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
                         cd = form.cleaned_data
                         if not cd.get('opcion_proveedor') and not cd.get('monto_planeado'):
                             continue
+                        opc = (cd.get('opcion_proveedor') or '').strip() if perm.can_edit_logistica_campos_restringidos(request.user, request) else ''
                         LogisticaServicio.objects.create(
                             venta=self.object,
                             codigo_servicio='HOS',
                             nombre_servicio=nombre_hos,
                             orden=next_orden_hos,
                             monto_planeado=cd.get('monto_planeado') or Decimal('0.00'),
-                            opcion_proveedor=(cd.get('opcion_proveedor') or '').strip(),
+                            opcion_proveedor=opc,
                         )
                         next_orden_hos += 1
 
@@ -958,39 +961,32 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
                     if not original:
                         continue 
                     
-                    # --- LÓGICA DE ACTUALIZACIÓN CON BLOQUEO ROBUSTO ---
-                    # Solo JEFE, Gerente y 3 directores pueden editar monto planificado, pagado y nombre proveedor
-                    user_rol = perm.get_user_role(request.user, request)
-                    puede_editar_campos_bloqueados = perm.can_edit_datos_viaje(request.user, request)
+                    # --- LÓGICA DE ACTUALIZACIÓN CON BLOQUEO POR ROL ---
+                    # Monto planificado y pagado: cualquier rol puede llenar por primera vez (vacíos).
+                    # Solo Director Admin, Director General y JEFE pueden EDITAR cuando ya tienen valores.
+                    # Nombre del proveedor: solo Director Admin, Director General y JEFE siempre.
+                    puede_editar_restringidos = perm.can_edit_logistica_campos_restringidos(request.user, request)
 
-                    if puede_editar_campos_bloqueados:
+                    if puede_editar_restringidos:
                         nuevo_monto = form.cleaned_data.get('monto_planeado') or Decimal('0.00')
                         nuevo_pagado = form.cleaned_data.get('pagado', False)
-                        nuevo_opcion_proveedor = form.cleaned_data.get('opcion_proveedor', '') or ''
+                        nuevo_opcion_proveedor = (form.cleaned_data.get('opcion_proveedor', '') or '').strip()
                     else:
-                        # 1. MONTO PLANIFICADO (cuando el campo está disabled el form envía 0.00 o None)
+                        # 1. MONTO PLANIFICADO: permitir si está vacío (primera vez); si ya tiene valor, conservar
                         nuevo_monto = form.cleaned_data.get('monto_planeado')
-                        if original.monto_planeado and original.monto_planeado > Decimal('0.00'):
-                            if nuevo_monto is None or nuevo_monto == Decimal('0.00') or nuevo_monto == 0:
-                                nuevo_monto = original.monto_planeado
-                            elif puede_editar_campos_bloqueados and nuevo_monto > Decimal('0.00') and nuevo_monto != original.monto_planeado:
-                                pass
-                            else:
-                                nuevo_monto = original.monto_planeado
+                        campo_ya_llenado = original.monto_planeado and original.monto_planeado > Decimal('0.00')
+                        if campo_ya_llenado:
+                            nuevo_monto = original.monto_planeado
                         else:
                             nuevo_monto = nuevo_monto or Decimal('0.00')
 
-                        # 2. ESTADO PAGADO: una vez pagado, no se puede desmarcar
+                        # 2. PAGADO: permitir si está vacío (primera vez); si ya marcado, conservar
                         nuevo_pagado = form.cleaned_data.get('pagado', False)
                         if original.pagado:
                             nuevo_pagado = True
 
-                        # 3. OPCIÓN PROVEEDOR: una vez asignado no se modifica (incluye TOU)
-                        nuevo_opcion_proveedor = (form.cleaned_data.get('opcion_proveedor', '') or '').strip()
-                        if original.opcion_proveedor and original.opcion_proveedor.strip():
-                            nuevo_opcion_proveedor = original.opcion_proveedor
-                        elif not nuevo_opcion_proveedor and original.opcion_proveedor:
-                            nuevo_opcion_proveedor = original.opcion_proveedor
+                        # 3. OPCIÓN PROVEEDOR: solo Director Admin, Director General y JEFE pueden editarlo
+                        nuevo_opcion_proveedor = (original.opcion_proveedor or '').strip()
                     
                     # --- APLICAR CAMBIOS ---
                     original.monto_planeado = nuevo_monto
@@ -1270,16 +1266,21 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
     def _puede_ver_logistica_tab(self, user, venta):
         if not user or not user.is_authenticated:
             return False
-        rol = perm.get_user_role(user)
         if perm.has_full_access(user, self.request) or perm.is_contador(user, self.request):
+            return True
+        if perm.can_edit_datos_viaje(user, self.request):
             return True
         return perm.is_vendedor(user) and venta.vendedor == user
 
     def _puede_gestionar_logistica_financiera(self, user, venta):
-        """Edición de monto planificado, pagado y nombre del proveedor: solo JEFE, Gerente y los 3 directores."""
+        """
+        Quién puede gestionar la pestaña Logística (habilitar el formulario).
+        Cualquier rol que pueda ver la pestaña puede llenar monto/pagado por primera vez.
+        La edición de campos ya llenados y nombre del proveedor se controla por campo.
+        """
         if not user or not user.is_authenticated:
             return False
-        return perm.can_edit_datos_viaje(user, self.request)
+        return self._puede_ver_logistica_tab(user, venta)
 
     def _sync_logistica_servicios(self, venta):
         servicios_codes = []
@@ -1375,28 +1376,31 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
         user_rol = perm.get_user_role(self.request.user, self.request)
         es_jefe = perm.has_full_access(self.request.user, self.request)
         context['es_jefe'] = es_jefe
-        
+        puede_editar_restringidos = perm.can_edit_logistica_campos_restringidos(self.request.user, self.request)
+        context['puede_editar_logistica_restringidos'] = puede_editar_restringidos
+
         if not context.get('puede_editar_servicios_financieros'):
             for form in formset.forms:
                 for field in form.fields.values():
                     field.widget.attrs['disabled'] = 'disabled'
-        elif not context.get('puede_desbloquear_todos_los_campos'):
-            # Bloquear campos una vez asignados (excepto usuario Antonio_Balderas)
+        else:
+            # Monto planificado y pagado: cualquier rol puede llenar por primera vez (vacío).
+            # Solo Director Admin, Director General y JEFE pueden EDITAR cuando ya tienen valores.
+            # Nombre del proveedor: solo Director Admin, Director General y JEFE desde el inicio (filas existentes y extra).
             for form in formset.forms:
+                if not puede_editar_restringidos:
+                    form.fields['opcion_proveedor'].widget.attrs['disabled'] = 'disabled'
+                    form.fields['opcion_proveedor'].widget.attrs['readonly'] = 'readonly'
                 if form.instance and form.instance.pk:
-                    # Bloquear monto_planeado si tiene valor
+                    # monto_planeado: bloquear solo si ya tiene valor y usuario no puede editar restringidos
                     if form.instance.monto_planeado and form.instance.monto_planeado > Decimal('0.00'):
-                        form.fields['monto_planeado'].widget.attrs['disabled'] = 'disabled'
-                        form.fields['monto_planeado'].widget.attrs['readonly'] = 'readonly'
+                        if not puede_editar_restringidos:
+                            form.fields['monto_planeado'].widget.attrs['disabled'] = 'disabled'
+                            form.fields['monto_planeado'].widget.attrs['readonly'] = 'readonly'
 
-                    # Bloquear checkbox pagado si está marcado
-                    if form.instance.pagado:
+                    # pagado: bloquear solo si ya está marcado y usuario no puede editar restringidos
+                    if form.instance.pagado and not puede_editar_restringidos:
                         form.fields['pagado'].widget.attrs['disabled'] = 'disabled'
-
-                    # Bloquear opcion_proveedor si tiene valor
-                    if form.instance.opcion_proveedor and form.instance.opcion_proveedor.strip():
-                        form.fields['opcion_proveedor'].widget.attrs['disabled'] = 'disabled'
-                        form.fields['opcion_proveedor'].widget.attrs['readonly'] = 'readonly'
 
         resumen = build_financial_summary(venta, servicios_qs)
         # Suma efectiva desde el formset (valores del formulario o POST) para que el alert muestre lo que el usuario ve

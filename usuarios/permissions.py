@@ -377,3 +377,17 @@ def can_approve_reject_cancelacion(user, request=None):
         ROL_DIRECTOR_GENERAL,
         ROL_DIRECTOR_ADMINISTRATIVO,
     )
+
+
+def can_edit_logistica_campos_restringidos(user, request=None):
+    """
+    Quién puede editar monto planificado/pagado cuando YA tienen valores, y nombre del proveedor siempre.
+    Solo: JEFE, Director General y Director Administrativo.
+    Cualquier rol puede llenar monto/pagado por primera vez (cuando están vacíos).
+    """
+    rol = get_user_role(user, request)
+    return rol in (
+        ROL_JEFE,
+        ROL_DIRECTOR_GENERAL,
+        ROL_DIRECTOR_ADMINISTRATIVO,
+    )
