@@ -247,6 +247,28 @@ def _get_gerente_oficina_id(user):
     return None
 
 
+def get_cotizaciones_queryset_base(model, user, request=None):
+    """
+    Devuelve el queryset base de cotizaciones según el rol.
+    - Vendedor: solo sus propias cotizaciones.
+    - Resto de roles: todas las cotizaciones.
+    """
+    if not user or not user.is_authenticated:
+        return model.objects.none()
+    if is_vendedor(user, request):
+        return model.objects.filter(vendedor=user)
+    return model.objects.all()
+
+
+def can_view_cotizacion(user, cotizacion, request=None):
+    """Indica si el usuario puede ver esta cotización (vendedor solo las propias)."""
+    if not user or not user.is_authenticated:
+        return False
+    if is_vendedor(user, request):
+        return cotizacion.vendedor_id == user.pk
+    return True
+
+
 def can_view_venta(user, venta, request=None):
     """Indica si el usuario puede ver esta venta concreta."""
     rol = get_user_role(user, request)

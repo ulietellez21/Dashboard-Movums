@@ -1595,7 +1595,8 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         if cot_slug or cotizacion_data:
             slug_a_usar = cot_slug or cotizacion_data.get('cotizacion_slug')
             if slug_a_usar:
-                cot = Cotizacion.objects.filter(slug=slug_a_usar).first()
+                qs_cot = perm.get_cotizaciones_queryset_base(Cotizacion, self.request.user, self.request)
+                cot = qs_cot.filter(slug=slug_a_usar).first()
                 if cot:
                     # Obtener el total de la sesión si está disponible (prioridad máxima)
                     total_cotizacion = Decimal('0.00')
@@ -1741,7 +1742,8 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
             # Usar el slug de la URL o de la sesión
             slug_a_usar = cot_slug or cotizacion_data.get('cotizacion_slug')
             if slug_a_usar:
-                cot = Cotizacion.objects.filter(slug=slug_a_usar).first()
+                qs_cot = perm.get_cotizaciones_queryset_base(Cotizacion, self.request.user, self.request)
+                cot = qs_cot.filter(slug=slug_a_usar).first()
                 if cot:
                     form = context.get('form')
                     if form:
@@ -1900,17 +1902,18 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         # 2. Asigna el vendedor (que es el usuario logueado)
         instance.vendedor = self.request.user
         
-        # Si viene de cotización, enlazar (verificar GET parameter o sesión)
+        # Si viene de cotización, enlazar (verificar GET parameter o sesión). Solo cotizaciones propias del vendedor.
         cot = None
+        qs_cot = perm.get_cotizaciones_queryset_base(Cotizacion, self.request.user, self.request)
         cot_slug = self.request.GET.get('cotizacion')
         if cot_slug:
-            cot = Cotizacion.objects.filter(slug=cot_slug).first()
+            cot = qs_cot.filter(slug=cot_slug).first()
         else:
             # Verificar si hay datos en la sesión
             cotizacion_data = self.request.session.get('cotizacion_convertir', {})
             if cotizacion_data.get('cotizacion_id'):
                 try:
-                    cot = Cotizacion.objects.filter(pk=cotizacion_data['cotizacion_id']).first()
+                    cot = qs_cot.filter(pk=cotizacion_data['cotizacion_id']).first()
                     # Limpiar la sesión después de usarla
                     if 'cotizacion_convertir' in self.request.session:
                         del self.request.session['cotizacion_convertir']
@@ -11737,7 +11740,8 @@ class CotizacionListView(LoginRequiredMixin, ListView):
     context_object_name = 'cotizaciones'
 
     def get_queryset(self):
-        qs = super().get_queryset().select_related('cliente', 'vendedor')
+        user = self.request.user
+        qs = perm.get_cotizaciones_queryset_base(Cotizacion, user, self.request).select_related('cliente', 'vendedor')
         cliente_id = self.request.GET.get('cliente')
         estado = self.request.GET.get('estado')
         if cliente_id:
@@ -11753,9 +11757,8 @@ class CotizacionListView(LoginRequiredMixin, ListView):
         start_week = today - timedelta(days=today.weekday())
         start_month = today.replace(day=1)
 
-        qs_base = Cotizacion.objects.all()
         user = self.request.user
-        usuario_qs = qs_base.filter(vendedor=user) if user.is_authenticated else Cotizacion.objects.none()
+        qs_base = perm.get_cotizaciones_queryset_base(Cotizacion, user, self.request)
 
         def rangos(qs):
             return {
@@ -11764,7 +11767,7 @@ class CotizacionListView(LoginRequiredMixin, ListView):
                 'mes': qs.filter(creada_en__date__gte=start_month).count(),
             }
 
-        context['stats_propias'] = rangos(usuario_qs)
+        context['stats_propias'] = rangos(qs_base)
         context['stats_globales'] = rangos(qs_base)
         return context
 
@@ -11805,6 +11808,9 @@ class CotizacionUpdateView(LoginRequiredMixin, UpdateView):
     slug_field = 'slug'
     slug_url_kwarg = 'slug'
 
+    def get_queryset(self):
+        return perm.get_cotizaciones_queryset_base(Cotizacion, self.request.user, self.request).select_related('cliente', 'vendedor')
+
     def get_success_url(self):
         return reverse('cotizacion_detalle', kwargs={'slug': self.object.slug})
 
@@ -11815,6 +11821,9 @@ class CotizacionDetailView(LoginRequiredMixin, DetailView):
     slug_field = 'slug'
     slug_url_kwarg = 'slug'
     context_object_name = 'cotizacion'
+
+    def get_queryset(self):
+        return perm.get_cotizaciones_queryset_base(Cotizacion, self.request.user, self.request).select_related('cliente', 'vendedor')
 
     def get_object(self, queryset=None):
         obj = super().get_object(queryset)
@@ -11827,6 +11836,9 @@ class CotizacionDocxView(LoginRequiredMixin, DetailView):
     model = Cotizacion
     slug_field = 'slug'
     slug_url_kwarg = 'slug'
+
+    def get_queryset(self):
+        return perm.get_cotizaciones_queryset_base(Cotizacion, self.request.user, self.request)
 
     def get(self, request, *args, **kwargs):
         try:
@@ -12378,6 +12390,9 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
     slug_field = 'slug'
     slug_url_kwarg = 'slug'
 
+    def get_queryset(self):
+        return perm.get_cotizaciones_queryset_base(Cotizacion, self.request.user, self.request)
+
     def get(self, request, *args, **kwargs):
         try:
             cot = self.get_object()
@@ -12638,7 +12653,8 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
 
 class CotizacionConvertirView(LoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
-        cot = get_object_or_404(Cotizacion, slug=kwargs.get('slug'))
+        qs = perm.get_cotizaciones_queryset_base(Cotizacion, request.user, request)
+        cot = get_object_or_404(qs, slug=kwargs.get('slug'))
         
         # Extraer el total de las propuestas según el tipo de cotización
         total_cotizacion = Decimal('0.00')
