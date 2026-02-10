@@ -639,6 +639,8 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
         context['puede_editar_servicios_financieros'] = self._puede_gestionar_logistica_financiera(self.request.user, venta)
         # Permisos para editar campos bloqueados (JEFE/Director General y Gerente)
         context['puede_desbloquear_todos_los_campos'] = perm.can_edit_campos_bloqueados(self.request.user, self.request)
+        # Botón "Editar datos del viaje": solo Gerente y los 3 directores
+        context['puede_editar_datos_viaje'] = perm.can_edit_datos_viaje(self.request.user, self.request)
         if mostrar_tab_logistica:
             self._prepare_logistica_finanzas_context(context, venta)
         
@@ -2060,16 +2062,9 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     template_name = 'ventas/venta_form.html' # Usar el template de formulario si es UpdateView
 
     def test_func(self):
-        # Solo el vendedor que creó la venta o el JEFE pueden editarla. CONTADOR solo lectura.
-        # ✅ BLOQUEO: Si la venta tiene modo_pago_apertura='PRO', solo JEFE/GERENTE pueden editarla
-        venta = self.get_object()
-        user_rol = perm.get_user_role(self.request.user, self.request)
-        if perm.is_contador(self.request.user, self.request):
-            return False
-        # Si la venta es "Directo a Proveedor", solo JEFE o GERENTE pueden editarla
-        if venta.modo_pago_apertura == 'PRO':
-            return perm.has_full_access(self.request.user, self.request) or perm.is_gerente(self.request.user, self.request)
-        return venta.vendedor == self.request.user or perm.has_full_access(self.request.user, self.request)
+        # Botón "Editar datos del viaje": exclusivo de Gerente y los 3 directores (General, Administrativo, Ventas).
+        # JEFE, Contador y Vendedor no pueden acceder a esta vista.
+        return perm.can_edit_datos_viaje(self.request.user, self.request)
     
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -2100,14 +2095,12 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         return context
 
     def handle_no_permission(self):
-        venta = self.get_object()
-        # Mensaje específico si la venta es "Directo a Proveedor"
-        if venta.modo_pago_apertura == 'PRO':
-            messages.error(self.request, "Esta venta fue pagada directamente al proveedor. Solo JEFE o GERENTE pueden modificarla.")
-        else:
-            messages.error(self.request, "No tienes permiso para editar esta venta.")
-        # Se asegura de usar 'detalle_venta' para la redirección de error (AHORA CON SLUG)
-        return HttpResponseRedirect(reverse_lazy('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}))
+        pk = self.kwargs.get('pk')
+        venta = get_object_or_404(VentaViaje, pk=pk) if pk else None
+        messages.error(self.request, "Solo Gerente y los directores pueden editar los datos del viaje.")
+        if venta:
+            return HttpResponseRedirect(reverse_lazy('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}))
+        return redirect('lista_ventas')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

@@ -16,7 +16,7 @@
             </h1>
             <!-- Botones de Edición y Cliente: Usamos d-grid/gap-2 en móviles para apilar los botones si es necesario -->
             <div class="d-grid d-md-block gap-2">
-                {% if user.perfil.rol in 'JEFE,CONTADOR' or user.id == venta.vendedor.id %}
+                {% if puede_editar_datos_viaje %}
                     <a href="{% url 'editar_venta' pk=venta.pk %}" 
                         class="btn btn-warning shadow-sm">
                         <i class="fas fa-edit"></i> Editar Datos del Viaje
