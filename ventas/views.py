@@ -944,14 +944,11 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
                         continue 
                     
                     # --- LÓGICA DE ACTUALIZACIÓN CON BLOQUEO ROBUSTO ---
-                    # EXCEPCIÓN POR USUARIO: Antonio_Balderas puede editar todos los campos (comparación sin distinguir mayúsculas)
-                    _uname = (request.user.username or '').strip().lower()
-                    es_antonio_balderas = (_uname == 'antonio_balderas')
+                    # Solo JEFE, Gerente y 3 directores pueden editar monto planificado, pagado y nombre proveedor
                     user_rol = perm.get_user_role(request.user, request)
-                    puede_editar_campos_bloqueados = perm.can_edit_campos_bloqueados(request.user, request)
+                    puede_editar_campos_bloqueados = perm.can_edit_datos_viaje(request.user, request)
 
-                    if perm.can_edit_campos_bloqueados(request.user):
-                        # Antonio_Balderas: aceptar siempre los valores del formulario
+                    if puede_editar_campos_bloqueados:
                         nuevo_monto = form.cleaned_data.get('monto_planeado') or Decimal('0.00')
                         nuevo_pagado = form.cleaned_data.get('pagado', False)
                         nuevo_opcion_proveedor = form.cleaned_data.get('opcion_proveedor', '') or ''
@@ -1264,11 +1261,10 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
         return perm.is_vendedor(user) and venta.vendedor == user
 
     def _puede_gestionar_logistica_financiera(self, user, venta):
+        """Edición de monto planificado, pagado y nombre del proveedor: solo JEFE, Gerente y los 3 directores."""
         if not user or not user.is_authenticated:
             return False
-        if perm.has_full_access(user, self.request):
-            return True
-        return perm.is_vendedor(user) and venta.vendedor == user
+        return perm.can_edit_datos_viaje(user, self.request)
 
     def _sync_logistica_servicios(self, venta):
         servicios_codes = []
@@ -1342,11 +1338,11 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
             venta.servicios_logisticos.all().delete()
 
     def _prepare_logistica_finanzas_context(self, context, venta, formset=None, servicios_qs=None):
-        # Calcular puede_editar_campos_bloqueados siempre (para que esté disponible en el template)
+        # En pestaña Logística: monto planificado, pagado y nombre proveedor solo editables por JEFE, Gerente y 3 directores
         user_rol = perm.get_user_role(self.request.user, self.request)
-        puede_editar_campos_bloqueados = perm.can_edit_campos_bloqueados(self.request.user)
+        puede_editar_campos_bloqueados = perm.can_edit_campos_bloqueados(self.request.user, self.request)
         context['puede_editar_campos_bloqueados'] = puede_editar_campos_bloqueados
-        context['puede_desbloquear_todos_los_campos'] = perm.can_edit_campos_bloqueados(self.request.user, self.request)
+        context['puede_desbloquear_todos_los_campos'] = perm.can_edit_datos_viaje(self.request.user, self.request)
 
         if not context.get('mostrar_tab_logistica'):
             return
