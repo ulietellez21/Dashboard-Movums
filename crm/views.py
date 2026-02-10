@@ -210,7 +210,7 @@ class KilometrosDashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView)
     paginate_by = 20
 
     def test_func(self):
-        return perm.can_view_km_movums(self.request.user)
+        return perm.can_view_km_movums(self.request.user, self.request)
 
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para ver el programa de Kilómetros Movums.")
@@ -223,7 +223,7 @@ class KilometrosDashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView)
         from django.db import models as dj_models
         context = super().get_context_data(**kwargs)
         user = self.request.user
-        context['can_edit_km_movums'] = perm.can_edit_km_movums(user)
+        context['can_edit_km_movums'] = perm.can_edit_km_movums(user, self.request)
         socios = Cliente.objects.filter(participa_kilometros=True)
         total_km_acumulados = socios.aggregate(total=dj_models.Sum('kilometros_acumulados'))['total'] or 0
         total_km_disponibles = socios.aggregate(total=dj_models.Sum('kilometros_disponibles'))['total'] or 0
@@ -250,7 +250,7 @@ class KilometrosDashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView)
         return context
 
     def post(self, request, *args, **kwargs):
-        if not perm.can_edit_km_movums(request.user):
+        if not perm.can_edit_km_movums(request.user, request):
             messages.error(request, "No tienes permiso para crear o editar promociones en Kilómetros Movums (solo consulta).")
             return redirect('kilometros_dashboard')
         form = PromocionKilometrosForm(request.POST)
@@ -270,7 +270,7 @@ class PromocionKilometrosUpdateView(LoginRequiredMixin, UserPassesTestMixin, Upd
     context_object_name = 'promocion'
 
     def test_func(self):
-        return perm.can_edit_km_movums(self.request.user)
+        return perm.can_edit_km_movums(self.request.user, self.request)
 
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para editar promociones en Kilómetros Movums.")
@@ -287,7 +287,7 @@ class PromocionKilometrosActivarView(LoginRequiredMixin, UserPassesTestMixin, Vi
     """Vista para activar una promoción."""
     
     def test_func(self):
-        return perm.can_edit_km_movums(self.request.user)
+        return perm.can_edit_km_movums(self.request.user, self.request)
     
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para activar promociones en Kilómetros Movums.")
@@ -309,7 +309,7 @@ class PromocionKilometrosDesactivarView(LoginRequiredMixin, UserPassesTestMixin,
     """Vista para desactivar una promoción."""
     
     def test_func(self):
-        return perm.can_edit_km_movums(self.request.user)
+        return perm.can_edit_km_movums(self.request.user, self.request)
     
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para desactivar promociones en Kilómetros Movums.")
@@ -331,7 +331,7 @@ class PromocionKilometrosDeleteView(LoginRequiredMixin, UserPassesTestMixin, Vie
     """Vista para eliminar una promoción."""
     
     def test_func(self):
-        return perm.can_edit_km_movums(self.request.user)
+        return perm.can_edit_km_movums(self.request.user, self.request)
     
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para eliminar promociones en Kilómetros Movums.")

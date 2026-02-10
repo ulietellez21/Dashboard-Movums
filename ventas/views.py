@@ -61,6 +61,7 @@ from crm.models import Cliente
 from crm.services import KilometrosService
 from usuarios.models import Perfil
 from usuarios import permissions as perm
+from usuarios import mixins as usuarios_mixins
 from .services.cancelacion import CancelacionService
 from django.forms import modelformset_factory
 from .forms import (
@@ -86,9 +87,10 @@ from .services.logistica import (
 )
 
 # Función auxiliar para obtener el rol (delega a la capa centralizada de permisos)
-def get_user_role(user):
-    """Asume el Perfil y devuelve el rol, o 'INVITADO' si no hay perfil."""
-    return perm.get_user_role(user)
+# NOTA: Usar perm.get_user_role(user, request) directamente en las vistas para aprovechar cache
+def get_user_role(user, request=None):
+    """Wrapper para compatibilidad. Usar perm.get_user_role(user, request) directamente."""
+    return perm.get_user_role(user, request)
 
 
 def _get_logistica_servicio_formset(venta, request_POST=None, queryset=None, prefix='servicios'):
@@ -133,19 +135,9 @@ class DashboardView(LoginRequiredMixin, ListView):
     template_name = 'dashboard.html'
     context_object_name = 'ventas'
 
-    def get_user_role(self, user):
-        """Asume el Perfil y devuelve el rol, o 'INVITADO' si no hay perfil."""
-        try:
-            role = user.perfil.rol
-            return role
-        except AttributeError:
-            logger.warning(f"Usuario {user.username} NO tiene perfil o rol definido. Rol: INVITADO")
-            return 'INVITADO'
-
-
     def get_queryset(self):
         user = self.request.user
-        queryset = perm.get_ventas_queryset_base(VentaViaje, user)
+        queryset = perm.get_ventas_queryset_base(VentaViaje, user, self.request)
 
         # Aplicar filtro por fecha de viaje (soporta fecha única o rango)
         fecha_filtro = self.request.GET.get('fecha_filtro')
@@ -180,15 +172,15 @@ class DashboardView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         user = self.request.user
         
-        user_rol = self.get_user_role(user)
+        user_rol = perm.get_user_role(user, self.request)
         context['user_rol'] = user_rol
         
         # Inicializar notificaciones vacías por defecto (para evitar errores en template)
         context['notificaciones'] = Notificacion.objects.none()
         context['notificaciones_count'] = 0
 
-        # --- Lógica de KPIs (JEFE, Director General, CONTADOR; Gerente/Directores ven según su scope en listado) ---
-        if user_rol in ['JEFE', 'DIRECTOR_GENERAL', 'CONTADOR']:
+        # --- Lógica de KPIs (roles con acceso total y CONTADOR; Gerente/Directores ven según su scope en listado) ---
+        if perm.has_full_access(user, self.request) or perm.is_contador(user, self.request):
             # KPI 1: Saldo Pendiente Global
             total_vendido_agg = VentaViaje.objects.aggregate(Sum('costo_venta_final'))['costo_venta_final__sum']
             total_vendido = total_vendido_agg if total_vendido_agg is not None else Decimal('0.00')
@@ -223,8 +215,8 @@ class DashboardView(LoginRequiredMixin, ListView):
                 total_vendido=Sum('costo_venta_final')
             ).order_by('-num_ventas', '-total_vendido')[:5]
             
-            # INNOVACIÓN 3: Notificaciones (para JEFE) - Mostrar solo notificaciones no vistas
-            if user_rol == 'JEFE':
+            # INNOVACIÓN 3: Notificaciones (para roles con acceso total) - Mostrar solo notificaciones no vistas
+            if perm.has_full_access(user, self.request):
                 context['notificaciones'] = Notificacion.objects.filter(
                     usuario=user,
                     vista=False  # Solo mostrar notificaciones no vistas
@@ -234,9 +226,8 @@ class DashboardView(LoginRequiredMixin, ListView):
                     vista=False
                 ).count()  # Contador solo de no vistas
                 
-                # Solicitudes de cancelación pendientes (para director administrativo)
-                # Filtrar por usuario daviddiaz o rol JEFE
-                if user.username == 'daviddiaz' or user_rol == 'JEFE':
+                # Solicitudes de cancelación pendientes (para roles con acceso total)
+                if perm.has_full_access(user, self.request):
                     solicitudes_pendientes = SolicitudCancelacion.objects.filter(
                         estado='PENDIENTE'
                     ).select_related(
@@ -402,7 +393,7 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         user = self.request.user
-        base_query = perm.get_ventas_queryset_base(self.model, user)
+        base_query = perm.get_ventas_queryset_base(self.model, user, self.request)
 
         # 2. Aplicar filtro por folio/ID
         busqueda_folio = self.request.GET.get('busqueda_folio', '').strip()
@@ -485,7 +476,7 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
         
         context['ventas_activas'] = ventas_activas_qs
         context['ventas_cerradas'] = ventas_cerradas_qs
-        context['user_rol'] = get_user_role(self.request.user)
+        context['user_rol'] = perm.get_user_role(self.request.user, self.request)
         context['ventas_para_cotizacion'] = ventas_list
         
         # Agregar filtros al contexto para mantenerlos en el formulario
@@ -496,7 +487,7 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
         context['busqueda_servicio'] = self.request.GET.get('busqueda_servicio', '')
         
         # Para CONTADOR: agregar ventas con pagos pendientes de confirmación
-        if context['user_rol'] == 'CONTADOR':
+        if perm.is_contador(self.request.user, self.request):
             # Ventas con estado "En confirmación" o con abonos pendientes
             ventas_pendientes_ids = list(AbonoPago.objects.filter(
                 Q(forma_pago__in=['TRN', 'TAR', 'DEP']) & Q(confirmado=False)
@@ -537,7 +528,7 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
 
         context['cotizacion_ventas_json'] = json.dumps(cotizacion_payload, ensure_ascii=False)
         context['cotizacion_fecha_hoy'] = timezone.localdate().isoformat()
-        context['puede_generar_cotizacion'] = context['user_rol'] != 'CONTADOR' and bool(cotizacion_payload)
+        context['puede_generar_cotizacion'] = not perm.is_contador(self.request.user, self.request) and bool(cotizacion_payload)
         
         del context['object_list'] 
         
@@ -545,22 +536,10 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
 
 # ------------------- 3. DETALLE DE VENTA MODIFICADA -------------------
 
-class VentaViajeDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
+class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMixin, DetailView):
     model = VentaViaje
     template_name = 'ventas/venta_detail.html'
     context_object_name = 'venta'
-
-    def test_func(self):
-        pk = self.kwargs.get('pk')
-        slug = self.kwargs.get('slug')
-        venta = VentaViaje.objects.filter(pk=pk, slug=slug).first()
-        if not venta:
-            return False
-        return perm.can_view_venta(self.request.user, venta)
-
-    def handle_no_permission(self):
-        messages.error(self.request, "No tienes permiso para ver esta venta.")
-        return redirect('lista_ventas')
 
     # ******************************************************************
     # NUEVO: Implementación de get_object para usar SLUG y PK
@@ -594,9 +573,9 @@ class VentaViajeDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         venta = self.object
-        user_rol = get_user_role(self.request.user)
+        user_rol = perm.get_user_role(self.request.user, self.request)
         context['user_rol'] = user_rol
-        context['es_jefe'] = (user_rol == 'JEFE')
+        context['es_jefe'] = perm.has_full_access(self.request.user, self.request)
         
         # Marcar notificaciones pendientes como vistas al entrar al detalle
         # Esto hace que al hacer clic en "Ver Venta" la notificación se marque automáticamente
@@ -640,7 +619,7 @@ class VentaViajeDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         context['puede_generar_documentos'] = tiene_abono_confirmado or apertura_confirmada
         
         # Verificar si hay notificación de apertura pendiente para el CONTADOR
-        if user_rol == 'CONTADOR':
+        if perm.is_contador(self.request.user, self.request):
             # Notificacion ya está importada al inicio del archivo
             context['notificacion_apertura_pendiente'] = Notificacion.objects.filter(
                 usuario=self.request.user,
@@ -658,9 +637,8 @@ class VentaViajeDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         mostrar_tab_logistica = self._puede_ver_logistica_tab(self.request.user, venta)
         context['mostrar_tab_logistica'] = mostrar_tab_logistica
         context['puede_editar_servicios_financieros'] = self._puede_gestionar_logistica_financiera(self.request.user, venta)
-        # Excepción por usuario: Antonio_Balderas puede editar todos los campos bloqueados (comparación sin distinguir mayúsculas)
-        _username = (self.request.user.username or '').strip().lower()
-        context['puede_desbloquear_todos_los_campos'] = (_username == 'antonio_balderas')
+        # Permisos para editar campos bloqueados (JEFE/Director General y Gerente)
+        context['puede_desbloquear_todos_los_campos'] = perm.can_edit_campos_bloqueados(self.request.user, self.request)
         if mostrar_tab_logistica:
             self._prepare_logistica_finanzas_context(context, venta)
         
@@ -693,10 +671,10 @@ class VentaViajeDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
                 context['moneda_abonos'] = 'MXN'
             from .forms import SolicitarAbonoProveedorForm
             context['form_abono_proveedor'] = SolicitarAbonoProveedorForm(venta=venta, user=self.request.user)
-            context['puede_solicitar_abono_proveedor'] = user_rol in ['VENDEDOR', 'JEFE', 'CONTADOR']
-            context['puede_aprobar_abono_proveedor'] = user_rol == 'CONTADOR'  # Solo contador puede aprobar
-            context['puede_confirmar_abono_proveedor'] = user_rol == 'CONTADOR'  # Solo contador puede confirmar
-            context['puede_cancelar_abono_proveedor'] = user_rol == 'JEFE'
+            context['puede_solicitar_abono_proveedor'] = perm.can_solicitar_abono_proveedor(self.request.user, self.request)
+            context['puede_aprobar_abono_proveedor'] = perm.can_approve_abono_proveedor(self.request.user, self.request)
+            context['puede_confirmar_abono_proveedor'] = perm.can_confirm_abono_proveedor(self.request.user, self.request)
+            context['puede_cancelar_abono_proveedor'] = perm.can_cancel_abono_proveedor(self.request.user, self.request)
         else:
             context['abonos_proveedor'] = []
             context['total_abonado_proveedor'] = Decimal('0.00')
@@ -743,7 +721,7 @@ class VentaViajeDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         puede_solicitar = (
             venta.estado == 'ACTIVA' and
             (not solicitud_cancelacion or solicitud_cancelacion.estado in ['RECHAZADA', 'CANCELADA']) and
-            (venta.vendedor == self.request.user or user_rol == 'JEFE')
+            (venta.vendedor == self.request.user or perm.has_full_access(self.request.user, self.request))
         )
         context['puede_solicitar_cancelacion'] = puede_solicitar
         
@@ -752,14 +730,14 @@ class VentaViajeDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
             venta.estado == 'ACTIVA' and
             solicitud_cancelacion and
             solicitud_cancelacion.estado == 'APROBADA' and
-            (venta.vendedor == self.request.user or user_rol == 'JEFE')
+            (venta.vendedor == self.request.user or perm.has_full_access(self.request.user, self.request))
         )
         context['puede_cancelar_definitivamente'] = puede_cancelar_definitivamente
         
         # Determinar si se puede reciclar (venta cancelada definitivamente)
         puede_reciclar = (
             venta.estado == 'CANCELADA' and
-            (venta.vendedor == self.request.user or user_rol == 'JEFE')
+            (venta.vendedor == self.request.user or perm.has_full_access(self.request.user, self.request))
         )
         context['puede_reciclar_venta'] = puede_reciclar
         
@@ -767,7 +745,7 @@ class VentaViajeDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         puede_aprobar_rechazar = (
             solicitud_cancelacion and
             solicitud_cancelacion.estado == 'PENDIENTE' and
-            (self.request.user.username == 'daviddiaz' or user_rol == 'JEFE')
+            perm.has_full_access(self.request.user, self.request)
         )
         context['puede_aprobar_rechazar_cancelacion'] = puede_aprobar_rechazar
         
@@ -967,11 +945,10 @@ class VentaViajeDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
                     # EXCEPCIÓN POR USUARIO: Antonio_Balderas puede editar todos los campos (comparación sin distinguir mayúsculas)
                     _uname = (request.user.username or '').strip().lower()
                     es_antonio_balderas = (_uname == 'antonio_balderas')
-                    es_daviddiaz = (request.user.username == 'daviddiaz')
-                    user_rol = get_user_role(request.user)
-                    puede_editar_campos_bloqueados = es_daviddiaz or user_rol in ['JEFE', 'GERENTE']
+                    user_rol = perm.get_user_role(request.user, request)
+                    puede_editar_campos_bloqueados = perm.can_edit_campos_bloqueados(request.user, request)
 
-                    if es_antonio_balderas:
+                    if perm.can_edit_campos_bloqueados(request.user):
                         # Antonio_Balderas: aceptar siempre los valores del formulario
                         nuevo_monto = form.cleaned_data.get('monto_planeado') or Decimal('0.00')
                         nuevo_pagado = form.cleaned_data.get('pagado', False)
@@ -1107,7 +1084,7 @@ class VentaViajeDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         # 3. Manejo del Formulario de Abono
         elif 'registrar_abono' in request.POST:
             # CONTADOR solo lectura, no puede registrar abonos
-            user_rol = request.user.perfil.rol if hasattr(request.user, 'perfil') else 'INVITADO'
+            user_rol = perm.get_user_role(request.user, request)
             if user_rol == 'CONTADOR':
                 messages.error(request, "No tienes permiso para registrar abonos. Solo puedes visualizarlos.")
                 return redirect(reverse('detalle_venta', kwargs={'pk': self.object.pk, 'slug': self.object.slug_safe}) + '?tab=abonos')
@@ -1270,7 +1247,7 @@ class VentaViajeDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
             return False
         if user.is_superuser or user == venta.vendedor:
             return True
-        rol = get_user_role(user).upper()
+        rol = perm.get_user_role(user).upper()
         # CONTADOR no puede subir confirmaciones, solo visualizarlas
         return 'JEFE' in rol
 
@@ -1279,18 +1256,17 @@ class VentaViajeDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
     def _puede_ver_logistica_tab(self, user, venta):
         if not user or not user.is_authenticated:
             return False
-        rol = get_user_role(user)
-        if rol in ['JEFE', 'CONTADOR']:
+        rol = perm.get_user_role(user)
+        if perm.has_full_access(user, self.request) or perm.is_contador(user, self.request):
             return True
-        return rol == 'VENDEDOR' and venta.vendedor == user
+        return perm.is_vendedor(user) and venta.vendedor == user
 
     def _puede_gestionar_logistica_financiera(self, user, venta):
         if not user or not user.is_authenticated:
             return False
-        rol = get_user_role(user)
-        if rol == 'JEFE':
+        if perm.has_full_access(user, self.request):
             return True
-        return rol == 'VENDEDOR' and venta.vendedor == user
+        return perm.is_vendedor(user) and venta.vendedor == user
 
     def _sync_logistica_servicios(self, venta):
         servicios_codes = []
@@ -1365,13 +1341,10 @@ class VentaViajeDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
 
     def _prepare_logistica_finanzas_context(self, context, venta, formset=None, servicios_qs=None):
         # Calcular puede_editar_campos_bloqueados siempre (para que esté disponible en el template)
-        es_daviddiaz = (self.request.user.username == 'daviddiaz')
-        user_rol = get_user_role(self.request.user)
-        puede_editar_campos_bloqueados = es_daviddiaz or user_rol in ['JEFE', 'GERENTE']
+        user_rol = perm.get_user_role(self.request.user, self.request)
+        puede_editar_campos_bloqueados = perm.can_edit_campos_bloqueados(self.request.user)
         context['puede_editar_campos_bloqueados'] = puede_editar_campos_bloqueados
-        # Asegurar que la excepción Antonio_Balderas esté en contexto (por si se llama sin get_context_data previo)
-        _username = (self.request.user.username or '').strip().lower()
-        context['puede_desbloquear_todos_los_campos'] = (_username == 'antonio_balderas')
+        context['puede_desbloquear_todos_los_campos'] = perm.can_edit_campos_bloqueados(self.request.user, self.request)
 
         if not context.get('mostrar_tab_logistica'):
             return
@@ -1383,9 +1356,9 @@ class VentaViajeDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         if formset is None:
             formset = _get_logistica_servicio_formset(venta, queryset=servicios_qs, prefix='servicios')
 
-        # Determinar si el usuario es JEFE
-        user_rol = get_user_role(self.request.user)
-        es_jefe = (user_rol == 'JEFE')
+        # Determinar si el usuario tiene acceso total
+        user_rol = perm.get_user_role(self.request.user, self.request)
+        es_jefe = perm.has_full_access(self.request.user, self.request)
         context['es_jefe'] = es_jefe
         
         if not context.get('puede_editar_servicios_financieros'):
@@ -1522,7 +1495,7 @@ class EliminarConfirmacionView(LoginRequiredMixin, View):
             if request.user.is_superuser or request.user == venta.vendedor:
                 puede_eliminar = True
             else:
-                rol = get_user_role(request.user).upper()
+                rol = perm.get_user_role(request.user, request).upper()
                 # CONTADOR solo lectura, no puede eliminar confirmaciones
                 puede_eliminar = 'JEFE' in rol
             
@@ -1567,8 +1540,8 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     
     def test_func(self):
         """Solo JEFE y VENDEDOR pueden crear ventas. CONTADOR solo lectura."""
-        user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
-        return user_rol in ['JEFE', 'VENDEDOR']
+        user_rol = perm.get_user_role(self.request.user, self.request)
+        return perm.has_full_access(self.request.user, self.request) or perm.is_vendedor(self.request.user, self.request)
     
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para crear ventas. Solo puedes visualizarlas.")
@@ -2090,13 +2063,13 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         # Solo el vendedor que creó la venta o el JEFE pueden editarla. CONTADOR solo lectura.
         # ✅ BLOQUEO: Si la venta tiene modo_pago_apertura='PRO', solo JEFE/GERENTE pueden editarla
         venta = self.get_object()
-        user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
-        if user_rol == 'CONTADOR':
+        user_rol = perm.get_user_role(self.request.user, self.request)
+        if perm.is_contador(self.request.user, self.request):
             return False
         # Si la venta es "Directo a Proveedor", solo JEFE o GERENTE pueden editarla
         if venta.modo_pago_apertura == 'PRO':
-            return user_rol in ['JEFE', 'GERENTE']
-        return venta.vendedor == self.request.user or user_rol == 'JEFE'
+            return perm.has_full_access(self.request.user, self.request) or perm.is_gerente(self.request.user, self.request)
+        return venta.vendedor == self.request.user or perm.has_full_access(self.request.user, self.request)
     
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -2106,7 +2079,7 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         venta = self.object
-        user_rol = get_user_role(self.request.user)
+        user_rol = perm.get_user_role(self.request.user, self.request)
         
         # Contexto de solicitud de cancelación
         solicitud_cancelacion = getattr(venta, 'solicitud_cancelacion', None)
@@ -2120,7 +2093,7 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         puede_solicitar = (
             venta.estado == 'ACTIVA' and
             (not solicitud_cancelacion or solicitud_cancelacion.estado in ['RECHAZADA', 'CANCELADA']) and
-            (venta.vendedor == self.request.user or user_rol == 'JEFE')
+            (venta.vendedor == self.request.user or perm.has_full_access(self.request.user, self.request))
         )
         context['puede_solicitar_cancelacion'] = puede_solicitar
         
@@ -2334,8 +2307,8 @@ class SolicitarCancelacionView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
         """Solo el vendedor que creó la venta o el JEFE pueden solicitar cancelación."""
         venta = get_object_or_404(VentaViaje, pk=self.kwargs['pk'])
-        user_rol = get_user_role(self.request.user)
-        if user_rol == 'CONTADOR':
+        user_rol = perm.get_user_role(self.request.user, self.request)
+        if perm.is_contador(self.request.user, self.request):
             return False
         # No se puede solicitar si ya hay una solicitud pendiente o aprobada
         if hasattr(venta, 'solicitud_cancelacion'):
@@ -2405,8 +2378,8 @@ class AprobarCancelacionView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
         """Solo el director administrativo (daviddiaz o JEFE) puede aprobar."""
         user = self.request.user
-        user_rol = get_user_role(user)
-        return user.username == 'daviddiaz' or user_rol == 'JEFE'
+        user_rol = perm.get_user_role(user)
+        return perm.has_full_access(user)
     
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para aprobar solicitudes de cancelación.")
@@ -2453,8 +2426,8 @@ class RechazarCancelacionView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
         """Solo el director administrativo (daviddiaz o JEFE) puede rechazar."""
         user = self.request.user
-        user_rol = get_user_role(user)
-        return user.username == 'daviddiaz' or user_rol == 'JEFE'
+        user_rol = perm.get_user_role(user)
+        return perm.has_full_access(user)
     
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para rechazar solicitudes de cancelación.")
@@ -2507,8 +2480,8 @@ class CancelarVentaView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
         """Solo el vendedor que creó la venta o el JEFE pueden cancelarla, y debe tener solicitud aprobada."""
         venta = get_object_or_404(VentaViaje, pk=self.kwargs['pk'])
-        user_rol = get_user_role(self.request.user)
-        if user_rol == 'CONTADOR':
+        user_rol = perm.get_user_role(self.request.user, self.request)
+        if perm.is_contador(self.request.user, self.request):
             return False
         
         # Verificar que existe una solicitud aprobada
@@ -2597,7 +2570,7 @@ class ReciclarVentaView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
         """Solo el vendedor de la venta cancelada o JEFE pueden reciclar."""
         venta = get_object_or_404(VentaViaje, pk=self.kwargs['pk'])
-        user_rol = get_user_role(self.request.user)
+        user_rol = perm.get_user_role(self.request.user, self.request)
         
         # Solo se puede reciclar si la venta está cancelada
         if venta.estado != 'CANCELADA':
@@ -2705,9 +2678,9 @@ class LogisticaUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     def test_func(self):
         # Solo JEFES o el VENDEDOR de la venta pueden acceder. CONTADOR solo lectura.
         venta = self.get_object().venta
-        user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
+        user_rol = perm.get_user_role(self.request.user, self.request)
         
-        return user_rol == 'JEFE' or venta.vendedor == self.request.user
+        return perm.has_full_access(self.request.user) or venta.vendedor == self.request.user
 
     def get_success_url(self):
         messages.success(self.request, "Logística actualizada correctamente.")
@@ -2741,7 +2714,7 @@ class LogisticaPendienteView(LoginRequiredMixin, ListView):
         if not request.user.is_authenticated:
             return super().dispatch(request, *args, **kwargs)
 
-        self.user_role = get_user_role(request.user)
+        self.user_role = perm.get_user_role(request.user, request)
         if self.user_role in ('JEFE', 'CONTADOR', 'VENDEDOR'):
             return super().dispatch(request, *args, **kwargs)
 
@@ -2787,20 +2760,13 @@ class LogisticaPendienteView(LoginRequiredMixin, ListView):
 
 # ------------------- 8. REPORTE FINANCIERO -------------------
 
-class ReporteFinancieroView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+class ReporteFinancieroView(LoginRequiredMixin, usuarios_mixins.FinancialReportRequiredMixin, TemplateView):
     template_name = 'ventas/reporte_financiero.html'
-
-    def test_func(self):
-        return perm.can_view_financial_report(self.request.user)
-
-    def handle_no_permission(self):
-        messages.error(self.request, "No tienes permiso para ver el reporte financiero.")
-        return redirect('dashboard')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.request.user
-        base_ventas = perm.get_ventas_queryset_base(VentaViaje, user)
+        base_ventas = perm.get_ventas_queryset_base(VentaViaje, user, self.request)
 
         # --- 1. CÁLCULOS PRINCIPALES DE AGREGACIÓN (filtrados por rol: vendedor=propias, gerente=oficina) ---
         total_ventas = base_ventas.aggregate(
@@ -2836,7 +2802,7 @@ class ReporteFinancieroView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
         }
 
         # Lista de usuarios para el filtro del historial (vendedor solo se ve a sí mismo)
-        if perm.is_vendedor(user):
+        if perm.is_vendedor(user, self.request):
             context['usuarios'] = User.objects.filter(pk=user.pk).order_by('username')
         else:
             context['usuarios'] = User.objects.filter(is_active=True).order_by('username')
@@ -2880,7 +2846,7 @@ class ReporteFinancieroView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
             context['ultimos_movimientos'] = []
 
         # Botón exportar Excel: solo quien tiene acceso total (JEFE, Director General)
-        context['es_jefe'] = perm.has_full_access(user)
+        context['es_jefe'] = perm.has_full_access(user, self.request)
 
         return context
 
@@ -6261,7 +6227,7 @@ class VentaViajeDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
 
     def test_func(self):
         # Solo permite eliminar a JEFE
-        user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
+        user_rol = perm.get_user_role(self.request.user, self.request)
         if user_rol != 'JEFE':
             return False
         
@@ -6283,7 +6249,7 @@ class VentaViajeDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     def handle_no_permission(self):
         # Redirige al detalle de la venta si no tiene permiso o la venta no está en estado válido
         venta = self.get_object()
-        user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
+        user_rol = perm.get_user_role(self.request.user, self.request)
         
         if user_rol != 'JEFE':
             messages.error(self.request, "Solo el JEFE puede eliminar ventas.")
@@ -6306,7 +6272,7 @@ class ComisionesMensualesView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         
         user = self.request.user
-        user_rol = user.perfil.rol if hasattr(user, 'perfil') else 'INVITADO'
+        user_rol = perm.get_user_role(user)
         
         # Obtener mes y año del request (por defecto mes actual)
         mes_actual = timezone.now().month
@@ -6318,7 +6284,7 @@ class ComisionesMensualesView(LoginRequiredMixin, TemplateView):
         # Determinar qué vendedores mostrar
         if user_rol == 'VENDEDOR':
             vendedores_a_mostrar = User.objects.filter(pk=user.pk)
-        elif user_rol in ['JEFE', 'CONTADOR']:
+        elif perm.has_full_access(user) or perm.is_contador(user):
             # Solo mostrar vendedores de tipo MOSTRADOR
             vendedores_a_mostrar = User.objects.filter(
                 perfil__rol='VENDEDOR',
@@ -6383,12 +6349,12 @@ class ComisionesMensualesView(LoginRequiredMixin, TemplateView):
         anio = int(request.POST.get('anio'))
         
         user = request.user
-        user_rol = user.perfil.rol if hasattr(user, 'perfil') else 'INVITADO'
+        user_rol = perm.get_user_role(user)
         
         # Determinar qué vendedores recalcular
         if user_rol == 'VENDEDOR':
             vendedores = [user]
-        elif user_rol in ['JEFE', 'CONTADOR']:
+        elif perm.has_full_access(user) or perm.is_contador(user):
             vendedores = User.objects.filter(
                 perfil__rol='VENDEDOR',
                 perfil__tipo_vendedor='MOSTRADOR'
@@ -6424,13 +6390,13 @@ class DetalleComisionesMensualesView(LoginRequiredMixin, UserPassesTestMixin, De
     def test_func(self):
         """Verificar permisos"""
         user = self.request.user
-        user_rol = user.perfil.rol if hasattr(user, 'perfil') else 'INVITADO'
+        user_rol = perm.get_user_role(user)
         vendedor = self.get_object()
         
         # El vendedor puede ver sus propias comisiones, JEFE/CONTADOR pueden ver todas
         if user_rol == 'VENDEDOR':
             return vendedor.pk == user.pk
-        elif user_rol in ['JEFE', 'CONTADOR']:
+        elif perm.has_full_access(user) or perm.is_contador(user):
             return True
         return False
     
@@ -6501,7 +6467,7 @@ class ExportarComisionesMensualesExcelView(LoginRequiredMixin, View):
         
         # Verificar permisos
         user = request.user
-        user_rol = user.perfil.rol if hasattr(user, 'perfil') else 'INVITADO'
+        user_rol = perm.get_user_role(user)
         
         if user_rol == 'VENDEDOR' and vendedor.pk != user.pk:
             messages.error(request, "No tienes permiso para exportar estas comisiones.")
@@ -6685,7 +6651,7 @@ class ExportarComisionesMensualesTodosExcelView(LoginRequiredMixin, View):
         
         # Verificar permisos
         user = request.user
-        user_rol = user.perfil.rol if hasattr(user, 'perfil') else 'INVITADO'
+        user_rol = perm.get_user_role(user)
         
         if user_rol not in ['JEFE', 'CONTADOR']:
             messages.error(request, "No tienes permiso para exportar comisiones de todos los vendedores.")
@@ -7046,14 +7012,14 @@ class ComisionesVendedoresView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
+        user_rol = perm.get_user_role(self.request.user, self.request)
         vendedores_query = User.objects.filter(perfil__rol='VENDEDOR').order_by('username')
         
         # 1. Determinar qué usuarios ver
         if user_rol == 'VENDEDOR':
             # Si es vendedor, solo se ve a sí mismo
             vendedores_a_mostrar = User.objects.filter(pk=self.request.user.pk)
-        elif user_rol in ['JEFE', 'CONTADOR']:
+        elif perm.has_full_access(self.request.user, self.request) or perm.is_contador(self.request.user, self.request):
             # Si es jefe o contador, ve a todos los vendedores (solo lectura para contador)
             vendedores_a_mostrar = vendedores_query
         else:
@@ -7226,19 +7192,12 @@ class ComisionesVendedoresView(LoginRequiredMixin, TemplateView):
 
 
 
-class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+class GestionRolesView(LoginRequiredMixin, usuarios_mixins.ManageRolesRequiredMixin, TemplateView):
     """
     Vista para gestionar roles y usuarios del sistema.
     Accesible para JEFE, Director General y Director Administrativo.
     """
     template_name = 'ventas/gestion_roles.html'
-
-    def test_func(self):
-        return perm.can_manage_roles(self.request.user)
-
-    def handle_no_permission(self):
-        messages.error(self.request, "No tienes permiso para acceder a la gestión de roles.")
-        return redirect('dashboard')
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -7572,8 +7531,8 @@ class EjecutivoDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
     
     def test_func(self):
         """Solo JEFE puede ver detalles de ejecutivos."""
-        user_rol = get_user_role(self.request.user)
-        return user_rol == 'JEFE'
+        user_rol = perm.get_user_role(self.request.user, self.request)
+        return perm.has_full_access(self.request.user)
     
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para ver los detalles del ejecutivo. Solo el JEFE puede acceder.")
@@ -7627,18 +7586,11 @@ class EjecutivoDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         return redirect('ejecutivo_detail', pk=ejecutivo.pk)
 
 
-class ProveedorListCreateView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+class ProveedorListCreateView(LoginRequiredMixin, usuarios_mixins.ManageSuppliersRequiredMixin, TemplateView):
     """
     Gestiona el catálogo de proveedores. Accesible para JEFE, Director General y Director Administrativo.
     """
     template_name = 'ventas/proveedores.html'
-
-    def test_func(self):
-        return perm.can_manage_suppliers(self.request.user)
-
-    def handle_no_permission(self):
-        messages.error(self.request, "No tienes permiso para gestionar proveedores.")
-        return redirect('dashboard')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -7692,8 +7644,7 @@ class ConfirmarPagoView(LoginRequiredMixin, UserPassesTestMixin, View):
     
     def test_func(self):
         """Solo CONTADOR puede confirmar pagos."""
-        user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
-        return user_rol == 'CONTADOR'
+        return perm.is_contador(self.request.user, self.request)
     
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para confirmar pagos.")
@@ -7894,8 +7845,7 @@ class ConfirmarAbonoView(LoginRequiredMixin, UserPassesTestMixin, View):
     
     def test_func(self):
         """Solo CONTADOR puede confirmar abonos."""
-        user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
-        return user_rol == 'CONTADOR'
+        return perm.is_contador(self.request.user, self.request)
     
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para confirmar abonos.")
@@ -10790,7 +10740,7 @@ class DetalleComisionesView(LoginRequiredMixin, TemplateView):
             raise Http404("Vendedor no encontrado")
         
         # Verificar permisos: solo puede ver su propio detalle o ser JEFE/CONTADOR
-        user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
+        user_rol = perm.get_user_role(self.request.user, self.request)
         if user_rol == 'VENDEDOR' and self.request.user.pk != vendedor_id:
             from django.core.exceptions import PermissionDenied
             raise PermissionDenied("No tienes permiso para ver este detalle")
@@ -10865,7 +10815,7 @@ class DetalleComisionesView(LoginRequiredMixin, TemplateView):
         # Determinar si se puede ajustar (solo JEFE/CONTADOR para ISLA)
         puede_ajustar_comision = (
             tipo_vendedor == 'ISLA' and 
-            user_rol in ['JEFE', 'CONTADOR']
+            (perm.has_full_access(self.request.user, self.request) or perm.is_contador(self.request.user, self.request))
         )
         
         context.update({
@@ -10905,7 +10855,7 @@ class AjustarComisionIslaView(LoginRequiredMixin, UserPassesTestMixin, View):
     
     def test_func(self):
         """Solo JEFE y CONTADOR pueden ajustar comisiones."""
-        user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
+        user_rol = perm.get_user_role(self.request.user, self.request)
         return user_rol in ['JEFE', 'CONTADOR']
     
     def handle_no_permission(self):
@@ -11209,20 +11159,13 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
 
 # ------------------- VISTAS PARA PROVEEDORES -------------------
 
-class ProveedorUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class ProveedorUpdateView(LoginRequiredMixin, usuarios_mixins.ManageSuppliersRequiredMixin, UpdateView):
     """
     Vista para editar un proveedor. Accesible para JEFE, Director General y Director Administrativo.
     """
     model = Proveedor
     form_class = ProveedorForm
     template_name = 'ventas/proveedores.html'
-
-    def test_func(self):
-        return perm.can_manage_suppliers(self.request.user)
-
-    def handle_no_permission(self):
-        messages.error(self.request, "No tienes permiso para editar proveedores.")
-        return redirect('proveedores')
     
     def get_success_url(self):
         messages.success(self.request, "Proveedor actualizado correctamente.")
@@ -11262,19 +11205,12 @@ class ProveedorUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         return context
 
 
-class ProveedorDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
+class ProveedorDeleteView(LoginRequiredMixin, usuarios_mixins.ManageSuppliersRequiredMixin, DeleteView):
     """
     Vista para eliminar un proveedor. Accesible para JEFE, Director General y Director Administrativo.
     """
     model = Proveedor
     template_name = 'ventas/proveedor_confirm_delete.html'
-
-    def test_func(self):
-        return perm.can_manage_suppliers(self.request.user)
-
-    def handle_no_permission(self):
-        messages.error(self.request, "No tienes permiso para eliminar proveedores.")
-        return redirect('proveedores')
     
     def get_success_url(self):
         messages.success(self.request, "Proveedor eliminado correctamente.")
@@ -11290,9 +11226,9 @@ class SubirComprobanteAbonoView(LoginRequiredMixin, View):
         abono = get_object_or_404(AbonoPago, pk=pk)
         
         # Verificar que el usuario tenga permiso (vendedor de la venta, JEFE o CONTADOR)
-        user_rol = get_user_role(request.user)
+        user_rol = perm.get_user_role(request.user, request)
         puede_subir = (
-            user_rol in ['JEFE', 'CONTADOR'] or
+            perm.has_full_access(request.user, request) or perm.is_contador(request.user, request) or
             (abono.venta.vendedor == request.user)
         )
         
@@ -11375,9 +11311,9 @@ class SubirComprobanteAperturaView(LoginRequiredMixin, View):
         venta = get_object_or_404(VentaViaje, pk=pk)
         
         # Verificar que el usuario tenga permiso
-        user_rol = get_user_role(request.user)
+        user_rol = perm.get_user_role(request.user, request)
         puede_subir = (
-            user_rol in ['JEFE', 'CONTADOR'] or
+            perm.has_full_access(request.user, request) or perm.is_contador(request.user, request) or
             (venta.vendedor == request.user)
         )
         
@@ -11466,7 +11402,7 @@ class PagosPorConfirmarView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
     
     def test_func(self):
         """Solo CONTADOR puede acceder."""
-        return get_user_role(self.request.user) == 'CONTADOR'
+        return perm.is_contador(self.request.user)
     
     def handle_no_permission(self):
         messages.error(self.request, "Solo el contador puede acceder a esta sección.")
@@ -11628,7 +11564,7 @@ class ConfirmarPagoDesdeListaView(LoginRequiredMixin, UserPassesTestMixin, View)
     
     def test_func(self):
         """Solo CONTADOR puede confirmar pagos."""
-        return get_user_role(self.request.user) == 'CONTADOR'
+        return perm.is_contador(self.request.user)
     
     def handle_no_permission(self):
         messages.error(self.request, "Solo el contador puede confirmar pagos.")
@@ -12916,8 +12852,8 @@ class SolicitarAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View)
     
     def test_func(self):
         """Solo vendedores, jefes y contadores pueden solicitar abonos."""
-        user_rol = get_user_role(self.request.user)
-        return user_rol in ['VENDEDOR', 'JEFE', 'CONTADOR']
+        user_rol = perm.get_user_role(self.request.user, self.request)
+        return perm.is_vendedor(self.request.user, self.request) or perm.has_full_access(self.request.user, self.request) or perm.is_contador(self.request.user, self.request)
     
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para solicitar abonos a proveedores.")
@@ -12993,8 +12929,7 @@ class AprobarAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View):
     
     def test_func(self):
         """Solo contadores pueden aprobar abonos."""
-        user_rol = get_user_role(self.request.user)
-        return user_rol == 'CONTADOR'
+        return perm.is_contador(self.request.user, self.request)
     
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para aprobar abonos a proveedores.")
@@ -13049,8 +12984,7 @@ class ConfirmarAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View)
     
     def test_func(self):
         """Solo contadores pueden confirmar abonos."""
-        user_rol = get_user_role(self.request.user)
-        return user_rol == 'CONTADOR'
+        return perm.is_contador(self.request.user, self.request)
     
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para confirmar abonos a proveedores.")
@@ -13110,8 +13044,7 @@ class EliminarComprobanteAbonoProveedorView(LoginRequiredMixin, UserPassesTestMi
     """Vista para que el contador elimine el comprobante de un abono a proveedor (COMPLETADO) y pueda subir otro."""
     
     def test_func(self):
-        user_rol = get_user_role(self.request.user)
-        return user_rol == 'CONTADOR'
+        return perm.is_contador(self.request.user, self.request)
     
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para eliminar comprobantes de abonos a proveedores.")
@@ -13141,8 +13074,8 @@ class CancelarAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View):
     
     def test_func(self):
         """Solo jefes pueden cancelar abonos."""
-        user_rol = get_user_role(self.request.user)
-        return user_rol == 'JEFE'
+        user_rol = perm.get_user_role(self.request.user, self.request)
+        return perm.has_full_access(self.request.user)
     
     def handle_no_permission(self):
         messages.error(self.request, "Solo los jefes pueden cancelar abonos a proveedores.")
@@ -13189,8 +13122,8 @@ class ListaAbonosProveedorView(LoginRequiredMixin, UserPassesTestMixin, Template
     
     def test_func(self):
         """Solo contadores y jefes pueden ver la lista de solicitudes."""
-        user_rol = get_user_role(self.request.user)
-        return user_rol in ['CONTADOR', 'JEFE']
+        user_rol = perm.get_user_role(self.request.user, self.request)
+        return perm.is_contador(self.request.user, self.request) or perm.has_full_access(self.request.user, self.request)
     
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para ver las solicitudes de abonos a proveedores.")
@@ -13202,5 +13135,5 @@ class ListaAbonosProveedorView(LoginRequiredMixin, UserPassesTestMixin, Template
         context['abonos_pendientes'] = AbonoProveedor.objects.filter(
             estado__in=['PENDIENTE', 'APROBADO']
         ).select_related('venta', 'solicitud_por').order_by('-fecha_solicitud')
-        context['user_rol'] = get_user_role(self.request.user)
+        context['user_rol'] = perm.get_user_role(self.request.user, self.request)
         return context
