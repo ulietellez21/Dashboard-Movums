@@ -2097,7 +2097,7 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     def handle_no_permission(self):
         pk = self.kwargs.get('pk')
         venta = get_object_or_404(VentaViaje, pk=pk) if pk else None
-        messages.error(self.request, "Solo Gerente y los directores pueden editar los datos del viaje.")
+        messages.error(self.request, "Solo JEFE, Gerente y los directores pueden editar los datos del viaje.")
         if venta:
             return HttpResponseRedirect(reverse_lazy('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}))
         return redirect('lista_ventas')

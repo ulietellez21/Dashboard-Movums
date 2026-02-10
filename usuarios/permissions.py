@@ -331,13 +331,14 @@ def can_edit_campos_bloqueados(user, request=None):
 def can_edit_datos_viaje(user, request=None):
     """
     Quién puede ver/usar el botón "Editar datos del viaje" en el detalle de venta.
-    Exclusivo: solo Gerente y los 3 tipos de directores (General, Administrativo, Ventas).
-    Excluidos: JEFE, Contador, Vendedor.
+    Incluye: JEFE, Gerente y los 3 tipos de directores (General, Administrativo, Ventas).
+    Excluidos: Contador, Vendedor.
     """
+    if has_full_access(user, request):  # JEFE, Director General
+        return True
     rol = get_user_role(user, request)
     return rol in (
         ROL_GERENTE,
-        ROL_DIRECTOR_GENERAL,
         ROL_DIRECTOR_ADMINISTRATIVO,
         ROL_DIRECTOR_VENTAS,
     )
