@@ -1,43 +1,69 @@
 #!/bin/bash
 # Script de despliegue automático al servidor DigitalOcean
 # Uso: ./deploy_to_server.sh
+# O con contraseña: DEPLOY_PASSWORD="tu_password" ./deploy_to_server.sh
 
 SERVER="root@206.189.223.176"
-PASSWORD="[REDACTED_SSH_PASSWORD]"
+
+# Obtener contraseña de variable de entorno o pedirla interactivamente
+if [ -z "$DEPLOY_PASSWORD" ]; then
+    echo "🔐 Ingresa la contraseña del servidor (o usa: DEPLOY_PASSWORD='password' ./deploy_to_server.sh):"
+    read -s DEPLOY_PASSWORD
+    echo ""
+fi
+
+# Si aún no hay contraseña, intentar usar SSH keys (más seguro)
+if [ -z "$DEPLOY_PASSWORD" ]; then
+    echo "⚠️  No se proporcionó contraseña. Intentando conexión con SSH keys..."
+    USE_SSH_KEY=true
+else
+    USE_SSH_KEY=false
+fi
 
 echo "🚀 Iniciando despliegue al servidor DigitalOcean..."
 echo "📅 Fecha: $(date)"
 echo ""
 
-# Verificar si sshpass está instalado
-if ! command -v sshpass &> /dev/null; then
-    echo "⚠️  sshpass no está instalado. Instalando..."
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS
-        if command -v brew &> /dev/null; then
-            brew install hudochenkov/sshpass/sshpass
+# Verificar si sshpass está instalado (solo necesario si se usa contraseña)
+if [ "$USE_SSH_KEY" = false ]; then
+    if ! command -v sshpass &> /dev/null; then
+        echo "⚠️  sshpass no está instalado. Instalando..."
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS
+            if command -v brew &> /dev/null; then
+                brew install hudochenkov/sshpass/sshpass
+            else
+                echo "❌ Por favor instala Homebrew primero: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+                echo "   Luego ejecuta: brew install hudochenkov/sshpass/sshpass"
+                exit 1
+            fi
         else
-            echo "❌ Por favor instala Homebrew primero: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
-            echo "   Luego ejecuta: brew install hudochenkov/sshpass/sshpass"
-            exit 1
+            # Linux
+            sudo apt-get update && sudo apt-get install -y sshpass
         fi
-    else
-        # Linux
-        sudo apt-get update && sudo apt-get install -y sshpass
     fi
+    echo "✅ sshpass disponible"
+else
+    echo "✅ Usando SSH keys (más seguro)"
 fi
-
-echo "✅ sshpass disponible"
 echo ""
 
 # Función para ejecutar comandos en el servidor
 run_remote() {
-    sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$SERVER" "$1"
+    if [ "$USE_SSH_KEY" = true ]; then
+        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$SERVER" "$1"
+    else
+        sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$SERVER" "$1"
+    fi
 }
 
 # Función para copiar archivos al servidor
 copy_to_server() {
-    sshpass -p "$PASSWORD" scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$1" "$SERVER:$2"
+    if [ "$USE_SSH_KEY" = true ]; then
+        scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$1" "$SERVER:$2"
+    else
+        sshpass -p "$DEPLOY_PASSWORD" scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$1" "$SERVER:$2"
+    fi
 }
 
 echo "📋 Paso 1: Verificando conexión al servidor..."
