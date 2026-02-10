@@ -365,7 +365,20 @@ class DashboardView(LoginRequiredMixin, ListView):
             for venta in mis_ventas:
                 if venta.total_pagado >= venta.costo_venta_final:
                     ventas_cerradas += 1
-            context['mis_ventas_cerradas'] = ventas_cerradas 
+            context['mis_ventas_cerradas'] = ventas_cerradas
+
+            # Cotizaciones propias del vendedor que aún no están convertidas en venta (con días desde realización)
+            hoy = timezone.localdate()
+            cotizaciones_pendientes_qs = Cotizacion.objects.filter(
+                vendedor=user
+            ).exclude(
+                estado='CONVERTIDA'
+            ).select_related('cliente').order_by('-creada_en')[:15]
+            cotizaciones_con_dias = []
+            for cot in cotizaciones_pendientes_qs:
+                dias = (hoy - cot.creada_en.date()).days
+                cotizaciones_con_dias.append({'cotizacion': cot, 'dias_desde_creacion': dias})
+            context['cotizaciones_pendientes_vendedor'] = cotizaciones_con_dias
 
         # Agregar filtros de fecha al contexto
         context['fecha_filtro'] = self.request.GET.get('fecha_filtro', '')
@@ -377,6 +390,7 @@ class DashboardView(LoginRequiredMixin, ListView):
         context.setdefault('total_ventas', 0)
         context.setdefault('nuevos_clientes_mtd', 0)
         context.setdefault('envios_pendientes', context.get('alertas_logistica_count', 0))
+        context.setdefault('cotizaciones_pendientes_vendedor', [])
         
         # Preparar lista de ventas individuales para las cards (solo si hay filtro)
         if context['fecha_filtro'] or (context['fecha_desde'] and context['fecha_hasta']):

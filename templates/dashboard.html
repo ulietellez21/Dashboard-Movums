@@ -498,6 +498,75 @@
 </div>
 {% endif %}
 
+<!-- Sección Cotizaciones pendientes por convertir (solo VENDEDOR) -->
+{% if user_rol == 'VENDEDOR' %}
+<div class="row g-4 mb-5">
+    <div class="col-12">
+        <div class="card shadow-sm border-0 rounded-4 border-warning">
+            <div class="card-header bg-warning bg-opacity-10 border-warning py-3">
+                <h5 class="fw-bold mb-0">
+                    <i class="fas fa-file-invoice me-2"></i>
+                    Cotizaciones pendientes por convertir en venta
+                </h5>
+                <p class="mb-0 text-muted small">Tus cotizaciones que aún no se han transformado en venta. Revisa y da seguimiento.</p>
+            </div>
+            <div class="card-body p-0">
+                {% if cotizaciones_pendientes_vendedor %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Folio</th>
+                                <th>Cliente</th>
+                                <th>Fecha cotización</th>
+                                <th>Días desde cotización</th>
+                                <th>Estado</th>
+                                <th class="text-end">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in cotizaciones_pendientes_vendedor %}
+                            <tr>
+                                <td><strong>{{ item.cotizacion.folio|default:"—" }}</strong></td>
+                                <td>{{ item.cotizacion.cliente.nombre_completo_display }}</td>
+                                <td>{{ item.cotizacion.creada_en|date:"d/m/Y H:i" }}</td>
+                                <td>
+                                    <span class="badge {% if item.dias_desde_creacion > 14 %}bg-danger{% elif item.dias_desde_creacion > 7 %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                                        {{ item.dias_desde_creacion }} día{{ item.dias_desde_creacion|pluralize:"s" }}
+                                    </span>
+                                </td>
+                                <td><span class="badge bg-info">{{ item.cotizacion.get_estado_display }}</span></td>
+                                <td class="text-end">
+                                    <a href="{% url 'cotizacion_detalle' slug=item.cotizacion.slug %}" class="btn btn-sm btn-outline-primary" title="Ver cotización">
+                                        <i class="fas fa-eye me-1"></i> Ver
+                                    </a>
+                                    <a href="{% url 'cotizacion_convertir' slug=item.cotizacion.slug %}" class="btn btn-sm btn-success" title="Convertir en venta">
+                                        <i class="fas fa-handshake me-1"></i> Convertir
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer bg-light py-2">
+                    <a href="{% url 'cotizaciones_lista' %}" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-list me-1"></i> Ver todas mis cotizaciones
+                    </a>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-5 px-3">
+                    <i class="fas fa-check-circle fa-3x mb-3 text-success"></i>
+                    <p class="mb-0">No tienes cotizaciones pendientes por convertir. Todas están convertidas en venta o aún no has creado cotizaciones.</p>
+                    <a href="{% url 'cotizaciones_lista' %}" class="btn btn-outline-primary btn-sm mt-3">Ir a Cotizaciones</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Sección Compacta de Búsqueda de Ventas por Fecha -->
 {% if user_rol == 'JEFE' or user_rol == 'VENDEDOR' or user_rol == 'CONTADOR' %}
 <div class="row g-3 mb-4">
