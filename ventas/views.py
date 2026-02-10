@@ -174,6 +174,7 @@ class DashboardView(LoginRequiredMixin, ListView):
         
         user_rol = perm.get_user_role(user, self.request)
         context['user_rol'] = user_rol
+        context['puede_aprobar_rechazar_cancelacion'] = perm.can_approve_reject_cancelacion(user, self.request)
         
         # Inicializar notificaciones vacías por defecto (para evitar errores en template)
         context['notificaciones'] = Notificacion.objects.none()
@@ -215,8 +216,8 @@ class DashboardView(LoginRequiredMixin, ListView):
                 total_vendido=Sum('costo_venta_final')
             ).order_by('-num_ventas', '-total_vendido')[:5]
             
-            # INNOVACIÓN 3: Notificaciones (para roles con acceso total) - Mostrar solo notificaciones no vistas
-            if perm.has_full_access(user, self.request):
+            # INNOVACIÓN 3: Notificaciones para JEFE/Director General y para quien puede aprobar cancelaciones (incl. Director Administrativo)
+            if perm.has_full_access(user, self.request) or perm.can_approve_reject_cancelacion(user, self.request):
                 context['notificaciones'] = Notificacion.objects.filter(
                     usuario=user,
                     vista=False  # Solo mostrar notificaciones no vistas
@@ -226,8 +227,8 @@ class DashboardView(LoginRequiredMixin, ListView):
                     vista=False
                 ).count()  # Contador solo de no vistas
                 
-                # Solicitudes de cancelación pendientes (para roles con acceso total)
-                if perm.has_full_access(user, self.request):
+                # Solicitudes de cancelación pendientes (JEFE, Director General, Director Administrativo)
+                if perm.can_approve_reject_cancelacion(user, self.request):
                     solicitudes_pendientes = SolicitudCancelacion.objects.filter(
                         estado='PENDIENTE'
                     ).select_related(
@@ -743,11 +744,11 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
         )
         context['puede_reciclar_venta'] = puede_reciclar
         
-        # Determinar si el usuario puede aprobar/rechazar solicitudes (solo director)
+        # Determinar si el usuario puede aprobar/rechazar solicitudes (JEFE, Director General, Director Administrativo)
         puede_aprobar_rechazar = (
             solicitud_cancelacion and
             solicitud_cancelacion.estado == 'PENDIENTE' and
-            perm.has_full_access(self.request.user, self.request)
+            perm.can_approve_reject_cancelacion(self.request.user, self.request)
         )
         context['puede_aprobar_rechazar_cancelacion'] = puede_aprobar_rechazar
         
@@ -2328,21 +2329,19 @@ class SolicitarCancelacionView(LoginRequiredMixin, UserPassesTestMixin, View):
             solicitud.estado = 'PENDIENTE'
             solicitud.save()
             
-            # Crear notificación para el director administrativo (daviddiaz por ahora)
-            director = User.objects.filter(username='daviddiaz').first()
-            if not director:
-                # Si no existe daviddiaz, buscar JEFE
-                director = User.objects.filter(perfil__rol='JEFE').first()
-            
-            if director:
-                mensaje = (
-                    f"Solicitud de cancelación de venta #{venta.folio or venta.pk} - "
-                    f"Cliente: {venta.cliente.nombre_completo_display} - "
-                    f"Vendedor: {venta.vendedor.get_full_name() or venta.vendedor.username if venta.vendedor else 'N/A'}\n\n"
-                    f"Motivo: {solicitud.motivo}"
-                )
+            # Notificar a quienes pueden aprobar/rechazar: JEFE, Director General, Director Administrativo
+            usuarios_autorizados = User.objects.filter(
+                perfil__rol__in=['JEFE', 'DIRECTOR_GENERAL', 'DIRECTOR_ADMINISTRATIVO']
+            ).distinct()
+            mensaje = (
+                f"Solicitud de cancelación de venta #{venta.folio or venta.pk} - "
+                f"Cliente: {venta.cliente.nombre_completo_display} - "
+                f"Vendedor: {venta.vendedor.get_full_name() or venta.vendedor.username if venta.vendedor else 'N/A'}\n\n"
+                f"Motivo: {solicitud.motivo}"
+            )
+            for usuario in usuarios_autorizados:
                 Notificacion.objects.create(
-                    usuario=director,
+                    usuario=usuario,
                     tipo='SOLICITUD_CANCELACION',
                     mensaje=mensaje,
                     venta=venta,
@@ -2362,13 +2361,10 @@ class SolicitarCancelacionView(LoginRequiredMixin, UserPassesTestMixin, View):
 
 
 class AprobarCancelacionView(LoginRequiredMixin, UserPassesTestMixin, View):
-    """Vista para aprobar una solicitud de cancelación (solo director administrativo)."""
+    """Vista para aprobar una solicitud de cancelación (JEFE, Director General, Director Administrativo)."""
     
     def test_func(self):
-        """Solo el director administrativo (daviddiaz o JEFE) puede aprobar."""
-        user = self.request.user
-        user_rol = perm.get_user_role(user)
-        return perm.has_full_access(user)
+        return perm.can_approve_reject_cancelacion(self.request.user, self.request)
     
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para aprobar solicitudes de cancelación.")
@@ -2410,13 +2406,10 @@ class AprobarCancelacionView(LoginRequiredMixin, UserPassesTestMixin, View):
 
 
 class RechazarCancelacionView(LoginRequiredMixin, UserPassesTestMixin, View):
-    """Vista para rechazar una solicitud de cancelación (solo director administrativo)."""
+    """Vista para rechazar una solicitud de cancelación (JEFE, Director General, Director Administrativo)."""
     
     def test_func(self):
-        """Solo el director administrativo (daviddiaz o JEFE) puede rechazar."""
-        user = self.request.user
-        user_rol = perm.get_user_role(user)
-        return perm.has_full_access(user)
+        return perm.can_approve_reject_cancelacion(self.request.user, self.request)
     
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para rechazar solicitudes de cancelación.")
@@ -2531,18 +2524,17 @@ class CancelarVentaView(LoginRequiredMixin, UserPassesTestMixin, View):
             logger.exception(f"❌ Error al cancelar venta {venta.pk}: {e}")
             messages.error(request, f"Error al cancelar la venta: {str(e)}")
         
-        # Crear notificación para el director administrativo
-        director = User.objects.filter(username='daviddiaz').first()
-        if not director:
-            director = User.objects.filter(perfil__rol='JEFE').first()
-        
-        if director:
-            mensaje_notif = (
-                f"La venta #{venta.folio or venta.pk} - Cliente: {venta.cliente.nombre_completo_display} "
-                f"ha sido cancelada definitivamente por {request.user.get_full_name() or request.user.username}"
-            )
+        # Notificar a quienes pueden aprobar cancelaciones (JEFE, Director General, Director Administrativo)
+        usuarios_autorizados = User.objects.filter(
+            perfil__rol__in=['JEFE', 'DIRECTOR_GENERAL', 'DIRECTOR_ADMINISTRATIVO']
+        ).distinct()
+        mensaje_notif = (
+            f"La venta #{venta.folio or venta.pk} - Cliente: {venta.cliente.nombre_completo_display} "
+            f"ha sido cancelada definitivamente por {request.user.get_full_name() or request.user.username}"
+        )
+        for usuario in usuarios_autorizados:
             Notificacion.objects.create(
-                usuario=director,
+                usuario=usuario,
                 tipo='CANCELACION_DEFINITIVA',
                 mensaje=mensaje_notif,
                 venta=venta,

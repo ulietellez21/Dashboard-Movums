@@ -342,3 +342,16 @@ def can_edit_datos_viaje(user, request=None):
         ROL_DIRECTOR_ADMINISTRATIVO,
         ROL_DIRECTOR_VENTAS,
     )
+
+
+def can_approve_reject_cancelacion(user, request=None):
+    """
+    Quién puede aprobar o rechazar una solicitud de cancelación de venta.
+    Solo: JEFE, Director General y Director Administrativo (antes solo daviddiaz).
+    """
+    rol = get_user_role(user, request)
+    return rol in (
+        ROL_JEFE,
+        ROL_DIRECTOR_GENERAL,
+        ROL_DIRECTOR_ADMINISTRATIVO,
+    )

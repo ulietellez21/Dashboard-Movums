@@ -176,7 +176,7 @@
                                            title="Ver pagos por confirmar">
                                             <i class="fas fa-clock"></i> Ver Pagos
                                         </a>
-                                    {% elif notificacion.tipo == 'SOLICITUD_CANCELACION' and user.perfil.rol == 'JEFE' %}
+                                    {% elif notificacion.tipo == 'SOLICITUD_CANCELACION' and puede_aprobar_rechazar_cancelacion %}
                                         <div class="btn-group btn-group-sm" role="group">
                                             <a href="{% url 'detalle_venta' slug=notificacion.venta.slug_safe pk=notificacion.venta.pk %}" 
                                                class="btn btn-outline-primary ver-venta-btn" 
