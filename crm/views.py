@@ -70,13 +70,8 @@ class ClienteCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     form_class = ClienteForm
     
     def test_func(self):
-        """Solo JEFE y VENDEDOR pueden crear clientes. CONTADOR solo lectura."""
-        user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
-        return user_rol in ['JEFE', 'VENDEDOR']
-    
-    def handle_no_permission(self):
-        messages.error(self.request, "No tienes permiso para crear clientes. Solo puedes visualizarlos.")
-        return redirect('lista_clientes')
+        """Todos los roles que pueden ver clientes pueden crear clientes."""
+        return self.request.user.is_authenticated
     
     def form_valid(self, form):
         try:

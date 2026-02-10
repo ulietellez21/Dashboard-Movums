@@ -10,13 +10,9 @@
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center align-items-start mb-4">
             <h1><i class="fas fa-users"></i> Listado de Clientes</h1>
             {# Se añade mt-3 en móvil para separar el botón del título cuando están apilados #}
-            {% with user.perfil.rol|default:""|upper as user_rol %}
-                {% if "CONTADOR" not in user_rol %}
-                    <a href="{% url 'crear_cliente' %}" class="btn btn-success btn-lg shadow-sm mt-3 mt-md-0">
-                        <i class="fas fa-user-plus"></i> Agregar Nuevo Cliente
-                    </a>
-                {% endif %}
-            {% endwith %}
+            <a href="{% url 'crear_cliente' %}" class="btn btn-success btn-lg shadow-sm mt-3 mt-md-0">
+                <i class="fas fa-user-plus"></i> Agregar Nuevo Cliente
+            </a>
         </div>
 
         <div class="card p-3 shadow-sm mb-4">
@@ -116,7 +112,7 @@
         {% else %}
             <div class="alert alert-warning text-center p-4">
                 <h4 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> No se encontraron clientes.</h4>
-                <p>Intenta una búsqueda diferente{% with user.perfil.rol|default:""|upper as user_rol %}{% if "CONTADOR" not in user_rol %} o <a href="{% url 'crear_cliente' %}" class="alert-link">registra un nuevo cliente</a>{% endif %}{% endwith %} para empezar.</p>
+                <p>Intenta una búsqueda diferente o <a href="{% url 'crear_cliente' %}" class="alert-link">registra un nuevo cliente</a> para empezar.</p>
             </div>
         {% endif %}
     </div>       
