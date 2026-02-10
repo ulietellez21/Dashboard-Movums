@@ -60,6 +60,7 @@ from .models import (
 from crm.models import Cliente
 from crm.services import KilometrosService
 from usuarios.models import Perfil
+from usuarios import permissions as perm
 from .services.cancelacion import CancelacionService
 from django.forms import modelformset_factory
 from .forms import (
@@ -84,13 +85,10 @@ from .services.logistica import (
     build_logistica_card,
 )
 
-# Función auxiliar para obtener el rol, reutilizada en la nueva lógica
+# Función auxiliar para obtener el rol (delega a la capa centralizada de permisos)
 def get_user_role(user):
     """Asume el Perfil y devuelve el rol, o 'INVITADO' si no hay perfil."""
-    try:
-        return user.perfil.rol
-    except AttributeError:
-        return 'INVITADO'
+    return perm.get_user_role(user)
 
 
 def _get_logistica_servicio_formset(venta, request_POST=None, queryset=None, prefix='servicios'):
@@ -147,15 +145,7 @@ class DashboardView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         user = self.request.user
-        user_rol = self.get_user_role(user)
-
-        # Lógica de filtrado
-        if user_rol in ['JEFE', 'CONTADOR']:
-            queryset = VentaViaje.objects.all()
-        elif user_rol == 'VENDEDOR':
-            queryset = VentaViaje.objects.filter(vendedor=user)
-        else:
-            queryset = VentaViaje.objects.none()
+        queryset = perm.get_ventas_queryset_base(VentaViaje, user)
 
         # Aplicar filtro por fecha de viaje (soporta fecha única o rango)
         fecha_filtro = self.request.GET.get('fecha_filtro')
@@ -197,8 +187,8 @@ class DashboardView(LoginRequiredMixin, ListView):
         context['notificaciones'] = Notificacion.objects.none()
         context['notificaciones_count'] = 0
 
-        # --- Lógica de KPIs (se mantiene para jefes/contadores) ---
-        if user_rol in ['JEFE', 'CONTADOR']:
+        # --- Lógica de KPIs (JEFE, Director General, CONTADOR; Gerente/Directores ven según su scope en listado) ---
+        if user_rol in ['JEFE', 'DIRECTOR_GENERAL', 'CONTADOR']:
             # KPI 1: Saldo Pendiente Global
             total_vendido_agg = VentaViaje.objects.aggregate(Sum('costo_venta_final'))['costo_venta_final__sum']
             total_vendido = total_vendido_agg if total_vendido_agg is not None else Decimal('0.00')
@@ -412,15 +402,7 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         user = self.request.user
-        user_rol = get_user_role(user) 
-
-        # 1. QuerySet Base (filtrado por permisos)
-        if user_rol in ['JEFE', 'CONTADOR']:
-            base_query = self.model.objects.all()
-        elif user_rol == 'VENDEDOR':
-            base_query = self.model.objects.filter(vendedor=user)
-        else:
-            base_query = self.model.objects.none()
+        base_query = perm.get_ventas_queryset_base(self.model, user)
 
         # 2. Aplicar filtro por folio/ID
         busqueda_folio = self.request.GET.get('busqueda_folio', '').strip()
@@ -563,10 +545,22 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
 
 # ------------------- 3. DETALLE DE VENTA MODIFICADA -------------------
 
-class VentaViajeDetailView(LoginRequiredMixin, DetailView):
+class VentaViajeDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
     model = VentaViaje
     template_name = 'ventas/venta_detail.html'
     context_object_name = 'venta'
+
+    def test_func(self):
+        pk = self.kwargs.get('pk')
+        slug = self.kwargs.get('slug')
+        venta = VentaViaje.objects.filter(pk=pk, slug=slug).first()
+        if not venta:
+            return False
+        return perm.can_view_venta(self.request.user, venta)
+
+    def handle_no_permission(self):
+        messages.error(self.request, "No tienes permiso para ver esta venta.")
+        return redirect('lista_ventas')
 
     # ******************************************************************
     # NUEVO: Implementación de get_object para usar SLUG y PK
@@ -2797,87 +2791,74 @@ class ReporteFinancieroView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
     template_name = 'ventas/reporte_financiero.html'
 
     def test_func(self):
-        # Solo JEFES o CONTADORES pueden ver esta vista.
-        user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
-        return user_rol in ['JEFE', 'CONTADOR']
+        return perm.can_view_financial_report(self.request.user)
+
+    def handle_no_permission(self):
+        messages.error(self.request, "No tienes permiso para ver el reporte financiero.")
+        return redirect('dashboard')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
-        # --- 1. CÁLCULOS PRINCIPALES DE AGREGACIÓN ---
-        
-        # 1.1 Ingreso Bruto Total (Total Venta)
-        total_ventas = VentaViaje.objects.aggregate(
+        user = self.request.user
+        base_ventas = perm.get_ventas_queryset_base(VentaViaje, user)
+
+        # --- 1. CÁLCULOS PRINCIPALES DE AGREGACIÓN (filtrados por rol: vendedor=propias, gerente=oficina) ---
+        total_ventas = base_ventas.aggregate(
             total_ventas_sum=Sum('costo_venta_final')
         ).get('total_ventas_sum') or Decimal('0.00')
 
-        # 1.2 Total Pagos Recibidos (Total Pagado = Abonos + Montos de Apertura)
-        total_abonos = AbonoPago.objects.aggregate(
+        total_abonos = AbonoPago.objects.filter(venta__in=base_ventas).aggregate(
             total_abonos_sum=Sum('monto')
         ).get('total_abonos_sum') or Decimal('0.00')
-        
-        total_apertura = VentaViaje.objects.aggregate(
+
+        total_apertura = base_ventas.aggregate(
             total_apertura_sum=Sum('cantidad_apertura')
         ).get('total_apertura_sum') or Decimal('0.00')
-        
-        total_pagado = total_abonos + total_apertura
 
-        # 1.3 Saldo Pendiente (CxC)
+        total_pagado = total_abonos + total_apertura
         saldo_pendiente = total_ventas - total_pagado
-        
-        # Aseguramos que los valores sean Decimal
+
         total_ventas = Decimal(total_ventas)
         total_pagado = Decimal(total_pagado)
         saldo_pendiente = Decimal(saldo_pendiente)
 
-        # --- 2. INYECCIÓN DE TOTALES EN EL CONTEXTO ---
         context['total_ventas'] = total_ventas
         context['total_pagado'] = total_pagado
         context['saldo_pendiente'] = saldo_pendiente
 
-        # --- 3. CÁLCULO DE CONSISTENCIA ---
-        
-        # Pagos Esperados: (Total Venta - Saldo Pendiente)
         pagos_esperados = total_ventas - saldo_pendiente
-        
-        # Diferencia: Debe ser 0 si el cálculo es consistente.
         diferencia = total_pagado - pagos_esperados
-        
-        # 3.1 Diccionario para la sección de Consistencia
         context['consistencia'] = {
-            'real': total_pagado, 
-            'esperado': pagos_esperados, 
+            'real': total_pagado,
+            'esperado': pagos_esperados,
             'diferencia': diferencia,
-            # Usamos una tolerancia pequeña para los decimales
-            'es_consistente': abs(diferencia) < Decimal('0.01') 
+            'es_consistente': abs(diferencia) < Decimal('0.01'),
         }
-        
-        # 4. Lista de usuarios para el filtro del historial
-        context['usuarios'] = User.objects.filter(is_active=True).order_by('username')
-        
-        # 5. Últimos 5 movimientos para la vista previa
+
+        # Lista de usuarios para el filtro del historial (vendedor solo se ve a sí mismo)
+        if perm.is_vendedor(user):
+            context['usuarios'] = User.objects.filter(pk=user.pk).order_by('username')
+        else:
+            context['usuarios'] = User.objects.filter(is_active=True).order_by('username')
+
+        # Últimos movimientos solo de ventas que el usuario puede ver
         try:
             from auditoria.models import HistorialMovimiento
-            
-            ultimos_movimientos = HistorialMovimiento.objects.select_related('usuario', 'content_type').order_by('-fecha_hora')[:5]
-            
-            # Preparar los movimientos con enlaces
+            ventas_ids = list(base_ventas.values_list('pk', flat=True))
+            ultimos_movimientos = HistorialMovimiento.objects.select_related('usuario', 'content_type').order_by('-fecha_hora')
             movimientos_preview = []
-            for mov in ultimos_movimientos:
+            for mov in ultimos_movimientos[:50]:
                 enlace_url = None
                 enlace_texto = None
-                
                 if mov.content_type and mov.object_id:
                     try:
                         obj = mov.content_type.get_object_for_this_type(pk=mov.object_id)
-                        # Si el objeto es un AbonoPago, obtener la venta relacionada
-                        if isinstance(obj, AbonoPago):
+                        if isinstance(obj, AbonoPago) and obj.venta_id in ventas_ids:
                             venta = obj.venta
                             enlace_url = reverse('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}) + '?tab=abonos'
                             enlace_texto = f"Ver Venta #{venta.pk}"
-                        elif isinstance(obj, VentaViaje):
+                        elif isinstance(obj, VentaViaje) and obj.pk in ventas_ids:
                             enlace_url = reverse('detalle_venta', kwargs={'pk': obj.pk, 'slug': obj.slug_safe})
-                            # Si es un movimiento de abono, agregar parámetro para ir directo a la pestaña de abonos
                             if mov.tipo_evento in ['ABONO_REGISTRADO', 'ABONO_CONFIRMADO', 'ABONO_ELIMINADO']:
                                 enlace_url += '?tab=abonos'
                             enlace_texto = f"Ver Venta #{obj.pk}"
@@ -2887,38 +2868,33 @@ class ReporteFinancieroView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
                         elif isinstance(obj, Cliente):
                             enlace_url = reverse('detalle_cliente', kwargs={'pk': obj.pk})
                             enlace_texto = "Ver Cliente"
-                    except Exception as e:
-                        pass
-                
-                movimientos_preview.append({
-                    'movimiento': mov,
-                    'enlace_url': enlace_url,
-                    'enlace_texto': enlace_texto,
-                })
-            
+                        else:
+                            continue
+                    except Exception:
+                        continue
+                movimientos_preview.append({'movimiento': mov, 'enlace_url': enlace_url, 'enlace_texto': enlace_texto})
+                if len(movimientos_preview) >= 5:
+                    break
             context['ultimos_movimientos'] = movimientos_preview
         except ImportError:
             context['ultimos_movimientos'] = []
-        
-        # Solo JEFE puede ver el botón de exportar Excel
-        context['es_jefe'] = (self.request.user.perfil.rol == 'JEFE') if hasattr(self.request.user, 'perfil') else False
-        
+
+        # Botón exportar Excel: solo quien tiene acceso total (JEFE, Director General)
+        context['es_jefe'] = perm.has_full_access(user)
+
         return context
 
 
 class ExportarReporteFinancieroExcelView(LoginRequiredMixin, UserPassesTestMixin, View):
     """
     Exporta el reporte financiero completo a Excel.
-    Solo accesible para usuarios con rol JEFE.
-    Incluye: Resumen, Detalle ventas (con descuentos/promociones), Detalle abonos,
-    Abonos a proveedores, Comisiones, y proyección de liquidez por mes.
+    Solo accesible para JEFE o Director General (acceso total).
     """
     def test_func(self):
-        user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
-        return user_rol == 'JEFE'
+        return perm.has_full_access(self.request.user)
 
     def handle_no_permission(self):
-        messages.error(self.request, "Solo el Jefe puede descargar el reporte financiero en Excel.")
+        messages.error(self.request, "No tienes permiso para descargar el reporte financiero en Excel.")
         return redirect('reporte_financiero')
 
     def get(self, request):
@@ -7253,18 +7229,15 @@ class ComisionesVendedoresView(LoginRequiredMixin, TemplateView):
 class GestionRolesView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     """
     Vista para gestionar roles y usuarios del sistema.
-    Solo accesible para JEFE.
-    Migrada desde ComisionesVendedoresView - Sección de Equipo de Ejecutivos.
+    Accesible para JEFE, Director General y Director Administrativo.
     """
     template_name = 'ventas/gestion_roles.html'
-    
+
     def test_func(self):
-        """Solo JEFE puede gestionar roles."""
-        user_rol = get_user_role(self.request.user)
-        return user_rol == 'JEFE'
-    
+        return perm.can_manage_roles(self.request.user)
+
     def handle_no_permission(self):
-        messages.error(self.request, "No tienes permiso para acceder a la gestión de roles. Solo el JEFE puede acceder.")
+        messages.error(self.request, "No tienes permiso para acceder a la gestión de roles.")
         return redirect('dashboard')
     
     def get_context_data(self, **kwargs):
@@ -7656,14 +7629,12 @@ class EjecutivoDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
 
 class ProveedorListCreateView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     """
-    Gestiona el catálogo de proveedores: listado agrupado y creación desde un solo lugar.
+    Gestiona el catálogo de proveedores. Accesible para JEFE, Director General y Director Administrativo.
     """
     template_name = 'ventas/proveedores.html'
 
     def test_func(self):
-        """Solo JEFE puede gestionar proveedores. CONTADOR solo lectura en otras secciones."""
-        rol = get_user_role(self.request.user).upper()
-        return 'JEFE' in rol or self.request.user.is_superuser
+        return perm.can_manage_suppliers(self.request.user)
 
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para gestionar proveedores.")
@@ -11240,17 +11211,15 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
 
 class ProveedorUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     """
-    Vista para editar un proveedor existente.
+    Vista para editar un proveedor. Accesible para JEFE, Director General y Director Administrativo.
     """
     model = Proveedor
     form_class = ProveedorForm
     template_name = 'ventas/proveedores.html'
-    
+
     def test_func(self):
-        """Solo JEFE puede editar proveedores."""
-        rol = get_user_role(self.request.user).upper()
-        return 'JEFE' in rol or self.request.user.is_superuser
-    
+        return perm.can_manage_suppliers(self.request.user)
+
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para editar proveedores.")
         return redirect('proveedores')
@@ -11295,16 +11264,14 @@ class ProveedorUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 
 class ProveedorDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     """
-    Vista para eliminar un proveedor. Solo disponible para JEFE.
+    Vista para eliminar un proveedor. Accesible para JEFE, Director General y Director Administrativo.
     """
     model = Proveedor
     template_name = 'ventas/proveedor_confirm_delete.html'
-    
+
     def test_func(self):
-        """Solo JEFE puede eliminar proveedores."""
-        rol = get_user_role(self.request.user).upper()
-        return 'JEFE' in rol or self.request.user.is_superuser
-    
+        return perm.can_manage_suppliers(self.request.user)
+
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para eliminar proveedores.")
         return redirect('proveedores')

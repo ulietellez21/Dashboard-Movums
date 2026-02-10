@@ -10,9 +10,8 @@ from decimal import Decimal
 from .models import Cliente, HistorialKilometros, PromocionKilometros
 from ventas.models import VentaViaje
 from .services import KilometrosService
-from .forms import ClienteForm, PromocionKilometrosForm 
-# Importa tu VentaViaje si no está en este mismo módulo
-# from ventas.models import VentaViaje 
+from .forms import ClienteForm, PromocionKilometrosForm
+from usuarios import permissions as perm
 
 # ------------------- 1. LISTADO DE CLIENTES (OPTIMIZADO) -------------------
 
@@ -203,6 +202,7 @@ def eliminar_cliente(request, pk):
 class KilometrosDashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     """
     Dashboard centralizado para promociones, KPIs y movimientos de Kilómetros Movums.
+    Vendedores solo consulta (no pueden editar).
     """
     model = HistorialKilometros
     template_name = 'crm/kilometros_dashboard.html'
@@ -210,8 +210,7 @@ class KilometrosDashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView)
     paginate_by = 20
 
     def test_func(self):
-        user_rol = getattr(getattr(self.request.user, 'perfil', None), 'rol', 'INVITADO')
-        return user_rol in ['JEFE', 'CONTADOR']
+        return perm.can_view_km_movums(self.request.user)
 
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para ver el programa de Kilómetros Movums.")
@@ -223,6 +222,8 @@ class KilometrosDashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView)
     def get_context_data(self, **kwargs):
         from django.db import models as dj_models
         context = super().get_context_data(**kwargs)
+        user = self.request.user
+        context['can_edit_km_movums'] = perm.can_edit_km_movums(user)
         socios = Cliente.objects.filter(participa_kilometros=True)
         total_km_acumulados = socios.aggregate(total=dj_models.Sum('kilometros_acumulados'))['total'] or 0
         total_km_disponibles = socios.aggregate(total=dj_models.Sum('kilometros_disponibles'))['total'] or 0
@@ -237,7 +238,6 @@ class KilometrosDashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView)
         })
         context['promociones'] = PromocionKilometros.objects.all().order_by('-creada_en')
         context['promocion_form'] = kwargs.get('promocion_form') or PromocionKilometrosForm()
-        # Calcular valor en pesos para cada socio
         socios_list = list(socios.order_by('-kilometros_disponibles')[:20])
         for socio in socios_list:
             socio.valor_disponible_mxn = (socio.kilometros_disponibles or Decimal('0.00')) * Decimal('0.05')
@@ -250,9 +250,8 @@ class KilometrosDashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView)
         return context
 
     def post(self, request, *args, **kwargs):
-        user_rol = getattr(getattr(request.user, 'perfil', None), 'rol', 'INVITADO')
-        if user_rol != 'JEFE':
-            messages.error(request, "Solo el rol JEFE puede crear o editar promociones.")
+        if not perm.can_edit_km_movums(request.user):
+            messages.error(request, "No tienes permiso para crear o editar promociones en Kilómetros Movums (solo consulta).")
             return redirect('kilometros_dashboard')
         form = PromocionKilometrosForm(request.POST)
         if form.is_valid():
@@ -271,11 +270,10 @@ class PromocionKilometrosUpdateView(LoginRequiredMixin, UserPassesTestMixin, Upd
     context_object_name = 'promocion'
 
     def test_func(self):
-        user_rol = getattr(getattr(self.request.user, 'perfil', None), 'rol', 'INVITADO')
-        return user_rol == 'JEFE'
+        return perm.can_edit_km_movums(self.request.user)
 
     def handle_no_permission(self):
-        messages.error(self.request, "Solo el rol JEFE puede editar promociones.")
+        messages.error(self.request, "No tienes permiso para editar promociones en Kilómetros Movums.")
         return redirect('kilometros_dashboard')
 
     def get_success_url(self):
@@ -289,11 +287,10 @@ class PromocionKilometrosActivarView(LoginRequiredMixin, UserPassesTestMixin, Vi
     """Vista para activar una promoción."""
     
     def test_func(self):
-        user_rol = getattr(getattr(self.request.user, 'perfil', None), 'rol', 'INVITADO')
-        return user_rol == 'JEFE'
+        return perm.can_edit_km_movums(self.request.user)
     
     def handle_no_permission(self):
-        messages.error(self.request, "Solo el rol JEFE puede activar promociones.")
+        messages.error(self.request, "No tienes permiso para activar promociones en Kilómetros Movums.")
         return redirect('kilometros_dashboard')
     
     def post(self, request, *args, **kwargs):
@@ -312,11 +309,10 @@ class PromocionKilometrosDesactivarView(LoginRequiredMixin, UserPassesTestMixin,
     """Vista para desactivar una promoción."""
     
     def test_func(self):
-        user_rol = getattr(getattr(self.request.user, 'perfil', None), 'rol', 'INVITADO')
-        return user_rol == 'JEFE'
+        return perm.can_edit_km_movums(self.request.user)
     
     def handle_no_permission(self):
-        messages.error(self.request, "Solo el rol JEFE puede desactivar promociones.")
+        messages.error(self.request, "No tienes permiso para desactivar promociones en Kilómetros Movums.")
         return redirect('kilometros_dashboard')
     
     def post(self, request, *args, **kwargs):
@@ -335,11 +331,10 @@ class PromocionKilometrosDeleteView(LoginRequiredMixin, UserPassesTestMixin, Vie
     """Vista para eliminar una promoción."""
     
     def test_func(self):
-        user_rol = getattr(getattr(self.request.user, 'perfil', None), 'rol', 'INVITADO')
-        return user_rol == 'JEFE'
+        return perm.can_edit_km_movums(self.request.user)
     
     def handle_no_permission(self):
-        messages.error(self.request, "Solo el rol JEFE puede eliminar promociones.")
+        messages.error(self.request, "No tienes permiso para eliminar promociones en Kilómetros Movums.")
         return redirect('kilometros_dashboard')
     
     def post(self, request, *args, **kwargs):

@@ -675,50 +675,48 @@
         </div>
         
         <div class="list-group list-group-flush">
+            {% load permisos_tags %}
             <a href="{% url 'dashboard' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-chart-line fa-fw me-2"></i> Dashboard</a>
-            
-            {# Pre-calcular el rol en mayúsculas una sola vez para el sidebar #}
-            {% with user.perfil.rol|default:""|upper as user_full_rol_upper %}
-            
-                {# ACCESO A CLIENTES: JEFE, VENDEDOR, CONTADOR #}
-                {% if "JEFE" in user_full_rol_upper or "VENDEDOR" in user_full_rol_upper or "CONTADOR" in user_full_rol_upper %}
-                    <a href="{% url 'lista_clientes' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-users fa-fw me-2"></i> Clientes</a>
-                {% endif %}
-                
-                {# ACCESO A VENTAS: Todos los roles #}
+
+            {% if user|can_view_clientes and user|contador_can_see_clientes %}
+                <a href="{% url 'lista_clientes' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-users fa-fw me-2"></i> Clientes</a>
+            {% endif %}
+
+            {% if user|can_view_ventas and user|contador_can_see_ventas %}
                 <a href="{% url 'lista_ventas' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-handshake fa-fw me-2"></i> Ventas</a>
+            {% endif %}
+            {% if user|can_view_cotizaciones and user|contador_can_see_cotizaciones %}
                 <a href="{% url 'cotizaciones_lista' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-file-invoice-dollar fa-fw me-2"></i> Cotizaciones</a>
+            {% endif %}
 
-                {# ACCESO RESTRINGIDO: Logística, Proveedores y Gestión de Roles (Solo JEFE) #}
-                {% if "JEFE" in user_full_rol_upper %}
-                    <a href="{% url 'logistica_pendiente' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-shipping-fast fa-fw me-2"></i> Logística Pendiente</a>
-                    <a href="{% url 'proveedores' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-handshake-angle fa-fw me-2"></i> Proveedores</a>
-                    <a href="{% url 'gestion_roles' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-users-cog fa-fw me-2"></i> Gestión de Roles</a>
-                {% endif %}
-                
-                {# ACCESO A PAGOS POR CONFIRMAR: Solo CONTADOR #}
-                {% if "CONTADOR" in user_full_rol_upper %}
-                <a href="{% url 'pagos_por_confirmar' %}" class="list-group-item list-group-item-action">
-                    <i class="fas fa-clock me-2"></i> Pagos por Confirmar
-                </a>
-                {% endif %}
-                
-                {# ACCESO A REPORTE FINANCIERO: JEFE, CONTADOR #}
-                {% if "JEFE" in user_full_rol_upper or "CONTADOR" in user_full_rol_upper %}
-                    <a href="{% url 'reporte_financiero' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-file-invoice-dollar fa-fw me-2"></i> Reporte Financiero</a>
-                    <a href="{% url 'kilometros_dashboard' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-route fa-fw me-2"></i> Kilómetros Movums</a>
-                {% endif %}
-                
-                {# ACCESO A COMISIONES: Todos (JEFE, CONTADOR, VENDEDOR) #}
-                {% if "JEFE" in user_full_rol_upper or "CONTADOR" in user_full_rol_upper or "VENDEDOR" in user_full_rol_upper %}
-                    <a href="{% url 'reporte_comisiones' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-calculator fa-fw me-2"></i> Reporte de Comisiones</a>
-                {% endif %}
-                
-                {% if user.is_superuser %}
-                    <a href="{% url 'admin:index' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-cog fa-fw me-2"></i> Admin</a>
-                {% endif %}
+            {% if user|can_view_logistica_pendiente and user|contador_can_see_logistica %}
+                <a href="{% url 'logistica_pendiente' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-shipping-fast fa-fw me-2"></i> Logística Pendiente</a>
+            {% endif %}
+            {% if user|can_manage_suppliers %}
+                <a href="{% url 'proveedores' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-handshake-angle fa-fw me-2"></i> Proveedores</a>
+            {% endif %}
+            {% if user|can_manage_roles %}
+                <a href="{% url 'gestion_roles' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-users-cog fa-fw me-2"></i> Gestión de Roles</a>
+            {% endif %}
 
-            {% endwith %}
+            {% if user|can_view_pagos_por_confirmar and user|contador_can_see_pagos_por_confirmar %}
+                <a href="{% url 'pagos_por_confirmar' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-clock fa-fw me-2"></i> Pagos por Confirmar</a>
+            {% endif %}
+
+            {% if user|can_view_financial_report and user|contador_can_see_reportefinanciero %}
+                <a href="{% url 'reporte_financiero' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-file-invoice-dollar fa-fw me-2"></i> Reporte Financiero</a>
+            {% endif %}
+            {% if user|can_view_km_movums and user|contador_can_see_km_movums %}
+                <a href="{% url 'kilometros_dashboard' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-route fa-fw me-2"></i> Kilómetros Movums</a>
+            {% endif %}
+
+            {% if user|can_view_reporte_comisiones and user|contador_can_see_comisiones %}
+                <a href="{% url 'reporte_comisiones' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-calculator fa-fw me-2"></i> Reporte de Comisiones</a>
+            {% endif %}
+
+            {% if user.is_superuser %}
+                <a href="{% url 'admin:index' %}" class="list-group-item list-group-item-action text-white p-3"><i class="fas fa-cog fa-fw me-2"></i> Admin</a>
+            {% endif %}
 
         </div>
     </div>

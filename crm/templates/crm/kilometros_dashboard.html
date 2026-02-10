@@ -98,7 +98,7 @@
                   <th>Clientes</th>
                   <th>Vigencia</th>
                   <th>Estado</th>
-                  {% if request.user.perfil.rol == 'JEFE' %}<th>Acciones</th>{% endif %}
+                  {% if can_edit_km_movums %}<th>Acciones</th>{% endif %}
                 </tr>
               </thead>
               <tbody>
@@ -142,7 +142,7 @@
                         <span class="badge bg-secondary">Inactiva</span>
                       {% endif %}
                     </td>
-                    {% if request.user.perfil.rol == 'JEFE' %}
+                    {% if can_edit_km_movums %}
                     <td>
                       <a class="btn btn-outline-primary btn-sm" href="{% url 'editar_promocion_km' promo.pk %}"><i class="fas fa-pen"></i></a>
                     </td>
@@ -155,7 +155,7 @@
             </table>
           </div>
         </div>
-          {% if request.user.perfil.rol == 'JEFE' %}
+          {% if can_edit_km_movums %}
           <div class="card-footer bg-light">
             {% with tipo_actual=promocion_form.initial.tipo|default:promocion_form.instance.tipo|default:"" %}
             <form method="post" class="row g-2">

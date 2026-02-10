@@ -31,6 +31,17 @@ class Perfil(models.Model):
     tipo_vendedor = models.CharField(max_length=10, choices=TIPO_VENDEDOR_CHOICES, default='MOSTRADOR',
                                      help_text="Usado para calcular el esquema de comisiones. Solo aplica para usuarios con rol Asesor.")
 
+    # Oficina asignada (para rol GERENTE: solo ve ventas/clientes/cotizaciones de esta oficina)
+    oficina = models.ForeignKey(
+        'ventas.Oficina',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='perfiles_gerente',
+        verbose_name='Oficina asignada',
+        help_text='Solo para rol Gerente: limita la vista a datos de esta oficina.'
+    )
+
     def __str__(self):
         return f'{self.user.username} - {self.get_rol_display()}'
 
