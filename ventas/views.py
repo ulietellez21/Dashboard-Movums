@@ -1346,11 +1346,13 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
                 if update_fields:
                     serv.save(update_fields=update_fields)
 
-        # Eliminar servicios que ya no están contratados
+        # Eliminar servicios que ya no están contratados.
+        # IMPORTANTE: Si servicios_codes está vacío (servicios_seleccionados vacío o None),
+        # NO borrar los servicios existentes. Conservar monto_planeado, pagado, opcion_proveedor
+        # ya ingresados por el usuario. Evita pérdida de datos al volver a la pestaña Logística
+        # tras generar confirmaciones u otras acciones (ventas CRÉDITO y cualquier método de pago).
         if servicios_codes:
             venta.servicios_logisticos.exclude(codigo_servicio__in=servicios_codes).delete()
-        else:
-            venta.servicios_logisticos.all().delete()
 
     def _prepare_logistica_finanzas_context(self, context, venta, formset=None, servicios_qs=None):
         # En pestaña Logística: monto planificado, pagado y nombre proveedor solo editables por JEFE, Gerente y 3 directores
