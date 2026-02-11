@@ -506,18 +506,10 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
             if venta.estado == 'CANCELADA':
                 ventas_cerradas.append(venta)
             else:
-                # OPTIMIZACIÓN N+1: Usar anotación total_abonos_confirmados en vez de propiedad
-                # Calcular total pagado = abonos confirmados + cantidad_apertura
-                total_abonos = getattr(venta, 'total_abonos_confirmados', None)
-                if total_abonos is None:
-                    # Fallback a propiedad si no hay anotación
-                    total_abonos = Decimal('0.00')
-                apertura = venta.cantidad_apertura or Decimal('0.00')
-                total_pagado_calc = total_abonos + apertura
-                costo_total = venta.costo_venta_final + (venta.costo_modificacion or Decimal('0.00'))
-                
-                if total_pagado_calc >= costo_total:
-                    # Venta completada/pagada (no cancelada)
+                # Usar la propiedad del modelo esta_pagada (respeta INT/USD, apertura_confirmada para TRN/TAR/DEP)
+                # Así no se marcan como cerradas ventas con Pagado $0 o con apertura sin confirmar
+                if venta.esta_pagada:
+                    # Venta realmente liquidada (total_pagado >= costo_total; para TRN/TAR/DEP la apertura cuenta solo si está confirmada)
                     ventas_cerradas.append(venta)
                 else:
                     # Venta activa (no cancelada y no pagada completamente)
