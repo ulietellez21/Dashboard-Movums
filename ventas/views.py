@@ -2047,6 +2047,13 @@ class ClienteKilometrosResumenView(LoginRequiredMixin, View):
     """Devuelve el resumen de Kilómetros Movums del cliente para el formulario de ventas."""
 
     def get(self, request, cliente_id, *args, **kwargs):
+        # SEGURIDAD: Validar acceso al cliente (prevenir IDOR)
+        if not self._user_can_access_cliente(request.user, cliente_id):
+            return JsonResponse({
+                'success': False,
+                'message': 'No tienes permiso para ver los datos de este cliente.'
+            }, status=403)
+        
         try:
             cliente = get_object_or_404(Cliente, pk=cliente_id)
             resumen = KilometrosService.resumen_cliente(cliente)
@@ -2077,6 +2084,34 @@ class ClienteKilometrosResumenView(LoginRequiredMixin, View):
             'ultima_fecha': resumen.get('ultima_fecha').isoformat() if resumen.get('ultima_fecha') else None,
         }
         return JsonResponse({'success': True, 'data': data})
+
+    def _user_can_access_cliente(self, user, cliente_id):
+        """
+        SEGURIDAD: Verifica si el usuario tiene permiso para ver datos del cliente.
+        - JEFE y ADMIN pueden ver cualquier cliente
+        - VENDEDOR solo puede ver clientes con los que tiene ventas asociadas
+        """
+        if not hasattr(user, 'perfil'):
+            return False
+        
+        rol = user.perfil.rol
+        
+        # JEFE y ADMIN tienen acceso total
+        if rol in ['JEFE', 'ADMIN']:
+            return True
+        
+        # VENDEDOR: verificar que tenga ventas con este cliente
+        if rol == 'VENDEDOR' and hasattr(user.perfil, 'ejecutivo'):
+            return VentaViaje.objects.filter(
+                cliente_id=cliente_id,
+                vendedor=user.perfil.ejecutivo
+            ).exists()
+        
+        # CONTADOR puede ver datos de kilómetros (solo lectura)
+        if rol == 'CONTADOR':
+            return True
+        
+        return False
 
 class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     model = VentaViaje
@@ -7377,19 +7412,23 @@ class GestionRolesView(LoginRequiredMixin, usuarios_mixins.ManageRolesRequiredMi
                 ejecutivo.refresh_from_db()
                 
                 if password:
+                    # TODO: Implementar envío de contraseña por email en lugar de mostrarla en UI
+                    # La contraseña generada es: {password}
+                    # Por seguridad, NO se muestra en la interfaz de usuario
                     if action == 'editar':
                         messages.success(
                             request,
-                            (
-                                f"Ejecutivo '{ejecutivo.nombre_completo}' actualizado correctamente. "
-                                f"Nueva contraseña: {password}"
-                            )
+                            f"Ejecutivo '{ejecutivo.nombre_completo}' actualizado correctamente. "
+                            f"Se ha generado una nueva contraseña. Por favor, comuníquela al usuario de forma segura."
                         )
                     else:
                         messages.success(
                             request,
-                            f"Ejecutivo '{ejecutivo.nombre_completo}' agregado."
+                            f"Ejecutivo '{ejecutivo.nombre_completo}' agregado correctamente. "
+                            f"Se ha generado una contraseña temporal. Por favor, comuníquela al usuario de forma segura."
                         )
+                    # Log para administrador (no visible al usuario)
+                    logger.info(f"Contraseña generada para ejecutivo {ejecutivo.nombre_completo} (ID: {ejecutivo.pk})")
                 else:
                     messages.success(request, f"Ejecutivo '{ejecutivo.nombre_completo}' actualizado correctamente.")
                 return redirect('gestion_roles')
@@ -8002,6 +8041,14 @@ class IncrementarCotizacionClienteView(LoginRequiredMixin, View):
     def post(self, request, slug, pk, *args, **kwargs):
         try:
             venta = get_object_or_404(VentaViaje, slug=slug, pk=pk)
+            
+            # SEGURIDAD: Validar acceso a la venta (prevenir IDOR)
+            if not self._user_can_access_venta(request.user, venta):
+                return JsonResponse({
+                    'success': False, 
+                    'message': 'No tienes permiso para modificar esta venta.'
+                }, status=403)
+            
             cliente = venta.cliente
             Cliente.objects.filter(pk=cliente.pk).update(
                 cotizaciones_generadas=F('cotizaciones_generadas') + 1
@@ -8013,6 +8060,27 @@ class IncrementarCotizacionClienteView(LoginRequiredMixin, View):
         except Exception as exc:
             logger.exception("Error incrementando cotizaciones para la venta %s", pk)
             return JsonResponse({'success': False, 'message': str(exc)}, status=500)
+
+    def _user_can_access_venta(self, user, venta):
+        """
+        SEGURIDAD: Verifica si el usuario tiene permiso para acceder/modificar la venta.
+        - JEFE y ADMIN pueden acceder a cualquier venta
+        - VENDEDOR solo puede acceder a sus propias ventas
+        """
+        if not hasattr(user, 'perfil'):
+            return False
+        
+        rol = user.perfil.rol
+        
+        # JEFE y ADMIN tienen acceso total
+        if rol in ['JEFE', 'ADMIN']:
+            return True
+        
+        # VENDEDOR: solo sus propias ventas
+        if rol == 'VENDEDOR' and hasattr(user.perfil, 'ejecutivo'):
+            return venta.vendedor == user.perfil.ejecutivo
+        
+        return False
 
 
 class GenerarCotizacionDocxView(LoginRequiredMixin, View):

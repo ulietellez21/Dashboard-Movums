@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse_lazy, reverse
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, View
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Q, Max 
 from django.db import IntegrityError
@@ -164,16 +165,21 @@ class ClienteUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 
 # ------------------- 5. ELIMINACIÓN DE CLIENTE -------------------
 
+@login_required
 @require_POST
 def eliminar_cliente(request, pk):
     """
     Vista que maneja la eliminación de un cliente específico.
     Solo accesible mediante método POST (formulario).
-    Solo JEFE puede eliminar.
+    Requiere autenticación y rol JEFE.
     """
-    # Verificar permisos - SOLO JEFE
-    user_rol = request.user.perfil.rol if hasattr(request.user, 'perfil') else 'INVITADO'
-    if user_rol != 'JEFE':
+    # SEGURIDAD: Verificar autenticación (redundante con @login_required, pero explícito)
+    if not request.user.is_authenticated:
+        messages.error(request, "Debes iniciar sesión para realizar esta acción.")
+        return redirect('login')
+    
+    # SEGURIDAD: Verificar permisos - SOLO JEFE puede eliminar
+    if not hasattr(request.user, 'perfil') or request.user.perfil.rol != 'JEFE':
         messages.error(request, "No tienes permiso para eliminar clientes. Solo el JEFE puede realizar esta acción.")
         return redirect('detalle_cliente', pk=pk)
     
