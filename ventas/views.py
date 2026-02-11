@@ -1022,7 +1022,9 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
                     return self.render_to_response(context)
 
                 # Validar que el total marcado como pagado no exceda el total pagado
-                if total_marcado_pagado > total_pagado + Decimal('0.01'):
+                # Excepción: Crédito (CRE) no requiere apertura ni abonos - se paga fuera del dashboard
+                es_credito = getattr(self.object, 'modo_pago_apertura', None) == 'CRE'
+                if not es_credito and total_marcado_pagado > total_pagado + Decimal('0.01'):
                     formset._non_form_errors = formset.error_class([
                         f"No puedes marcar como pagados ${total_marcado_pagado:,.2f} cuando solo hay ${total_pagado:,.2f} registrados en abonos y apertura."
                     ])
