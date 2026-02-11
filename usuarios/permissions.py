@@ -215,25 +215,38 @@ def contador_can_see_section(user, section, request=None):
 
 # ---------- Scope de datos: ventas por rol ----------
 
-def get_ventas_queryset_base(model, user, request=None):
+def get_ventas_queryset_base(model, user, request=None, optimize=False):
     """
     Devuelve el queryset base de ventas según el rol.
     - JEFE / Director General: todas.
     - Director Admin / Director Ventas / Gerente: todas (gerente se filtra por oficina después).
     - Contador: todas.
     - Vendedor: solo ventas propias.
+    
+    Args:
+        model: Modelo VentaViaje
+        user: Usuario actual
+        request: Request HTTP (opcional, para cache de rol)
+        optimize: Si True, aplica select_related y prefetch_related estándar
     """
     rol = get_user_role(user, request)
     if rol in (ROL_JEFE, ROL_DIRECTOR_GENERAL, ROL_DIRECTOR_ADMINISTRATIVO, ROL_DIRECTOR_VENTAS, ROL_CONTADOR):
-        return model.objects.all()
-    if rol == ROL_GERENTE:
+        qs = model.objects.all()
+    elif rol == ROL_GERENTE:
         oficina_id = _get_gerente_oficina_id(user)
         if not oficina_id:
             return model.objects.none()
-        return model.objects.filter(vendedor__ejecutivo_asociado__oficina_id=oficina_id)
-    if rol == ROL_VENDEDOR:
-        return model.objects.filter(vendedor=user)
-    return model.objects.none()
+        qs = model.objects.filter(vendedor__ejecutivo_asociado__oficina_id=oficina_id)
+    elif rol == ROL_VENDEDOR:
+        qs = model.objects.filter(vendedor=user)
+    else:
+        return model.objects.none()
+    
+    # OPTIMIZACIÓN N+1: Aplicar select_related y prefetch básico si se solicita
+    if optimize:
+        qs = qs.select_related('cliente', 'vendedor', 'proveedor')
+    
+    return qs
 
 
 def _get_gerente_oficina_id(user):

@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from django.template.loader import render_to_string
 from django.urls import reverse_lazy, reverse
 from django.db.models.functions import Coalesce
-from django.db.models import Sum, Max, Count, F, Q, Value, IntegerField, ExpressionWrapper
+from django.db.models import Sum, Max, Count, F, Q, Value, IntegerField, ExpressionWrapper, Prefetch
 from django.db.models import DecimalField as ModelDecimalField
 from django.db import transaction
 from django.contrib import messages
@@ -343,14 +343,24 @@ class DashboardView(LoginRequiredMixin, ListView):
             # Mostrar las últimas 30 no vistas
             context['notificaciones'] = notificaciones_vendedor[:30]
             context['notificaciones_count'] = notificaciones_vendedor.count()  # Contador solo de no vistas
-            mis_ventas = VentaViaje.objects.filter(vendedor=user)
+            # OPTIMIZACIÓN N+1: Prefetch abonos confirmados para evitar consultas extra
+            mis_ventas = VentaViaje.objects.filter(vendedor=user).prefetch_related(
+                Prefetch(
+                    'abonos',
+                    queryset=AbonoPago.objects.filter(Q(confirmado=True) | Q(forma_pago='EFE'))
+                )
+            )
             
             # KPI 1: Mi Saldo Pendiente
             mi_total_vendido_agg = mis_ventas.aggregate(Sum('costo_venta_final'))['costo_venta_final__sum']
             mi_total_vendido = mi_total_vendido_agg if mi_total_vendido_agg is not None else Decimal('0.00')
             
             # Total pagado incluye abonos + montos de apertura
-            mi_total_abonos_agg = AbonoPago.objects.filter(venta__vendedor=user).aggregate(Sum('monto'))['monto__sum']
+            mi_total_abonos_agg = AbonoPago.objects.filter(
+                venta__vendedor=user
+            ).filter(
+                Q(confirmado=True) | Q(forma_pago='EFE')
+            ).aggregate(Sum('monto'))['monto__sum']
             mi_total_abonos = mi_total_abonos_agg if mi_total_abonos_agg is not None else Decimal('0.00')
             
             mi_total_apertura_agg = mis_ventas.aggregate(Sum('cantidad_apertura'))['cantidad_apertura__sum']
@@ -362,7 +372,7 @@ class DashboardView(LoginRequiredMixin, ListView):
 
             # KPI 2: Mis Ventas Cerradas (ventas donde el total pagado >= costo_venta_final)
             # El total pagado ahora incluye cantidad_apertura + abonos (calculado en la propiedad total_pagado)
-            # Usamos una lista para evaluar la propiedad total_pagado de cada venta
+            # OPTIMIZACIÓN: Los abonos ya están prefetched, no genera N+1
             ventas_cerradas = 0
             for venta in mis_ventas:
                 if venta.total_pagado >= venta.costo_venta_final:
@@ -458,8 +468,23 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
             except ValueError:
                 pass
 
-        # 3. Optimizar el queryset con select_related y prefetch_related para acceder a las propiedades del modelo
-        queryset = base_query.select_related('cliente', 'vendedor').prefetch_related('abonos').order_by('-fecha_inicio_viaje', '-fecha_creacion')
+        # 3. Optimizar el queryset con select_related, prefetch_related y anotaciones
+        # OPTIMIZACIÓN N+1: Anotar total_pagado_anotado para evitar consultas en propiedades
+        queryset = base_query.select_related(
+            'cliente', 'vendedor', 'proveedor'
+        ).prefetch_related(
+            Prefetch(
+                'abonos',
+                queryset=AbonoPago.objects.filter(Q(confirmado=True) | Q(forma_pago='EFE'))
+            )
+        ).annotate(
+            # Calcular total de abonos confirmados directamente en la consulta
+            total_abonos_confirmados=Coalesce(
+                Sum('abonos__monto', filter=Q(abonos__confirmado=True) | Q(abonos__forma_pago='EFE')),
+                Value(Decimal('0.00')),
+                output_field=ModelDecimalField()
+            )
+        ).order_by('-fecha_inicio_viaje', '-fecha_creacion')
         
         
         return queryset
@@ -478,13 +503,23 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
             # Si la venta está cancelada, va directamente a cerradas
             if venta.estado == 'CANCELADA':
                 ventas_cerradas.append(venta)
-            # Si no está cancelada, usar la propiedad esta_pagada para separarla
-            elif venta.esta_pagada:
-                # Venta completada/pagada (no cancelada)
-                ventas_cerradas.append(venta)
             else:
-                # Venta activa (no cancelada y no pagada completamente)
-                ventas_activas.append(venta)
+                # OPTIMIZACIÓN N+1: Usar anotación total_abonos_confirmados en vez de propiedad
+                # Calcular total pagado = abonos confirmados + cantidad_apertura
+                total_abonos = getattr(venta, 'total_abonos_confirmados', None)
+                if total_abonos is None:
+                    # Fallback a propiedad si no hay anotación
+                    total_abonos = Decimal('0.00')
+                apertura = venta.cantidad_apertura or Decimal('0.00')
+                total_pagado_calc = total_abonos + apertura
+                costo_total = venta.costo_venta_final + (venta.costo_modificacion or Decimal('0.00'))
+                
+                if total_pagado_calc >= costo_total:
+                    # Venta completada/pagada (no cancelada)
+                    ventas_cerradas.append(venta)
+                else:
+                    # Venta activa (no cancelada y no pagada completamente)
+                    ventas_activas.append(venta)
         
         # Convertir de vuelta a queryset o mantener como lista
         # Para mantener compatibilidad con el template, los pasamos como listas
@@ -7026,9 +7061,21 @@ class ComisionesVendedoresView(LoginRequiredMixin, TemplateView):
 
     def get_queryset_base(self):
         """Prepara el queryset base de ventas con el total pagado."""
-        # Anota el total pagado en cada venta para poder filtrar por ventas cerradas/activas.
-        return VentaViaje.objects.annotate(
-            total_abonos=Sum('abonos__monto')
+        # OPTIMIZACIÓN N+1: select_related, prefetch y anotación de abonos confirmados
+        return VentaViaje.objects.select_related(
+            'cliente', 'vendedor', 'vendedor__perfil', 'proveedor'
+        ).prefetch_related(
+            Prefetch(
+                'abonos',
+                queryset=AbonoPago.objects.filter(Q(confirmado=True) | Q(forma_pago='EFE'))
+            )
+        ).annotate(
+            # Anotar total de abonos confirmados para cálculos eficientes
+            total_abonos_confirmados=Coalesce(
+                Sum('abonos__monto', filter=Q(abonos__confirmado=True) | Q(abonos__forma_pago='EFE')),
+                Value(Decimal('0.00')),
+                output_field=ModelDecimalField()
+            )
         )
 
     def get_context_data(self, **kwargs):
@@ -7070,12 +7117,17 @@ class ComisionesVendedoresView(LoginRequiredMixin, TemplateView):
             # Filtra las ventas solo por el vendedor actual
             ventas_vendedor = ventas_base.filter(vendedor=vendedor)
             
+            # OPTIMIZACIÓN N+1: Usar anotación total_abonos_confirmados en vez de propiedad
             # Filtrar en Python las ventas que están pagadas al 100%
-            # (usando la propiedad total_pagado que incluye apertura + abonos confirmados)
-            ventas_pagadas_vendedor = [
-                venta for venta in ventas_vendedor 
-                if venta.total_pagado >= venta.costo_total_con_modificacion
-            ]
+            ventas_pagadas_vendedor = []
+            for venta in ventas_vendedor:
+                total_abonos = getattr(venta, 'total_abonos_confirmados', Decimal('0.00')) or Decimal('0.00')
+                apertura = venta.cantidad_apertura or Decimal('0.00')
+                total_pagado_calc = total_abonos + apertura
+                costo_total = (venta.costo_venta_final or Decimal('0.00')) + (venta.costo_modificacion or Decimal('0.00'))
+                if total_pagado_calc >= costo_total:
+                    ventas_pagadas_vendedor.append(venta)
+            
             ejecutivo = getattr(vendedor, 'ejecutivo_asociado', None)
 
             # Obtener tipo de vendedor (por defecto MOSTRADOR si no tiene ejecutivo asociado)
@@ -10793,14 +10845,31 @@ class DetalleComisionesView(LoginRequiredMixin, TemplateView):
             from django.core.exceptions import PermissionDenied
             raise PermissionDenied("No tienes permiso para ver este detalle")
         
-        # Obtener ventas del vendedor
-        ventas_base = VentaViaje.objects.filter(vendedor=vendedor)
+        # OPTIMIZACIÓN N+1: Obtener ventas del vendedor con prefetch y anotación
+        ventas_base = VentaViaje.objects.filter(vendedor=vendedor).select_related(
+            'cliente', 'proveedor'
+        ).prefetch_related(
+            Prefetch(
+                'abonos',
+                queryset=AbonoPago.objects.filter(Q(confirmado=True) | Q(forma_pago='EFE'))
+            )
+        ).annotate(
+            total_abonos_confirmados=Coalesce(
+                Sum('abonos__monto', filter=Q(abonos__confirmado=True) | Q(abonos__forma_pago='EFE')),
+                Value(Decimal('0.00')),
+                output_field=ModelDecimalField()
+            )
+        )
         
-        # Filtrar ventas pagadas al 100%
-        ventas_pagadas = [
-            venta for venta in ventas_base 
-            if venta.total_pagado >= venta.costo_total_con_modificacion
-        ]
+        # OPTIMIZACIÓN N+1: Filtrar ventas pagadas al 100% usando anotación
+        ventas_pagadas = []
+        for venta in ventas_base:
+            total_abonos = getattr(venta, 'total_abonos_confirmados', Decimal('0.00')) or Decimal('0.00')
+            apertura = venta.cantidad_apertura or Decimal('0.00')
+            total_pagado_calc = total_abonos + apertura
+            costo_total = (venta.costo_venta_final or Decimal('0.00')) + (venta.costo_modificacion or Decimal('0.00'))
+            if total_pagado_calc >= costo_total:
+                ventas_pagadas.append(venta)
         
         # Calcular comisiones
         ejecutivo = getattr(vendedor, 'ejecutivo_asociado', None)
@@ -11077,13 +11146,31 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
             from django.core.exceptions import PermissionDenied
             raise PermissionDenied("No tienes permiso para exportar este detalle")
         
-        # Obtener ventas
-        ventas_base = VentaViaje.objects.filter(vendedor=vendedor)
+        # OPTIMIZACIÓN N+1: Obtener ventas con prefetch y anotación
+        ventas_base = VentaViaje.objects.filter(vendedor=vendedor).select_related(
+            'cliente'
+        ).prefetch_related(
+            Prefetch(
+                'abonos',
+                queryset=AbonoPago.objects.filter(Q(confirmado=True) | Q(forma_pago='EFE'))
+            )
+        ).annotate(
+            total_abonos_confirmados=Coalesce(
+                Sum('abonos__monto', filter=Q(abonos__confirmado=True) | Q(abonos__forma_pago='EFE')),
+                Value(Decimal('0.00')),
+                output_field=ModelDecimalField()
+            )
+        )
         
-        ventas_pagadas = [
-            venta for venta in ventas_base 
-            if venta.total_pagado >= venta.costo_total_con_modificacion
-        ]
+        # OPTIMIZACIÓN N+1: Filtrar ventas pagadas usando anotación
+        ventas_pagadas = []
+        for venta in ventas_base:
+            total_abonos = getattr(venta, 'total_abonos_confirmados', Decimal('0.00')) or Decimal('0.00')
+            apertura = venta.cantidad_apertura or Decimal('0.00')
+            total_pagado_calc = total_abonos + apertura
+            costo_total = (venta.costo_venta_final or Decimal('0.00')) + (venta.costo_modificacion or Decimal('0.00'))
+            if total_pagado_calc >= costo_total:
+                ventas_pagadas.append(venta)
         
         # Calcular comisiones
         ejecutivo = getattr(vendedor, 'ejecutivo_asociado', None)

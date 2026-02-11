@@ -4,12 +4,12 @@ from django.views.generic import ListView, DetailView, CreateView, UpdateView, V
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.db.models import Q, Max 
+from django.db.models import Q, Max, Prefetch 
 from django.db import IntegrityError
 from django.views.decorators.http import require_POST
 from decimal import Decimal
 from .models import Cliente, HistorialKilometros, PromocionKilometros
-from ventas.models import VentaViaje
+from ventas.models import VentaViaje, AbonoPago
 from .services import KilometrosService
 from .forms import ClienteForm, PromocionKilometrosForm
 from usuarios import permissions as perm
@@ -57,7 +57,15 @@ class ClienteDetailView(LoginRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['ventas_cliente'] = self.object.ventas_asociadas.all().order_by('-fecha_inicio_viaje')
+        # OPTIMIZACIÓN N+1: select_related y prefetch abonos confirmados
+        context['ventas_cliente'] = self.object.ventas_asociadas.select_related(
+            'vendedor', 'proveedor'
+        ).prefetch_related(
+            Prefetch(
+                'abonos',
+                queryset=AbonoPago.objects.filter(Q(confirmado=True) | Q(forma_pago='EFE'))
+            )
+        ).order_by('-fecha_inicio_viaje')
         context['kilometros'] = KilometrosService.resumen_cliente(self.object)
         return context
 
@@ -243,9 +251,16 @@ class KilometrosDashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView)
         for socio in socios_list:
             socio.valor_disponible_mxn = (socio.kilometros_disponibles or Decimal('0.00')) * Decimal('0.05')
         context['socios'] = socios_list
+        # OPTIMIZACIÓN N+1: Prefetch abonos para evitar consultas extra en template
         context['ventas_con_promos'] = (
             VentaViaje.objects.filter(descuento_promociones_mxn__gt=0)
             .select_related('cliente', 'vendedor')
+            .prefetch_related(
+                Prefetch(
+                    'abonos',
+                    queryset=AbonoPago.objects.filter(Q(confirmado=True) | Q(forma_pago='EFE'))
+                )
+            )
             .order_by('-fecha_creacion')[:50]
         )
         return context
