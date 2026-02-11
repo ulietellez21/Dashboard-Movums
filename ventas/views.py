@@ -4846,12 +4846,19 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
             run_pasajeros_val = p_pasajeros.add_run(f'{adultos} adultos')
         set_run_font(run_pasajeros_val, size=10, bold=True)  # Valor en negritas
         
-        # ACOMPAÑANTES (dejar vacío según instrucciones)
+        # ACOMPAÑANTES: Pasajeros (Nombres Completos para Contrato) separados por coma
+        pasajeros_contrato = (venta.pasajeros or '').strip()
+        if pasajeros_contrato:
+            # Normalizar: quitar saltos de línea y separar por coma
+            lineas = [n.strip() for n in pasajeros_contrato.replace('\r\n', '\n').replace('\r', '\n').split('\n') if n.strip()]
+            acompanantes_texto = ', '.join(lineas)
+        else:
+            acompanantes_texto = ''
         p_acompanantes = doc.add_paragraph()
         p_acompanantes.paragraph_format.space_after = Pt(2)  # Espaciado compacto
         run_acompanantes_label = p_acompanantes.add_run('ACOMPAÑANTES: ')
         set_run_font(run_acompanantes_label, size=10, bold=False)  # Label sin negritas
-        run_acompanantes_val = p_acompanantes.add_run('')
+        run_acompanantes_val = p_acompanantes.add_run(acompanantes_texto)
         set_run_font(run_acompanantes_val, size=10, bold=True)  # Valor en negritas
         
         # Hotel
