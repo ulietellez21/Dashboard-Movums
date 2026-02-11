@@ -155,6 +155,9 @@ backups/*.sql
 *.sqlite3
 backups/*.sqlite3
 
+# Cursor rules con info sensible del servidor
+.cursor/rules/server-operations.mdc
+
 
 
 
