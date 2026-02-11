@@ -434,15 +434,11 @@ class VentaViaje(models.Model):
         # 3. Primera y Única llamada a save() para asignar el self.pk.
         super().save(*args, **kwargs) 
         
-        # 4. Generar o actualizar el Contrato solo después de que el objeto tiene PK
-        if self.pk:
-            try:
-                # Importación local para evitar bucles de importación
-                from .utils import generar_contrato_para_venta 
-
-                generar_contrato_para_venta(self.pk)
-            except Exception as e:
-                logger.warning(f"Falló la generación del contrato para Venta {self.pk}: {e}", exc_info=True)
+        # ESCALABILIDAD: La generación del contrato PDF se movió a bajo demanda.
+        # Los contratos ahora se generan cuando el usuario los solicita explícitamente
+        # (ej. al descargar o visualizar) en lugar de bloquear cada save().
+        # Esto mejora significativamente el tiempo de respuesta de las peticiones.
+        # Ver: ContratoVentaPDFView, ContratoHospedajePDFView, etc.
     
     def _generar_folio(self):
         """

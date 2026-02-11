@@ -136,6 +136,7 @@ class DashboardView(LoginRequiredMixin, ListView):
     model = VentaViaje
     template_name = 'dashboard.html'
     context_object_name = 'ventas'
+    paginate_by = 50  # ESCALABILIDAD: Limitar resultados por página
 
     def get_queryset(self):
         user = self.request.user
@@ -417,6 +418,7 @@ class DashboardView(LoginRequiredMixin, ListView):
 class VentaViajeListView(LoginRequiredMixin, ListView):
     model = VentaViaje 
     template_name = 'ventas/venta_list.html'
+    paginate_by = 30  # ESCALABILIDAD: Limitar resultados por página
 
     def get_queryset(self):
         user = self.request.user
@@ -2791,6 +2793,7 @@ class LogisticaPendienteView(LoginRequiredMixin, ListView):
     model = VentaViaje
     template_name = 'ventas/logistica_pendiente.html'
     context_object_name = 'ventas'
+    paginate_by = 30  # ESCALABILIDAD: Limitar resultados por página
 
     STATUS_META = {
         'pending': ('danger', 'Pendiente'),
@@ -11868,6 +11871,7 @@ class CotizacionListView(LoginRequiredMixin, ListView):
     model = Cotizacion
     template_name = 'ventas/cotizacion_list.html'
     context_object_name = 'cotizaciones'
+    paginate_by = 30  # ESCALABILIDAD: Limitar resultados por página
 
     def get_queryset(self):
         user = self.request.user
