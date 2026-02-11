@@ -34,8 +34,8 @@ class Cliente(models.Model):
     )
     
     # ------------------- Información del Particular (Opcional) -------------------
-    nombre = models.CharField(max_length=150, blank=True, null=True)
-    apellido = models.CharField(max_length=100, blank=True, null=True)
+    nombre = models.CharField(max_length=150, blank=True, null=True, db_index=True)
+    apellido = models.CharField(max_length=100, blank=True, null=True, db_index=True)
     genero = models.CharField(
         max_length=2,
         choices=GENERO_CHOICES,
@@ -49,7 +49,8 @@ class Cliente(models.Model):
         max_length=150, 
         blank=True, 
         null=True, 
-        verbose_name="Razón Social / Nombre de la Empresa"
+        verbose_name="Razón Social / Nombre de la Empresa",
+        db_index=True
     )
     rfc = models.CharField(
         max_length=13, 
@@ -162,7 +163,8 @@ class Cliente(models.Model):
 
     participa_kilometros = models.BooleanField(
         default=True,
-        verbose_name="Participa en Kilómetros Movums"
+        verbose_name="Participa en Kilómetros Movums",
+        db_index=True
     )
     referencia_programa = models.CharField(
         max_length=120,

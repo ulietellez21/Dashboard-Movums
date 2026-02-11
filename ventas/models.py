@@ -71,7 +71,8 @@ class VentaViaje(models.Model):
         max_length=3, 
         choices=TIPO_VIAJE_CONTRATO_CHOICES, 
         default='NAC',
-        verbose_name="Tipo de Viaje (Plantilla de Contrato)"
+        verbose_name="Tipo de Viaje (Plantilla de Contrato)",
+        db_index=True
     )
     
     # ✅ CAMPO NUEVO: Pasajeros
@@ -94,7 +95,7 @@ class VentaViaje(models.Model):
         verbose_name='Cotización origen'
     )
 
-    fecha_inicio_viaje = models.DateField(verbose_name="Fecha de Ida (Inicio de Viaje)")
+    fecha_inicio_viaje = models.DateField(verbose_name="Fecha de Ida (Inicio de Viaje)", db_index=True)
     fecha_fin_viaje = models.DateField(blank=True, null=True, verbose_name="Fecha de Regreso (Fin de Viaje)")
     
     # ✅ CAMPO CORREGIDO: Almacena los códigos de los servicios seleccionados (ej: "VUE,HOS,SEG")
@@ -191,7 +192,8 @@ class VentaViaje(models.Model):
         choices=ESTADO_CONFIRMACION_CHOICES,
         default='PENDIENTE',
         verbose_name="Estado de Confirmación",
-        help_text="Estado de confirmación del pago por el contador"
+        help_text="Estado de confirmación del pago por el contador",
+        db_index=True
     )
     apertura_confirmada = models.BooleanField(
         default=False,
@@ -330,7 +332,8 @@ class VentaViaje(models.Model):
     fecha_vencimiento_pago = models.DateField(
         null=True, 
         blank=True,
-        verbose_name="Fecha Límite de Pago Total"
+        verbose_name="Fecha Límite de Pago Total",
+        db_index=True
     )
     
     # Estado general de la venta
@@ -343,7 +346,8 @@ class VentaViaje(models.Model):
         choices=ESTADO_VENTA_CHOICES,
         default='ACTIVA',
         verbose_name="Estado de la Venta",
-        help_text="Estado general de la venta"
+        help_text="Estado general de la venta",
+        db_index=True
     )
     
     # Costo de modificación (solo se agrega cuando se edita una venta)
@@ -381,7 +385,7 @@ class VentaViaje(models.Model):
         help_text="Identificador único de la venta. Formato: SERVICIO-AAAAMMDD-XX"
     )
 
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True, db_index=True)
     
     # ------------------- Propiedades y Métodos -------------------
     
@@ -918,10 +922,10 @@ class AbonoPago(models.Model):
     
     venta = models.ForeignKey(VentaViaje, on_delete=models.CASCADE, related_name='abonos', verbose_name="Venta Asociada")
     monto = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Monto del Abono")
-    forma_pago = models.CharField(max_length=3, choices=FORMA_PAGO_CHOICES, default='TRN', verbose_name="Forma de Pago") 
+    forma_pago = models.CharField(max_length=3, choices=FORMA_PAGO_CHOICES, default='TRN', verbose_name="Forma de Pago", db_index=True) 
     
     # ✅ CORRECCIÓN: Se usa datetime.now() como default para que coincida con el tipo DateTimeField.
-    fecha_pago = models.DateTimeField(default=datetime.now, verbose_name="Fecha del Pago")
+    fecha_pago = models.DateTimeField(default=datetime.now, verbose_name="Fecha del Pago", db_index=True)
     
     registrado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name="Registrado Por")
     recibo_pdf = models.FileField(upload_to='recibos/', blank=True, null=True, verbose_name="Recibo/Comprobante")
@@ -930,7 +934,7 @@ class AbonoPago(models.Model):
     tipo_cambio_aplicado = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, verbose_name="Tipo de Cambio aplicado")
     
     # Campos para confirmación de pagos por transferencia/tarjeta
-    confirmado = models.BooleanField(default=False, verbose_name="Confirmado por Contador")
+    confirmado = models.BooleanField(default=False, verbose_name="Confirmado por Contador", db_index=True)
     confirmado_por = models.ForeignKey(
         User, 
         on_delete=models.SET_NULL, 

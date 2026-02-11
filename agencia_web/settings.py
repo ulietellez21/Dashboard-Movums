@@ -135,6 +135,9 @@ if os.environ.get('DB_ENGINE') == 'django.db.backends.postgresql':
             'PASSWORD': os.environ.get('DB_PASSWORD'),
             'HOST': os.environ.get('DB_HOST'),
             'PORT': os.environ.get('DB_PORT'),
+            # OPTIMIZACIÓN: Reutilizar conexiones por 60 segundos
+            # Reduce overhead de crear conexiones nuevas en cada request
+            'CONN_MAX_AGE': 60,
         }
     }
 else:
