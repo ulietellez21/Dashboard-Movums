@@ -4751,7 +4751,7 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
             return f"{value:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
         
         # ============================================
-        # PÁGINA 1: CONTRATO PRINCIPAL
+        # PÁGINA 1: CONTRATO PRINCIPAL (tamaño 10)
         # ============================================
         
         # Título principal
@@ -4760,48 +4760,48 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         p_titulo.paragraph_format.space_before = Pt(0)
         p_titulo.paragraph_format.space_after = Pt(12)
         run_titulo = p_titulo.add_run('CONTRATO DE SERVICIOS TURÍSTICOS')
-        set_run_font(run_titulo, size=18, bold=True, color=MOVUMS_BLUE)
+        set_run_font(run_titulo, size=10, bold=True, color=MOVUMS_BLUE)
         
         # Fecha (alineada a la derecha)
         p_fecha = doc.add_paragraph()
         p_fecha.alignment = WD_ALIGN_PARAGRAPH.RIGHT
         p_fecha.paragraph_format.space_after = Pt(12)
         run_fecha_label = p_fecha.add_run('Fecha: ')
-        set_run_font(run_fecha_label, size=12, bold=True)
+        set_run_font(run_fecha_label, size=10, bold=True)
         run_fecha_val = p_fecha.add_run(format_date(date.today()))
-        set_run_font(run_fecha_val, size=12)
+        set_run_font(run_fecha_val, size=10)
         
         # Origen / Destino
         p_origen_destino = doc.add_paragraph()
         p_origen_destino.paragraph_format.space_after = Pt(12)
         run_origen_label = p_origen_destino.add_run('Origen / Destino: ')
-        set_run_font(run_origen_label, size=12, bold=True)
+        set_run_font(run_origen_label, size=10, bold=True)
         run_origen_val = p_origen_destino.add_run(origen.upper() if origen else '')
-        set_run_font(run_origen_val, size=12)
+        set_run_font(run_origen_val, size=10)
         run_separador = p_origen_destino.add_run(' / ')
-        set_run_font(run_separador, size=12)
+        set_run_font(run_separador, size=10)
         run_destino_val = p_origen_destino.add_run(destino.upper() if destino else '')
-        set_run_font(run_destino_val, size=12, bold=True)
+        set_run_font(run_destino_val, size=10, bold=True)
         
         # Información del cliente y monto recibido
         p_cliente = doc.add_paragraph()
         p_cliente.paragraph_format.space_after = Pt(6)
         run_texto1 = p_cliente.add_run('Movums The travel Store, con domicilio Plaza Mora, Juárez Sur 321 Local 18 CP. 56100 Texcoco Estado de México, recibió de: ')
-        set_run_font(run_texto1, size=12)
+        set_run_font(run_texto1, size=10)
         run_cliente = p_cliente.add_run(cliente.nombre_completo_display.upper())
-        set_run_font(run_cliente, size=12, bold=True)
+        set_run_font(run_cliente, size=10, bold=True)
         run_cliente.font.underline = True
         run_texto2 = p_cliente.add_run(' la cantidad de:')
-        set_run_font(run_texto2, size=12)
+        set_run_font(run_texto2, size=10)
         
         # Monto recibido
         p_monto = doc.add_paragraph()
         p_monto.paragraph_format.space_after = Pt(6)
         run_monto_num = p_monto.add_run(f'${format_currency(anticipo)}')
-        set_run_font(run_monto_num, size=12, bold=True)
+        set_run_font(run_monto_num, size=10, bold=True)
         run_monto_num.font.underline = True
         run_monto_texto = p_monto.add_run(f' ({anticipo_texto}).')
-        set_run_font(run_monto_texto, size=12)
+        set_run_font(run_monto_texto, size=10)
         
         # Agregar espacio
         p_espacio = doc.add_paragraph()
@@ -4812,17 +4812,17 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         p_ida = doc.add_paragraph()
         p_ida.paragraph_format.space_after = Pt(2)  # Espaciado compacto
         run_ida_label = p_ida.add_run('FECHA DE IDA: ')
-        set_run_font(run_ida_label, size=12, bold=False)  # Label sin negritas
+        set_run_font(run_ida_label, size=10, bold=False)  # Label sin negritas
         run_ida_val = p_ida.add_run(format_date(venta.fecha_inicio_viaje) if venta.fecha_inicio_viaje else '')
-        set_run_font(run_ida_val, size=12, bold=True)  # Valor en negritas
+        set_run_font(run_ida_val, size=10, bold=True)  # Valor en negritas
         
         # FECHA DE REGRESO
         p_regreso = doc.add_paragraph()
         p_regreso.paragraph_format.space_after = Pt(2)  # Espaciado compacto
         run_regreso_label = p_regreso.add_run('FECHA DE REGRESO: ')
-        set_run_font(run_regreso_label, size=12, bold=False)  # Label sin negritas
+        set_run_font(run_regreso_label, size=10, bold=False)  # Label sin negritas
         run_regreso_val = p_regreso.add_run(format_date(venta.fecha_fin_viaje) if venta.fecha_fin_viaje else '')
-        set_run_font(run_regreso_val, size=12, bold=True)  # Valor en negritas
+        set_run_font(run_regreso_val, size=10, bold=True)  # Valor en negritas
         
         # PASAJEROS
         adultos = 0
@@ -4839,144 +4839,144 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         p_pasajeros = doc.add_paragraph()
         p_pasajeros.paragraph_format.space_after = Pt(2)  # Espaciado compacto
         run_pasajeros_label = p_pasajeros.add_run('PASAJEROS: ')
-        set_run_font(run_pasajeros_label, size=12, bold=False)  # Label sin negritas
+        set_run_font(run_pasajeros_label, size=10, bold=False)  # Label sin negritas
         if menores > 0:
             run_pasajeros_val = p_pasajeros.add_run(f'{adultos} adultos + {menores} Menor')
         else:
             run_pasajeros_val = p_pasajeros.add_run(f'{adultos} adultos')
-        set_run_font(run_pasajeros_val, size=12, bold=True)  # Valor en negritas
+        set_run_font(run_pasajeros_val, size=10, bold=True)  # Valor en negritas
         
         # ACOMPAÑANTES (dejar vacío según instrucciones)
         p_acompanantes = doc.add_paragraph()
         p_acompanantes.paragraph_format.space_after = Pt(2)  # Espaciado compacto
         run_acompanantes_label = p_acompanantes.add_run('ACOMPAÑANTES: ')
-        set_run_font(run_acompanantes_label, size=12, bold=False)  # Label sin negritas
+        set_run_font(run_acompanantes_label, size=10, bold=False)  # Label sin negritas
         run_acompanantes_val = p_acompanantes.add_run('')
-        set_run_font(run_acompanantes_val, size=12, bold=True)  # Valor en negritas
+        set_run_font(run_acompanantes_val, size=10, bold=True)  # Valor en negritas
         
         # Hotel
         p_hotel = doc.add_paragraph()
         p_hotel.paragraph_format.space_after = Pt(2)  # Espaciado compacto
         run_hotel_label = p_hotel.add_run('Hotel: ')
-        set_run_font(run_hotel_label, size=12, bold=False)  # Label sin negritas
+        set_run_font(run_hotel_label, size=10, bold=False)  # Label sin negritas
         run_hotel_val = p_hotel.add_run(hotel_nombre.upper() if hotel_nombre else '')
-        set_run_font(run_hotel_val, size=12, bold=True)  # Valor en negritas
+        set_run_font(run_hotel_val, size=10, bold=True)  # Valor en negritas
         
         # Habitación
         p_habitacion = doc.add_paragraph()
         p_habitacion.paragraph_format.space_after = Pt(2)  # Espaciado compacto
         run_habitacion_label = p_habitacion.add_run('Habitación: ')
-        set_run_font(run_habitacion_label, size=12, bold=False)  # Label sin negritas
+        set_run_font(run_habitacion_label, size=10, bold=False)  # Label sin negritas
         run_habitacion_val = p_habitacion.add_run(habitacion.upper() if habitacion else '')
-        set_run_font(run_habitacion_val, size=12, bold=True)  # Valor en negritas
+        set_run_font(run_habitacion_val, size=10, bold=True)  # Valor en negritas
         
         # Plan de Alimentos
         p_plan = doc.add_paragraph()
         p_plan.paragraph_format.space_after = Pt(2)  # Espaciado compacto
         run_plan_label = p_plan.add_run('Plan de Alimentos: ')
-        set_run_font(run_plan_label, size=12, bold=False)  # Label sin negritas
+        set_run_font(run_plan_label, size=10, bold=False)  # Label sin negritas
         run_plan_val = p_plan.add_run(plan_alimentos.upper() if plan_alimentos else '')
-        set_run_font(run_plan_val, size=12, bold=True)  # Valor en negritas
+        set_run_font(run_plan_val, size=10, bold=True)  # Valor en negritas
         
         # Vuelos - SIEMPRE mostrar este campo
         p_vuelos = doc.add_paragraph()
         p_vuelos.paragraph_format.space_after = Pt(2)  # Espaciado compacto
         run_vuelos_label = p_vuelos.add_run('Vuelos: ')
-        set_run_font(run_vuelos_label, size=12, bold=False)  # Label sin negritas
+        set_run_font(run_vuelos_label, size=10, bold=False)  # Label sin negritas
         vuelo_aerolinea_display = vuelo_aerolinea.upper() if vuelo_aerolinea else ''
         run_vuelos_val = p_vuelos.add_run(vuelo_aerolinea_display)
-        set_run_font(run_vuelos_val, size=12, bold=True)  # Valor en negritas
+        set_run_font(run_vuelos_val, size=10, bold=True)  # Valor en negritas
         
         # IDA - SIEMPRE mostrar este campo
         p_ida_vuelo = doc.add_paragraph()
         p_ida_vuelo.paragraph_format.space_after = Pt(2)  # Espaciado compacto
         run_ida_vuelo_label = p_ida_vuelo.add_run('IDA : ')
-        set_run_font(run_ida_vuelo_label, size=12, bold=False)  # Label sin negritas
+        set_run_font(run_ida_vuelo_label, size=10, bold=False)  # Label sin negritas
         vuelo_salida_display = vuelo_salida if vuelo_salida else ''
         run_ida_vuelo_val = p_ida_vuelo.add_run(vuelo_salida_display)
-        set_run_font(run_ida_vuelo_val, size=12, bold=True)  # Valor en negritas
+        set_run_font(run_ida_vuelo_val, size=10, bold=True)  # Valor en negritas
         
         # REGRESO - SIEMPRE mostrar este campo
         p_regreso_vuelo = doc.add_paragraph()
         p_regreso_vuelo.paragraph_format.space_after = Pt(2)  # Espaciado compacto
         run_regreso_vuelo_label = p_regreso_vuelo.add_run('REGRESO : ')
-        set_run_font(run_regreso_vuelo_label, size=12, bold=False)  # Label sin negritas
+        set_run_font(run_regreso_vuelo_label, size=10, bold=False)  # Label sin negritas
         vuelo_regreso_display = vuelo_regreso if vuelo_regreso else ''
         run_regreso_vuelo_val = p_regreso_vuelo.add_run(vuelo_regreso_display)
-        set_run_font(run_regreso_vuelo_val, size=12, bold=True)  # Valor en negritas
+        set_run_font(run_regreso_vuelo_val, size=10, bold=True)  # Valor en negritas
         
         # EQUIPAJE (desde campo "incluye") - SIEMPRE mostrar este campo
         p_equipaje = doc.add_paragraph()
         p_equipaje.paragraph_format.space_after = Pt(2)  # Espaciado compacto
         run_equipaje_label = p_equipaje.add_run('EQUIPAJE: ')
-        set_run_font(run_equipaje_label, size=12, bold=False)  # Label sin negritas
+        set_run_font(run_equipaje_label, size=10, bold=False)  # Label sin negritas
         vuelo_incluye_display = vuelo_incluye.upper() if vuelo_incluye else ''
         run_equipaje_val = p_equipaje.add_run(vuelo_incluye_display)
-        set_run_font(run_equipaje_val, size=12, bold=True)  # Valor en negritas
+        set_run_font(run_equipaje_val, size=10, bold=True)  # Valor en negritas
         
         # Traslado - SIEMPRE mostrar este campo (usar información extraída si existe)
         p_traslado = doc.add_paragraph()
         p_traslado.paragraph_format.space_after = Pt(2)  # Espaciado compacto
         run_traslado_label = p_traslado.add_run('Traslado: ')
-        set_run_font(run_traslado_label, size=12, bold=False)  # Label sin negritas
+        set_run_font(run_traslado_label, size=10, bold=False)  # Label sin negritas
         traslado_display = traslado_info.upper() if traslado_info else ''
         run_traslado_val = p_traslado.add_run(traslado_display)
-        set_run_font(run_traslado_val, size=12, bold=True)  # Valor en negritas
+        set_run_font(run_traslado_val, size=10, bold=True)  # Valor en negritas
         
         # ADICIONALES: usar opcion_proveedor de LogisticaServicio TOU (casilla "Opcion de tour y actividades")
         p_adicionales = doc.add_paragraph()
         p_adicionales.paragraph_format.space_after = Pt(0)  # Sin espacio después para compactar
         run_adicionales_label = p_adicionales.add_run('ADICIONALES: ')
-        set_run_font(run_adicionales_label, size=12, bold=False)  # Label sin negritas
+        set_run_font(run_adicionales_label, size=10, bold=False)  # Label sin negritas
         if adicionales_info:
             run_adicionales_val = p_adicionales.add_run(adicionales_info.upper())
-            set_run_font(run_adicionales_val, size=12, bold=True)  # Valor en negritas
+            set_run_font(run_adicionales_val, size=10, bold=True)  # Valor en negritas
         
         # PRECIO Y CONDICIONES ECONÓMICAS - Sin espacio extra antes
         p_seccion = doc.add_paragraph()
         p_seccion.paragraph_format.space_before = Pt(0)  # Sin espacio antes
         p_seccion.paragraph_format.space_after = Pt(0)  # Sin espacio después para compactar
         run_seccion = p_seccion.add_run('PRECIO Y CONDICIONES ECONÓMICAS')
-        set_run_font(run_seccion, size=12, bold=True)
+        set_run_font(run_seccion, size=10, bold=True)
         
         # Precio total del paquete
         p_precio = doc.add_paragraph()
         p_precio.paragraph_format.space_after = Pt(2)  # Espaciado compacto
         run_precio_label = p_precio.add_run('•Precio total del paquete: ')
-        set_run_font(run_precio_label, size=12, bold=False)  # Label sin negritas
+        set_run_font(run_precio_label, size=10, bold=False)  # Label sin negritas
         run_precio_dollar = p_precio.add_run('$')
-        set_run_font(run_precio_dollar, size=12, bold=False)
+        set_run_font(run_precio_dollar, size=10, bold=False)
         run_precio_val = p_precio.add_run(f'{format_currency(precio_total)} MXN')
-        set_run_font(run_precio_val, size=12, bold=True)  # Valor en negritas
+        set_run_font(run_precio_val, size=10, bold=True)  # Valor en negritas
         run_precio_val.font.underline = True
         
         # Anticipo recibido
         p_anticipo = doc.add_paragraph()
         p_anticipo.paragraph_format.space_after = Pt(2)  # Espaciado compacto
         run_anticipo_label = p_anticipo.add_run('•Anticipo recibido: ')
-        set_run_font(run_anticipo_label, size=12, bold=False)  # Label sin negritas
+        set_run_font(run_anticipo_label, size=10, bold=False)  # Label sin negritas
         run_anticipo_dollar = p_anticipo.add_run('$')
-        set_run_font(run_anticipo_dollar, size=12, bold=False)
+        set_run_font(run_anticipo_dollar, size=10, bold=False)
         run_anticipo_val = p_anticipo.add_run(f'{format_currency(anticipo)} MXN')
-        set_run_font(run_anticipo_val, size=12, bold=True)  # Valor en negritas
+        set_run_font(run_anticipo_val, size=10, bold=True)  # Valor en negritas
         run_anticipo_val.font.underline = True
         
         # Saldo pendiente
         p_saldo = doc.add_paragraph()
         p_saldo.paragraph_format.space_after = Pt(2)  # Espaciado compacto
         run_saldo_label = p_saldo.add_run('•Saldo pendiente: ')
-        set_run_font(run_saldo_label, size=12, bold=False)  # Label sin negritas
+        set_run_font(run_saldo_label, size=10, bold=False)  # Label sin negritas
         run_saldo_dollar = p_saldo.add_run('$')
-        set_run_font(run_saldo_dollar, size=12, bold=False)
+        set_run_font(run_saldo_dollar, size=10, bold=False)
         run_saldo_val = p_saldo.add_run(f'{format_currency(saldo_pendiente)} MXN')
-        set_run_font(run_saldo_val, size=12, bold=True)  # Valor en negritas
+        set_run_font(run_saldo_val, size=10, bold=True)  # Valor en negritas
         run_saldo_val.font.underline = True
         
         # Fecha límite de pago total
         p_fecha_limite = doc.add_paragraph()
         p_fecha_limite.paragraph_format.space_after = Pt(2)  # Espaciado compacto
         run_fecha_limite_label = p_fecha_limite.add_run('•Fecha límite de pago total: ')
-        set_run_font(run_fecha_limite_label, size=12, bold=False)  # Label sin negritas
+        set_run_font(run_fecha_limite_label, size=10, bold=False)  # Label sin negritas
         if fecha_limite_pago:
             meses_cortos = {
                 1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL',
@@ -4987,13 +4987,13 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
             run_fecha_limite_val = p_fecha_limite.add_run(fecha_texto)
         else:
             run_fecha_limite_val = p_fecha_limite.add_run('//2025')
-        set_run_font(run_fecha_limite_val, size=12, bold=True)
+        set_run_font(run_fecha_limite_val, size=10, bold=True)
         run_fecha_limite_val.font.underline = True
         
         # El footer ya está en el membrete de la plantilla
         
         # ============================================
-        # PÁGINA 2: ANEXO DE TÉRMINOS Y CONDICIONES
+        # PÁGINA 2: ANEXO DE TÉRMINOS Y CONDICIONES (tamaño 10)
         # ============================================
         
         # Usar page_break_before en lugar de add_page_break() para evitar página vacía
@@ -5003,7 +5003,7 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         p_declara.paragraph_format.space_before = Pt(0)  # Sin espacio antes
         p_declara.paragraph_format.space_after = Pt(8)
         run_declara = p_declara.add_run('EL CLIENTE declara que:')
-        set_run_font(run_declara, size=10.5, bold=True)  # 10.5pt en segunda página
+        set_run_font(run_declara, size=10, bold=True)
         
         declaraciones = [
             'Ha revisado y entendido toda la información contenida en este Anexo.',
@@ -5016,25 +5016,25 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
             p.paragraph_format.left_indent = Inches(0.5)
             p.paragraph_format.space_after = Pt(4)
             run_bullet = p.add_run('•')
-            set_run_font(run_bullet, size=10.5)  # 10.5pt en segunda página
+            set_run_font(run_bullet, size=10)
             run_text = p.add_run(decl)
-            set_run_font(run_text, size=10.5)  # 10.5pt en segunda página
+            set_run_font(run_text, size=10)
         
         # NOTA
         p_nota = doc.add_paragraph()
         p_nota.paragraph_format.space_before = Pt(12)
         p_nota.paragraph_format.space_after = Pt(8)
         run_nota_label = p_nota.add_run('NOTA: ')
-        set_run_font(run_nota_label, size=10.5, bold=True)  # 10.5pt en segunda página
+        set_run_font(run_nota_label, size=10, bold=True)
         run_nota_text = p_nota.add_run('Movums The Travel Store, se reserva el derecho de cancelar sin previo aviso este contrato, si los depósitos no son recibidos en las fechas pactadas con el "CLIENTE" anteriormente estipuladas.')
-        set_run_font(run_nota_text, size=10.5)  # 10.5pt en segunda página
+        set_run_font(run_nota_text, size=10)
         
         # CANCELACIONES
         p_cancelaciones = doc.add_paragraph()
         p_cancelaciones.paragraph_format.space_before = Pt(12)
         p_cancelaciones.paragraph_format.space_after = Pt(8)
         run_cancelaciones = p_cancelaciones.add_run('CANCELACIONES:')
-        set_run_font(run_cancelaciones, size=10.5, bold=True)  # 10.5pt en segunda página
+        set_run_font(run_cancelaciones, size=10, bold=True)
         
         textos_cancelacion = [
             'Entre la firma del contrato y pago de anticipo, parcial o total no se reembolsará ningún pago',
@@ -5046,27 +5046,27 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
             p = doc.add_paragraph()
             p.paragraph_format.space_after = Pt(4)
             run = p.add_run(texto)
-            set_run_font(run, size=10.5)  # 10.5pt en segunda página
+            set_run_font(run, size=10)
         
         # VUELOS
         p_vuelos_seccion = doc.add_paragraph()
         p_vuelos_seccion.paragraph_format.space_before = Pt(12)
         p_vuelos_seccion.paragraph_format.space_after = Pt(8)
         run_vuelos_seccion = p_vuelos_seccion.add_run('VUELOS:')
-        set_run_font(run_vuelos_seccion, size=10.5, bold=True)  # 10.5pt en segunda página
+        set_run_font(run_vuelos_seccion, size=10, bold=True)
         
         texto_vuelos = 'Movums The Travel Store, no se hace responsable por cambios y/o cancelaciones de la aerolínea contratada para el paquete vacacional, en este caso Movums The Travel Store ofrecera las alternativas que nos brinde directamente la aerolínea.'
         p_vuelos_texto = doc.add_paragraph()
         p_vuelos_texto.paragraph_format.space_after = Pt(8)
         run_vuelos_texto = p_vuelos_texto.add_run(texto_vuelos)
-        set_run_font(run_vuelos_texto, size=10.5)  # 10.5pt en segunda página
+        set_run_font(run_vuelos_texto, size=10)
         
         # FECHA DE VALIDEZ DEL CONTRATO
         p_validez = doc.add_paragraph()
         p_validez.paragraph_format.space_before = Pt(12)
         p_validez.paragraph_format.space_after = Pt(8)
         run_validez = p_validez.add_run('FECHA DE VALIDEZ DEL CONTRATO:')
-        set_run_font(run_validez, size=10.5, bold=True)  # 10.5pt en segunda página
+        set_run_font(run_validez, size=10, bold=True)
         
         texto_validez = (
             '•Las condiciones y precios antes mencionados serán mantenidos a la fecha límite de pago, a esta fecha el "CLIENTE" deberá haber cubierto el pago total del paquete o servicio turístico contratado. '
@@ -5080,60 +5080,60 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         partes = texto_validez.split('fecha límite de pago')
         if len(partes) > 1:
             run1 = p_texto_validez.add_run(partes[0])
-            set_run_font(run1, size=10.5)  # 10.5pt en segunda página
+            set_run_font(run1, size=10)
             run2 = p_texto_validez.add_run('fecha límite de pago')
-            set_run_font(run2, size=10.5, bold=True)  # 10.5pt en segunda página
+            set_run_font(run2, size=10, bold=True)
             resto = 'anticipo, pago parcial o pago total'
             if resto in partes[1]:
                 partes2 = partes[1].split(resto)
                 run3 = p_texto_validez.add_run(partes2[0])
-                set_run_font(run3, size=10.5)  # 10.5pt en segunda página
+                set_run_font(run3, size=10)
                 run4 = p_texto_validez.add_run(resto)
-                set_run_font(run4, size=10.5, bold=True)  # 10.5pt en segunda página
+                set_run_font(run4, size=10, bold=True)
                 if len(partes2) > 1:
                     run5 = p_texto_validez.add_run(partes2[1])
-                    set_run_font(run5, size=10.5)  # 10.5pt en segunda página
+                    set_run_font(run5, size=10)
             else:
                 run3 = p_texto_validez.add_run(partes[1])
-                set_run_font(run3, size=10.5)  # 10.5pt en segunda página
+                set_run_font(run3, size=10)
         else:
             run = p_texto_validez.add_run(texto_validez)
-            set_run_font(run, size=10.5)  # 10.5pt en segunda página
+            set_run_font(run, size=10)
         
         # FIRMAS
         p_firmas = doc.add_paragraph()
         p_firmas.paragraph_format.space_before = Pt(12)
         p_firmas.paragraph_format.space_after = Pt(8)
         run_firmas = p_firmas.add_run('FIRMAS:')
-        set_run_font(run_firmas, size=10.5, bold=True)  # 10.5pt en segunda página
+        set_run_font(run_firmas, size=10, bold=True)
         
         # CLIENTE
         p_cliente_firma = doc.add_paragraph()
         p_cliente_firma.paragraph_format.space_before = Pt(12)
         p_cliente_firma.paragraph_format.space_after = Pt(6)
         run_cliente_firma = p_cliente_firma.add_run('CLIENTE:')
-        set_run_font(run_cliente_firma, size=10.5, bold=True)  # 10.5pt en segunda página
+        set_run_font(run_cliente_firma, size=10, bold=True)
         
         p_nombre_firma = doc.add_paragraph()
         p_nombre_firma.paragraph_format.space_after = Pt(6)
         run_nombre_firma_label = p_nombre_firma.add_run('Nombre y firma: ')
-        set_run_font(run_nombre_firma_label, size=10.5)  # 10.5pt en segunda página
+        set_run_font(run_nombre_firma_label, size=10)
         run_linea1 = p_nombre_firma.add_run('_' * 50)
-        set_run_font(run_linea1, size=10.5)  # 10.5pt en segunda página
+        set_run_font(run_linea1, size=10)
         
         # AGENCIA
         p_agencia_firma = doc.add_paragraph()
         p_agencia_firma.paragraph_format.space_before = Pt(12)
         p_agencia_firma.paragraph_format.space_after = Pt(6)
         run_agencia_firma = p_agencia_firma.add_run('AGENCIA – Movums The Travel Store')
-        set_run_font(run_agencia_firma, size=10.5, bold=True)  # 10.5pt en segunda página
+        set_run_font(run_agencia_firma, size=10, bold=True)
         
         p_representante = doc.add_paragraph()
         p_representante.paragraph_format.space_after = Pt(6)
         run_representante_label = p_representante.add_run('Nombre y firma del representante: ')
-        set_run_font(run_representante_label, size=10.5)  # 10.5pt en segunda página
+        set_run_font(run_representante_label, size=10)
         run_linea2 = p_representante.add_run('_' * 50)
-        set_run_font(run_linea2, size=10.5)  # 10.5pt en segunda página
+        set_run_font(run_linea2, size=10)
         
         # ANEXO - CONTRATO DE MEDIACIÓN (parte superior tamaño 10, nombre cliente en negritas, resto tamaño 7, justificado)
         nombre_cliente_anexo = (cliente.nombre_completo_display or '').strip() if cliente else ''
@@ -5141,10 +5141,11 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         p_anexo_titulo.paragraph_format.space_before = Pt(24)
         p_anexo_titulo.paragraph_format.space_after = Pt(8)
         p_anexo_titulo.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        run_anexo_1 = p_anexo_titulo.add_run('CONTRATO DE MEDIACIÓN PARA LA PRESTACIÓN DE SERVICIOS TURÍSTICOS, QUE CELEBRAN POR UNA PARTE LA AGENCIA DE VIAJES "GRUPO IMVED, S.A. DE C.V." ACTUANDO EN USO DE SU NOMBRE COMERCIAL MOVUMS THE TRAVEL STORE, EN ADELANTE DENOMINADA COMO "LA AGENCIA", Y POR LA OTRA EL (LA) ')
-        set_run_font(run_anexo_1, size=10, bold=True)
+        run_anexo_1 = p_anexo_titulo.add_run('CONTRATO DE MEDIACIÓN PARA LA PRESTACIÓN DE SERVICIOS TURÍSTICOS, QUE CELEBRAN POR UNA PARTE LA AGENCIA DE VIAJES "GRUPO IMVED, S.A. DE C.V." ACTUANDO EN USO DE SU NOMBRE COMERCIAL MOVUMS THE TRAVEL STORE, EN ADELANTE DENOMINADA COMO "LA AGENCIA", Y POR LA OTRA EL/LA C. ')
+        set_run_font(run_anexo_1, size=7, bold=True)
         run_anexo_cliente = p_anexo_titulo.add_run(nombre_cliente_anexo)
-        set_run_font(run_anexo_cliente, size=10, bold=True)
+        set_run_font(run_anexo_cliente, size=7, bold=True)
+        run_anexo_cliente.font.underline = True
         run_anexo_2 = p_anexo_titulo.add_run(' A QUIEN EN LO SUCESIVO SE LE DENOMINARÁ "EL CLIENTE", AL TENOR DE LAS SIGUIENTES DEFINICIONES, DECLARACIONES Y CLÁUSULAS:')
         set_run_font(run_anexo_2, size=7, bold=True)
         
