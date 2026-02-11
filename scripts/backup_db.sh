@@ -18,8 +18,19 @@
 
 set -e  # Salir si cualquier comando falla
 
+# --- Cargar variables de entorno desde .env ---
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+ENV_FILE="${PROJECT_DIR}/.env"
+
+if [ -f "$ENV_FILE" ]; then
+    # Exportar variables del .env (ignorando comentarios y líneas vacías)
+    export $(grep -v '^#' "$ENV_FILE" | grep -v '^$' | xargs)
+    echo "[INFO] Variables cargadas desde: $ENV_FILE"
+fi
+
 # --- Configuración ---
-BACKUP_DIR="/home/tellez/sitios/agencia/backups"
+BACKUP_DIR="${PROJECT_DIR}/backups"
 RETENTION_DAYS=7
 TIMESTAMP=$(date +"%Y-%m-%d_%H%M%S")
 BACKUP_FILE="db_backup_${TIMESTAMP}.sql.gz"
