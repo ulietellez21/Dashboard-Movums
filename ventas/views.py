@@ -5135,73 +5135,87 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         run_linea2 = p_representante.add_run('_' * 50)
         set_run_font(run_linea2, size=10.5)  # 10.5pt en segunda página
         
-        # ANEXO - CONTRATO DE MEDIACIÓN
+        # ANEXO - CONTRATO DE MEDIACIÓN (parte superior tamaño 10, nombre cliente en negritas, resto tamaño 7, justificado)
+        nombre_cliente_anexo = (cliente.nombre_completo_display or '').strip() if cliente else ''
         p_anexo_titulo = doc.add_paragraph()
         p_anexo_titulo.paragraph_format.space_before = Pt(24)
         p_anexo_titulo.paragraph_format.space_after = Pt(8)
-        p_anexo_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run_anexo_titulo = p_anexo_titulo.add_run('CONTRATO DE MEDIACIÓN PARA LA PRESTACIÓN DE SERVICIOS TURÍSTICOS, QUE CELEBRAN POR UNA PARTE LA AGENCIA DE VIAJES "GRUPO IMVED, S.A. DE C.V." ACTUANDO EN USO DE SU NOMBRE COMERCIAL MOVUMS THE TRAVEL STORE, EN ADELANTE DENOMINADA COMO "LA AGENCIA", Y POR LA OTRA EL (LA) C__________________________________________ A QUIEN EN LO SUCESIVO SE LE DENOMINARÁ "EL CLIENTE", AL TENOR DE LAS SIGUIENTES DEFINICIONES, DECLARACIONES Y CLÁUSULAS:')
-        set_run_font(run_anexo_titulo, size=10.5, bold=True)
+        p_anexo_titulo.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        run_anexo_1 = p_anexo_titulo.add_run('CONTRATO DE MEDIACIÓN PARA LA PRESTACIÓN DE SERVICIOS TURÍSTICOS, QUE CELEBRAN POR UNA PARTE LA AGENCIA DE VIAJES "GRUPO IMVED, S.A. DE C.V." ACTUANDO EN USO DE SU NOMBRE COMERCIAL MOVUMS THE TRAVEL STORE, EN ADELANTE DENOMINADA COMO "LA AGENCIA", Y POR LA OTRA EL (LA) ')
+        set_run_font(run_anexo_1, size=10, bold=True)
+        run_anexo_cliente = p_anexo_titulo.add_run(nombre_cliente_anexo)
+        set_run_font(run_anexo_cliente, size=10, bold=True)
+        run_anexo_2 = p_anexo_titulo.add_run(' A QUIEN EN LO SUCESIVO SE LE DENOMINARÁ "EL CLIENTE", AL TENOR DE LAS SIGUIENTES DEFINICIONES, DECLARACIONES Y CLÁUSULAS:')
+        set_run_font(run_anexo_2, size=7, bold=True)
         
-        # GLOSARIO
+        # GLOSARIO (tamaño 7, justificado)
         p_glosario = doc.add_paragraph()
         p_glosario.paragraph_format.space_before = Pt(12)
         p_glosario.paragraph_format.space_after = Pt(6)
+        p_glosario.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_glosario = p_glosario.add_run('GLOSARIO')
-        set_run_font(run_glosario, size=10.5, bold=True)
+        set_run_font(run_glosario, size=7, bold=True)
         
         p_glosario_intro = doc.add_paragraph()
         p_glosario_intro.paragraph_format.space_after = Pt(6)
+        p_glosario_intro.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_glosario_intro = p_glosario_intro.add_run('Para efectos del presente contrato, se entiende por:')
-        set_run_font(run_glosario_intro, size=10.5)
+        set_run_font(run_glosario_intro, size=7)
         
         p_agencia_def = doc.add_paragraph()
         p_agencia_def.paragraph_format.space_after = Pt(4)
+        p_agencia_def.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_agencia_def_label = p_agencia_def.add_run('Agencia: ')
-        set_run_font(run_agencia_def_label, size=10.5, bold=True)
+        set_run_font(run_agencia_def_label, size=7, bold=True)
         run_agencia_def_text = p_agencia_def.add_run('Es el proveedor de servicios turísticos que intermedia, contrata u ofrece servicios o productos turístico nacionales, previo pago de un precio cierto y determinado.')
-        set_run_font(run_agencia_def_text, size=10.5)
+        set_run_font(run_agencia_def_text, size=7)
         
         p_cliente_def = doc.add_paragraph()
         p_cliente_def.paragraph_format.space_after = Pt(4)
+        p_cliente_def.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_cliente_def_label = p_cliente_def.add_run('Cliente: ')
-        set_run_font(run_cliente_def_label, size=10.5, bold=True)
+        set_run_font(run_cliente_def_label, size=7, bold=True)
         run_cliente_def_text = p_cliente_def.add_run('Consumidor que contrata los servicios turísticos nacionales mediante el pago de un precio cierto y determinado.')
-        set_run_font(run_cliente_def_text, size=10.5)
+        set_run_font(run_cliente_def_text, size=7)
         
         p_paquete_def = doc.add_paragraph()
         p_paquete_def.paragraph_format.space_after = Pt(4)
+        p_paquete_def.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_paquete_def_label = p_paquete_def.add_run('Paquete turístico: ')
-        set_run_font(run_paquete_def_label, size=10.5, bold=True)
+        set_run_font(run_paquete_def_label, size=7, bold=True)
         run_paquete_def_text = p_paquete_def.add_run('Integración de uno o más servicios turísticos en un solo producto, ofrecidos al Cliente y detallado en el Anexo del presente contrato.')
-        set_run_font(run_paquete_def_text, size=10.5)
+        set_run_font(run_paquete_def_text, size=7)
         
         p_servicio_def = doc.add_paragraph()
         p_servicio_def.paragraph_format.space_after = Pt(4)
+        p_servicio_def.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_servicio_def_label = p_servicio_def.add_run('Servicio turístico: ')
-        set_run_font(run_servicio_def_label, size=10.5, bold=True)
+        set_run_font(run_servicio_def_label, size=7, bold=True)
         run_servicio_def_text = p_servicio_def.add_run('Prestación de carácter comercial en transporte nacional, hospedaje, alimentación, excursiones u otros servicios relacionados,  detallados en el Anexo del presente contrato.')
-        set_run_font(run_servicio_def_text, size=10.5)
+        set_run_font(run_servicio_def_text, size=7)
         
         p_caratula_def = doc.add_paragraph()
         p_caratula_def.paragraph_format.space_after = Pt(12)
+        p_caratula_def.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_caratula_def_label = p_caratula_def.add_run('Caratula: ')
-        set_run_font(run_caratula_def_label, size=10.5, bold=True)
+        set_run_font(run_caratula_def_label, size=7, bold=True)
         run_caratula_def_text = p_caratula_def.add_run('Documento que detalla servicios, fechas, precios y condiciones del servicio turístico contratado.')
-        set_run_font(run_caratula_def_text, size=10.5)
+        set_run_font(run_caratula_def_text, size=7)
         
-        # DECLARACIONES
+        # DECLARACIONES (tamaño 7, justificado)
         p_declaraciones = doc.add_paragraph()
         p_declaraciones.paragraph_format.space_before = Pt(12)
         p_declaraciones.paragraph_format.space_after = Pt(6)
+        p_declaraciones.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_declaraciones = p_declaraciones.add_run('DECLARACIONES')
-        set_run_font(run_declaraciones, size=10.5, bold=True)
+        set_run_font(run_declaraciones, size=7, bold=True)
         
         p_declara_agencia = doc.add_paragraph()
         p_declara_agencia.paragraph_format.space_before = Pt(8)
         p_declara_agencia.paragraph_format.space_after = Pt(6)
+        p_declara_agencia.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_declara_agencia = p_declara_agencia.add_run('Declara LA AGENCIA:')
-        set_run_font(run_declara_agencia, size=10.5, bold=True)
+        set_run_font(run_declara_agencia, size=7, bold=True)
         
         declaraciones_agencia = [
             'Ser una persona moral legalmente constituida conforme a las leyes mexicanas.',
@@ -5216,14 +5230,16 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         for texto in declaraciones_agencia:
             p_decl = doc.add_paragraph()
             p_decl.paragraph_format.space_after = Pt(4)
+            p_decl.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             run_decl = p_decl.add_run(texto)
-            set_run_font(run_decl, size=10.5)
+            set_run_font(run_decl, size=7)
         
         p_declara_cliente = doc.add_paragraph()
         p_declara_cliente.paragraph_format.space_before = Pt(12)
         p_declara_cliente.paragraph_format.space_after = Pt(6)
+        p_declara_cliente.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_declara_cliente = p_declara_cliente.add_run('II. Declara EL CLIENTE:')
-        set_run_font(run_declara_cliente, size=10.5, bold=True)
+        set_run_font(run_declara_cliente, size=7, bold=True)
         
         declaraciones_cliente = [
             'Ser persona física/moral con capacidad legal y económica para obligarse en términos del presente contrato.',
@@ -5236,66 +5252,75 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         for texto in declaraciones_cliente:
             p_decl = doc.add_paragraph()
             p_decl.paragraph_format.space_after = Pt(4)
+            p_decl.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             run_decl = p_decl.add_run(texto)
-            set_run_font(run_decl, size=10.5)
+            set_run_font(run_decl, size=7)
         
         # CLÁUSULAS
         p_clausulas = doc.add_paragraph()
         p_clausulas.paragraph_format.space_before = Pt(12)
         p_clausulas.paragraph_format.space_after = Pt(6)
+        p_clausulas.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_clausulas = p_clausulas.add_run('CLÁUSULAS')
-        set_run_font(run_clausulas, size=10.5, bold=True)
+        set_run_font(run_clausulas, size=7, bold=True)
         
         # PRIMERA
         p_primera = doc.add_paragraph()
         p_primera.paragraph_format.space_before = Pt(8)
         p_primera.paragraph_format.space_after = Pt(4)
+        p_primera.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_primera = p_primera.add_run('PRIMERA. CONSENTIMIENTO. ')
-        set_run_font(run_primera, size=10.5, bold=True)
+        set_run_font(run_primera, size=7, bold=True)
         run_primera_text = p_primera.add_run('Las partes manifiestan su voluntad de celebrar el presente contrato, cuya naturaleza jurídica es la mediación para la prestación de servicios turísticos.')
-        set_run_font(run_primera_text, size=10.5)
+        set_run_font(run_primera_text, size=7)
         
         # SEGUNDA
         p_segunda = doc.add_paragraph()
         p_segunda.paragraph_format.space_before = Pt(8)
         p_segunda.paragraph_format.space_after = Pt(4)
+        p_segunda.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_segunda = p_segunda.add_run('SEGUNDA. OBJETO. ')
-        set_run_font(run_segunda, size=10.5, bold=True)
+        set_run_font(run_segunda, size=7, bold=True)
         run_segunda_text = p_segunda.add_run('LA AGENCIA intermediará, contratará u ofrecerá servicios turísticos detallados en la CARATULA, previo pago del Cliente de un precio cierto y determinado.')
-        set_run_font(run_segunda_text, size=10.5)
+        set_run_font(run_segunda_text, size=7)
         
         # TERCERA
         p_tercera = doc.add_paragraph()
         p_tercera.paragraph_format.space_before = Pt(8)
         p_tercera.paragraph_format.space_after = Pt(4)
+        p_tercera.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_tercera = p_tercera.add_run('TERCERA. PRECIO, FORMA Y LUGAR DE PAGO. ')
-        set_run_font(run_tercera, size=10.5, bold=True)
+        set_run_font(run_tercera, size=7, bold=True)
         run_tercera_text = p_tercera.add_run('Las partes manifiestan su conformidad en que el precio total a pagar por EL CLIENTE como contraprestación del Servicio turístico, es la cantidad que por cada concepto se indica en la CARATULA de este Contrato. El importe señalado en la CARATULA, contempla todas las cantidades y conceptos referentes al Servicio turístico, por lo que LA AGENCIA se obliga a respetar en todo momento dicho costo sin poder cobrar otra cantidad o condicionar la prestación del Servicio turístico contratado a la adquisición de otro servicio no requerido por El cliente, salvo que El cliente autorice de manera escrita algún otro cobro no estipulado en el presente Contrato. EL CLIENTE efectuará el pago pactado por el Servicio turístico señalado en la caratula del presente Contrato en los términos y condiciones acordadas pudiendo ser: ')
-        set_run_font(run_tercera_text, size=10.5)
+        set_run_font(run_tercera_text, size=7)
         
         p_tercera_contado = doc.add_paragraph()
         p_tercera_contado.paragraph_format.space_after = Pt(4)
+        p_tercera_contado.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_tercera_contado = p_tercera_contado.add_run('Al contado: en efectivo, con tarjeta de débito, tarjeta de crédito, transferencia bancaria, y/o cheque en el domicilio de la agencia en moneda nacional, sin menoscabo de poderlo hacer en moneda extranjera al tipo de cambio publicado en el Diario Oficial de la Federación al día en que el pago se efectúe.')
-        set_run_font(run_tercera_contado, size=10.5)
+        set_run_font(run_tercera_contado, size=7)
         
         p_tercera_plazos = doc.add_paragraph()
         p_tercera_plazos.paragraph_format.space_after = Pt(4)
+        p_tercera_plazos.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_tercera_plazos = p_tercera_plazos.add_run('A plazos: El cliente podrá, previo acuerdo con La agencia a pagar en parcialidades, para lo cual, La agencia deberá de entregar a El CLIENTE la información por escrito de las fechas, así como los montos parciales a pagar.')
-        set_run_font(run_tercera_plazos, size=10.5)
+        set_run_font(run_tercera_plazos, size=7)
         
         p_tercera_cheque = doc.add_paragraph()
         p_tercera_cheque.paragraph_format.space_after = Pt(8)
+        p_tercera_cheque.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_tercera_cheque = p_tercera_cheque.add_run('En caso de que El cliente realice el pago con cheque y no se cubra el pago por causas imputables al librador, La agencia tendrá el derecho de realizar el cobro adicional del 20% (veinte por ciento) del valor del documento, por concepto de daños y perjuicios, en caso de que el cheque sea devuelto por causas imputables al librador, conforme al artículo 193 de la Ley General del Títulos y Operaciones de Crédito.')
-        set_run_font(run_tercera_cheque, size=10.5)
+        set_run_font(run_tercera_cheque, size=7)
         
         # QUINTA
         p_quinta = doc.add_paragraph()
         p_quinta.paragraph_format.space_before = Pt(8)
         p_quinta.paragraph_format.space_after = Pt(4)
+        p_quinta.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_quinta = p_quinta.add_run('QUINTA. OBLIGACIONES DE LA AGENCIA. ')
-        set_run_font(run_quinta, size=10.5, bold=True)
+        set_run_font(run_quinta, size=7, bold=True)
         run_quinta_text = p_quinta.add_run('LA AGENCIA SE OBLIGA A:')
-        set_run_font(run_quinta_text, size=10.5, bold=True)
+        set_run_font(run_quinta_text, size=7, bold=True)
         
         obligaciones_agencia = [
             'Cumplir lo pactado en el contrato.',
@@ -5310,17 +5335,19 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         for texto in obligaciones_agencia:
             p_oblig = doc.add_paragraph()
             p_oblig.paragraph_format.space_after = Pt(4)
+            p_oblig.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             run_oblig = p_oblig.add_run(texto)
-            set_run_font(run_oblig, size=10.5)
+            set_run_font(run_oblig, size=7)
         
         # SEXTA
         p_sexta = doc.add_paragraph()
         p_sexta.paragraph_format.space_before = Pt(8)
         p_sexta.paragraph_format.space_after = Pt(4)
+        p_sexta.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_sexta = p_sexta.add_run('SEXTA. OBLIGACIONES DE EL CLIENTE: ')
-        set_run_font(run_sexta, size=10.5, bold=True)
+        set_run_font(run_sexta, size=7, bold=True)
         run_sexta_text = p_sexta.add_run('Cumplir con lo establecido en el presente contrato:')
-        set_run_font(run_sexta_text, size=10.5)
+        set_run_font(run_sexta_text, size=7)
         
         obligaciones_cliente = [
             'Proporcionar previo a la prestación del servicio los datos generales veraces y documentos requeridos para los servicios contratados (como pueden ser de manera enunciativa más no limitativa, el nombre, edad, identificación, comprobante de domicilio, pasaporte, visas, vacunas, constancia de situación fiscal, número telefónico, correo electrónico). Proporcionará sus propios datos y documentos de su persona así como el de las personas que lo acompañen.',
@@ -5332,80 +5359,89 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         for texto in obligaciones_cliente:
             p_oblig = doc.add_paragraph()
             p_oblig.paragraph_format.space_after = Pt(4)
+            p_oblig.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             run_oblig = p_oblig.add_run(texto)
-            set_run_font(run_oblig, size=10.5)
+            set_run_font(run_oblig, size=7)
         
         # SÉPTIMA
         p_septima = doc.add_paragraph()
         p_septima.paragraph_format.space_before = Pt(8)
         p_septima.paragraph_format.space_after = Pt(4)
+        p_septima.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_septima = p_septima.add_run('SÉPTIMA. VIGENCIA. ')
-        set_run_font(run_septima, size=10.5, bold=True)
+        set_run_font(run_septima, size=7, bold=True)
         run_septima_text = p_septima.add_run('El contrato estará vigente mientras se presten los servicios y se cumplan las obligaciones de pago, tiempo en que el presente Contrato surtirá todos sus efectos legales.')
-        set_run_font(run_septima_text, size=10.5)
+        set_run_font(run_septima_text, size=7)
         
         # OCTAVA
         p_octava = doc.add_paragraph()
         p_octava.paragraph_format.space_before = Pt(8)
         p_octava.paragraph_format.space_after = Pt(4)
+        p_octava.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_octava = p_octava.add_run('OCTAVA. CASO FORTUITO Y FUERZA MAYOR. ')
-        set_run_font(run_octava, size=10.5, bold=True)
+        set_run_font(run_octava, size=7, bold=True)
         run_octava_text = p_octava.add_run('Se entiende por caso fortuito o fuerza mayor aquellos hechos o acontecimientos ajenos a la voluntad de las partes, que sean imprevisibles, irresistibles, insuperables y que no provengan de negligencia, dolo o falta de cuidado de alguna de ellas. No se considerarán caso fortuito o fuerza mayor las enfermedades personales de EL CLIENTE o de sus acompañantes. EL CLIENTE reconoce que la AGENCIA no será responsable por errores, omisiones, falta de entrega de documentos, información incompleta o inexacta, ni por cualquier otra actuación u omisión atribuible al propio CLIENTE que afecte la reservación, emisión de boletos, acceso a servicios turísticos, cambios, cancelaciones o cualquier trámite derivado del presente contrato. Cuando el servicio turístico no pueda prestarse total o parcialmente por caso fortuito o fuerza mayor, la AGENCIA reembolsará a EL CLIENTE las cantidades que, conforme a las políticas de los prestadores finales (aerolíneas, hoteles, operadores, etc.), sean efectivamente recuperables y devueltas a la AGENCIA. EL CLIENTE tendrá derecho a recibir el reembolso correspondiente únicamente respecto de los importes efectivamente recuperados. En caso de que el servicio turístico se haya prestado de manera parcial, EL CLIENTE tendrá derecho a un reembolso proporcional exclusivamente respecto de los servicios no utilizados, conforme a lo que determine el proveedor correspondiente.')
-        set_run_font(run_octava_text, size=10.5)
+        set_run_font(run_octava_text, size=7)
         
         # NOVENA
         p_novena = doc.add_paragraph()
         p_novena.paragraph_format.space_before = Pt(8)
         p_novena.paragraph_format.space_after = Pt(4)
+        p_novena.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_novena = p_novena.add_run('NOVENA . CAMBIOS DE ORDEN DE LOS SERVICIOS CON AUTORIZACIÓN DE EL CLIENTE. ')
-        set_run_font(run_novena, size=10.5, bold=True)
+        set_run_font(run_novena, size=7, bold=True)
         run_novena_text = p_novena.add_run('La agencia podrá modificar el orden de los Servicios turísticos indicados en el presente Contrato, para un mejor desarrollo de los mismos o por las causas que así lo justifiquen, siempre y cuando respete la cantidad y calidad de los Servicios turísticos que se hayan contratado. Este será con la autorización por escrito de EL CLIENTE, sea cual fuese la causa. El cliente no podrá hacer cambios de fechas, rutas, ni servicios, sin previa autorización de La agencia, en caso de que dichos cambios tengan un costo, éste será indicado en al CARATULA del presente Contrato. EL CLIENTE reconoce que, una vez firmado el presente contrato y realizado el anticipo, pago parcial o total, los pagos efectuados no son cancelables ni reembolsables, en virtud de que la AGENCIA realiza de manera inmediata gestiones, reservaciones y pagos a terceros proveedores, los cuales se rigen por políticas propias de cancelación y reembolso que no dependen de la AGENCIA. EL CLIENTE acepta que cualquier solicitud de cambio, corrección o modificación respecto a fechas, nombres, itinerarios, servicios contratados o cualquier otro aspecto, estará sujeta a la disponibilidad de los proveedores, así como al pago de cargos adicionales o penalidades, conforme a las políticas vigentes de dichos proveedores.')
-        set_run_font(run_novena_text, size=10.5)
+        set_run_font(run_novena_text, size=7)
         
         # DÉCIMA
         p_decima = doc.add_paragraph()
         p_decima.paragraph_format.space_before = Pt(8)
         p_decima.paragraph_format.space_after = Pt(4)
+        p_decima.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_decima = p_decima.add_run('DÉCIMA. CANCELACIÓN. ')
-        set_run_font(run_decima, size=10.5, bold=True)
+        set_run_font(run_decima, size=7, bold=True)
         run_decima_text = p_decima.add_run('EL CLIENTE reconoce que, una vez firmado el presente Contrato y realizado el anticipo, pago parcial o total, los pagos no son cancelables ni reembolsables, debido a que la AGENCIA realiza de manera inmediata pagos, reservaciones y gestiones con terceros proveedores, cuyas políticas no permiten cancelaciones ni devoluciones. Cualquier solicitud de cancelación o modificación deberá realizarse por escrito, pero no dará derecho a devolución, salvo que algún proveedor permita recuperar total o parcialmente los montos pagados, caso en el cual la AGENCIA entregará al CLIENTE únicamente las cantidades efectivamente devueltas por dicho proveedor. Las modificaciones estarán sujetas a disponibilidad y podrán generar cargos adicionales conforme a las políticas de los prestadores finales. La presente cláusula aplica únicamente a solicitudes voluntarias de cancelación formuladas por EL CLIENTE. Lo anterior es independiente de las consecuencias aplicables por rescisión por incumplimiento, reguladas en las cláusulas siguientes.')
-        set_run_font(run_decima_text, size=10.5)
+        set_run_font(run_decima_text, size=7)
         
         # DÉCIMA PRIMERA
         p_decima_primera = doc.add_paragraph()
         p_decima_primera.paragraph_format.space_before = Pt(8)
         p_decima_primera.paragraph_format.space_after = Pt(4)
+        p_decima_primera.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_decima_primera = p_decima_primera.add_run('DÉCIMA PRIMERA. VUELOS. ')
-        set_run_font(run_decima_primera, size=10.5, bold=True)
+        set_run_font(run_decima_primera, size=7, bold=True)
         run_decima_primera_text = p_decima_primera.add_run('EL CLIENTE reconoce que los servicios aéreos incluidos en el paquete vacacional son operados exclusivamente por la aerolínea correspondiente, por lo que Movums The Travel Store no es responsable por cambios de itinerario, demoras, reprogramaciones, sobreventas, cancelaciones, modificaciones operativas o cualquier otra decisión adoptada por la aerolínea, toda vez que dichos actos son ajenos al control de la AGENCIA.EL CLIENTE acepta que toda compensación, reembolso, cambio o beneficio derivado de acciones de la aerolínea está sujeto exclusivamente a las políticas y procedimientos de dicha aerolínea, y que la AGENCIA actuará únicamente como intermediaria en la gestión correspondiente.')
-        set_run_font(run_decima_primera_text, size=10.5)
+        set_run_font(run_decima_primera_text, size=7)
         
         # DÉCIMA SEGUNDA
         p_decima_segunda = doc.add_paragraph()
         p_decima_segunda.paragraph_format.space_before = Pt(8)
         p_decima_segunda.paragraph_format.space_after = Pt(4)
+        p_decima_segunda.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_decima_segunda = p_decima_segunda.add_run('DÉCIMA SEGUNDA. RESCISIÓN. ')
-        set_run_font(run_decima_segunda, size=10.5, bold=True)
+        set_run_font(run_decima_segunda, size=7, bold=True)
         run_decima_segunda_text = p_decima_segunda.add_run('Procede si alguna parte incumple lo pactado o si el servicio no corresponde a lo solicitado. En caso de rescisión del presente Contrato, la parte que incumpla deberá de pagar lo correspondiente a la pena convencional. La AGENCIA podrá dar por terminado el presente contrato cuando EL CLIENTE no realice los depósitos o pagos en las fechas pactadas. En este supuesto, la AGENCIA notificará al CLIENTE mediante los medios de contacto proporcionados, y dicha terminación se considerará efectiva desde la fecha del incumplimiento. El CLIENTE reconoce que la falta de pago oportuno constituye un incumplimiento del contrato y acepta que los anticipos podrán aplicarse a cargos, penalidades o gastos ya generados conforme a las políticas de proveedores y prestadores de servicios turísticos. La rescisión no será considerada como una cancelación voluntaria, sino como una consecuencia jurídica del incumplimiento de cualquiera de las partes.')
-        set_run_font(run_decima_segunda_text, size=10.5)
+        set_run_font(run_decima_segunda_text, size=7)
         
         # DÉCIMA TERCERA
         p_decima_tercera = doc.add_paragraph()
         p_decima_tercera.paragraph_format.space_before = Pt(8)
         p_decima_tercera.paragraph_format.space_after = Pt(4)
+        p_decima_tercera.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_decima_tercera = p_decima_tercera.add_run('DÉCIMA TERCERA. PENA CONVENCIONAL. ')
-        set_run_font(run_decima_tercera, size=10.5, bold=True)
+        set_run_font(run_decima_tercera, size=7, bold=True)
         run_decima_tercera_text = p_decima_tercera.add_run('La parte incumplida pagará la penalidad indicada por el OPERADOR')
-        set_run_font(run_decima_tercera_text, size=10.5)
+        set_run_font(run_decima_tercera_text, size=7)
         
         # DÉCIMA CUARTA
         p_decima_cuarta = doc.add_paragraph()
         p_decima_cuarta.paragraph_format.space_before = Pt(8)
         p_decima_cuarta.paragraph_format.space_after = Pt(4)
+        p_decima_cuarta.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_decima_cuarta = p_decima_cuarta.add_run('DÉCIMA CUARTA.  RESERVACIONES Y PAGOS. ')
-        set_run_font(run_decima_cuarta, size=10.5, bold=True)
+        set_run_font(run_decima_cuarta, size=7, bold=True)
         run_decima_cuarta_text = p_decima_cuarta.add_run('La aceptación y formalización del presente contrato se considerará efectiva una vez que EL CLIENTE envíe el contrato debidamente firmado y efectúe el anticipo, pago parcial o total, mismo que no es reembolsable, en virtud de que Movums The Travel Store realiza gestiones inmediatas con terceros proveedores para asegurar la disponibilidad de los servicios solicitados.')
-        set_run_font(run_decima_cuarta_text, size=10.5)
+        set_run_font(run_decima_cuarta_text, size=7)
         
         # DÉCIMA QUINTA - Con salto de página
         # Agregar 2 saltos de línea para que quede en la siguiente página
@@ -5418,10 +5454,11 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         p_decima_quinta = doc.add_paragraph()
         p_decima_quinta.paragraph_format.space_before = Pt(8)
         p_decima_quinta.paragraph_format.space_after = Pt(12)  # 1 salto de línea más después de "Estado de México."
+        p_decima_quinta.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_decima_quinta = p_decima_quinta.add_run('DÉCIMA QUINTA. JURISDICCIÓN. ')
-        set_run_font(run_decima_quinta, size=10.5, bold=True)
+        set_run_font(run_decima_quinta, size=7, bold=True)
         run_decima_quinta_text = p_decima_quinta.add_run('Las partes se someten a PROFECO y, en su caso, a tribunales competentes de Texcoco, Estado de México.')
-        set_run_font(run_decima_quinta_text, size=10.5)
+        set_run_font(run_decima_quinta_text, size=7)
         
         # FIRMAS DEL ANEXO - Centradas con líneas arriba de los textos
         # Línea y texto para LA AGENCIA (centrado)
@@ -5430,13 +5467,13 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         p_linea_agencia.paragraph_format.space_after = Pt(2)
         p_linea_agencia.alignment = WD_ALIGN_PARAGRAPH.CENTER
         run_linea_agencia = p_linea_agencia.add_run('_' * 50)
-        set_run_font(run_linea_agencia, size=10.5)
+        set_run_font(run_linea_agencia, size=7)
         
         p_agencia_label = doc.add_paragraph()
         p_agencia_label.paragraph_format.space_after = Pt(18)  # 3 saltos de línea de separación
         p_agencia_label.alignment = WD_ALIGN_PARAGRAPH.CENTER
         run_agencia_label = p_agencia_label.add_run('LA AGENCIA')
-        set_run_font(run_agencia_label, size=10.5, bold=True)
+        set_run_font(run_agencia_label, size=7, bold=True)
         
         # Línea y texto para EL CLIENTE (centrado)
         p_linea_cliente = doc.add_paragraph()
@@ -5444,13 +5481,13 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         p_linea_cliente.paragraph_format.space_after = Pt(2)
         p_linea_cliente.alignment = WD_ALIGN_PARAGRAPH.CENTER
         run_linea_cliente = p_linea_cliente.add_run('_' * 50)
-        set_run_font(run_linea_cliente, size=10.5)
+        set_run_font(run_linea_cliente, size=7)
         
         p_cliente_label = doc.add_paragraph()
         p_cliente_label.paragraph_format.space_after = Pt(6)
         p_cliente_label.alignment = WD_ALIGN_PARAGRAPH.CENTER
         run_cliente_label = p_cliente_label.add_run('EL CLIENTE  (NOMBRE COMPLETO Y FIRMA)')
-        set_run_font(run_cliente_label, size=10.5, bold=True)
+        set_run_font(run_cliente_label, size=7, bold=True)
         
         # El footer ya está en el membrete de la plantilla
         
