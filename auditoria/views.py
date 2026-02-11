@@ -8,6 +8,7 @@ from datetime import timedelta
 
 from .models import HistorialMovimiento
 from ventas.models import VentaViaje, Cotizacion, AbonoPago
+from ventas.validators import safe_int
 from crm.models import Cliente
 
 
@@ -159,8 +160,10 @@ class HistorialMovimientosAjaxView(LoginRequiredMixin, UserPassesTestMixin, View
             except ValueError:
                 pass
         
-        # Paginación
-        page = int(request.GET.get('page', 1))
+        # Paginación (safe_int previene errores 500 si el usuario manipula el parámetro)
+        page = safe_int(request.GET.get('page'), default=1)
+        if page < 1:
+            page = 1
         per_page = 35
         start = (page - 1) * per_page
         end = start + per_page

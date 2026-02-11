@@ -63,6 +63,8 @@ from usuarios.models import Perfil
 from usuarios import permissions as perm
 from usuarios import mixins as usuarios_mixins
 from .services.cancelacion import CancelacionService
+from .validators import validate_uploaded_file, safe_int
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.forms import modelformset_factory
 from .forms import (
     VentaViajeForm,
@@ -1225,10 +1227,27 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
                 confirmacion_form = ConfirmacionVentaForm(request.POST, request.FILES)
                 context['confirmacion_form'] = confirmacion_form
             else:
-                # Procesar los archivos
+                # SEGURIDAD: Validar archivos antes de procesarlos
+                archivos_validos = []
+                errores_validacion = []
+                for archivo in archivos:
+                    try:
+                        validate_uploaded_file(archivo)
+                        archivos_validos.append(archivo)
+                    except DjangoValidationError as e:
+                        errores_validacion.append(str(e.message if hasattr(e, 'message') else e))
+                
+                if errores_validacion:
+                    messages.error(request, "Archivos rechazados: " + " | ".join(errores_validacion))
+                    if not archivos_validos:
+                        confirmacion_form = ConfirmacionVentaForm(request.POST, request.FILES)
+                        context['confirmacion_form'] = confirmacion_form
+                        return self.render_to_response(context)
+                
+                # Procesar los archivos validados
                 creadas = 0
                 errores = []
-                for archivo in archivos:
+                for archivo in archivos_validos:
                     try:
                         ConfirmacionVenta.objects.create(
                             venta=self.object,
@@ -6285,8 +6304,8 @@ class ComisionesMensualesView(LoginRequiredMixin, TemplateView):
         mes_actual = timezone.now().month
         anio_actual = timezone.now().year
         
-        mes_filtro = int(self.request.GET.get('mes', mes_actual))
-        anio_filtro = int(self.request.GET.get('anio', anio_actual))
+        mes_filtro = safe_int(self.request.GET.get('mes'), default=mes_actual)
+        anio_filtro = safe_int(self.request.GET.get('anio'), default=anio_actual)
         
         # Determinar qué vendedores mostrar
         if user_rol == 'VENDEDOR':
@@ -6415,8 +6434,8 @@ class DetalleComisionesMensualesView(LoginRequiredMixin, UserPassesTestMixin, De
         mes_actual = timezone.now().month
         anio_actual = timezone.now().year
         
-        mes_filtro = int(self.request.GET.get('mes', mes_actual))
-        anio_filtro = int(self.request.GET.get('anio', anio_actual))
+        mes_filtro = safe_int(self.request.GET.get('mes'), default=mes_actual)
+        anio_filtro = safe_int(self.request.GET.get('anio'), default=anio_actual)
         
         # Obtener comisión mensual
         comision_mensual = ComisionMensual.objects.filter(
@@ -6487,8 +6506,8 @@ class ExportarComisionesMensualesExcelView(LoginRequiredMixin, View):
         mes_actual = timezone.now().month
         anio_actual = timezone.now().year
         
-        mes_filtro = int(request.GET.get('mes', mes_actual))
-        anio_filtro = int(request.GET.get('anio', anio_actual))
+        mes_filtro = safe_int(request.GET.get('mes'), default=mes_actual)
+        anio_filtro = safe_int(request.GET.get('anio'), default=anio_actual)
         
         # Obtener comisión mensual
         comision_mensual = ComisionMensual.objects.filter(
@@ -6670,12 +6689,8 @@ class ExportarComisionesMensualesTodosExcelView(LoginRequiredMixin, View):
         mes_actual = timezone.now().month
         anio_actual = timezone.now().year
         
-        try:
-            mes_filtro = int(request.GET.get('mes', mes_actual))
-            anio_filtro = int(request.GET.get('anio', anio_actual))
-        except (ValueError, TypeError):
-            mes_filtro = mes_actual
-            anio_filtro = anio_actual
+        mes_filtro = safe_int(request.GET.get('mes'), default=mes_actual)
+        anio_filtro = safe_int(request.GET.get('anio'), default=anio_actual)
         
         logger.info(f"Exportando comisiones para mes={mes_filtro}, año={anio_filtro}")
         
@@ -7046,15 +7061,8 @@ class ComisionesVendedoresView(LoginRequiredMixin, TemplateView):
         mes_param = self.request.GET.get('mes', '').strip()
         anio_param = self.request.GET.get('anio', '').strip()
         
-        try:
-            mes_filtro = int(mes_param) if mes_param else mes_actual
-        except (ValueError, TypeError):
-            mes_filtro = mes_actual
-        
-        try:
-            anio_filtro = int(anio_param) if anio_param else anio_actual
-        except (ValueError, TypeError):
-            anio_filtro = anio_actual
+        mes_filtro = safe_int(mes_param, default=mes_actual)
+        anio_filtro = safe_int(anio_param, default=anio_actual)
         
         lista_comisiones = []
         
@@ -10810,15 +10818,8 @@ class DetalleComisionesView(LoginRequiredMixin, TemplateView):
         mes_param = self.request.GET.get('mes', '').strip()
         anio_param = self.request.GET.get('anio', '').strip()
         
-        try:
-            mes_filtro = int(mes_param) if mes_param else mes_actual
-        except (ValueError, TypeError):
-            mes_filtro = mes_actual
-        
-        try:
-            anio_filtro = int(anio_param) if anio_param else anio_actual
-        except (ValueError, TypeError):
-            anio_filtro = anio_actual
+        mes_filtro = safe_int(mes_param, default=mes_actual)
+        anio_filtro = safe_int(anio_param, default=anio_actual)
         
         # Verificar si existe ComisionMensual para ISLA con ajuste manual
         comision_mensual = None
