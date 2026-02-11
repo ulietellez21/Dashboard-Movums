@@ -5135,10 +5135,11 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         run_linea2 = p_representante.add_run('_' * 50)
         set_run_font(run_linea2, size=10)
         
-        # ANEXO - CONTRATO DE MEDIACIÓN (parte superior tamaño 10, nombre cliente en negritas, resto tamaño 7, justificado)
+        # ANEXO - CONTRATO DE MEDIACIÓN (comienza en página 3, todo tamaño 7)
         nombre_cliente_anexo = (cliente.nombre_completo_display or '').strip() if cliente else ''
         p_anexo_titulo = doc.add_paragraph()
-        p_anexo_titulo.paragraph_format.space_before = Pt(24)
+        p_anexo_titulo.paragraph_format.page_break_before = True  # Forzar que texto tamaño 7 comience en página 3
+        p_anexo_titulo.paragraph_format.space_before = Pt(0)
         p_anexo_titulo.paragraph_format.space_after = Pt(8)
         p_anexo_titulo.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         run_anexo_1 = p_anexo_titulo.add_run('CONTRATO DE MEDIACIÓN PARA LA PRESTACIÓN DE SERVICIOS TURÍSTICOS, QUE CELEBRAN POR UNA PARTE LA AGENCIA DE VIAJES "GRUPO IMVED, S.A. DE C.V." ACTUANDO EN USO DE SU NOMBRE COMERCIAL MOVUMS THE TRAVEL STORE, EN ADELANTE DENOMINADA COMO "LA AGENCIA", Y POR LA OTRA EL/LA C. ')
@@ -5444,14 +5445,7 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         run_decima_cuarta_text = p_decima_cuarta.add_run('La aceptación y formalización del presente contrato se considerará efectiva una vez que EL CLIENTE envíe el contrato debidamente firmado y efectúe el anticipo, pago parcial o total, mismo que no es reembolsable, en virtud de que Movums The Travel Store realiza gestiones inmediatas con terceros proveedores para asegurar la disponibilidad de los servicios solicitados.')
         set_run_font(run_decima_cuarta_text, size=7)
         
-        # DÉCIMA QUINTA - Con salto de página
-        # Agregar 2 saltos de línea para que quede en la siguiente página
-        p_salto1 = doc.add_paragraph()
-        p_salto1.paragraph_format.space_after = Pt(0)
-        p_salto2 = doc.add_paragraph()
-        p_salto2.paragraph_format.space_after = Pt(0)
-        p_salto2.paragraph_format.page_break_before = True
-        
+        # DÉCIMA QUINTA + firmas - Sin salto de página para que suban al espacio en blanco de la página anterior
         p_decima_quinta = doc.add_paragraph()
         p_decima_quinta.paragraph_format.space_before = Pt(8)
         p_decima_quinta.paragraph_format.space_after = Pt(12)  # 1 salto de línea más después de "Estado de México."
