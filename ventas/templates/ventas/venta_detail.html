@@ -1130,11 +1130,12 @@
                                                 <div class="input-group">
                                                     <span class="input-group-text">{% if venta.tipo_viaje == 'INT' %}USD {% endif %}$</span>
                                                     {% if row.servicio %}
+                                                    {% comment %} Usar hidden+display cuando bloqueado (monto>0 y no puede editar). Evita que disabled excluya el valor del POST. Quien puede desbloquear ve el form. {% endcomment %}
                                                     {% if puede_desbloquear_todos_los_campos %}
                                                         {{ row.form.monto_planeado }}
-                                                    {% elif row.servicio.monto_planeado and row.servicio.monto_planeado > 0 %}
+                                                    {% elif row.servicio.monto_planeado and row.servicio.monto_planeado > 0 and not puede_editar_logistica_restringidos %}
                                                         <input type="hidden" name="{{ row.form.monto_planeado.name }}" value="{{ row.servicio.monto_planeado|stringformat:'.2f' }}">
-                                                        <input type="text" id="{{ row.form.monto_planeado.id_for_label }}_display" value="{{ row.servicio.monto_planeado|floatformat:2 }}" class="form-control" disabled readonly style="background-color: #e9ecef; cursor: not-allowed;" title="Los montos planificados están bloqueados y no se pueden editar">
+                                                        <input type="text" class="form-control logistica-monto-display" value="{{ row.servicio.monto_planeado|floatformat:2 }}" disabled readonly style="background-color: #e9ecef; cursor: not-allowed;" title="Los montos planificados están bloqueados y no se pueden editar">
                                                     {% else %}
                                                         {{ row.form.monto_planeado }}
                                                     {% endif %}
@@ -1153,12 +1154,13 @@
                                             <td>
                                                 <div class="form-check">
                                                     {% if row.servicio %}
+                                                    {% comment %} Usar hidden+display cuando pagado bloqueado. Evita que disabled excluya el valor del POST. {% endcomment %}
                                                     {% if puede_desbloquear_todos_los_campos %}
                                                         {{ row.form.pagado }}
                                                         <label class="form-check-label">Pagado</label>
-                                                    {% elif row.servicio.pagado %}
+                                                    {% elif row.servicio.pagado and not puede_editar_logistica_restringidos %}
                                                         <input type="hidden" name="{{ row.form.pagado.name }}" value="on">
-                                                        <input type="checkbox" id="{{ row.form.pagado.id_for_label }}_display" class="form-check-input" checked disabled style="cursor: not-allowed;" title="El estado de pago está bloqueado y no se puede desmarcar">
+                                                        <input type="checkbox" class="form-check-input logistica-pagado-display" checked disabled style="cursor: not-allowed;" title="El estado de pago está bloqueado y no se puede desmarcar">
                                                         <label class="form-check-label" style="opacity: 0.7;">Pagado</label>
                                                     {% else %}
                                                         {{ row.form.pagado }}
@@ -1175,11 +1177,12 @@
                                             </td>
                                             <td>
                                                 {% if row.servicio %}
+                                                {% comment %} Usar hidden+display cuando opcion_proveedor bloqueado. Preserva el valor en POST. {% endcomment %}
                                                 {% if puede_desbloquear_todos_los_campos %}
                                                     {{ row.form.opcion_proveedor }}
-                                                {% elif row.servicio.opcion_proveedor and row.servicio.opcion_proveedor.strip %}
+                                                {% elif row.servicio.opcion_proveedor and row.servicio.opcion_proveedor.strip and not puede_editar_logistica_restringidos %}
                                                     <input type="hidden" name="{{ row.form.opcion_proveedor.name }}" value="{{ row.servicio.opcion_proveedor }}">
-                                                    <input type="text" id="{{ row.form.opcion_proveedor.id_for_label }}_display" value="{{ row.servicio.opcion_proveedor }}" class="form-control form-control-sm" disabled readonly style="background-color: #e9ecef; cursor: not-allowed;" title="El nombre del proveedor está bloqueado">
+                                                    <input type="text" class="form-control form-control-sm logistica-proveedor-display" value="{{ row.servicio.opcion_proveedor }}" disabled readonly style="background-color: #e9ecef; cursor: not-allowed;" title="El nombre del proveedor está bloqueado">
                                                 {% else %}
                                                     {{ row.form.opcion_proveedor }}
                                                 {% endif %}
@@ -2191,8 +2194,8 @@
                 }
             });
             
-            // Inicializar formato en campos monto_planeado existentes
-            const camposMontoPlaneado = document.querySelectorAll('[id*="monto_planeado"]');
+            // Inicializar formato solo en campos monto_planeado EDITABLES (excluir .logistica-monto-display que son solo visualización)
+            const camposMontoPlaneado = document.querySelectorAll('[id*="monto_planeado"]:not(.logistica-monto-display)');
             camposMontoPlaneado.forEach(campo => {
                 if (!campo.hasAttribute('data-formato-inicializado')) {
                     campo.setAttribute('data-formato-inicializado', 'true');
@@ -2224,24 +2227,24 @@
                 }
             });
             
-            // Limpiar formato antes de enviar formularios
+            // Limpiar formato antes de enviar formularios - SOLO los campos del formulario que se está enviando
             const forms = document.querySelectorAll('form[method="post"]');
             forms.forEach(form => {
                 form.addEventListener('submit', function(e) {
-                    // Limpiar formato de campo monto MXN (formulario de abonos)
-                    if (campoMontoMXN && campoMontoMXN.value) {
+                    // Limpiar formato de campo monto MXN solo si está en este formulario
+                    if (campoMontoMXN && form.contains(campoMontoMXN) && campoMontoMXN.value) {
                         campoMontoMXN.value = limpiarFormatoMoneda(campoMontoMXN.value);
                     }
                     
-                    // Limpiar formato de campo monto USD
-                    if (campoMontoUSD && campoMontoUSD.value) {
+                    // Limpiar formato de campo monto USD solo si está en este formulario
+                    if (campoMontoUSD && form.contains(campoMontoUSD) && campoMontoUSD.value) {
                         let valorLimpio = campoMontoUSD.value.replace(/USD \$/g, '').replace(/\$/g, '').replace(/,/g, '');
                         campoMontoUSD.value = valorLimpio;
                     }
                     
-                    // Limpiar formato de campos monto_planeado
+                    // Limpiar formato de campos monto_planeado SOLO si pertenecen al formulario que se envía (evita tocar logística al enviar confirmaciones/abonos)
                     camposMontoPlaneado.forEach(campo => {
-                        if (campo.value) {
+                        if (form.contains(campo) && campo.value) {
                             campo.value = limpiarFormatoMoneda(campo.value);
                         }
                     });
