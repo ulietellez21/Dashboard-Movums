@@ -4523,7 +4523,20 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         habitacion = ''
         plan_alimentos = ''
         tours = []
-        traslado_info = ''  # Nueva variable para traslados
+        # Traslado: usar opcion_proveedor de LogisticaServicio TRA (casilla "Opcion de Traslado")
+        traslado_info = ''
+        for s in venta.servicios_logisticos.filter(codigo_servicio='TRA'):
+            opc = (s.opcion_proveedor or '').strip()
+            if opc:
+                traslado_info = opc
+                break  # Usar el primero que tenga valor
+        # Adicionales: usar opcion_proveedor de LogisticaServicio TOU (casilla "Opcion de tour y actividades")
+        adicionales_info = []
+        for s in venta.servicios_logisticos.filter(codigo_servicio='TOU').order_by('orden', 'pk'):
+            opc = (s.opcion_proveedor or '').strip()
+            if opc:
+                adicionales_info.append(opc)
+        adicionales_info = ' / '.join(adicionales_info) if adicionales_info else ''
         
         # DEBUG: Log para verificar datos
         import logging
@@ -4664,35 +4677,7 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
                     tours = [tours_fallback]
                     logger.info(f"DEBUG: Tours encontrados desde fallback (dict único)")
             
-            # Extraer información de traslados desde propuestas['traslados']
-            traslados_data = propuestas.get('traslados', {})
-            logger.info(f"DEBUG: Traslados encontrados: {bool(traslados_data)}, tipo: {type(traslados_data)}, contenido: {traslados_data}")
-            
-            if traslados_data:
-                if isinstance(traslados_data, dict):
-                    # Intentar extraer descripción, proveedor o tipo de traslado
-                    traslado_info = (
-                        traslados_data.get('descripcion', '') or 
-                        traslados_data.get('proveedor', '') or 
-                        traslados_data.get('tipo', '') or 
-                        traslados_data.get('servicio', '') or 
-                        traslados_data.get('nombre', '') or 
-                        ''
-                    ).strip()
-                    logger.info(f"DEBUG: Traslado extraído: {traslado_info}")
-                elif isinstance(traslados_data, list) and len(traslados_data) > 0:
-                    # Si es una lista, tomar el primer elemento
-                    primer_traslado = traslados_data[0] if isinstance(traslados_data[0], dict) else {}
-                    if primer_traslado:
-                        traslado_info = (
-                            primer_traslado.get('descripcion', '') or 
-                            primer_traslado.get('proveedor', '') or 
-                            primer_traslado.get('tipo', '') or 
-                            primer_traslado.get('servicio', '') or 
-                            primer_traslado.get('nombre', '') or 
-                            ''
-                        ).strip()
-                        logger.info(f"DEBUG: Traslado extraído desde lista: {traslado_info}")
+            # Traslado y adicionales se obtienen desde servicios_logisticos (opcion_proveedor), no desde propuestas
         
         # Si no hay origen/destino en cotización, usar valores por defecto
         if not origen:
@@ -4938,59 +4923,14 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         run_traslado_val = p_traslado.add_run(traslado_display)
         set_run_font(run_traslado_val, size=12, bold=True)  # Valor en negritas
         
-        # ADICIONALES (tours) - SIEMPRE mostrar el label
+        # ADICIONALES: usar opcion_proveedor de LogisticaServicio TOU (casilla "Opcion de tour y actividades")
         p_adicionales = doc.add_paragraph()
         p_adicionales.paragraph_format.space_after = Pt(0)  # Sin espacio después para compactar
         run_adicionales_label = p_adicionales.add_run('ADICIONALES: ')
         set_run_font(run_adicionales_label, size=12, bold=False)  # Label sin negritas
-        
-        # Si no hay tours, no agregar espacio extra
-        # Mostrar tours si existen
-        if tours and len(tours) > 0:
-            for tour in tours:
-                if isinstance(tour, dict):
-                    # Extraer nombre del tour (puede estar en diferentes campos)
-                    tour_nombre = tour.get('nombre', '') or tour.get('descripcion', '') or ''
-                    # Si no hay nombre pero hay especificaciones, usar las primeras palabras
-                    if not tour_nombre:
-                        especificaciones = tour.get('especificaciones', '')
-                        if especificaciones:
-                            # Tomar las primeras palabras como nombre
-                            palabras = especificaciones.split()[:5]
-                            tour_nombre = ' '.join(palabras)
-                    
-                    # Extraer fecha si está disponible (puede estar en especificaciones o en un campo fecha)
-                    tour_fecha = tour.get('fecha', '')
-                    # Intentar extraer fecha de especificaciones si no está en campo fecha
-                    if not tour_fecha:
-                        especificaciones = tour.get('especificaciones', '')
-                        # Buscar patrones de fecha comunes
-                        import re
-                        fecha_match = re.search(r'(\d{1,2}\s*(?:DIC|ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC))', especificaciones.upper())
-                        if fecha_match:
-                            tour_fecha = fecha_match.group(1)
-                    
-                    # Extraer número de pasajeros/adultos
-                    tour_pasajeros = tour.get('pasajeros', '') or tour.get('adultos', '')
-                    if tour_pasajeros and isinstance(tour_pasajeros, (int, str)):
-                        if isinstance(tour_pasajeros, int):
-                            tour_pasajeros = f"{tour_pasajeros} ADULTOS"
-                        elif not 'ADULTOS' in str(tour_pasajeros).upper():
-                            tour_pasajeros = f"{tour_pasajeros} ADULTOS"
-                    
-                    if tour_nombre:
-                        p_tour = doc.add_paragraph()
-                        p_tour.paragraph_format.left_indent = Inches(0.5)
-                        p_tour.paragraph_format.space_after = Pt(0)  # Sin espacio después para compactar
-                        # Formato según imagen: "PARQUE XENSES 2 ADULTOS (16 DIC) / TRASLADO"
-                        tour_texto = f"{tour_nombre.upper()}"
-                        if tour_pasajeros:
-                            tour_texto += f" {tour_pasajeros.upper()}"
-                        if tour_fecha:
-                            tour_texto += f" ({tour_fecha.upper()})"
-                        tour_texto += " / TRASLADO"
-                        run_tour = p_tour.add_run(tour_texto)
-                        set_run_font(run_tour, size=12, bold=True)  # Valor en negritas
+        if adicionales_info:
+            run_adicionales_val = p_adicionales.add_run(adicionales_info.upper())
+            set_run_font(run_adicionales_val, size=12, bold=True)  # Valor en negritas
         
         # PRECIO Y CONDICIONES ECONÓMICAS - Sin espacio extra antes
         p_seccion = doc.add_paragraph()
@@ -5049,19 +4989,6 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
             run_fecha_limite_val = p_fecha_limite.add_run('//2025')
         set_run_font(run_fecha_limite_val, size=12, bold=True)
         run_fecha_limite_val.font.underline = True
-        
-        # Desglose de pagos (parcialidades) - dejar en blanco para llenar manualmente
-        p_desglose = doc.add_paragraph()
-        p_desglose.paragraph_format.space_after = Pt(0)  # Sin espacio después
-        run_desglose_label = p_desglose.add_run('•Desglose de pagos (si aplica):')
-        set_run_font(run_desglose_label, size=12, bold=False)  # Label sin negritas
-        
-        for i in range(1, 4):
-            p_parcialidad = doc.add_paragraph()
-            p_parcialidad.paragraph_format.left_indent = Inches(0.5)
-            p_parcialidad.paragraph_format.space_after = Pt(0) if i == 3 else Pt(0)  # Sin espacio después (especialmente en la última)
-            run_parcialidad = p_parcialidad.add_run(f'Parcialidad {i}: $_________ Fecha: //2025')
-            set_run_font(run_parcialidad, size=12, bold=False)  # Sin negritas (campos vacíos)
         
         # El footer ya está en el membrete de la plantilla
         
