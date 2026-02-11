@@ -147,6 +147,14 @@ backups/*.sql
 !backups/README_BACKUPS.md
 !backups/backup_servidor.sh
 
+# Archivos de entorno backup (seguridad)
+.env.bak
+*.env.bak
+
+# Backups de SQLite
+*.sqlite3
+backups/*.sqlite3
+
 
 
 
