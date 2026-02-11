@@ -216,6 +216,23 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# =============================================================================
+# Límites de Upload (Hardening - Protección de memoria del servidor)
+# =============================================================================
+# Tope máximo de la petición completa (POST data + archivos)
+# Debe ser >= al archivo más grande permitido (10 MB en validators.py)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10 MB
+
+# Si el archivo supera este tamaño, se escribe a disco temporal en lugar de RAM
+# Esto protege la memoria del servidor contra archivos grandes
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2621440   # 2.5 MB
+
+# Número máximo de campos en un formulario (protección contra DoS)
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000
+
+# Número máximo de archivos en una sola petición
+DATA_UPLOAD_MAX_NUMBER_FILES = 20
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 
