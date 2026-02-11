@@ -892,19 +892,17 @@
                                                             <span class="badge bg-info">Crédito - Pendiente de validación</span>
                                                         {% elif venta.modo_pago_apertura in 'TRN,TAR,DEP' %}
                                                             {% if venta.comprobante_apertura_subido and venta.comprobante_apertura %}
-                                                                {% if venta.estado_confirmacion == 'EN_CONFIRMACION' %}
+                                                                {% if not venta.apertura_confirmada %}
                                                                 <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalEditarComprobanteApertura" title="Editar comprobante">
                                                                     <i class="fas fa-edit"></i> Editar
                                                                 </button>
                                                                 {% else %}
                                                                 <span class="text-muted">-</span>
                                                                 {% endif %}
-                                                            {% elif venta.estado_confirmacion == 'EN_CONFIRMACION' %}
+                                                            {% else %}
                                                                 <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#modalComprobanteApertura" title="Subir comprobante">
                                                                     <i class="fas fa-upload"></i> Subir
                                                                 </button>
-                                                            {% else %}
-                                                                <span class="text-muted">-</span>
                                                             {% endif %}
                                                         {% else %}
                                                             <span class="text-muted">-</span>
@@ -1592,8 +1590,8 @@
     </div>
 </div>
 
-<!-- Modal para editar comprobante de apertura (cuando ya está subido pero no confirmado) -->
-{% if venta.modo_pago_apertura in 'TRN,TAR,DEP' and venta.estado_confirmacion == 'EN_CONFIRMACION' and venta.comprobante_apertura_subido and venta.comprobante_apertura %}
+<!-- Modal para editar comprobante de apertura (cuando ya está subido pero no confirmado por el contador) -->
+{% if venta.modo_pago_apertura in 'TRN,TAR,DEP' and venta.comprobante_apertura_subido and venta.comprobante_apertura and not venta.apertura_confirmada %}
 <div class="modal fade" id="modalEditarComprobanteApertura" tabindex="-1" aria-labelledby="modalEditarComprobanteAperturaLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">

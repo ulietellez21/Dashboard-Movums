@@ -627,6 +627,9 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         venta = self.object
+        # Corregir venta marcada COMPLETADO/liquidada cuando en realidad no está pagada (apertura TRN/TAR/DEP sin confirmar)
+        if venta.estado_confirmacion == 'COMPLETADO' and venta.saldo_restante > 0:
+            venta.actualizar_estado_financiero(guardar=True)
         user_rol = perm.get_user_role(self.request.user, self.request)
         context['user_rol'] = user_rol
         context['es_jefe'] = perm.has_full_access(self.request.user, self.request)
@@ -11450,26 +11453,30 @@ class SubirComprobanteAperturaView(LoginRequiredMixin, View):
         
         if not puede_subir:
             messages.error(request, "No tienes permiso para subir comprobantes.")
-            return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+            return redirect(reverse('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}) + '?tab=abonos')
         
         # Verificar que la venta tenga apertura y requiera comprobante (no aplica para crédito)
         if venta.modo_pago_apertura == 'CRE':
             messages.error(request, "El crédito no requiere comprobante. El contador validará el crédito directamente.")
-            return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+            return redirect(reverse('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}) + '?tab=abonos')
         
-        if not venta.cantidad_apertura or venta.cantidad_apertura <= 0:
+        # Para ventas internacionales puede haber solo cantidad_apertura_usd
+        tiene_apertura = (venta.cantidad_apertura and venta.cantidad_apertura > 0) or (
+            getattr(venta, 'tipo_viaje', None) == 'INT' and venta.cantidad_apertura_usd and venta.cantidad_apertura_usd > 0
+        )
+        if not tiene_apertura:
             messages.error(request, "Esta venta no tiene pago de apertura.")
-            return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+            return redirect(reverse('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}) + '?tab=abonos')
         
         if venta.modo_pago_apertura not in ['TRN', 'TAR', 'DEP']:
             messages.error(request, "Este tipo de pago no requiere comprobante.")
-            return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+            return redirect(reverse('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}) + '?tab=abonos')
         
         # Obtener la imagen del request
         imagen = request.FILES.get('comprobante_apertura')
         if not imagen:
             messages.error(request, "Debes seleccionar una imagen del comprobante.")
-            return redirect('detalle_venta', pk=venta.pk, slug=venta.slug_safe)
+            return redirect(reverse('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}) + '?tab=abonos')
         
         # Guardar el comprobante
         venta.comprobante_apertura = imagen

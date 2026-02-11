@@ -815,14 +815,25 @@ class VentaViaje(models.Model):
         # - CRE: confirmada si el contador ya la validó (estado != EN_CONFIRMACION).
         # - EFE/LIG/PRO: no se usa aquí para forzar COMPLETADO.
         # - TRN/TAR/DEP: solo confirmada cuando el contador la aprobó explícitamente (apertura_confirmada=True).
+        #   Para INT puede haber solo cantidad_apertura_usd (cantidad_apertura en 0).
         if self.modo_pago_apertura == 'CRE':
             apertura_confirmada = (self.estado_confirmacion != 'EN_CONFIRMACION')
         elif self.modo_pago_apertura in ['TRN', 'TAR', 'DEP']:
-            apertura_confirmada = bool(
-                self.cantidad_apertura and self.cantidad_apertura > 0 and self.apertura_confirmada
-            )
+            tiene_monto_apertura = False
+            if self.tipo_viaje == 'INT':
+                monto_apertura = self._cantidad_apertura_usd_resuelto()
+                tiene_monto_apertura = bool(monto_apertura and monto_apertura > 0)
+            else:
+                tiene_monto_apertura = bool(self.cantidad_apertura and self.cantidad_apertura > 0)
+            apertura_confirmada = tiene_monto_apertura and bool(self.apertura_confirmada)
         else:
             apertura_confirmada = False
+        
+        # No marcar como COMPLETADO/liquidada si el total pagado no alcanza y la apertura (TRN/TAR/DEP) no está confirmada
+        if (nuevo_estado == estado_actual and estado_actual == 'COMPLETADO' and
+            nuevo_total < self.costo_total_con_modificacion and
+            self.modo_pago_apertura in ['TRN', 'TAR', 'DEP'] and not self.apertura_confirmada):
+            nuevo_estado = 'EN_CONFIRMACION'
         
         # Si hay una apertura confirmada (por contador en TRN/TAR/DEP o CRE), mantener COMPLETADO
         # y NO debe cambiar, independientemente del total pagado
