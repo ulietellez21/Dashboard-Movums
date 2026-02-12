@@ -519,12 +519,13 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
         
         # Paginación por separado: así "Contratos Activos" muestra todos los activos (pag. 1, 2, ...)
         # y "Contratos Cerrados" muestra todos los cerrados (pag. 1, 2, ...)
-        paginate_by = 30
+        paginate_by_activas = 13
+        paginate_by_cerradas = 13
         page_activas = self.request.GET.get('page_activas', '1')
         page_cerradas = self.request.GET.get('page_cerradas', '1')
         
-        paginator_activas = Paginator(ventas_activas_list, paginate_by)
-        paginator_cerradas = Paginator(ventas_cerradas_list, paginate_by)
+        paginator_activas = Paginator(ventas_activas_list, paginate_by_activas)
+        paginator_cerradas = Paginator(ventas_cerradas_list, paginate_by_cerradas)
         
         try:
             page_obj_activas = paginator_activas.page(int(page_activas))

@@ -219,17 +219,24 @@ Mis Ventas 💼
 </div>
 {% if page_obj_activas and page_obj_activas.paginator.num_pages > 1 %}
 <nav aria-label="Paginación Contratos Activos" class="mt-2">
-    <ul class="pagination pagination-sm justify-content-center">
+    <ul class="pagination pagination-sm justify-content-center flex-wrap">
         {% if page_obj_activas.has_previous %}
         <li class="page-item"><a class="page-link" href="?page_activas=1&page_cerradas={{ current_page_cerradas }}{% if busqueda_folio %}&busqueda_folio={{ busqueda_folio }}{% endif %}{% if busqueda_servicio %}&busqueda_servicio={{ busqueda_servicio }}{% endif %}{% if fecha_filtro %}&fecha_filtro={{ fecha_filtro }}{% endif %}{% if fecha_desde %}&fecha_desde={{ fecha_desde }}{% endif %}{% if fecha_hasta %}&fecha_hasta={{ fecha_hasta }}{% endif %}">&laquo;&laquo;</a></li>
         <li class="page-item"><a class="page-link" href="?page_activas={{ page_obj_activas.previous_page_number }}&page_cerradas={{ current_page_cerradas }}{% if busqueda_folio %}&busqueda_folio={{ busqueda_folio }}{% endif %}{% if busqueda_servicio %}&busqueda_servicio={{ busqueda_servicio }}{% endif %}{% if fecha_filtro %}&fecha_filtro={{ fecha_filtro }}{% endif %}{% if fecha_desde %}&fecha_desde={{ fecha_desde }}{% endif %}{% if fecha_hasta %}&fecha_hasta={{ fecha_hasta }}{% endif %}">&laquo;</a></li>
         {% endif %}
-        <li class="page-item disabled"><span class="page-link">Pág. {{ page_obj_activas.number }} de {{ page_obj_activas.paginator.num_pages }} ({{ page_obj_activas.paginator.count }} activos)</span></li>
+        {% for num in page_obj_activas.paginator.page_range %}
+        {% if num == page_obj_activas.number %}
+        <li class="page-item active" aria-current="page"><span class="page-link">{{ num }}</span></li>
+        {% else %}
+        <li class="page-item"><a class="page-link" href="?page_activas={{ num }}&page_cerradas={{ current_page_cerradas }}{% if busqueda_folio %}&busqueda_folio={{ busqueda_folio }}{% endif %}{% if busqueda_servicio %}&busqueda_servicio={{ busqueda_servicio }}{% endif %}{% if fecha_filtro %}&fecha_filtro={{ fecha_filtro }}{% endif %}{% if fecha_desde %}&fecha_desde={{ fecha_desde }}{% endif %}{% if fecha_hasta %}&fecha_hasta={{ fecha_hasta }}{% endif %}">{{ num }}</a></li>
+        {% endif %}
+        {% endfor %}
         {% if page_obj_activas.has_next %}
         <li class="page-item"><a class="page-link" href="?page_activas={{ page_obj_activas.next_page_number }}&page_cerradas={{ current_page_cerradas }}{% if busqueda_folio %}&busqueda_folio={{ busqueda_folio }}{% endif %}{% if busqueda_servicio %}&busqueda_servicio={{ busqueda_servicio }}{% endif %}{% if fecha_filtro %}&fecha_filtro={{ fecha_filtro }}{% endif %}{% if fecha_desde %}&fecha_desde={{ fecha_desde }}{% endif %}{% if fecha_hasta %}&fecha_hasta={{ fecha_hasta }}{% endif %}">&raquo;</a></li>
         <li class="page-item"><a class="page-link" href="?page_activas={{ page_obj_activas.paginator.num_pages }}&page_cerradas={{ current_page_cerradas }}{% if busqueda_folio %}&busqueda_folio={{ busqueda_folio }}{% endif %}{% if busqueda_servicio %}&busqueda_servicio={{ busqueda_servicio }}{% endif %}{% if fecha_filtro %}&fecha_filtro={{ fecha_filtro }}{% endif %}{% if fecha_desde %}&fecha_desde={{ fecha_desde }}{% endif %}{% if fecha_hasta %}&fecha_hasta={{ fecha_hasta }}{% endif %}">&raquo;&raquo;</a></li>
         {% endif %}
     </ul>
+    <p class="text-center small text-muted mb-0 mt-1">Pág. {{ page_obj_activas.number }} de {{ page_obj_activas.paginator.num_pages }} ({{ page_obj_activas.paginator.count }} contratos activos)</p>
 </nav>
 {% endif %}
 {% else %}
@@ -310,17 +317,24 @@ Mis Ventas 💼
 </div>
 {% if page_obj_cerradas and page_obj_cerradas.paginator.num_pages > 1 %}
 <nav aria-label="Paginación Contratos Cerrados" class="mt-2">
-    <ul class="pagination pagination-sm justify-content-center">
+    <ul class="pagination pagination-sm justify-content-center flex-wrap">
         {% if page_obj_cerradas.has_previous %}
         <li class="page-item"><a class="page-link" href="?page_activas={{ current_page_activas }}&page_cerradas=1{% if busqueda_folio %}&busqueda_folio={{ busqueda_folio }}{% endif %}{% if busqueda_servicio %}&busqueda_servicio={{ busqueda_servicio }}{% endif %}{% if fecha_filtro %}&fecha_filtro={{ fecha_filtro }}{% endif %}{% if fecha_desde %}&fecha_desde={{ fecha_desde }}{% endif %}{% if fecha_hasta %}&fecha_hasta={{ fecha_hasta }}{% endif %}">&laquo;&laquo;</a></li>
         <li class="page-item"><a class="page-link" href="?page_activas={{ current_page_activas }}&page_cerradas={{ page_obj_cerradas.previous_page_number }}{% if busqueda_folio %}&busqueda_folio={{ busqueda_folio }}{% endif %}{% if busqueda_servicio %}&busqueda_servicio={{ busqueda_servicio }}{% endif %}{% if fecha_filtro %}&fecha_filtro={{ fecha_filtro }}{% endif %}{% if fecha_desde %}&fecha_desde={{ fecha_desde }}{% endif %}{% if fecha_hasta %}&fecha_hasta={{ fecha_hasta }}{% endif %}">&laquo;</a></li>
         {% endif %}
-        <li class="page-item disabled"><span class="page-link">Pág. {{ page_obj_cerradas.number }} de {{ page_obj_cerradas.paginator.num_pages }} ({{ page_obj_cerradas.paginator.count }} cerrados)</span></li>
+        {% for num in page_obj_cerradas.paginator.page_range %}
+        {% if num == page_obj_cerradas.number %}
+        <li class="page-item active" aria-current="page"><span class="page-link">{{ num }}</span></li>
+        {% else %}
+        <li class="page-item"><a class="page-link" href="?page_activas={{ current_page_activas }}&page_cerradas={{ num }}{% if busqueda_folio %}&busqueda_folio={{ busqueda_folio }}{% endif %}{% if busqueda_servicio %}&busqueda_servicio={{ busqueda_servicio }}{% endif %}{% if fecha_filtro %}&fecha_filtro={{ fecha_filtro }}{% endif %}{% if fecha_desde %}&fecha_desde={{ fecha_desde }}{% endif %}{% if fecha_hasta %}&fecha_hasta={{ fecha_hasta }}{% endif %}">{{ num }}</a></li>
+        {% endif %}
+        {% endfor %}
         {% if page_obj_cerradas.has_next %}
         <li class="page-item"><a class="page-link" href="?page_activas={{ current_page_activas }}&page_cerradas={{ page_obj_cerradas.next_page_number }}{% if busqueda_folio %}&busqueda_folio={{ busqueda_folio }}{% endif %}{% if busqueda_servicio %}&busqueda_servicio={{ busqueda_servicio }}{% endif %}{% if fecha_filtro %}&fecha_filtro={{ fecha_filtro }}{% endif %}{% if fecha_desde %}&fecha_desde={{ fecha_desde }}{% endif %}{% if fecha_hasta %}&fecha_hasta={{ fecha_hasta }}{% endif %}">&raquo;</a></li>
         <li class="page-item"><a class="page-link" href="?page_activas={{ current_page_activas }}&page_cerradas={{ page_obj_cerradas.paginator.num_pages }}{% if busqueda_folio %}&busqueda_folio={{ busqueda_folio }}{% endif %}{% if busqueda_servicio %}&busqueda_servicio={{ busqueda_servicio }}{% endif %}{% if fecha_filtro %}&fecha_filtro={{ fecha_filtro }}{% endif %}{% if fecha_desde %}&fecha_desde={{ fecha_desde }}{% endif %}{% if fecha_hasta %}&fecha_hasta={{ fecha_hasta }}{% endif %}">&raquo;&raquo;</a></li>
         {% endif %}
     </ul>
+    <p class="text-center small text-muted mb-0 mt-1">Pág. {{ page_obj_cerradas.number }} de {{ page_obj_cerradas.paginator.num_pages }} ({{ page_obj_cerradas.paginator.count }} contratos cerrados)</p>
 </nav>
 {% endif %}
 
