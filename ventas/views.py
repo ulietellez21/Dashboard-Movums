@@ -11633,27 +11633,36 @@ class PagosPorConfirmarView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
         # Para TRN/TAR/DEP: requiere comprobante subido
         # Para CRE: no requiere comprobante, solo estar en EN_CONFIRMACION
         # IMPORTANTE: Solo mostrar las que están en 'EN_CONFIRMACION' (no las confirmadas)
-        # Para ventas internacionales: considerar cantidad_apertura_usd > 0
         # CRÍTICO: Para ventas INT, verificar cantidad_apertura_usd > 0, no solo cantidad_apertura
-        ventas_apertura_pendiente = VentaViaje.objects.filter(
-            Q(estado_confirmacion='EN_CONFIRMACION') &  # Solo las que están en confirmación
-            (
-                # Transferencia, Tarjeta, Depósito: requieren comprobante
-                # Para NAC: cantidad_apertura > 0; para INT: cantidad_apertura_usd > 0
-                (Q(modo_pago_apertura__in=['TRN', 'TAR', 'DEP']) & 
-                 Q(comprobante_apertura_subido=True) &
-                 (
-                     # Ventas nacionales: cantidad_apertura > 0
-                     (Q(tipo_viaje='NAC') & Q(cantidad_apertura__gt=0)) |
-                     # Ventas internacionales: cantidad_apertura_usd > 0 (puede tener cantidad_apertura = 0)
-                     (Q(tipo_viaje='INT') & Q(cantidad_apertura_usd__gt=0))
-                 )) |
-                # Crédito: no requiere comprobante ni cantidad_apertura > 0
-                Q(modo_pago_apertura='CRE')
-            )
+        # ESTRATEGIA: Consulta simplificada que verifica ambos casos de manera clara
+        
+        # Base: ventas en EN_CONFIRMACION (no COMPLETADO)
+        base_query = VentaViaje.objects.filter(
+            estado_confirmacion='EN_CONFIRMACION'
         ).exclude(
-            estado_confirmacion='COMPLETADO'  # Excluir explícitamente las ya confirmadas
-        ).select_related('cliente', 'vendedor').order_by('-fecha_creacion')
+            estado_confirmacion='COMPLETADO'
+        )
+        
+        # Para TRN/TAR/DEP: deben tener comprobante subido Y algún monto de apertura válido
+        ventas_trn_tar_dep = base_query.filter(
+            modo_pago_apertura__in=['TRN', 'TAR', 'DEP'],
+            comprobante_apertura_subido=True
+        ).filter(
+            # Ventas internacionales: cantidad_apertura_usd > 0
+            Q(tipo_viaje='INT', cantidad_apertura_usd__gt=0) |
+            # Ventas nacionales: cantidad_apertura > 0
+            Q(tipo_viaje='NAC', cantidad_apertura__gt=0) |
+            # Casos edge: tipo_viaje NULL o vacío pero con cantidad_apertura > 0
+            Q(tipo_viaje__isnull=True, cantidad_apertura__gt=0)
+        )
+        
+        # Para CRE: solo necesita estar en EN_CONFIRMACION
+        ventas_cre = base_query.filter(
+            modo_pago_apertura='CRE'
+        )
+        
+        # Combinar ambas consultas
+        ventas_apertura_pendiente = (ventas_trn_tar_dep | ventas_cre).distinct().select_related('cliente', 'vendedor').order_by('-fecha_creacion')
         
         # Abonos a proveedor pendientes: PENDIENTE (para aprobar) y APROBADO (para confirmar)
         abonos_proveedor_pendientes = AbonoProveedor.objects.filter(

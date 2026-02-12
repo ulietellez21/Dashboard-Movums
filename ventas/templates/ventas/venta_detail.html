@@ -893,14 +893,6 @@
                                                         {% elif venta.modo_pago_apertura in 'TRN,TAR,DEP' %}
                                                             {% if venta.comprobante_apertura_subido and venta.comprobante_apertura %}
                                                                 {% if not venta.apertura_confirmada %}
-                                                                    {% if user_rol == 'CONTADOR' %}
-                                                                        <form method="post" action="{% url 'confirmar_pago_desde_lista' tipo='apertura' pk=venta.pk %}" class="d-inline">
-                                                                            {% csrf_token %}
-                                                                            <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('¿Confirmar este pago de apertura?')" title="Aprobar apertura">
-                                                                                <i class="fas fa-check"></i> Aprobar
-                                                                            </button>
-                                                                        </form>
-                                                                    {% endif %}
                                                                     <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalEditarComprobanteApertura" title="Editar comprobante">
                                                                         <i class="fas fa-edit"></i> Editar
                                                                     </button>
@@ -917,6 +909,20 @@
                                                         {% endif %}
                                                     </td>
                                                     <td><em>Apertura/Anticipo</em> - {{ venta.vendedor.username|default:"Sistema" }}</td>
+                                                    {% if user_rol == 'CONTADOR' %}
+                                                    <td>
+                                                        {% if venta.modo_pago_apertura in 'TRN,TAR,DEP' and not venta.apertura_confirmada and venta.comprobante_apertura_subido %}
+                                                            <form method="post" action="{% url 'confirmar_pago_desde_lista' tipo='apertura' pk=venta.pk %}" style="display: inline;">
+                                                                {% csrf_token %}
+                                                                <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('¿Confirmar este pago de apertura?')" title="Aprobar apertura">
+                                                                    <i class="fas fa-check"></i> Aprobar
+                                                                </button>
+                                                            </form>
+                                                        {% else %}
+                                                            <span class="text-muted">-</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    {% endif %}
                                                 </tr>
                                                 {% endif %}
                                                 {% for abono in abonos %}
