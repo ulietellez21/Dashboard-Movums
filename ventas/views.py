@@ -286,7 +286,13 @@ class DashboardView(LoginRequiredMixin, ListView):
                     Q(estado_confirmacion='EN_CONFIRMACION') &  # Solo las que están en confirmación
                     (
                         # Transferencia, Tarjeta, Depósito: requieren comprobante
-                        (Q(modo_pago_apertura__in=['TRN', 'TAR', 'DEP']) & Q(cantidad_apertura__gt=0) & Q(comprobante_apertura_subido=True)) |
+                        # Para NAC: cantidad_apertura > 0; para INT: cantidad_apertura_usd > 0
+                        (Q(modo_pago_apertura__in=['TRN', 'TAR', 'DEP']) & 
+                         Q(comprobante_apertura_subido=True) &
+                         (
+                             Q(cantidad_apertura__gt=0) |  # Ventas nacionales
+                             (Q(tipo_viaje='INT') & Q(cantidad_apertura_usd__gt=0))  # Ventas internacionales
+                         )) |
                         # Crédito: no requiere comprobante ni cantidad_apertura > 0
                         Q(modo_pago_apertura='CRE')
                     )
@@ -11532,12 +11538,20 @@ class SubirComprobanteAperturaView(LoginRequiredMixin, View):
         venta.comprobante_apertura_subido = True
         venta.comprobante_apertura_subido_en = timezone.now()
         venta.comprobante_apertura_subido_por = request.user
+        # Asegurar que el estado sea EN_CONFIRMACION para que aparezca en pagos por confirmar
+        if venta.estado_confirmacion != 'EN_CONFIRMACION':
+            venta.estado_confirmacion = 'EN_CONFIRMACION'
         venta.save()
         
         # Crear notificaciones para CONTADOR
         contadores = User.objects.filter(perfil__rol='CONTADOR')
         modo_pago_display = dict(VentaViaje.MODO_PAGO_CHOICES).get(venta.modo_pago_apertura, venta.modo_pago_apertura)
-        mensaje_contador = f"Pago de apertura pendiente de confirmación: ${venta.cantidad_apertura:,.2f} ({modo_pago_display}) - Venta #{venta.pk} - Cliente: {venta.cliente.nombre_completo_display}"
+        # Para ventas internacionales mostrar USD, para nacionales MXN
+        if venta.tipo_viaje == 'INT' and venta.cantidad_apertura_usd:
+            monto_display = f"USD ${venta.cantidad_apertura_usd:,.2f}"
+        else:
+            monto_display = f"${venta.cantidad_apertura:,.2f}"
+        mensaje_contador = f"Pago de apertura pendiente de confirmación: {monto_display} ({modo_pago_display}) - Venta #{venta.pk} - Cliente: {venta.cliente.nombre_completo_display}"
         
         for contador in contadores:
             # Eliminar notificaciones previas de apertura para esta venta
@@ -11610,11 +11624,18 @@ class PagosPorConfirmarView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
         # Para TRN/TAR/DEP: requiere comprobante subido
         # Para CRE: no requiere comprobante, solo estar en EN_CONFIRMACION
         # IMPORTANTE: Solo mostrar las que están en 'EN_CONFIRMACION' (no las confirmadas)
+        # Para ventas internacionales: considerar cantidad_apertura_usd > 0
         ventas_apertura_pendiente = VentaViaje.objects.filter(
             Q(estado_confirmacion='EN_CONFIRMACION') &  # Solo las que están en confirmación
             (
                 # Transferencia, Tarjeta, Depósito: requieren comprobante
-                (Q(modo_pago_apertura__in=['TRN', 'TAR', 'DEP']) & Q(cantidad_apertura__gt=0) & Q(comprobante_apertura_subido=True)) |
+                # Para NAC: cantidad_apertura > 0; para INT: cantidad_apertura_usd > 0
+                (Q(modo_pago_apertura__in=['TRN', 'TAR', 'DEP']) & 
+                 Q(comprobante_apertura_subido=True) &
+                 (
+                     Q(cantidad_apertura__gt=0) |  # Ventas nacionales
+                     (Q(tipo_viaje='INT') & Q(cantidad_apertura_usd__gt=0))  # Ventas internacionales
+                 )) |
                 # Crédito: no requiere comprobante ni cantidad_apertura > 0
                 Q(modo_pago_apertura='CRE')
             )
@@ -11661,7 +11682,13 @@ class PagosPorConfirmarView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
             Q(estado_confirmacion='COMPLETADO') &
             (
                 # Transferencia, Tarjeta, Depósito: requieren comprobante subido
-                (Q(modo_pago_apertura__in=['TRN', 'TAR', 'DEP']) & Q(cantidad_apertura__gt=0) & Q(comprobante_apertura_subido=True)) |
+                # Para NAC: cantidad_apertura > 0; para INT: cantidad_apertura_usd > 0
+                (Q(modo_pago_apertura__in=['TRN', 'TAR', 'DEP']) & 
+                 Q(comprobante_apertura_subido=True) &
+                 (
+                     Q(cantidad_apertura__gt=0) |  # Ventas nacionales
+                     (Q(tipo_viaje='INT') & Q(cantidad_apertura_usd__gt=0))  # Ventas internacionales
+                 )) |
                 # Crédito: no requiere comprobante
                 Q(modo_pago_apertura='CRE')
             )
