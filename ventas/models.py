@@ -849,6 +849,12 @@ class VentaViaje(models.Model):
         elif estado_actual == 'EN_CONFIRMACION':
             # Si está en confirmación, mantener EN_CONFIRMACION hasta que se confirme o complete
             nuevo_estado = 'EN_CONFIRMACION'
+        # CRÍTICO: Si hay comprobante subido pero no confirmado (TRN/TAR/DEP), debe estar en EN_CONFIRMACION
+        elif (self.modo_pago_apertura in ['TRN', 'TAR', 'DEP'] and 
+              self.comprobante_apertura_subido and 
+              not apertura_confirmada):
+            # Tiene comprobante subido esperando confirmación del contador → EN_CONFIRMACION
+            nuevo_estado = 'EN_CONFIRMACION'
         elif estado_actual == 'COMPLETADO' and tiene_abonos_confirmados:
             # Si está completado y hay abonos confirmados, mantener COMPLETADO
             nuevo_estado = 'COMPLETADO'
