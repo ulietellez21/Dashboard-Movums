@@ -556,19 +556,22 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
             context['ventas_activas'] = []
             context['page_obj_activas'] = None
             context['page_numbers_activas'] = []
+            context['current_page_activas'] = 1
         else:
             context['ventas_activas'] = page_obj_activas.object_list
             context['page_obj_activas'] = page_obj_activas
-            # Números de página a mostrar (ventana alrededor de la actual)
             context['page_numbers_activas'] = self._page_numbers_for_pagination(page_obj_activas)
+            context['current_page_activas'] = page_obj_activas.number
         if page_obj_cerradas is None:
             context['ventas_cerradas'] = []
             context['page_obj_cerradas'] = None
             context['page_numbers_cerradas'] = []
+            context['current_page_cerradas'] = 1
         else:
             context['ventas_cerradas'] = page_obj_cerradas.object_list
             context['page_obj_cerradas'] = page_obj_cerradas
             context['page_numbers_cerradas'] = self._page_numbers_for_pagination(page_obj_cerradas)
+            context['current_page_cerradas'] = page_obj_cerradas.number
         context['user_rol'] = perm.get_user_role(self.request.user, self.request)
         context['ventas_para_cotizacion'] = ventas_list
         
