@@ -11539,9 +11539,18 @@ class SubirComprobanteAperturaView(LoginRequiredMixin, View):
         venta.comprobante_apertura_subido_en = timezone.now()
         venta.comprobante_apertura_subido_por = request.user
         # Asegurar que el estado sea EN_CONFIRMACION para que aparezca en pagos por confirmar
-        if venta.estado_confirmacion != 'EN_CONFIRMACION':
-            venta.estado_confirmacion = 'EN_CONFIRMACION'
+        # Esto es crítico: las ventas con comprobante subido deben estar en EN_CONFIRMACION
+        # para que el contador las vea en "Pagos por confirmar"
+        venta.estado_confirmacion = 'EN_CONFIRMACION'
         venta.save()
+        
+        # Verificar que el estado se mantuvo después del save (por si algún signal lo cambió)
+        # Recargar desde la BD para obtener el estado actual
+        venta.refresh_from_db()
+        if venta.estado_confirmacion != 'EN_CONFIRMACION':
+            # Si algún signal cambió el estado, forzarlo de nuevo
+            venta.estado_confirmacion = 'EN_CONFIRMACION'
+            venta.save(update_fields=['estado_confirmacion'])
         
         # Crear notificaciones para CONTADOR
         contadores = User.objects.filter(perfil__rol='CONTADOR')
