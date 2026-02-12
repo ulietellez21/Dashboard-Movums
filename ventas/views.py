@@ -493,22 +493,10 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
                 Value(Decimal('0.00')),
                 output_field=ModelDecimalField()
             )
-        ).order_by('-fecha_creacion')
+        ).order_by('-fecha_inicio_viaje', '-fecha_creacion')
         
         
         return queryset
-
-    @staticmethod
-    def _page_numbers_for_pagination(page_obj, max_visible=7):
-        """Devuelve lista de números de página a mostrar (ventana alrededor de la actual)."""
-        if not page_obj or not getattr(page_obj, 'paginator', None) or page_obj.paginator.num_pages <= 0:
-            return []
-        n = page_obj.paginator.num_pages
-        current = page_obj.number
-        delta = max_visible // 2
-        start = max(1, current - delta)
-        end = min(n, current + delta)
-        return list(range(start, end + 1))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -529,8 +517,9 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
                 else:
                     ventas_activas_list.append(venta)
         
-        # Paginación por separado: 13 por página, números de página para navegar
-        paginate_by = 13
+        # Paginación por separado: así "Contratos Activos" muestra todos los activos (pag. 1, 2, ...)
+        # y "Contratos Cerrados" muestra todos los cerrados (pag. 1, 2, ...)
+        paginate_by = 30
         page_activas = self.request.GET.get('page_activas', '1')
         page_cerradas = self.request.GET.get('page_cerradas', '1')
         
@@ -556,22 +545,18 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
             context['ventas_activas'] = []
             context['page_obj_activas'] = None
             context['current_page_activas'] = 1
-            context['page_numbers_activas'] = []
         else:
             context['ventas_activas'] = page_obj_activas.object_list
             context['page_obj_activas'] = page_obj_activas
             context['current_page_activas'] = page_obj_activas.number
-            context['page_numbers_activas'] = self._page_numbers_for_pagination(page_obj_activas)
         if page_obj_cerradas is None:
             context['ventas_cerradas'] = []
             context['page_obj_cerradas'] = None
             context['current_page_cerradas'] = 1
-            context['page_numbers_cerradas'] = []
         else:
             context['ventas_cerradas'] = page_obj_cerradas.object_list
             context['page_obj_cerradas'] = page_obj_cerradas
             context['current_page_cerradas'] = page_obj_cerradas.number
-            context['page_numbers_cerradas'] = self._page_numbers_for_pagination(page_obj_cerradas)
         context['user_rol'] = perm.get_user_role(self.request.user, self.request)
         context['ventas_para_cotizacion'] = ventas_list
         
