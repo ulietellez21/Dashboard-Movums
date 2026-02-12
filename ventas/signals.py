@@ -279,8 +279,11 @@ def eliminar_comprobantes_venta_liquidada(sender, instance, **kwargs):
         try:
             # Verificar si la venta está completamente liquidada
             if instance.esta_pagada:
+                # ✅ PERFORMANCE: Prefetch abonos una sola vez
+                abonos_list = list(instance.abonos.all())
+                
                 # Eliminar comprobantes de abonos
-                for abono in instance.abonos.all():
+                for abono in abonos_list:
                     if abono.comprobante_imagen and abono.comprobante_imagen.name:
                         try:
                             if os.path.isfile(abono.comprobante_imagen.path):

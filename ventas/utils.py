@@ -147,9 +147,16 @@ def generar_pdf_contrato(contrato_generado):
     # La plantilla 'contrato_pdf.html' DEBE tener una variable que reciba
     # el 'contenido_html_sustituido' para insertarlo en el cuerpo del PDF.
     
-    # Obtener la venta y cliente para el contexto
+    # ✅ NULL SAFETY: Validar que venta y cliente existan
     venta = contrato_generado.venta
+    if not venta:
+        logger.error(f"ContratoGenerado {contrato_generado.pk} no tiene venta asociada")
+        return None
+    
     cliente = venta.cliente
+    if not cliente:
+        logger.error(f"Venta {venta.pk} no tiene cliente asociado")
+        return None
     
     contexto_pdf = {
         # Se pasa el contenido HTML que ya tiene los datos de la venta sustituidos
@@ -218,7 +225,12 @@ def generar_contrato_para_venta(venta_viaje_id):
     try:
         # 1. Obtener la VentaViaje, Cliente y Vendedor
         venta = VentaViaje.objects.select_related('cliente', 'vendedor', 'proveedor').get(pk=venta_viaje_id)
+        
+        # ✅ NULL SAFETY: Validar que cliente exista
         cliente = venta.cliente
+        if not cliente:
+            logger.error(f"Venta {venta_viaje_id} no tiene cliente asociado")
+            return None
         
         # 2. Buscar la plantilla correcta
         plantilla = ContratoPlantilla.objects.get(tipo=venta.tipo_viaje)

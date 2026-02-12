@@ -587,6 +587,15 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
     template_name = 'ventas/venta_detail.html'
     context_object_name = 'venta'
 
+    def get_queryset(self):
+        """✅ PERFORMANCE: Optimizar queryset con prefetch de relaciones"""
+        return super().get_queryset().select_related(
+            'cliente', 'vendedor', 'proveedor'
+        ).prefetch_related(
+            'abonos',
+            'servicios_logisticos'
+        )
+
     # ******************************************************************
     # NUEVO: Implementación de get_object para usar SLUG y PK
     # ******************************************************************
@@ -654,7 +663,8 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
         tiene_apertura = False
         if venta.tipo_viaje == 'INT':
             apertura_usd = getattr(venta, 'cantidad_apertura_usd', None)
-            if (apertura_usd is None or apertura_usd <= 0) and venta.tipo_cambio and venta.cantidad_apertura:
+            # ✅ DIVISIÓN SEGURA: Validar tipo_cambio > 0
+            if (apertura_usd is None or apertura_usd <= 0) and venta.tipo_cambio and venta.tipo_cambio > 0 and venta.cantidad_apertura:
                 apertura_usd = (venta.cantidad_apertura / venta.tipo_cambio).quantize(Decimal('0.01'))
             tiene_apertura = apertura_usd and apertura_usd > 0
         else:
@@ -806,9 +816,11 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
         
         # ------------------- Resumen Financiero (solo si está cancelada) -------------------
         if venta.estado == 'CANCELADA':
+            # ✅ PERFORMANCE: Cargar abonos una sola vez (ya prefetched)
+            abonos_list = list(venta.abonos.all().order_by('fecha_pago'))
             resumen_financiero = {
-                'total_abonos': venta.abonos.count(),
-                'monto_total_abonos': sum(abono.monto for abono in venta.abonos.all()),
+                'total_abonos': len(abonos_list),
+                'monto_total_abonos': sum(abono.monto for abono in abonos_list),
                 'monto_apertura': venta.cantidad_apertura or Decimal('0.00'),
                 'total_pagado': venta.total_pagado,
                 'abonos_detalle': [
@@ -818,7 +830,7 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
                         'forma_pago': abono.get_forma_pago_display(),
                         'confirmado': abono.confirmado,
                     }
-                    for abono in venta.abonos.all().order_by('fecha_pago')
+                    for abono in abonos_list
                 ],
             }
             context['resumen_financiero'] = resumen_financiero
@@ -2723,9 +2735,12 @@ class ReciclarVentaView(LoginRequiredMixin, UserPassesTestMixin, View):
                     tipo_cambio=venta_original.tipo_cambio if venta_original.tipo_viaje == 'INT' else None,
                 )
                 
+                # ✅ PERFORMANCE: Prefetch abonos una sola vez
+                abonos_originales = list(venta_original.abonos.all())
+                
                 # Copiar abonos de la venta original (referenciando la venta original)
                 # Los abonos se referencian a la venta original para tener contexto
-                for abono_original in venta_original.abonos.all():
+                for abono_original in abonos_originales:
                     AbonoPago.objects.create(
                         venta=nueva_venta,
                         monto=abono_original.monto,
@@ -3357,7 +3372,8 @@ class ContratoVentaPDFView(LoginRequiredMixin, DetailView):
                 try:
                     import json
                     propuestas = json.loads(cotizacion.propuestas)
-                except:
+                except (ValueError, TypeError, json.JSONDecodeError) as e:
+                    logger.warning(f"Error al decodificar propuestas de cotización: {e}")
                     propuestas = {}
             elif isinstance(cotizacion.propuestas, dict):
                 propuestas = cotizacion.propuestas
@@ -3384,7 +3400,8 @@ class ContratoVentaPDFView(LoginRequiredMixin, DetailView):
                 try:
                     import json
                     propuestas = json.loads(cotizacion.propuestas)
-                except:
+                except (ValueError, TypeError, json.JSONDecodeError) as e:
+                    logger.warning(f"Error al decodificar propuestas de cotización: {e}")
                     propuestas = {}
             elif isinstance(cotizacion.propuestas, dict):
                 propuestas = cotizacion.propuestas
@@ -3454,7 +3471,8 @@ class ContratoVentaPDFView(LoginRequiredMixin, DetailView):
                 if isinstance(value, datetime.date):
                     return value.strftime('%d/%m/%Y')
                 return str(value)
-            except:
+            except (ValueError, AttributeError) as e:
+                logger.warning(f"Error al formatear fecha: {e}")
                 return '-'
         
         def format_currency(value):
@@ -3462,7 +3480,8 @@ class ContratoVentaPDFView(LoginRequiredMixin, DetailView):
                 return '0.00'
             try:
                 number = Decimal(str(value).replace(',', ''))
-            except:
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Error al formatear moneda: {e}")
                 return str(value)
             return f"{number:,.2f}"
         
@@ -4226,7 +4245,8 @@ class ContratoHospedajePDFView(LoginRequiredMixin, DetailView):
                 return '0.00'
             try:
                 number = Decimal(str(value).replace(',', ''))
-            except:
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Error al formatear moneda: {e}")
                 return str(value)
             return f"{number:,.2f}"
         
@@ -4599,7 +4619,8 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
                 try:
                     import json
                     propuestas = json.loads(cotizacion.propuestas)
-                except:
+                except (ValueError, TypeError, json.JSONDecodeError) as e:
+                    logger.warning(f"Error al decodificar propuestas de cotización: {e}")
                     propuestas = {}
             elif isinstance(cotizacion.propuestas, dict):
                 propuestas = cotizacion.propuestas
@@ -4654,7 +4675,8 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
                 try:
                     import json
                     propuestas = json.loads(cotizacion.propuestas)
-                except:
+                except (ValueError, TypeError, json.JSONDecodeError) as e:
+                    logger.warning(f"Error al decodificar propuestas de cotización: {e}")
                     propuestas = {}
             elif isinstance(cotizacion.propuestas, dict):
                 propuestas = cotizacion.propuestas
@@ -5642,7 +5664,8 @@ class ContratoPaqueteInternacionalPDFView(LoginRequiredMixin, DetailView):
                 try:
                     import json
                     propuestas = json.loads(cotizacion.propuestas)
-                except:
+                except (ValueError, TypeError, json.JSONDecodeError) as e:
+                    logger.warning(f"Error al decodificar propuestas de cotización: {e}")
                     propuestas = {}
             elif isinstance(cotizacion.propuestas, dict):
                 propuestas = cotizacion.propuestas
@@ -5673,7 +5696,8 @@ class ContratoPaqueteInternacionalPDFView(LoginRequiredMixin, DetailView):
                 try:
                     import json
                     propuestas = json.loads(cotizacion.propuestas)
-                except:
+                except (ValueError, TypeError, json.JSONDecodeError) as e:
+                    logger.warning(f"Error al decodificar propuestas de cotización: {e}")
                     propuestas = {}
             elif isinstance(cotizacion.propuestas, dict):
                 propuestas = cotizacion.propuestas
