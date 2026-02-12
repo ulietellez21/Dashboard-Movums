@@ -164,9 +164,7 @@ def can_view_logistica_pendiente(user, request=None):
 
 
 def can_view_pagos_por_confirmar(user, request=None):
-    """Template de autorizaciones (pagos por confirmar): Contador y roles con acceso total."""
-    if has_full_access(user, request):
-        return True
+    """Template de autorizaciones (pagos por confirmar): Solo Contador."""
     return is_contador(user, request)
 
 
