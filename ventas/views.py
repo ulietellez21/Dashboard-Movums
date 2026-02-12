@@ -11,6 +11,7 @@ from django.db.models import Sum, Max, Count, F, Q, Value, IntegerField, Express
 from django.db.models import DecimalField as ModelDecimalField
 from django.db import transaction
 from django.contrib import messages
+from django.core.paginator import Paginator
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.conf import settings
 from django.utils import timezone 
@@ -424,7 +425,7 @@ class DashboardView(LoginRequiredMixin, ListView):
 class VentaViajeListView(LoginRequiredMixin, ListView):
     model = VentaViaje 
     template_name = 'ventas/venta_list.html'
-    paginate_by = 30  # ESCALABILIDAD: Limitar resultados por página
+    paginate_by = None  # Paginación se hace por separado para activas y cerradas (ver get_context_data)
 
     def get_queryset(self):
         user = self.request.user
@@ -499,35 +500,59 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        ventas_list = list(context['object_list'])  # Convertir a lista para usar propiedades del modelo
+        ventas_list = list(context['object_list'])  # Lista completa (sin paginación global)
 
         # Separar ventas activas y cerradas
         # Las ventas canceladas van directamente a cerradas
-        # Las ventas no canceladas se separan según si están pagadas o no
-        ventas_activas = []
-        ventas_cerradas = []
+        # Las ventas no canceladas se separan según si están pagadas o no (esta_pagada respeta INT/USD)
+        ventas_activas_list = []
+        ventas_cerradas_list = []
         
         for venta in ventas_list:
-            # Si la venta está cancelada, va directamente a cerradas
             if venta.estado == 'CANCELADA':
-                ventas_cerradas.append(venta)
+                ventas_cerradas_list.append(venta)
             else:
-                # Usar la propiedad del modelo esta_pagada (respeta INT/USD, apertura_confirmada para TRN/TAR/DEP)
-                # Así no se marcan como cerradas ventas con Pagado $0 o con apertura sin confirmar
                 if venta.esta_pagada:
-                    # Venta realmente liquidada (total_pagado >= costo_total; para TRN/TAR/DEP la apertura cuenta solo si está confirmada)
-                    ventas_cerradas.append(venta)
+                    ventas_cerradas_list.append(venta)
                 else:
-                    # Venta activa (no cancelada y no pagada completamente)
-                    ventas_activas.append(venta)
+                    ventas_activas_list.append(venta)
         
-        # Convertir de vuelta a queryset o mantener como lista
-        # Para mantener compatibilidad con el template, los pasamos como listas
-        ventas_activas_qs = ventas_activas
-        ventas_cerradas_qs = ventas_cerradas
+        # Paginación por separado: así "Contratos Activos" muestra todos los activos (pag. 1, 2, ...)
+        # y "Contratos Cerrados" muestra todos los cerrados (pag. 1, 2, ...)
+        paginate_by = 30
+        page_activas = self.request.GET.get('page_activas', '1')
+        page_cerradas = self.request.GET.get('page_cerradas', '1')
         
-        context['ventas_activas'] = ventas_activas_qs
-        context['ventas_cerradas'] = ventas_cerradas_qs
+        paginator_activas = Paginator(ventas_activas_list, paginate_by)
+        paginator_cerradas = Paginator(ventas_cerradas_list, paginate_by)
+        
+        try:
+            page_obj_activas = paginator_activas.page(int(page_activas))
+        except (ValueError, TypeError):
+            page_obj_activas = paginator_activas.page(1) if paginator_activas.num_pages > 0 else None
+        except Exception:
+            # EmptyPage o página inválida: usar página 1 solo si hay resultados
+            page_obj_activas = paginator_activas.page(1) if paginator_activas.num_pages > 0 else None
+        
+        try:
+            page_obj_cerradas = paginator_cerradas.page(int(page_cerradas))
+        except (ValueError, TypeError):
+            page_obj_cerradas = paginator_cerradas.page(1) if paginator_cerradas.num_pages > 0 else None
+        except Exception:
+            page_obj_cerradas = paginator_cerradas.page(1) if paginator_cerradas.num_pages > 0 else None
+        
+        if page_obj_activas is None:
+            context['ventas_activas'] = []
+            context['page_obj_activas'] = None
+        else:
+            context['ventas_activas'] = page_obj_activas.object_list
+            context['page_obj_activas'] = page_obj_activas
+        if page_obj_cerradas is None:
+            context['ventas_cerradas'] = []
+            context['page_obj_cerradas'] = None
+        else:
+            context['ventas_cerradas'] = page_obj_cerradas.object_list
+            context['page_obj_cerradas'] = page_obj_cerradas
         context['user_rol'] = perm.get_user_role(self.request.user, self.request)
         context['ventas_para_cotizacion'] = ventas_list
         
