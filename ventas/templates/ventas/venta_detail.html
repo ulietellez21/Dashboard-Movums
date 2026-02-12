@@ -893,9 +893,17 @@
                                                         {% elif venta.modo_pago_apertura in 'TRN,TAR,DEP' %}
                                                             {% if venta.comprobante_apertura_subido and venta.comprobante_apertura %}
                                                                 {% if not venta.apertura_confirmada %}
-                                                                <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalEditarComprobanteApertura" title="Editar comprobante">
-                                                                    <i class="fas fa-edit"></i> Editar
-                                                                </button>
+                                                                    {% if user_rol == 'CONTADOR' %}
+                                                                        <form method="post" action="{% url 'confirmar_pago_desde_lista' tipo='apertura' pk=venta.pk %}" class="d-inline">
+                                                                            {% csrf_token %}
+                                                                            <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('¿Confirmar este pago de apertura?')" title="Aprobar apertura">
+                                                                                <i class="fas fa-check"></i> Aprobar
+                                                                            </button>
+                                                                        </form>
+                                                                    {% endif %}
+                                                                    <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalEditarComprobanteApertura" title="Editar comprobante">
+                                                                        <i class="fas fa-edit"></i> Editar
+                                                                    </button>
                                                                 {% else %}
                                                                 <span class="text-muted">-</span>
                                                                 {% endif %}

@@ -11634,6 +11634,7 @@ class PagosPorConfirmarView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
         # Para CRE: no requiere comprobante, solo estar en EN_CONFIRMACION
         # IMPORTANTE: Solo mostrar las que están en 'EN_CONFIRMACION' (no las confirmadas)
         # Para ventas internacionales: considerar cantidad_apertura_usd > 0
+        # CRÍTICO: Para ventas INT, verificar cantidad_apertura_usd > 0, no solo cantidad_apertura
         ventas_apertura_pendiente = VentaViaje.objects.filter(
             Q(estado_confirmacion='EN_CONFIRMACION') &  # Solo las que están en confirmación
             (
@@ -11642,8 +11643,10 @@ class PagosPorConfirmarView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
                 (Q(modo_pago_apertura__in=['TRN', 'TAR', 'DEP']) & 
                  Q(comprobante_apertura_subido=True) &
                  (
-                     Q(cantidad_apertura__gt=0) |  # Ventas nacionales
-                     (Q(tipo_viaje='INT') & Q(cantidad_apertura_usd__gt=0))  # Ventas internacionales
+                     # Ventas nacionales: cantidad_apertura > 0
+                     (Q(tipo_viaje='NAC') & Q(cantidad_apertura__gt=0)) |
+                     # Ventas internacionales: cantidad_apertura_usd > 0 (puede tener cantidad_apertura = 0)
+                     (Q(tipo_viaje='INT') & Q(cantidad_apertura_usd__gt=0))
                  )) |
                 # Crédito: no requiere comprobante ni cantidad_apertura > 0
                 Q(modo_pago_apertura='CRE')
