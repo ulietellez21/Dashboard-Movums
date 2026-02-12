@@ -160,18 +160,15 @@
                         </div>
                     </div>
                     <div class="col-md-8 mb-3">
-                        <label class="form-label fw-semibold text-muted">Contraseña:</label>
+                        <label class="form-label fw-semibold text-muted">Gestión de Contraseña:</label>
                         <div class="input-group input-group-lg">
                             <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                            <input type="text" class="form-control form-control-lg" id="contrasenaDisplay" value="{% if ejecutivo.ultima_contrasena %}{{ ejecutivo.ultima_contrasena }}{% else %}No disponible{% endif %}" readonly style="font-size: 0.95rem;">
-                            <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copiarContrasena()" title="Copiar contraseña">
-                                <i class="fas fa-copy"></i>
-                            </button>
-                            <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#editarContrasenaModal" title="Editar contraseña">
-                                <i class="fas fa-edit"></i>
+                            <input type="text" class="form-control form-control-lg" value="••••••••" readonly style="font-size: 0.95rem;">
+                            <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#editarContrasenaModal" title="Cambiar contraseña">
+                                <i class="fas fa-edit"></i> Cambiar
                             </button>
                         </div>
-                        <small class="text-muted">Última contraseña generada</small>
+                        <small class="text-muted">Por seguridad, las contraseñas no se almacenan ni muestran. Use el sistema de recuperación si es necesario.</small>
                     </div>
                 </div>
                 <div class="row">

@@ -830,6 +830,7 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
     # ----------------------------------------------------------------------
     # MÉTODO POST: Para gestionar los formularios: Logística y Abonos
     # ----------------------------------------------------------------------
+    @transaction.atomic  # ✅ INTEGRIDAD: Transacción atómica para abonos y actualizaciones de estado
     def post(self, request, *args, **kwargs):
         # Es crucial establecer el objeto (VentaViaje) al inicio del POST
         # self.get_object() utiliza los nuevos kwargs (slug y pk)
@@ -1178,6 +1179,20 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
                     abono.confirmado = True
                     abono.confirmado_por = None  # No requiere confirmación manual
                     abono.confirmado_en = timezone.now()  # Fecha de confirmación automática
+                
+                # ✅ INTEGRIDAD FINANCIERA: Validar que el abono no exceda el saldo restante
+                saldo_restante = self.object.saldo_restante
+                monto_abono = abono.monto_usd if (self.object.tipo_viaje == 'INT' and abono.monto_usd) else abono.monto
+                
+                if monto_abono > saldo_restante:
+                    messages.error(
+                        request, 
+                        f"El monto del abono (${monto_abono:,.2f}) excede el saldo restante de la venta (${saldo_restante:,.2f}). "
+                        f"Por favor, ajusta el monto del abono."
+                    )
+                    context = self.get_context_data(object=self.object)
+                    context['abono_form'] = abono_form
+                    return self.render_to_response(context)
                 
                 # Guardar el abono primero para obtener su PK
                 abono.save()
@@ -2236,8 +2251,8 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         # Obtener el costo de modificación del formulario
         costo_modificacion = form.cleaned_data.get('costo_modificacion', Decimal('0.00')) or Decimal('0.00')
         previo_modificacion = form.instance.costo_modificacion or Decimal('0.00')
-        _uname = (self.request.user.username or '').strip().lower()
-        es_antonio_balderas = (_uname == 'antonio_balderas')
+        # SEGURIDAD: Usar permisos en lugar de username hardcodeado
+        puede_ajustar_modificacion = self.request.user.is_superuser or perm.has_full_access(self.request.user, self.request)
 
         # Guardar la instancia
         self.object = form.save()
@@ -2247,8 +2262,8 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         descuento_nuevo = self.object.descuento_kilometros_mxn or Decimal('0.00')
 
         mensaje = "Venta actualizada correctamente."
-        if es_antonio_balderas:
-            # Antonio_Balderas: el valor del campo reemplaza el acumulado (puede restar/ajustar)
+        if puede_ajustar_modificacion:
+            # JEFE/ADMIN: el valor del campo reemplaza el acumulado (puede restar/ajustar)
             self.object.costo_modificacion = max(Decimal('0.00'), costo_modificacion)
             self.object.save(update_fields=['costo_modificacion'])
             mensaje = f"Venta actualizada. Costo de modificación ajustado a ${self.object.costo_modificacion:,.2f}."
@@ -6404,8 +6419,9 @@ class ComisionesMensualesView(LoginRequiredMixin, TemplateView):
     
     def post(self, request, *args, **kwargs):
         """Recalcular comisiones para un mes específico"""
-        mes = int(request.POST.get('mes'))
-        anio = int(request.POST.get('anio'))
+        from ventas.validators import safe_int
+        mes = safe_int(request.POST.get('mes'), default=timezone.now().month)
+        anio = safe_int(request.POST.get('anio'), default=timezone.now().year)
         
         user = request.user
         user_rol = perm.get_user_role(user)
@@ -7230,8 +7246,8 @@ class ComisionesVendedoresView(LoginRequiredMixin, TemplateView):
                 last_name=last_name
             )
             ejecutivo.usuario = user
-            ejecutivo.ultima_contrasena = password_plano
-            ejecutivo.save(update_fields=['usuario', 'ultima_contrasena'])
+            # SEGURIDAD: No se almacena la contraseña. Usar sistema de reseteo si es necesario.
+            ejecutivo.save(update_fields=['usuario'])
         else:
             user = ejecutivo.usuario
             user.email = ejecutivo.email or ''
@@ -7241,8 +7257,7 @@ class ComisionesVendedoresView(LoginRequiredMixin, TemplateView):
                 password_plano = secrets.token_urlsafe(10)
                 user.set_password(password_plano)
             user.save()
-            if password_plano:
-                Ejecutivo.objects.filter(pk=ejecutivo.pk).update(ultima_contrasena=password_plano)
+            # SEGURIDAD: No se almacena la contraseña. Usar sistema de reseteo si es necesario.
 
         # Asegurar el rol seleccionado (VENDEDOR o CONTADOR)
         perfil = getattr(user, 'perfil', None)
@@ -7348,8 +7363,8 @@ class GestionRolesView(LoginRequiredMixin, usuarios_mixins.ManageRolesRequiredMi
                 # Refrescar el usuario desde la base de datos para asegurar que la señal se haya ejecutado
                 user.refresh_from_db()
                 ejecutivo.usuario = user
-                ejecutivo.ultima_contrasena = password_plano
-                ejecutivo.save(update_fields=['usuario', 'ultima_contrasena'])
+                # SEGURIDAD: No se almacena la contraseña. Usar sistema de reseteo si es necesario.
+                ejecutivo.save(update_fields=['usuario'])
             else:
                 # Si ya existe usuario, actualizarlo
                 user = ejecutivo.usuario
@@ -7374,8 +7389,7 @@ class GestionRolesView(LoginRequiredMixin, usuarios_mixins.ManageRolesRequiredMi
                     logger.error(f"Error al guardar usuario {user.pk}: {str(e)}", exc_info=True)
                     raise
                 
-                if password_plano:
-                    Ejecutivo.objects.filter(pk=ejecutivo.pk).update(ultima_contrasena=password_plano)
+                # SEGURIDAD: No se almacena la contraseña. Usar sistema de reseteo si es necesario.
             
             # Verificar que user no sea None antes de continuar
             if not user:
@@ -7617,9 +7631,8 @@ class EjecutivoDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
             if nueva_contrasena and ejecutivo.usuario:
                 ejecutivo.usuario.set_password(nueva_contrasena)
                 ejecutivo.usuario.save()
-                ejecutivo.ultima_contrasena = nueva_contrasena
-                ejecutivo.save(update_fields=['ultima_contrasena'])
-                messages.success(request, f"Contraseña actualizada correctamente. Nueva contraseña: {nueva_contrasena}")
+                # SEGURIDAD: No se muestra la contraseña en la UI
+                messages.success(request, "Contraseña actualizada correctamente. El usuario debe usar el sistema de recuperación de contraseña si la olvida.")
                 return redirect(reverse('ejecutivo_detail', kwargs={'pk': ejecutivo.pk}) + '?contrasena_actualizada=1')
             else:
                 messages.error(request, "No se pudo actualizar la contraseña. Verifica que el ejecutivo tenga un usuario asociado.")
@@ -8768,8 +8781,9 @@ class CrearPlantillaConfirmacionView(LoginRequiredMixin, View):
         
         # Procesar múltiples traslados si existe
         if self.tipo_plantilla == 'TRASLADO':
+            from ventas.validators import safe_int
             traslados = []
-            traslados_count = int(request.POST.get('traslados_count', 0))
+            traslados_count = safe_int(request.POST.get('traslados_count'), default=0)
             traslados_dict = {}
             
             # Recopilar todos los campos de traslados
@@ -10983,8 +10997,9 @@ class AjustarComisionIslaView(LoginRequiredMixin, UserPassesTestMixin, View):
             return redirect(f"{reverse('detalle_comisiones', kwargs={'pk': vendedor.pk})}?mes={timezone.now().month}&anio={timezone.now().year}")
         
         # Obtener parámetros
-        mes = int(request.POST.get('mes', timezone.now().month))
-        anio = int(request.POST.get('anio', timezone.now().year))
+        from ventas.validators import safe_int
+        mes = safe_int(request.POST.get('mes'), default=timezone.now().month)
+        anio = safe_int(request.POST.get('anio'), default=timezone.now().year)
         porcentaje_ajustado = request.POST.get('porcentaje_ajustado', '').strip()
         nota_ajuste = request.POST.get('nota_ajuste', '').strip()
         
@@ -11373,6 +11388,15 @@ class SubirComprobanteAbonoView(LoginRequiredMixin, View):
             messages.error(request, "Debes seleccionar una imagen del comprobante.")
             return redirect(reverse('detalle_venta', kwargs={'pk': abono.venta.pk, 'slug': abono.venta.slug_safe}) + '?tab=abonos')
         
+        # ✅ SEGURIDAD: Validar archivo antes de guardar
+        from ventas.validators import validate_uploaded_file
+        from django.core.exceptions import ValidationError
+        try:
+            validate_uploaded_file(imagen)
+        except ValidationError as e:
+            messages.error(request, f"Archivo inválido: {str(e)}")
+            return redirect(reverse('detalle_venta', kwargs={'pk': abono.venta.pk, 'slug': abono.venta.slug_safe}) + '?tab=abonos')
+        
         # Guardar el comprobante
         abono.comprobante_imagen = imagen
         abono.comprobante_subido = True
@@ -11468,6 +11492,15 @@ class SubirComprobanteAperturaView(LoginRequiredMixin, View):
         imagen = request.FILES.get('comprobante_apertura')
         if not imagen:
             messages.error(request, "Debes seleccionar una imagen del comprobante.")
+            return redirect(reverse('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}) + '?tab=abonos')
+        
+        # ✅ SEGURIDAD: Validar archivo antes de guardar
+        from ventas.validators import validate_uploaded_file
+        from django.core.exceptions import ValidationError
+        try:
+            validate_uploaded_file(imagen)
+        except ValidationError as e:
+            messages.error(request, f"Archivo inválido: {str(e)}")
             return redirect(reverse('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}) + '?tab=abonos')
         
         # Guardar el comprobante

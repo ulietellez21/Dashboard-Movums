@@ -1738,12 +1738,7 @@ class Ejecutivo(models.Model):
         related_name='ejecutivo_asociado',
         verbose_name="Usuario del Sistema"
     )
-    ultima_contrasena = models.CharField(
-        max_length=128,
-        blank=True,
-        null=True,
-        verbose_name="Última Contraseña Asignada"
-    )
+    # SEGURIDAD: Campo 'ultima_contrasena' eliminado - nunca almacenar contraseñas en texto plano
     creado_en = models.DateTimeField(auto_now_add=True)
     actualizado_en = models.DateTimeField(auto_now=True)
 

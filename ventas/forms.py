@@ -1563,11 +1563,11 @@ class VentaViajeForm(forms.ModelForm):
         
         # Agregar campos de edición solo cuando se está editando una venta existente
         if self.instance and self.instance.pk:
-            # Antonio_Balderas puede ver y ajustar el acumulado (restar o cambiar); resto ve 0 y suma al guardar
-            _user = (getattr(self.request, 'user', None) or '')
-            _username = (getattr(_user, 'username', None) or '').strip().lower()
-            es_antonio_balderas = (_username == 'antonio_balderas')
-            if es_antonio_balderas:
+            # SEGURIDAD: JEFE/ADMIN puede ver y ajustar el acumulado (restar o cambiar); resto ve 0 y suma al guardar
+            from usuarios import permissions as perm
+            _user = getattr(self.request, 'user', None)
+            puede_ajustar = _user and (_user.is_superuser or perm.has_full_access(_user, self.request))
+            if puede_ajustar:
                 initial_mod = getattr(self.instance, 'costo_modificacion', None) or Decimal('0.00')
                 help_mod = 'Puede ajustar o reducir el total acumulado de modificaciones. Este valor reemplaza el acumulado al guardar.'
             else:
@@ -1890,6 +1890,17 @@ class VentaViajeForm(forms.ModelForm):
         # ------------------- Kilómetros Movums -------------------
         cleaned_data['aplica_descuento_kilometros'] = aplica_descuento
         cleaned_data['descuento_kilometros_mxn'] = descuento if aplica_descuento else Decimal('0.00')
+        
+        # ✅ INTEGRIDAD: Validar que fecha_fin_viaje >= fecha_inicio_viaje
+        fecha_inicio = cleaned_data.get('fecha_inicio_viaje')
+        fecha_fin = cleaned_data.get('fecha_fin_viaje')
+        
+        if fecha_inicio and fecha_fin and fecha_fin < fecha_inicio:
+            self.add_error(
+                'fecha_fin_viaje',
+                'La fecha de regreso debe ser igual o posterior a la fecha de inicio del viaje.'
+            )
+        
         return cleaned_data
 
 

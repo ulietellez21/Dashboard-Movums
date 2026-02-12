@@ -98,9 +98,10 @@ def calcular_monto_base_comision(venta):
             monto_base: Decimal - Monto base para comisión
             detalles_dict: dict - Desglose detallado
     """
+    # INTEGRIDAD FINANCIERA: Usar str() en lugar de float() para mantener precisión decimal en JSON
     detalles = {
         'tipo_venta': venta.tipo_viaje,
-        'costo_venta_final': float(venta.costo_venta_final),
+        'costo_venta_final': str(venta.costo_venta_final),
     }
     
     # Vuelo solitario: $100 fijos (no se calcula sobre monto)
@@ -117,24 +118,24 @@ def calcular_monto_base_comision(venta):
         tours_usd = venta.tours_usd or Decimal('0.00')
         impuestos_usd = venta.impuestos_usd or Decimal('0.00')
 
-        detalles['tarifa_base_usd'] = float(tarifa_base_usd)
-        detalles['suplementos_usd'] = float(suplementos_usd)
-        detalles['tours_usd'] = float(tours_usd)
-        detalles['impuestos_usd'] = float(impuestos_usd)
+        detalles['tarifa_base_usd'] = str(tarifa_base_usd)
+        detalles['suplementos_usd'] = str(suplementos_usd)
+        detalles['tours_usd'] = str(tours_usd)
+        detalles['impuestos_usd'] = str(impuestos_usd)
         detalles['impuestos_excluidos'] = True
         if venta.tipo_cambio and venta.tipo_cambio > 0:
-            detalles['tipo_cambio_referencia'] = float(venta.tipo_cambio)
+            detalles['tipo_cambio_referencia'] = str(venta.tipo_cambio)
 
         # Monto base en USD = tarifa_base + suplementos + tours (excluye impuestos)
         monto_base = tarifa_base_usd + suplementos_usd + tours_usd
-        detalles['monto_base_calculado'] = float(monto_base)
+        detalles['monto_base_calculado'] = str(monto_base)
         detalles['moneda'] = 'USD'
 
         return monto_base, detalles
     
     # Venta nacional: costo_venta_final
     detalles['tipo_calculo'] = 'NACIONAL'
-    detalles['monto_base_calculado'] = float(venta.costo_venta_final)
+    detalles['monto_base_calculado'] = str(venta.costo_venta_final)
     return venta.costo_venta_final, detalles
 
 
@@ -181,8 +182,8 @@ def calcular_comision_venta_mostrador(venta, porcentaje_comision, mes, anio):
             comision_calculada = monto_base * porcentaje_comision
             porcentaje_aplicado = porcentaje_comision * Decimal('100')
         
-        detalles['porcentaje_aplicado'] = float(porcentaje_aplicado)
-        detalles['comision_calculada'] = float(comision_calculada)
+        detalles['porcentaje_aplicado'] = str(porcentaje_aplicado)
+        detalles['comision_calculada'] = str(comision_calculada)
     
     # Determinar estado de pago
     total_pagado = venta.total_pagado
@@ -198,9 +199,9 @@ def calcular_comision_venta_mostrador(venta, porcentaje_comision, mes, anio):
         comision_pendiente = comision_calculada * Decimal('0.70')  # 70% pendiente
     
     detalles['estado_pago'] = estado_pago
-    detalles['total_pagado'] = float(total_pagado)
-    detalles['costo_total'] = float(costo_total)
-    detalles['porcentaje_pagado'] = float((total_pagado / costo_total * 100) if costo_total > 0 else 0)
+    detalles['total_pagado'] = str(total_pagado)
+    detalles['costo_total'] = str(costo_total)
+    detalles['porcentaje_pagado'] = str((total_pagado / costo_total * 100) if costo_total > 0 else 0)
     
     # Crear o actualizar ComisionVenta
     comision_venta, created = ComisionVenta.objects.update_or_create(
