@@ -85,14 +85,16 @@ class HistorialMovimientosView(LoginRequiredMixin, UserPassesTestMixin, ListView
         context['tipos_evento'] = HistorialMovimiento.TIPO_EVENTO_CHOICES
         context['niveles'] = HistorialMovimiento.NIVEL_CHOICES
         
-        # Estadísticas rápidas
-        context['total_movimientos'] = HistorialMovimiento.objects.count()
-        context['movimientos_hoy'] = HistorialMovimiento.objects.filter(
-            fecha_hora__date=timezone.now().date()
-        ).count()
-        context['movimientos_ultima_semana'] = HistorialMovimiento.objects.filter(
-            fecha_hora__gte=timezone.now() - timedelta(days=7)
-        ).count()
+        # ✅ PERFORMANCE: Optimizar estadísticas con una sola query usando aggregate
+        from django.db.models import Count, Q
+        stats = HistorialMovimiento.objects.aggregate(
+            total=Count('id'),
+            hoy=Count('id', filter=Q(fecha_hora__date=timezone.now().date())),
+            semana=Count('id', filter=Q(fecha_hora__gte=timezone.now() - timedelta(days=7)))
+        )
+        context['total_movimientos'] = stats['total']
+        context['movimientos_hoy'] = stats['hoy']
+        context['movimientos_ultima_semana'] = stats['semana']
         
         # Valores de filtros actuales
         context['filtro_tipo'] = self.request.GET.get('tipo_evento', '')

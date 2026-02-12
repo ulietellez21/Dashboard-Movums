@@ -245,7 +245,8 @@ class KilometrosDashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView)
             'total_km_expirados': total_km_expirados,
             'socios_count': socios.count(),
         })
-        context['promociones'] = PromocionKilometros.objects.all().order_by('-creada_en')
+        # ✅ ESCALABILIDAD: Limitar a las 50 promociones más recientes
+        context['promociones'] = PromocionKilometros.objects.all().order_by('-creada_en')[:50]
         context['promocion_form'] = kwargs.get('promocion_form') or PromocionKilometrosForm()
         socios_list = list(socios.order_by('-kilometros_disponibles')[:20])
         for socio in socios_list:

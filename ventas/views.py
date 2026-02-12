@@ -2003,8 +2003,8 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
                     # Limpiar la sesión después de usarla
                     if 'cotizacion_convertir' in self.request.session:
                         del self.request.session['cotizacion_convertir']
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Error al limpiar sesión de cotización: {e}")
         
         if cot:
             instance.cotizacion_origen = cot

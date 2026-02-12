@@ -96,7 +96,7 @@ class VentaViaje(models.Model):
     )
 
     fecha_inicio_viaje = models.DateField(verbose_name="Fecha de Ida (Inicio de Viaje)", db_index=True)
-    fecha_fin_viaje = models.DateField(blank=True, null=True, verbose_name="Fecha de Regreso (Fin de Viaje)")
+    fecha_fin_viaje = models.DateField(blank=True, null=True, verbose_name="Fecha de Regreso (Fin de Viaje)", db_index=True)
     
     # ✅ CAMPO CORREGIDO: Almacena los códigos de los servicios seleccionados (ej: "VUE,HOS,SEG")
     servicios_seleccionados = models.TextField(
@@ -538,25 +538,28 @@ class VentaViaje(models.Model):
     @property
     def costo_total_con_modificacion(self):
         """
-        Calcula el costo total incluyendo el costo de modificación.
+        Calcula el costo total incluyendo el costo de modificación y descuentos.
         Para ventas INT devuelve el total en USD; para NAC en MXN.
+        ✅ INTEGRIDAD FINANCIERA: Incluye TODOS los descuentos (kilómetros Y promociones)
         """
         if self.tipo_viaje == 'INT':
             return self.costo_total_con_modificacion_usd
         costo_mod = self.costo_modificacion if self.costo_modificacion else Decimal('0.00')
-        total = self.costo_venta_final + costo_mod
-        if self.aplica_descuento_kilometros:
-            total -= self.descuento_kilometros_mxn
+        descuento_km = self.descuento_kilometros_mxn if self.aplica_descuento_kilometros else Decimal('0.00')
+        descuento_promo = self.descuento_promociones_mxn or Decimal('0.00')
+        total = self.costo_venta_final + costo_mod - descuento_km - descuento_promo
         return max(Decimal('0.00'), total)
 
     @property
     def total_con_descuento(self):
         """
-        Total de la venta considerando modificaciones y aplicando el descuento Movums.
+        Total de la venta considerando modificaciones y aplicando todos los descuentos.
+        ✅ INTEGRIDAD FINANCIERA: Incluye descuentos de kilómetros Y promociones
         """
         total = self.costo_venta_final + (self.costo_modificacion or Decimal('0.00'))
-        if self.aplica_descuento_kilometros:
-            total -= self.descuento_kilometros_mxn
+        descuento_km = self.descuento_kilometros_mxn if self.aplica_descuento_kilometros else Decimal('0.00')
+        descuento_promo = self.descuento_promociones_mxn or Decimal('0.00')
+        total -= (descuento_km + descuento_promo)
         return max(Decimal('0.00'), total)
 
     @property
@@ -951,7 +954,7 @@ class AbonoPago(models.Model):
         verbose_name="Confirmado Por",
         limit_choices_to={'perfil__rol': 'CONTADOR'}
     )
-    confirmado_en = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de Confirmación")
+    confirmado_en = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de Confirmación", db_index=True)
     
     # ✅ Campos para comprobante de pago (obligatorio para TRN/TAR/DEP)
     comprobante_imagen = models.ImageField(
