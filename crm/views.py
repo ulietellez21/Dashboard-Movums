@@ -126,9 +126,15 @@ class ClienteUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     form_class = ClienteForm
     
     def test_func(self):
-        """Solo JEFE y VENDEDOR pueden editar clientes. CONTADOR solo lectura."""
-        user_rol = self.request.user.perfil.rol if hasattr(self.request.user, 'perfil') else 'INVITADO'
-        return user_rol in ['JEFE', 'VENDEDOR']
+        """JEFE, VENDEDOR, Director General, Director Administrativo y Director de Ventas pueden editar clientes. CONTADOR solo lectura."""
+        user_rol = perm.get_user_role(self.request.user, self.request)
+        return user_rol in [
+            perm.ROL_JEFE, 
+            perm.ROL_VENDEDOR,
+            perm.ROL_DIRECTOR_GENERAL,
+            perm.ROL_DIRECTOR_ADMINISTRATIVO,
+            perm.ROL_DIRECTOR_VENTAS
+        ]
     
     def handle_no_permission(self):
         cliente = self.get_object()
