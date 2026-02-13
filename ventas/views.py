@@ -11229,8 +11229,31 @@ class DetalleComisionesView(LoginRequiredMixin, TemplateView):
             from django.core.exceptions import PermissionDenied
             raise PermissionDenied("No tienes permiso para ver este detalle")
         
-        # OPTIMIZACIÓN N+1: Obtener ventas del vendedor con prefetch y anotación
-        ventas_base = VentaViaje.objects.filter(vendedor=vendedor).select_related(
+        # Obtener mes y año del request ANTES de filtrar ventas
+        mes_actual = timezone.now().month
+        anio_actual = timezone.now().year
+        
+        # Manejar parámetros vacíos o inválidos
+        mes_param = self.request.GET.get('mes', '').strip()
+        anio_param = self.request.GET.get('anio', '').strip()
+        
+        mes_filtro = safe_int(mes_param, default=mes_actual)
+        anio_filtro = safe_int(anio_param, default=anio_actual)
+        
+        # Rango del periodo seleccionado (ventas generadas en este mes/año)
+        from datetime import date as date_type
+        fecha_inicio = date_type(anio_filtro, mes_filtro, 1)
+        if mes_filtro == 12:
+            fecha_fin = date_type(anio_filtro + 1, 1, 1)
+        else:
+            fecha_fin = date_type(anio_filtro, mes_filtro + 1, 1)
+        
+        # OPTIMIZACIÓN N+1: Obtener ventas del vendedor GENERADAS EN EL PERIODO con prefetch y anotación
+        ventas_periodo = VentaViaje.objects.filter(
+            vendedor=vendedor,
+            fecha_creacion__gte=fecha_inicio,
+            fecha_creacion__lt=fecha_fin
+        ).select_related(
             'cliente', 'proveedor'
         ).prefetch_related(
             Prefetch(
@@ -11243,36 +11266,65 @@ class DetalleComisionesView(LoginRequiredMixin, TemplateView):
                 Value(Decimal('0.00')),
                 output_field=ModelDecimalField()
             )
-        )
+        ).order_by('-fecha_creacion')
         
-        # OPTIMIZACIÓN N+1: Filtrar ventas pagadas al 100% usando anotación
-        ventas_pagadas = []
-        for venta in ventas_base:
+        # Calcular información detallada por venta
+        ejecutivo = getattr(vendedor, 'ejecutivo_asociado', None)
+        tipo_vendedor = ejecutivo.tipo_vendedor if ejecutivo else 'MOSTRADOR'
+        
+        # Base de comisión: total de ventas generadas en el periodo (no solo pagadas)
+        # INT: convertir USD a MXN con tipo_cambio; NAC: costo_venta_final
+        total_ventas_periodo = Decimal('0.00')
+        ventas_detalle = []
+        
+        for venta in ventas_periodo:
+            # Calcular base de comisión según tipo de venta
+            if getattr(venta, 'tipo_viaje', 'NAC') == 'INT':
+                total_usd = getattr(venta, 'costo_venta_final_usd', None) or (getattr(venta, 'total_usd', None) if hasattr(venta, 'total_usd') else None)
+                tc = getattr(venta, 'tipo_cambio', None)
+                if total_usd and tc and Decimal(str(tc)) > 0:
+                    base_comision = (Decimal(str(total_usd)) * Decimal(str(tc))).quantize(Decimal('0.01'))
+                    moneda_base = 'USD'
+                    monto_base_usd = Decimal(str(total_usd))
+                else:
+                    base_comision = Decimal('0.00')
+                    moneda_base = 'USD'
+                    monto_base_usd = Decimal('0.00')
+            else:
+                base_comision = venta.costo_venta_final or Decimal('0.00')
+                moneda_base = 'MXN'
+                monto_base_usd = None
+            
+            total_ventas_periodo += base_comision
+            
+            # Calcular estado de pago
             total_abonos = getattr(venta, 'total_abonos_confirmados', Decimal('0.00')) or Decimal('0.00')
             apertura = venta.cantidad_apertura or Decimal('0.00')
             total_pagado_calc = total_abonos + apertura
             costo_total = (venta.costo_venta_final or Decimal('0.00')) + (venta.costo_modificacion or Decimal('0.00'))
-            if total_pagado_calc >= costo_total:
-                ventas_pagadas.append(venta)
+            esta_pagada = total_pagado_calc >= costo_total
+            
+            # Porcentaje de pago
+            porcentaje_pago = Decimal('0.00')
+            if costo_total > 0:
+                porcentaje_pago = (total_pagado_calc / costo_total * 100).quantize(Decimal('0.01'))
+            
+            ventas_detalle.append({
+                'venta': venta,
+                'tipo_viaje': getattr(venta, 'tipo_viaje', 'NAC'),
+                'base_comision': base_comision,
+                'moneda_base': moneda_base,
+                'monto_base_usd': monto_base_usd,
+                'tipo_cambio': getattr(venta, 'tipo_cambio', None),
+                'total_pagado': total_pagado_calc,
+                'costo_total': costo_total,
+                'esta_pagada': esta_pagada,
+                'porcentaje_pago': porcentaje_pago,
+                'fecha_creacion': venta.fecha_creacion,
+            })
         
-        # Calcular comisiones
-        ejecutivo = getattr(vendedor, 'ejecutivo_asociado', None)
-        tipo_vendedor = ejecutivo.tipo_vendedor if ejecutivo else 'MOSTRADOR'
-        
-        total_ventas_pagadas = sum(
-            venta.costo_venta_final for venta in ventas_pagadas
-        ) or Decimal('0.00')
-        
-        # Obtener mes y año del request para verificar si hay ComisionMensual con ajuste manual
-        mes_actual = timezone.now().month
-        anio_actual = timezone.now().year
-        
-        # Manejar parámetros vacíos o inválidos
-        mes_param = self.request.GET.get('mes', '').strip()
-        anio_param = self.request.GET.get('anio', '').strip()
-        
-        mes_filtro = safe_int(mes_param, default=mes_actual)
-        anio_filtro = safe_int(anio_param, default=anio_actual)
+        # Usar total_ventas_periodo como base (no total_ventas_pagadas)
+        total_ventas_pagadas = total_ventas_periodo  # Mantener nombre para compatibilidad con template
         
         # Verificar si existe ComisionMensual para ISLA con ajuste manual
         comision_mensual = None
@@ -11292,14 +11344,33 @@ class DetalleComisionesView(LoginRequiredMixin, TemplateView):
                 # ISLA no tiene cálculo automático, debe ser asignado manualmente
                 porcentaje_a_usar = Decimal('0.00')
         else:
-            # Para otros tipos, calcular normalmente
+            # Para otros tipos, calcular normalmente usando total_ventas_periodo (ventas generadas)
             porcentaje_a_usar, _ = calcular_comision_por_tipo(
-                total_ventas_pagadas, 
+                total_ventas_periodo, 
                 tipo_vendedor
             )
         
-        # Calcular comisión total con el porcentaje a usar
-        comision_total = total_ventas_pagadas * porcentaje_a_usar
+        # Calcular comisión por venta y total
+        # Para ventas pagadas: 100% de comisión; para pendientes: 30% pagada, 70% pendiente
+        comision_total_pagada = Decimal('0.00')
+        comision_total_pendiente = Decimal('0.00')
+        
+        for detalle in ventas_detalle:
+            comision_venta = detalle['base_comision'] * porcentaje_a_usar
+            if detalle['esta_pagada']:
+                # Venta pagada al 100% = 100% de comisión
+                detalle['comision_pagada'] = comision_venta
+                detalle['comision_pendiente'] = Decimal('0.00')
+                comision_total_pagada += comision_venta
+            else:
+                # Venta pendiente = 30% pagada, 70% pendiente
+                detalle['comision_pagada'] = comision_venta * Decimal('0.30')
+                detalle['comision_pendiente'] = comision_venta * Decimal('0.70')
+                comision_total_pagada += detalle['comision_pagada']
+                comision_total_pendiente += detalle['comision_pendiente']
+            detalle['comision_total'] = comision_venta
+        
+        comision_total = comision_total_pagada + comision_total_pendiente
         
         # Sueldo base (ISLA SÍ tiene sueldo base)
         sueldo_base = ejecutivo.sueldo_base if ejecutivo and ejecutivo.sueldo_base else Decimal('10000.00')
@@ -11316,12 +11387,15 @@ class DetalleComisionesView(LoginRequiredMixin, TemplateView):
             'vendedor': vendedor,
             'ejecutivo': ejecutivo,
             'tipo_vendedor': tipo_vendedor,
-            'ventas_pagadas': ventas_pagadas,
+            'ventas_detalle': ventas_detalle,
             'user_rol': user_rol,
             'sueldo_base': sueldo_base,
-            'total_ventas_pagadas': total_ventas_pagadas,
+            'total_ventas_periodo': total_ventas_periodo,
+            'total_ventas_pagadas': total_ventas_periodo,  # Mantener para compatibilidad
             'porcentaje_comision': porcentaje_a_usar * 100,
             'comision_total': comision_total,
+            'comision_total_pagada': comision_total_pagada,
+            'comision_total_pendiente': comision_total_pendiente,
             'ingreso_total': ingreso_total,
             'mes_filtro': mes_filtro,
             'anio_filtro': anio_filtro,
@@ -11332,10 +11406,10 @@ class DetalleComisionesView(LoginRequiredMixin, TemplateView):
         
         # Generar fecha_desde para mostrar en el template
         try:
-            fecha_desde = date(anio_filtro, mes_filtro, 1)
+            fecha_desde = date_type(anio_filtro, mes_filtro, 1)
             context['fecha_desde'] = fecha_desde
         except (ValueError, TypeError):
-            fecha_desde = date(anio_actual, mes_actual, 1)
+            fecha_desde = date_type(anio_actual, mes_actual, 1)
             context['fecha_desde'] = fecha_desde
         
         return context

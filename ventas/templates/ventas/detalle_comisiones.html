@@ -56,7 +56,7 @@
 
 {# Resumen General #}
 <div class="row mb-4">
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card shadow-sm border-primary">
             <div class="card-body text-center">
                 <h5 class="text-muted mb-2">Sueldo Base</h5>
@@ -64,7 +64,16 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
+        <div class="card shadow-sm border-warning">
+            <div class="card-body text-center">
+                <h5 class="text-muted mb-2">Total Ventas del Periodo</h5>
+                <h3 class="text-warning mb-0">${{ total_ventas_periodo|floatformat:2|intcomma }}</h3>
+                <small class="text-muted">Base de Comisión</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
         <div class="card shadow-sm border-success">
             <div class="card-body text-center">
                 <h5 class="text-muted mb-2">Comisión Total</h5>
@@ -77,14 +86,21 @@
                     </span>
                 </div>
                 {% endif %}
+                {% if comision_total_pagada or comision_total_pendiente %}
+                <div class="mt-2 small">
+                    <div class="text-success">Pagada: ${{ comision_total_pagada|floatformat:2|intcomma }}</div>
+                    <div class="text-warning">Pendiente: ${{ comision_total_pendiente|floatformat:2|intcomma }}</div>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card shadow-sm border-info">
             <div class="card-body text-center">
                 <h5 class="text-muted mb-2">Ingreso Total Estimado</h5>
                 <h3 class="text-info mb-0">${{ ingreso_total|floatformat:2|intcomma }}</h3>
+                <small class="text-muted">Base + Comisión</small>
             </div>
         </div>
     </div>
@@ -181,122 +197,116 @@
 </div>
 {% endif %}
 
-{# Detalle Ventas Nacionales #}
-{% if comision_nacionales and comision_nacionales.detalle %}
+{# Detalle de Ventas del Periodo #}
+{% if ventas_detalle %}
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-header bg-primary text-white">
         <h4 class="mb-0">
-            <i class="fas fa-flag me-2"></i>Ventas Nacionales
+            <i class="fas fa-list me-2"></i>Detalle de Ventas del Periodo ({{ fecha_desde|date:"F Y" }})
             <span class="badge bg-light text-primary ms-2">
-                Porcentaje: {{ comision_nacionales.porcentaje_comision|mul:100|floatformat:0 }}%
+                {{ ventas_detalle|length }} venta{{ ventas_detalle|length|pluralize }}
             </span>
         </h4>
     </div>
     <div class="card-body">
+        <div class="alert alert-info mb-3">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Base de Comisión:</strong> Se calcula sobre las <strong>ventas generadas</strong> en el periodo seleccionado (no solo las pagadas).
+            <br>
+            <strong>Estado de Pago:</strong> Ventas pagadas al 100% = 100% de comisión. Ventas pendientes = 30% de comisión pagada, 70% pendiente.
+        </div>
         <div class="table-responsive">
-            <table class="table table-striped table-hover">
+            <table class="table table-striped table-hover align-middle">
                 <thead class="table-dark">
                     <tr>
-                        <th>Venta ID</th>
+                        <th>Fecha</th>
+                        <th>Folio</th>
                         <th>Cliente</th>
                         <th>Tipo</th>
-                        <th class="text-end">Total Venta</th>
-                        <th>Método de Cálculo</th>
-                        <th class="text-end">Comisión</th>
+                        <th class="text-end">Base Comisión</th>
+                        <th class="text-center">Estado Pago</th>
+                        <th class="text-end">% Pago</th>
+                        <th class="text-end">Comisión Total</th>
+                        <th class="text-end">Comisión Pagada</th>
+                        <th class="text-end">Comisión Pendiente</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for detalle in comision_nacionales.detalle %}
-                    <tr>
+                    {% for detalle in ventas_detalle %}
+                    <tr {% if detalle.esta_pagada %}class="table-success"{% else %}class="table-warning"{% endif %}>
+                        <td>{{ detalle.fecha_creacion|date:"d/m/Y" }}</td>
                         <td>
-                            <a href="{% url 'detalle_venta' detalle.venta.slug detalle.venta.pk %}" class="text-decoration-none">
+                            <a href="{% url 'detalle_venta' detalle.venta.slug detalle.venta.pk %}" class="text-decoration-none fw-bold">
                                 {{ detalle.venta.folio|default:detalle.venta.id }}
                             </a>
                         </td>
                         <td>{{ detalle.venta.cliente }}</td>
                         <td>
-                            <span class="badge {% if detalle.tipo == 'Vuelo puro' %}bg-warning{% else %}bg-info{% endif %}">
-                                {{ detalle.tipo }}
-                            </span>
+                            {% if detalle.tipo_viaje == 'INT' %}
+                                <span class="badge bg-success text-white">
+                                    <i class="fas fa-globe-americas me-1"></i>Internacional
+                                </span>
+                                {% if detalle.monto_base_usd %}
+                                <br><small class="text-muted">USD ${{ detalle.monto_base_usd|floatformat:2|intcomma }}</small>
+                                {% endif %}
+                                {% if detalle.tipo_cambio %}
+                                <br><small class="text-muted">TC: {{ detalle.tipo_cambio|floatformat:4 }}</small>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge bg-info text-white">
+                                    <i class="fas fa-flag me-1"></i>Nacional
+                                </span>
+                            {% endif %}
                         </td>
-                        <td class="text-end">${{ detalle.total_venta|floatformat:2|intcomma }}</td>
-                        <td><small>{{ detalle.metodo }}</small></td>
-                        <td class="text-end text-success fw-bold">${{ detalle.comision|floatformat:2|intcomma }}</td>
+                        <td class="text-end">
+                            <strong>${{ detalle.base_comision|floatformat:2|intcomma }}</strong>
+                            <br><small class="text-muted">{{ detalle.moneda_base }}</small>
+                        </td>
+                        <td class="text-center">
+                            {% if detalle.esta_pagada %}
+                                <span class="badge bg-success">
+                                    <i class="fas fa-check-circle me-1"></i>Pagada
+                                </span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">
+                                    <i class="fas fa-clock me-1"></i>Pendiente
+                                </span>
+                            {% endif %}
+                            <br>
+                            <small class="text-muted">
+                                ${{ detalle.total_pagado|floatformat:2|intcomma }} / ${{ detalle.costo_total|floatformat:2|intcomma }}
+                            </small>
+                        </td>
+                        <td class="text-end">
+                            <strong>{{ detalle.porcentaje_pago|floatformat:1 }}%</strong>
+                        </td>
+                        <td class="text-end">
+                            <strong class="text-primary">${{ detalle.comision_total|floatformat:2|intcomma }}</strong>
+                        </td>
+                        <td class="text-end">
+                            <span class="text-success fw-bold">${{ detalle.comision_pagada|floatformat:2|intcomma }}</span>
+                        </td>
+                        <td class="text-end">
+                            {% if detalle.comision_pendiente > 0 %}
+                                <span class="text-warning fw-bold">${{ detalle.comision_pendiente|floatformat:2|intcomma }}</span>
+                            {% else %}
+                                <span class="text-muted">$0.00</span>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
-                <tfoot class="table-light">
+                <tfoot class="table-light fw-bold">
                     <tr>
-                        <th colspan="5" class="text-end">Total Comisión Nacionales:</th>
-                        <th class="text-end text-success">${{ comision_nacionales.comision_total|floatformat:2|intcomma }}</th>
+                        <th colspan="4" class="text-end">Totales:</th>
+                        <th class="text-end">${{ total_ventas_periodo|floatformat:2|intcomma }}</th>
+                        <th colspan="2"></th>
+                        <th class="text-end text-primary">${{ comision_total|floatformat:2|intcomma }}</th>
+                        <th class="text-end text-success">${{ comision_total_pagada|floatformat:2|intcomma }}</th>
+                        <th class="text-end text-warning">${{ comision_total_pendiente|floatformat:2|intcomma }}</th>
                     </tr>
                 </tfoot>
             </table>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-{# Detalle Ventas Internacionales #}
-{% if comision_internacionales and comision_internacionales.detalle %}
-<div class="card shadow-sm border-0 mb-4">
-    <div class="card-header bg-success text-white">
-        <h4 class="mb-0">
-            <i class="fas fa-globe-americas me-2"></i>Ventas Internacionales
-            <span class="badge bg-light text-success ms-2">
-                Porcentaje: {{ comision_internacionales.porcentaje_comision_display|floatformat:0 }}%
-            </span>
-        </h4>
-    </div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-striped table-hover">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Venta ID</th>
-                        <th>Cliente</th>
-                        <th class="text-end">Tarifa Base USD</th>
-                        <th class="text-end">Impuestos USD</th>
-                        <th class="text-end">Suplementos USD</th>
-                        <th class="text-end">Tours USD</th>
-                        <th class="text-end">Tipo Cambio</th>
-                        <th class="text-end">Base Comisión MXN</th>
-                        <th class="text-end">Comisión</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for detalle in comision_internacionales.detalle %}
-                    {% if not detalle.error %}
-                    <tr>
-                        <td>
-                            <a href="{% url 'detalle_venta' detalle.venta.slug detalle.venta.pk %}" class="text-decoration-none">
-                                {{ detalle.venta.folio|default:detalle.venta.id }}
-                            </a>
-                        </td>
-                        <td>{{ detalle.venta.cliente }}</td>
-                        <td class="text-end">${{ detalle.tarifa_base_usd|floatformat:2|intcomma }}</td>
-                        <td class="text-end text-muted">${{ detalle.impuestos_usd|floatformat:2|intcomma }}</td>
-                        <td class="text-end">${{ detalle.suplementos_usd|floatformat:2|intcomma }}</td>
-                        <td class="text-end">${{ detalle.tours_usd|floatformat:2|intcomma }}</td>
-                        <td class="text-end">{{ detalle.tipo_cambio|floatformat:4 }}</td>
-                        <td class="text-end">${{ detalle.base_comision_mxn|floatformat:2|intcomma }}</td>
-                        <td class="text-end text-success fw-bold">${{ detalle.comision|floatformat:2|intcomma }}</td>
-                    </tr>
-                    {% endif %}
-                    {% endfor %}
-                </tbody>
-                <tfoot class="table-light">
-                    <tr>
-                        <th colspan="8" class="text-end">Total Comisión Internacionales:</th>
-                        <th class="text-end text-success">${{ comision_internacionales.comision_total|floatformat:2|intcomma }}</th>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
-        <div class="alert alert-info mt-3 mb-0">
-            <i class="fas fa-info-circle me-2"></i>
-            <strong>Nota:</strong> La comisión se calcula sobre la base sin impuestos (Tarifa Base + Suplementos + Tours).
-            Los impuestos se excluyen del cálculo de comisión.
         </div>
     </div>
 </div>
@@ -310,10 +320,10 @@
     </a>
 </div>
 
-{% if not comision_nacionales and not comision_internacionales %}
+{% if not ventas_detalle %}
 <div class="alert alert-warning">
     <i class="fas fa-exclamation-triangle me-2"></i>
-    No hay comisiones calculadas para este período.
+    No hay ventas generadas en el periodo seleccionado ({{ fecha_desde|date:"F Y" }}).
 </div>
 {% endif %}
 
