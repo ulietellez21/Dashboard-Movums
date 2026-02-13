@@ -29,25 +29,34 @@
         
         <div class="row text-center g-4">
             <div class="col-md-4">
-                <div class="p-3 border rounded bg-primary text-white h-100 d-flex flex-column justify-content-center">
-                    <p class="mb-1 h6"><i class="fas fa-handshake"></i> Ingreso Bruto Total</p>
-                    <h3 class="fw-bold">${{ total_ventas|default:"0.00"|floatformat:2|intcomma }} MXN</h3>
-                    <p class="small mb-0">Suma de todos los costos finales de venta.</p>
-                </div>
+                <button type="button" class="btn btn-link p-0 border-0 text-decoration-none w-100" data-bs-toggle="modal" data-bs-target="#modalIngresoBruto" aria-label="Ver detalle de Ingreso Bruto">
+                    <div class="p-3 border rounded bg-primary text-white h-100 d-flex flex-column justify-content-center shadow-sm hover-card">
+                        <p class="mb-1 h6"><i class="fas fa-handshake"></i> Ingreso Bruto Total</p>
+                        <h3 class="fw-bold">${{ total_ventas|default:"0.00"|floatformat:2|intcomma }} MXN</h3>
+                        <p class="small mb-0">Suma de todos los costos finales de venta.</p>
+                        <p class="small mb-0 mt-2 opacity-75"><i class="fas fa-expand-alt me-1"></i> Clic para ver detalle</p>
+                    </div>
+                </button>
             </div>
             <div class="col-md-4">
-                <div class="p-3 border rounded bg-success text-white h-100 d-flex flex-column justify-content-center">
-                    <p class="mb-1 h6"><i class="fas fa-wallet"></i> Total Pagos Recibidos</p>
-                    <h3 class="fw-bold">${{ total_pagado|default:"0.00"|floatformat:2|intcomma }} MXN</h3>
-                    <p class="small mb-0">Dinero que ha entrado a la agencia (Abonos).</p>
-                </div>
+                <button type="button" class="btn btn-link p-0 border-0 text-decoration-none w-100" data-bs-toggle="modal" data-bs-target="#modalTotalPagos" aria-label="Ver detalle de Total Pagos">
+                    <div class="p-3 border rounded bg-success text-white h-100 d-flex flex-column justify-content-center shadow-sm hover-card">
+                        <p class="mb-1 h6"><i class="fas fa-wallet"></i> Total Pagos Recibidos</p>
+                        <h3 class="fw-bold">${{ total_pagado|default:"0.00"|floatformat:2|intcomma }} MXN</h3>
+                        <p class="small mb-0">Dinero que ha entrado a la agencia (Abonos).</p>
+                        <p class="small mb-0 mt-2 opacity-75"><i class="fas fa-expand-alt me-1"></i> Clic para ver detalle</p>
+                    </div>
+                </button>
             </div>
             <div class="col-md-4">
-                <div class="p-3 border rounded bg-danger text-white h-100 d-flex flex-column justify-content-center">
-                    <p class="mb-1 h6"><i class="fas fa-exclamation-triangle"></i> SALDO PENDIENTE (CxC)</p>
-                    <h3 class="fw-bold">${{ saldo_pendiente|default:"0.00"|floatformat:2|intcomma }} MXN</h3>
-                    <p class="small mb-0">Total que los clientes aún deben a la agencia.</p>
-                </div>
+                <button type="button" class="btn btn-link p-0 border-0 text-decoration-none w-100" data-bs-toggle="modal" data-bs-target="#modalSaldoPendiente" aria-label="Ver detalle de Saldo Pendiente">
+                    <div class="p-3 border rounded bg-danger text-white h-100 d-flex flex-column justify-content-center shadow-sm hover-card">
+                        <p class="mb-1 h6"><i class="fas fa-exclamation-triangle"></i> SALDO PENDIENTE (CxC)</p>
+                        <h3 class="fw-bold">${{ saldo_pendiente|default:"0.00"|floatformat:2|intcomma }} MXN</h3>
+                        <p class="small mb-0">Total que los clientes aún deben a la agencia.</p>
+                        <p class="small mb-0 mt-2 opacity-75"><i class="fas fa-expand-alt me-1"></i> Clic para ver detalle</p>
+                    </div>
+                </button>
             </div>
         </div>
     </div>
@@ -177,6 +186,190 @@
 {% endblock %}
 
 {% block modals %}
+    <!-- Modal: Detalle Ingreso Bruto Total -->
+    <div class="modal fade" id="modalIngresoBruto" tabindex="-1" aria-labelledby="modalIngresoBrutoLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="modalIngresoBrutoLabel"><i class="fas fa-handshake me-2"></i>Detalle: Ingreso Bruto Total</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">Suma de los costos totales (con modificaciones y descuentos) de todas las ventas activas que puedes ver.</p>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-4">
+                            <div class="p-2 border rounded bg-light">
+                                <span class="small text-muted">Total ventas</span>
+                                <div class="fw-bold">{{ detalle_ingreso.num_ventas|default:0 }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-2 border rounded bg-light">
+                                <span class="small text-muted">Nacionales (MXN)</span>
+                                <div class="fw-bold">${{ detalle_ingreso.ventas_nac_monto|default:0|floatformat:2|intcomma }}</div>
+                                <small>{{ detalle_ingreso.ventas_nac_count|default:0 }} venta(s)</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-2 border rounded bg-light">
+                                <span class="small text-muted">Internacionales (USD)</span>
+                                <div class="fw-bold">${{ detalle_ingreso.ventas_int_monto|default:0|floatformat:2|intcomma }}</div>
+                                <small>{{ detalle_ingreso.ventas_int_count|default:0 }} venta(s)</small>
+                            </div>
+                        </div>
+                    </div>
+                    <h6 class="mb-2">Ventas que más aportan (top 15)</h6>
+                    <div class="table-responsive" style="max-height: 280px;">
+                        <table class="table table-sm table-hover">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Folio</th>
+                                    <th>Cliente</th>
+                                    <th class="text-end">Monto</th>
+                                    <th>Tipo</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in detalle_ingreso.lista_ventas %}
+                                <tr>
+                                    <td><span class="badge bg-secondary">{{ item.folio }}</span></td>
+                                    <td>{{ item.cliente|truncatewords:6 }}</td>
+                                    <td class="text-end">${{ item.monto|floatformat:2|intcomma }}</td>
+                                    <td><span class="badge bg-info">{{ item.tipo }}</span></td>
+                                    <td><a href="{{ item.url }}" class="btn btn-sm btn-outline-primary" target="_blank">Ver</a></td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="5" class="text-center text-muted">No hay ventas.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Detalle Total Pagos Recibidos -->
+    <div class="modal fade" id="modalTotalPagos" tabindex="-1" aria-labelledby="modalTotalPagosLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title" id="modalTotalPagosLabel"><i class="fas fa-wallet me-2"></i>Detalle: Total Pagos Recibidos</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">Dinero que ha entrado a la agencia: abonos confirmados y aperturas confirmadas. Ventas nacionales en MXN e internacionales en USD.</p>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-4">
+                            <div class="p-2 border rounded bg-light">
+                                <span class="small text-muted">Abonos confirmados</span>
+                                <div class="fw-bold">MXN ${{ detalle_pagos.monto_desde_abonos_nac|default:0|floatformat:2|intcomma }}</div>
+                                {% if detalle_pagos.monto_desde_abonos_int|default:0 > 0 %}
+                                <div class="fw-bold">USD ${{ detalle_pagos.monto_desde_abonos_int|floatformat:2|intcomma }}</div>
+                                {% endif %}
+                                <small>{{ detalle_pagos.num_abonos }} abono(s)</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-2 border rounded bg-light">
+                                <span class="small text-muted">Desde aperturas (MXN)</span>
+                                <div class="fw-bold">${{ detalle_pagos.monto_desde_apertura|floatformat:2|intcomma }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-2 border rounded bg-light">
+                                <span class="small text-muted">Total</span>
+                                <div class="fw-bold text-success">${{ total_pagado|floatformat:2|intcomma }}</div>
+                                <small class="text-muted">(según moneda de cada venta)</small>
+                            </div>
+                        </div>
+                    </div>
+                    <h6 class="mb-2">Últimos abonos registrados</h6>
+                    <div class="table-responsive" style="max-height: 280px;">
+                        <table class="table table-sm table-hover">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Venta / Cliente</th>
+                                    <th class="text-end">Monto</th>
+                                    <th>Forma pago</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in detalle_pagos.ultimos_abonos %}
+                                <tr>
+                                    <td class="small">{{ item.fecha|date:"d/m/Y H:i" }}</td>
+                                    <td><span class="badge bg-secondary">{{ item.folio }}</span> {{ item.cliente|truncatewords:4 }}</td>
+                                    <td class="text-end">{{ item.moneda }} ${{ item.monto|floatformat:2|intcomma }}</td>
+                                    <td><span class="badge bg-success">{{ item.forma_pago }}</span></td>
+                                    <td><a href="{{ item.url }}" class="btn btn-sm btn-outline-success" target="_blank">Ver</a></td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="5" class="text-center text-muted">No hay abonos.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Detalle Saldo Pendiente (CxC) -->
+    <div class="modal fade" id="modalSaldoPendiente" tabindex="-1" aria-labelledby="modalSaldoPendienteLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="modalSaldoPendienteLabel"><i class="fas fa-exclamation-triangle me-2"></i>Detalle: Saldo Pendiente (CxC)</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">Ventas activas con saldo por cobrar. Total que los clientes aún deben a la agencia.</p>
+                    <div class="mb-3">
+                        <span class="badge bg-danger fs-6">${{ saldo_pendiente|default:"0.00"|floatformat:2|intcomma }} MXN</span>
+                        <span class="text-muted ms-2">{{ detalle_saldo.num_ventas_con_saldo }} venta(s) con saldo pendiente</span>
+                    </div>
+                    <h6 class="mb-2">Ventas con saldo pendiente (hasta 20)</h6>
+                    <div class="table-responsive" style="max-height: 320px;">
+                        <table class="table table-sm table-hover">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Folio</th>
+                                    <th>Cliente</th>
+                                    <th class="text-end">Saldo pendiente</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in detalle_saldo.ventas_pendientes %}
+                                <tr>
+                                    <td><span class="badge bg-secondary">{{ item.folio }}</span></td>
+                                    <td>{{ item.cliente|truncatewords:6 }}</td>
+                                    <td class="text-end"><span class="badge bg-danger">${{ item.saldo|floatformat:2|intcomma }}</span></td>
+                                    <td><a href="{{ item.url }}" class="btn btn-sm btn-outline-danger" target="_blank">Ver venta</a></td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="4" class="text-center text-muted">No hay ventas con saldo pendiente.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal de Historial de Movimientos -->
     <div class="modal fade" id="historialMovimientosModal" tabindex="-1" aria-labelledby="historialMovimientosModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl">
@@ -299,6 +492,11 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" 
           integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLMD/cd2jBDEXk4B7Hw22Z5+gD5b7t9R1B1xR1wM8t7j07JtMv0jXw4W5r3v5sXw==" 
           crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        .hover-card { cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+        .hover-card:hover { transform: translateY(-2px); box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15) !important; }
+        button[data-bs-toggle="modal"]:focus .hover-card { outline: 2px solid rgba(255,255,255,0.5); outline-offset: 2px; }
+    </style>
 {% endblock %}
 
 {% block extra_js %}

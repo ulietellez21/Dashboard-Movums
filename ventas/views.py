@@ -2928,24 +2928,28 @@ class ReporteFinancieroView(LoginRequiredMixin, usuarios_mixins.FinancialReportR
         base_ventas = perm.get_ventas_queryset_base(VentaViaje, user, self.request)
 
         # --- 1. CÁLCULOS PRINCIPALES DE AGREGACIÓN (filtrados por rol: vendedor=propias, gerente=oficina) ---
-        total_ventas = base_ventas.aggregate(
-            total_ventas_sum=Sum('costo_venta_final')
-        ).get('total_ventas_sum') or Decimal('0.00')
-
-        total_abonos = AbonoPago.objects.filter(venta__in=base_ventas).aggregate(
-            total_abonos_sum=Sum('monto')
-        ).get('total_abonos_sum') or Decimal('0.00')
-
-        total_apertura = base_ventas.aggregate(
-            total_apertura_sum=Sum('cantidad_apertura')
-        ).get('total_apertura_sum') or Decimal('0.00')
-
-        total_pagado = total_abonos + total_apertura
-        saldo_pendiente = total_ventas - total_pagado
-
-        total_ventas = Decimal(total_ventas)
-        total_pagado = Decimal(total_pagado)
-        saldo_pendiente = Decimal(saldo_pendiente)
+        # Usar las propiedades del modelo directamente para garantizar que coincidan con los valores reales
+        # que se muestran en el detalle de cada venta (costo_total_con_modificacion, total_pagado, saldo_restante)
+        total_ventas = Decimal('0.00')
+        total_pagado = Decimal('0.00')
+        saldo_pendiente = Decimal('0.00')
+        
+        # Optimizar consultas con prefetch para abonos
+        ventas_con_datos = base_ventas.select_related('cliente').prefetch_related('abonos')
+        
+        # Iterar sobre las ventas usando las propiedades calculadas del modelo
+        for venta in ventas_con_datos:
+            # costo_total_con_modificacion ya incluye modificaciones y descuentos correctamente
+            costo_venta = venta.costo_total_con_modificacion or Decimal('0.00')
+            total_ventas += costo_venta
+            
+            # total_pagado ya considera solo abonos confirmados y apertura confirmada
+            pagado_venta = venta.total_pagado or Decimal('0.00')
+            total_pagado += pagado_venta
+            
+            # saldo_restante ya está calculado correctamente en el modelo
+            saldo_venta = venta.saldo_restante or Decimal('0.00')
+            saldo_pendiente += saldo_venta
 
         context['total_ventas'] = total_ventas
         context['total_pagado'] = total_pagado
@@ -3006,6 +3010,102 @@ class ReporteFinancieroView(LoginRequiredMixin, usuarios_mixins.FinancialReportR
 
         # Botón exportar Excel: solo quien tiene acceso total (JEFE, Director General)
         context['es_jefe'] = perm.has_full_access(user, self.request)
+
+        # --- Datos para modales de detalle (Ingreso, Pagos, Saldo) ---
+        ventas_para_modales = base_ventas.filter(estado='ACTIVA').select_related('cliente').prefetch_related('abonos')
+        ventas_nac = ventas_para_modales.filter(tipo_viaje='NAC')
+        ventas_int = ventas_para_modales.filter(tipo_viaje='INT')
+
+        # Modal 1: Detalle Ingreso Bruto
+        total_nac = Decimal('0.00')
+        total_int = Decimal('0.00')
+        lista_ventas_ingreso = []
+        for v in ventas_para_modales.select_related('cliente'):
+            costo = v.costo_total_con_modificacion or Decimal('0.00')
+            if v.tipo_viaje == 'NAC':
+                total_nac += costo
+            else:
+                total_int += costo
+            lista_ventas_ingreso.append({
+                'folio': v.folio or f'#{v.pk}',
+                'cliente': v.cliente.nombre_completo_display if v.cliente else '—',
+                'monto': costo,
+                'tipo': v.get_tipo_viaje_display(),
+                'url': reverse('detalle_venta', kwargs={'pk': v.pk, 'slug': v.slug_safe}),
+            })
+        lista_ventas_ingreso.sort(key=lambda x: x['monto'], reverse=True)
+        context['detalle_ingreso'] = {
+            'num_ventas': ventas_para_modales.count(),
+            'ventas_nac_count': ventas_nac.count(),
+            'ventas_nac_monto': total_nac,
+            'ventas_int_count': ventas_int.count(),
+            'ventas_int_monto': total_int,
+            'lista_ventas': lista_ventas_ingreso[:15],
+        }
+
+        # Modal 2: Detalle Total Pagos Recibidos
+        # Para INT la fuente de verdad es monto_usd (monto se guarda en 0); para NAC es monto (MXN)
+        abonos_confirmados_qs = AbonoPago.objects.filter(
+            venta__in=base_ventas
+        ).filter(Q(confirmado=True) | Q(forma_pago='EFE')).select_related('venta', 'venta__cliente').order_by('-fecha_pago')[:15]
+        monto_desde_abonos_nac = Decimal('0.00')
+        monto_desde_abonos_int = Decimal('0.00')
+        ultimos_abonos = []
+        for ab in abonos_confirmados_qs:
+            venta = ab.venta
+            if venta.tipo_viaje == 'INT':
+                # INT: fuente de verdad es monto_usd; monto suele estar en 0
+                monto_abono = ab.monto_usd if (ab.monto_usd is not None and ab.monto_usd > 0) else (ab.monto_usd_para_display or Decimal('0.00'))
+                if monto_abono is None:
+                    monto_abono = Decimal('0.00')
+                monto_desde_abonos_int += monto_abono
+                moneda = 'USD'
+            else:
+                monto_abono = ab.monto or Decimal('0.00')
+                monto_desde_abonos_nac += monto_abono
+                moneda = 'MXN'
+            ultimos_abonos.append({
+                'folio': venta.folio or f'#{venta.pk}',
+                'cliente': venta.cliente.nombre_completo_display if venta.cliente else '—',
+                'monto': monto_abono,
+                'moneda': moneda,
+                'fecha': ab.fecha_pago,
+                'forma_pago': ab.get_forma_pago_display(),
+                'url': reverse('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}) + '?tab=abonos',
+            })
+        # Total abonos (suma NAC + INT en sus monedas; para el resumen mostramos ambos)
+        num_abonos_total = AbonoPago.objects.filter(
+            venta__in=base_ventas
+        ).filter(Q(confirmado=True) | Q(forma_pago='EFE')).count()
+        monto_apertura = Decimal('0.00')
+        for v in ventas_para_modales:
+            if v._apertura_confirmada_para_conteo():
+                monto_apertura += (v.cantidad_apertura or Decimal('0.00'))
+        context['detalle_pagos'] = {
+            'num_abonos': num_abonos_total,
+            'monto_desde_abonos_nac': monto_desde_abonos_nac,
+            'monto_desde_abonos_int': monto_desde_abonos_int,
+            'monto_desde_apertura': monto_apertura,
+            'ultimos_abonos': ultimos_abonos,
+        }
+
+        # Modal 3: Detalle Saldo Pendiente (CxC)
+        ventas_con_saldo = []
+        for v in ventas_para_modales.prefetch_related('abonos'):
+            saldo = v.saldo_restante or Decimal('0.00')
+            if saldo <= 0:
+                continue
+            ventas_con_saldo.append({
+                'folio': v.folio or f'#{v.pk}',
+                'cliente': v.cliente.nombre_completo_display if v.cliente else '—',
+                'saldo': saldo,
+                'url': reverse('detalle_venta', kwargs={'pk': v.pk, 'slug': v.slug_safe}),
+            })
+        ventas_con_saldo.sort(key=lambda x: x['saldo'], reverse=True)
+        context['detalle_saldo'] = {
+            'num_ventas_con_saldo': len(ventas_con_saldo),
+            'ventas_pendientes': ventas_con_saldo[:20],
+        }
 
         return context
 
