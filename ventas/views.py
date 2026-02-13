@@ -7487,22 +7487,35 @@ class ComisionesVendedoresView(LoginRequiredMixin, TemplateView):
         mes_filtro = safe_int(mes_param, default=mes_actual)
         anio_filtro = safe_int(anio_param, default=anio_actual)
         
+        # Rango del periodo seleccionado (ventas generadas en este mes/año)
+        from datetime import date as date_type
+        fecha_inicio = date_type(anio_filtro, mes_filtro, 1)
+        if mes_filtro == 12:
+            fecha_fin = date_type(anio_filtro + 1, 1, 1)
+        else:
+            fecha_fin = date_type(anio_filtro, mes_filtro + 1, 1)
+        
         lista_comisiones = []
         
         for vendedor in vendedores_a_mostrar:
-            # Filtra las ventas solo por el vendedor actual
-            ventas_vendedor = ventas_base.filter(vendedor=vendedor)
+            # Ventas del vendedor generadas en el periodo (fecha_creacion en mes/año)
+            ventas_periodo = ventas_base.filter(
+                vendedor=vendedor,
+                fecha_creacion__gte=fecha_inicio,
+                fecha_creacion__lt=fecha_fin
+            )
             
-            # OPTIMIZACIÓN N+1: Usar anotación total_abonos_confirmados en vez de propiedad
-            # Filtrar en Python las ventas que están pagadas al 100%
-            ventas_pagadas_vendedor = []
-            for venta in ventas_vendedor:
-                total_abonos = getattr(venta, 'total_abonos_confirmados', Decimal('0.00')) or Decimal('0.00')
-                apertura = venta.cantidad_apertura or Decimal('0.00')
-                total_pagado_calc = total_abonos + apertura
-                costo_total = (venta.costo_venta_final or Decimal('0.00')) + (venta.costo_modificacion or Decimal('0.00'))
-                if total_pagado_calc >= costo_total:
-                    ventas_pagadas_vendedor.append(venta)
+            # Base de comisión: total de ventas generadas en el periodo (no solo pagadas).
+            # INT: convertir USD a MXN con tipo_cambio; NAC: costo_venta_final.
+            total_ventas_periodo = Decimal('0.00')
+            for venta in ventas_periodo:
+                if getattr(venta, 'tipo_viaje', 'NAC') == 'INT':
+                    total_usd = getattr(venta, 'costo_venta_final_usd', None) or (getattr(venta, 'total_usd', None) if hasattr(venta, 'total_usd') else None)
+                    tc = getattr(venta, 'tipo_cambio', None)
+                    if total_usd and tc and Decimal(str(tc)) > 0:
+                        total_ventas_periodo += (Decimal(str(total_usd)) * Decimal(str(tc))).quantize(Decimal('0.01'))
+                else:
+                    total_ventas_periodo += (venta.costo_venta_final or Decimal('0.00'))
             
             ejecutivo = getattr(vendedor, 'ejecutivo_asociado', None)
 
@@ -7512,10 +7525,8 @@ class ComisionesVendedoresView(LoginRequiredMixin, TemplateView):
             # Sueldo base (ISLA SÍ tiene sueldo base)
             sueldo_base = ejecutivo.sueldo_base if ejecutivo and ejecutivo.sueldo_base else self.SUELDO_BASE
 
-            # Suma el costo final de las ventas pagadas (base para la comisión)
-            total_ventas_pagadas = sum(
-                venta.costo_venta_final for venta in ventas_pagadas_vendedor
-            ) or Decimal('0.00')
+            # Base de comisión = ventas generadas en el periodo (para tabla y cálculo de %)
+            total_ventas_pagadas = total_ventas_periodo
             
             # Para ISLA, las comisiones son 100% manuales (no hay cálculo automático)
             porcentaje_comision = None
@@ -7563,12 +7574,11 @@ class ComisionesVendedoresView(LoginRequiredMixin, TemplateView):
         context['anio_filtro'] = anio_filtro
         
         # Generar fecha_desde para mostrar en el template
-        from datetime import date
         try:
-            fecha_desde = date(context['anio_filtro'], context['mes_filtro'], 1)
+            fecha_desde = date_type(context['anio_filtro'], context['mes_filtro'], 1)
             context['fecha_desde'] = fecha_desde
         except (ValueError, TypeError):
-            fecha_desde = date(anio_actual, mes_actual, 1)
+            fecha_desde = date_type(anio_actual, mes_actual, 1)
             context['fecha_desde'] = fecha_desde
         
         return context
