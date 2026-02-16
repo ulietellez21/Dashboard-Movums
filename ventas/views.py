@@ -616,284 +616,8 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
         
         return context
 
-# ------------------- 3. DETALLE DE VENTA MODIFICADA -------------------
 
-class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMixin, DetailView):
-    model = VentaViaje
-    template_name = 'ventas/venta_detail.html'
-    context_object_name = 'venta'
-
-    def get_queryset(self):
-        """✅ PERFORMANCE: Optimizar queryset con prefetch de relaciones"""
-        return super().get_queryset().select_related(
-            'cliente', 'vendedor', 'proveedor'
-        ).prefetch_related(
-            'abonos',
-            'servicios_logisticos'
-        )
-
-    # ******************************************************************
-    # NUEVO: Implementación de get_object para usar SLUG y PK
-    # ******************************************************************
-    def get_object(self, queryset=None):
-        # 1. Recupera los parámetros de la URL
-        pk = self.kwargs.get('pk')
-        slug = self.kwargs.get('slug')
-        
-        # 2. Define el queryset base si no se proporciona uno
-        if queryset is None:
-            queryset = self.get_queryset()
-            
-        # 3. Busca el objeto utilizando ambos parámetros para asegurar unicidad
-        try:
-            # Usamos get_queryset() que ya trae el .select_related() si lo tienes configurado
-            obj = queryset.filter(pk=pk, slug=slug).first()
-            if obj:
-                return obj
-        except VentaViaje.DoesNotExist:
-            pass # Continúa al manejo de error 404
-            
-        # 4. Si el objeto no se encuentra, levanta un error 404
-        from django.http import Http404
-        raise Http404("No se encontró la Venta de Viaje que coincide con el ID y el slug.")
-    
-    # ******************************************************************
-    # FIN de get_object
-    # ******************************************************************
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        venta = self.object
-        # Corregir venta marcada COMPLETADO/liquidada cuando en realidad no está pagada (apertura TRN/TAR/DEP sin confirmar)
-        if venta.estado_confirmacion == 'COMPLETADO' and venta.saldo_restante > 0:
-            venta.actualizar_estado_financiero(guardar=True)
-        user_rol = perm.get_user_role(self.request.user, self.request)
-        context['user_rol'] = user_rol
-        context['es_jefe'] = perm.has_full_access(self.request.user, self.request)
-        
-        # Marcar notificaciones pendientes como vistas al entrar al detalle
-        # Esto hace que al hacer clic en "Ver Venta" la notificación se marque automáticamente
-        if self.request.user.is_authenticated:
-            Notificacion.objects.filter(
-                usuario=self.request.user,
-                venta=venta,
-                vista=False
-            ).update(vista=True, fecha_vista=timezone.now())
-        
-        # Verificar si existen abonos reales pendientes
-        # Esto ayuda a determinar si la apertura está realmente pendiente o si solo hay abonos nuevos pendientes
-        abonos_pendientes_reales = venta.abonos.filter(confirmado=False).exists()
-        context['tiene_abonos_pendientes'] = abonos_pendientes_reales
-        
-        # Inicialización del Formulario de Abono
-        context['abono_form'] = AbonoPagoForm(initial={'venta': venta.pk}) 
-        # Abonos existentes, ordenados por fecha
-        context['abonos'] = venta.abonos.all().order_by('-fecha_pago')
-
-        # Control de habilitación de documentos (contrato y comprobante de abonos)
-        # Se desbloquean cuando hay al menos un abono confirmado O la apertura está confirmada
-        tiene_abono_confirmado = venta.abonos.filter(confirmado=True).exists()
-        
-        # Apertura confirmada: para NAC cantidad_apertura > 0; para INT cantidad_apertura_usd (o resuelto) > 0
-        apertura_confirmada = False
-        tiene_apertura = False
-        if venta.tipo_viaje == 'INT':
-            apertura_usd = getattr(venta, 'cantidad_apertura_usd', None)
-            # ✅ DIVISIÓN SEGURA: Validar tipo_cambio > 0
-            if (apertura_usd is None or apertura_usd <= 0) and venta.tipo_cambio and venta.tipo_cambio > 0 and venta.cantidad_apertura:
-                apertura_usd = (venta.cantidad_apertura / venta.tipo_cambio).quantize(Decimal('0.01'))
-            tiene_apertura = apertura_usd and apertura_usd > 0
-        else:
-            tiene_apertura = (venta.cantidad_apertura or 0) > 0
-        if tiene_apertura:
-            if venta.modo_pago_apertura == 'EFE':
-                apertura_confirmada = True
-            else:
-                apertura_confirmada = venta.estado_confirmacion == 'COMPLETADO'
-        
-        context['puede_generar_documentos'] = tiene_abono_confirmado or apertura_confirmada
-        
-        # Verificar si hay notificación de apertura pendiente para el CONTADOR
-        if perm.is_contador(self.request.user, self.request):
-            # Notificacion ya está importada al inicio del archivo
-            context['notificacion_apertura_pendiente'] = Notificacion.objects.filter(
-                usuario=self.request.user,
-                venta=venta,
-                tipo='PAGO_PENDIENTE',
-                confirmado=False,
-                abono__isnull=True  # Sin abono = apertura
-            ).first()
-
-        # Asegurar que exista registro de logística para sincronizar servicios
-        try:
-            venta.logistica
-        except Logistica.DoesNotExist:
-            Logistica.objects.create(venta=venta)
-        mostrar_tab_logistica = self._puede_ver_logistica_tab(self.request.user, venta)
-        context['mostrar_tab_logistica'] = mostrar_tab_logistica
-        context['puede_editar_servicios_financieros'] = self._puede_gestionar_logistica_financiera(self.request.user, venta)
-        # Permisos para editar campos bloqueados (JEFE/Director General y Gerente)
-        context['puede_desbloquear_todos_los_campos'] = perm.can_edit_campos_bloqueados(self.request.user, self.request)
-        # Botón "Editar datos del viaje": solo Gerente y los 3 directores
-        context['puede_editar_datos_viaje'] = perm.can_edit_datos_viaje(self.request.user, self.request)
-        if mostrar_tab_logistica:
-            self._prepare_logistica_finanzas_context(context, venta)
-        
-        # Abonos a Proveedor: usar SIEMPRE venta.puede_solicitar_abonos_proveedor (misma regla que POST)
-        debe_mostrar_abonos = venta.puede_solicitar_abonos_proveedor
-        if debe_mostrar_abonos:
-            context['abonos_proveedor'] = venta.abonos_proveedor.all().select_related(
-                'solicitud_por', 'aprobado_por', 'confirmado_por', 'cancelado_por'
-            ).order_by('-fecha_solicitud')
-            # Base para abonos = Servicios planificados (costo_neto en NAC; costo_neto_usd o suma tabla en INT)
-            if venta.tipo_viaje == 'INT':
-                base_abonos = venta.costo_neto_usd if (getattr(venta, 'costo_neto_usd', None) is not None and venta.costo_neto_usd > 0) else None
-                if base_abonos is None or base_abonos <= 0:
-                    from django.db.models import Sum
-                    from django.db.models.functions import Coalesce
-                    suma_logistica = venta.servicios_logisticos.aggregate(
-                        total=Coalesce(Sum('monto_planeado'), Decimal('0.00'))
-                    )['total']
-                    base_abonos = suma_logistica or Decimal('0.00')
-                context['servicios_planificados_abonos'] = base_abonos
-            else:
-                context['servicios_planificados_abonos'] = venta.costo_neto or Decimal('0.00')
-            if venta.tipo_viaje == 'INT':
-                context['total_abonado_proveedor'] = venta.total_abonado_proveedor
-                context['saldo_pendiente_proveedor'] = venta.saldo_pendiente_proveedor
-                context['moneda_abonos'] = 'USD'
-            else:
-                context['total_abonado_proveedor'] = venta.total_abonado_proveedor
-                context['saldo_pendiente_proveedor'] = venta.saldo_pendiente_proveedor
-                context['moneda_abonos'] = 'MXN'
-            from .forms import SolicitarAbonoProveedorForm
-            context['form_abono_proveedor'] = SolicitarAbonoProveedorForm(venta=venta, user=self.request.user)
-            context['puede_solicitar_abono_proveedor'] = perm.can_solicitar_abono_proveedor(self.request.user, self.request)
-            context['puede_aprobar_abono_proveedor'] = perm.can_approve_abono_proveedor(self.request.user, self.request)
-            context['puede_confirmar_abono_proveedor'] = perm.can_confirm_abono_proveedor(self.request.user, self.request)
-            context['puede_cancelar_abono_proveedor'] = perm.can_cancel_abono_proveedor(self.request.user, self.request)
-        else:
-            context['abonos_proveedor'] = []
-            context['total_abonado_proveedor'] = Decimal('0.00')
-            context['saldo_pendiente_proveedor'] = Decimal('0.00')
-            context['servicios_planificados_abonos'] = Decimal('0.00')
-            context['moneda_abonos'] = 'MXN'
-            context['puede_solicitar_abono_proveedor'] = False
-            context['puede_aprobar_abono_proveedor'] = False
-            context['puede_confirmar_abono_proveedor'] = False
-            context['puede_cancelar_abono_proveedor'] = False
-        # El template debe usar esta variable (no duplicar la lógica): incluye proveedor en logística
-        context['debe_mostrar_abonos'] = debe_mostrar_abonos
-        
-        # Inicialización del Formulario de Confirmaciones
-        context['confirmaciones'] = venta.confirmaciones.select_related('subido_por').order_by('-fecha_subida')
-        context['confirmacion_form'] = ConfirmacionVentaForm()
-        context['puede_subir_confirmaciones'] = self._puede_subir_confirmaciones(self.request.user, venta)
-        
-        # Calcular descuentos y totales para el contexto (INT: usar propiedades en USD)
-        if venta.tipo_viaje == 'INT':
-            total_final = venta.costo_total_con_modificacion
-            costo_base = total_final
-            total_descuentos = Decimal('0.00')
-            descuento_km = Decimal('0.00')
-            descuento_promo = Decimal('0.00')
-        else:
-            descuento_km = venta.descuento_kilometros_mxn or Decimal('0.00')
-            descuento_promo = venta.descuento_promociones_mxn or Decimal('0.00')
-            total_descuentos = descuento_km + descuento_promo
-            costo_base = (venta.costo_venta_final or Decimal('0.00')) + (venta.costo_modificacion or Decimal('0.00'))
-            total_final = costo_base - total_descuentos
-
-        context['total_descuentos'] = total_descuentos
-        context['costo_base'] = costo_base
-        context['total_final'] = total_final
-        context['descuento_km'] = descuento_km
-        context['descuento_promo'] = descuento_promo
-
-        # Para INT: valores en USD para la sección Desglose (mostrar todo en USD, evitar repetir total)
-        # Costo neto en INT viene del formulario en costo_neto_usd (costo_neto se deja en 0)
-        if venta.tipo_viaje == 'INT' and venta.tipo_cambio and venta.tipo_cambio > 0:
-            tc = venta.tipo_cambio
-            context['fin_desglose_usd'] = True
-            # Usar costo_neto_usd (dato del formulario nueva venta); fallback costo_neto/tc por legacy
-            costo_neto_usd_val = getattr(venta, 'costo_neto_usd', None)
-            if costo_neto_usd_val is not None and costo_neto_usd_val > 0:
-                context['fin_costo_neto_usd'] = costo_neto_usd_val
-            else:
-                context['fin_costo_neto_usd'] = (venta.costo_neto or Decimal('0.00')) / tc
-            context['fin_costo_base_usd'] = costo_base / tc
-            context['fin_total_final_usd'] = total_final / tc
-            context['fin_total_descuentos_usd'] = total_descuentos / tc
-            context['fin_descuento_km_usd'] = descuento_km / tc
-            context['fin_descuento_promo_usd'] = descuento_promo / tc
-        else:
-            context['fin_desglose_usd'] = False
-        
-        # ------------------- Contexto de Solicitud de Cancelación -------------------
-        solicitud_cancelacion = getattr(venta, 'solicitud_cancelacion', None)
-        context['solicitud_cancelacion'] = solicitud_cancelacion
-        
-        # Determinar si se puede solicitar cancelación
-        puede_solicitar = (
-            venta.estado == 'ACTIVA' and
-            (not solicitud_cancelacion or solicitud_cancelacion.estado in ['RECHAZADA', 'CANCELADA']) and
-            (venta.vendedor == self.request.user or perm.has_full_access(self.request.user, self.request))
-        )
-        context['puede_solicitar_cancelacion'] = puede_solicitar
-        
-        # Determinar si se puede cancelar definitivamente (requiere solicitud aprobada)
-        puede_cancelar_definitivamente = (
-            venta.estado == 'ACTIVA' and
-            solicitud_cancelacion and
-            solicitud_cancelacion.estado == 'APROBADA' and
-            (venta.vendedor == self.request.user or perm.has_full_access(self.request.user, self.request))
-        )
-        context['puede_cancelar_definitivamente'] = puede_cancelar_definitivamente
-        
-        # Determinar si se puede reciclar (venta cancelada definitivamente)
-        puede_reciclar = (
-            venta.estado == 'CANCELADA' and
-            (venta.vendedor == self.request.user or perm.has_full_access(self.request.user, self.request))
-        )
-        context['puede_reciclar_venta'] = puede_reciclar
-        
-        # Determinar si el usuario puede aprobar/rechazar solicitudes (JEFE, Director General, Director Administrativo)
-        puede_aprobar_rechazar = (
-            solicitud_cancelacion and
-            solicitud_cancelacion.estado == 'PENDIENTE' and
-            perm.can_approve_reject_cancelacion(self.request.user, self.request)
-        )
-        context['puede_aprobar_rechazar_cancelacion'] = puede_aprobar_rechazar
-        
-        # Formulario de solicitud de cancelación
-        if puede_solicitar:
-            context['solicitud_cancelacion_form'] = SolicitudCancelacionForm()
-        
-        # ------------------- Resumen Financiero (solo si está cancelada) -------------------
-        if venta.estado == 'CANCELADA':
-            # ✅ PERFORMANCE: Cargar abonos una sola vez (ya prefetched)
-            abonos_list = list(venta.abonos.all().order_by('fecha_pago'))
-            resumen_financiero = {
-                'total_abonos': len(abonos_list),
-                'monto_total_abonos': sum(abono.monto for abono in abonos_list),
-                'monto_apertura': venta.cantidad_apertura or Decimal('0.00'),
-                'total_pagado': venta.total_pagado,
-                'abonos_detalle': [
-                    {
-                        'fecha': abono.fecha_pago,
-                        'monto': abono.monto,
-                        'forma_pago': abono.get_forma_pago_display(),
-                        'confirmado': abono.confirmado,
-                    }
-                    for abono in abonos_list
-                ],
-            }
-            context['resumen_financiero'] = resumen_financiero
-        else:
-            context['resumen_financiero'] = None
-        
-        return context
-
+class _VentaViajeDetailViewPostMixin:
     # ----------------------------------------------------------------------
     # MÉTODO POST: Para gestionar los formularios: Logística y Abonos
     # ----------------------------------------------------------------------
@@ -1629,6 +1353,285 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
         context['logistica_finanzas'] = resumen
         context['servicios_logisticos_rows'] = filas
         context['servicios_logisticos_queryset'] = servicios_qs
+
+# ------------------- 3. DETALLE DE VENTA MODIFICADA -------------------
+
+class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMixin, _VentaViajeDetailViewPostMixin, DetailView):
+    model = VentaViaje
+    template_name = 'ventas/venta_detail.html'
+    context_object_name = 'venta'
+
+    def get_queryset(self):
+        """✅ PERFORMANCE: Optimizar queryset con prefetch de relaciones"""
+        return super().get_queryset().select_related(
+            'cliente', 'vendedor', 'proveedor'
+        ).prefetch_related(
+            'abonos',
+            'servicios_logisticos'
+        )
+
+    # ******************************************************************
+    # NUEVO: Implementación de get_object para usar SLUG y PK
+    # ******************************************************************
+    def get_object(self, queryset=None):
+        # 1. Recupera los parámetros de la URL
+        pk = self.kwargs.get('pk')
+        slug = self.kwargs.get('slug')
+        
+        # 2. Define el queryset base si no se proporciona uno
+        if queryset is None:
+            queryset = self.get_queryset()
+            
+        # 3. Busca el objeto utilizando ambos parámetros para asegurar unicidad
+        try:
+            # Usamos get_queryset() que ya trae el .select_related() si lo tienes configurado
+            obj = queryset.filter(pk=pk, slug=slug).first()
+            if obj:
+                return obj
+        except VentaViaje.DoesNotExist:
+            pass # Continúa al manejo de error 404
+            
+        # 4. Si el objeto no se encuentra, levanta un error 404
+        from django.http import Http404
+        raise Http404("No se encontró la Venta de Viaje que coincide con el ID y el slug.")
+    
+    # ******************************************************************
+    # FIN de get_object
+    # ******************************************************************
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        venta = self.object
+        # Corregir venta marcada COMPLETADO/liquidada cuando en realidad no está pagada (apertura TRN/TAR/DEP sin confirmar)
+        if venta.estado_confirmacion == 'COMPLETADO' and venta.saldo_restante > 0:
+            venta.actualizar_estado_financiero(guardar=True)
+        user_rol = perm.get_user_role(self.request.user, self.request)
+        context['user_rol'] = user_rol
+        context['es_jefe'] = perm.has_full_access(self.request.user, self.request)
+        
+        # Marcar notificaciones pendientes como vistas al entrar al detalle
+        # Esto hace que al hacer clic en "Ver Venta" la notificación se marque automáticamente
+        if self.request.user.is_authenticated:
+            Notificacion.objects.filter(
+                usuario=self.request.user,
+                venta=venta,
+                vista=False
+            ).update(vista=True, fecha_vista=timezone.now())
+        
+        # Verificar si existen abonos reales pendientes
+        # Esto ayuda a determinar si la apertura está realmente pendiente o si solo hay abonos nuevos pendientes
+        abonos_pendientes_reales = venta.abonos.filter(confirmado=False).exists()
+        context['tiene_abonos_pendientes'] = abonos_pendientes_reales
+        
+        # Inicialización del Formulario de Abono
+        context['abono_form'] = AbonoPagoForm(initial={'venta': venta.pk}) 
+        # Abonos existentes, ordenados por fecha
+        context['abonos'] = venta.abonos.all().order_by('-fecha_pago')
+
+        # Control de habilitación de documentos (contrato y comprobante de abonos)
+        # Se desbloquean cuando hay al menos un abono confirmado O la apertura está confirmada
+        tiene_abono_confirmado = venta.abonos.filter(confirmado=True).exists()
+        
+        # Apertura confirmada: para NAC cantidad_apertura > 0; para INT cantidad_apertura_usd (o resuelto) > 0
+        apertura_confirmada = False
+        tiene_apertura = False
+        if venta.tipo_viaje == 'INT':
+            apertura_usd = getattr(venta, 'cantidad_apertura_usd', None)
+            # ✅ DIVISIÓN SEGURA: Validar tipo_cambio > 0
+            if (apertura_usd is None or apertura_usd <= 0) and venta.tipo_cambio and venta.tipo_cambio > 0 and venta.cantidad_apertura:
+                apertura_usd = (venta.cantidad_apertura / venta.tipo_cambio).quantize(Decimal('0.01'))
+            tiene_apertura = apertura_usd and apertura_usd > 0
+        else:
+            tiene_apertura = (venta.cantidad_apertura or 0) > 0
+        if tiene_apertura:
+            if venta.modo_pago_apertura == 'EFE':
+                apertura_confirmada = True
+            else:
+                apertura_confirmada = venta.estado_confirmacion == 'COMPLETADO'
+        
+        context['puede_generar_documentos'] = tiene_abono_confirmado or apertura_confirmada
+        
+        # Verificar si hay notificación de apertura pendiente para el CONTADOR
+        if perm.is_contador(self.request.user, self.request):
+            # Notificacion ya está importada al inicio del archivo
+            context['notificacion_apertura_pendiente'] = Notificacion.objects.filter(
+                usuario=self.request.user,
+                venta=venta,
+                tipo='PAGO_PENDIENTE',
+                confirmado=False,
+                abono__isnull=True  # Sin abono = apertura
+            ).first()
+
+        # Asegurar que exista registro de logística para sincronizar servicios
+        try:
+            venta.logistica
+        except Logistica.DoesNotExist:
+            Logistica.objects.create(venta=venta)
+        mostrar_tab_logistica = self._puede_ver_logistica_tab(self.request.user, venta)
+        context['mostrar_tab_logistica'] = mostrar_tab_logistica
+        context['puede_editar_servicios_financieros'] = self._puede_gestionar_logistica_financiera(self.request.user, venta)
+        # Permisos para editar campos bloqueados (JEFE/Director General y Gerente)
+        context['puede_desbloquear_todos_los_campos'] = perm.can_edit_campos_bloqueados(self.request.user, self.request)
+        # Botón "Editar datos del viaje": solo Gerente y los 3 directores
+        context['puede_editar_datos_viaje'] = perm.can_edit_datos_viaje(self.request.user, self.request)
+        if mostrar_tab_logistica:
+            self._prepare_logistica_finanzas_context(context, venta)
+        
+        # Abonos a Proveedor: usar SIEMPRE venta.puede_solicitar_abonos_proveedor (misma regla que POST)
+        debe_mostrar_abonos = venta.puede_solicitar_abonos_proveedor
+        if debe_mostrar_abonos:
+            context['abonos_proveedor'] = venta.abonos_proveedor.all().select_related(
+                'solicitud_por', 'aprobado_por', 'confirmado_por', 'cancelado_por'
+            ).order_by('-fecha_solicitud')
+            # Base para abonos = Servicios planificados (costo_neto en NAC; costo_neto_usd o suma tabla en INT)
+            if venta.tipo_viaje == 'INT':
+                base_abonos = venta.costo_neto_usd if (getattr(venta, 'costo_neto_usd', None) is not None and venta.costo_neto_usd > 0) else None
+                if base_abonos is None or base_abonos <= 0:
+                    from django.db.models import Sum
+                    from django.db.models.functions import Coalesce
+                    suma_logistica = venta.servicios_logisticos.aggregate(
+                        total=Coalesce(Sum('monto_planeado'), Decimal('0.00'))
+                    )['total']
+                    base_abonos = suma_logistica or Decimal('0.00')
+                context['servicios_planificados_abonos'] = base_abonos
+            else:
+                context['servicios_planificados_abonos'] = venta.costo_neto or Decimal('0.00')
+            if venta.tipo_viaje == 'INT':
+                context['total_abonado_proveedor'] = venta.total_abonado_proveedor
+                context['saldo_pendiente_proveedor'] = venta.saldo_pendiente_proveedor
+                context['moneda_abonos'] = 'USD'
+            else:
+                context['total_abonado_proveedor'] = venta.total_abonado_proveedor
+                context['saldo_pendiente_proveedor'] = venta.saldo_pendiente_proveedor
+                context['moneda_abonos'] = 'MXN'
+            from .forms import SolicitarAbonoProveedorForm
+            context['form_abono_proveedor'] = SolicitarAbonoProveedorForm(venta=venta, user=self.request.user)
+            context['puede_solicitar_abono_proveedor'] = perm.can_solicitar_abono_proveedor(self.request.user, self.request)
+            context['puede_aprobar_abono_proveedor'] = perm.can_approve_abono_proveedor(self.request.user, self.request)
+            context['puede_confirmar_abono_proveedor'] = perm.can_confirm_abono_proveedor(self.request.user, self.request)
+            context['puede_cancelar_abono_proveedor'] = perm.can_cancel_abono_proveedor(self.request.user, self.request)
+        else:
+            context['abonos_proveedor'] = []
+            context['total_abonado_proveedor'] = Decimal('0.00')
+            context['saldo_pendiente_proveedor'] = Decimal('0.00')
+            context['servicios_planificados_abonos'] = Decimal('0.00')
+            context['moneda_abonos'] = 'MXN'
+            context['puede_solicitar_abono_proveedor'] = False
+            context['puede_aprobar_abono_proveedor'] = False
+            context['puede_confirmar_abono_proveedor'] = False
+            context['puede_cancelar_abono_proveedor'] = False
+        # El template debe usar esta variable (no duplicar la lógica): incluye proveedor en logística
+        context['debe_mostrar_abonos'] = debe_mostrar_abonos
+        
+        # Inicialización del Formulario de Confirmaciones
+        context['confirmaciones'] = venta.confirmaciones.select_related('subido_por').order_by('-fecha_subida')
+        context['confirmacion_form'] = ConfirmacionVentaForm()
+        context['puede_subir_confirmaciones'] = self._puede_subir_confirmaciones(self.request.user, venta)
+        
+        # Calcular descuentos y totales para el contexto (INT: usar propiedades en USD)
+        if venta.tipo_viaje == 'INT':
+            total_final = venta.costo_total_con_modificacion
+            costo_base = total_final
+            total_descuentos = Decimal('0.00')
+            descuento_km = Decimal('0.00')
+            descuento_promo = Decimal('0.00')
+        else:
+            descuento_km = venta.descuento_kilometros_mxn or Decimal('0.00')
+            descuento_promo = venta.descuento_promociones_mxn or Decimal('0.00')
+            total_descuentos = descuento_km + descuento_promo
+            costo_base = (venta.costo_venta_final or Decimal('0.00')) + (venta.costo_modificacion or Decimal('0.00'))
+            total_final = costo_base - total_descuentos
+
+        context['total_descuentos'] = total_descuentos
+        context['costo_base'] = costo_base
+        context['total_final'] = total_final
+        context['descuento_km'] = descuento_km
+        context['descuento_promo'] = descuento_promo
+
+        # Para INT: valores en USD para la sección Desglose (mostrar todo en USD, evitar repetir total)
+        # Costo neto en INT viene del formulario en costo_neto_usd (costo_neto se deja en 0)
+        if venta.tipo_viaje == 'INT' and venta.tipo_cambio and venta.tipo_cambio > 0:
+            tc = venta.tipo_cambio
+            context['fin_desglose_usd'] = True
+            # Usar costo_neto_usd (dato del formulario nueva venta); fallback costo_neto/tc por legacy
+            costo_neto_usd_val = getattr(venta, 'costo_neto_usd', None)
+            if costo_neto_usd_val is not None and costo_neto_usd_val > 0:
+                context['fin_costo_neto_usd'] = costo_neto_usd_val
+            else:
+                context['fin_costo_neto_usd'] = (venta.costo_neto or Decimal('0.00')) / tc
+            context['fin_costo_base_usd'] = costo_base / tc
+            context['fin_total_final_usd'] = total_final / tc
+            context['fin_total_descuentos_usd'] = total_descuentos / tc
+            context['fin_descuento_km_usd'] = descuento_km / tc
+            context['fin_descuento_promo_usd'] = descuento_promo / tc
+        else:
+            context['fin_desglose_usd'] = False
+        
+        # ------------------- Contexto de Solicitud de Cancelación -------------------
+        solicitud_cancelacion = getattr(venta, 'solicitud_cancelacion', None)
+        context['solicitud_cancelacion'] = solicitud_cancelacion
+        
+        # Determinar si se puede solicitar cancelación
+        puede_solicitar = (
+            venta.estado == 'ACTIVA' and
+            (not solicitud_cancelacion or solicitud_cancelacion.estado in ['RECHAZADA', 'CANCELADA']) and
+            (venta.vendedor == self.request.user or perm.has_full_access(self.request.user, self.request))
+        )
+        context['puede_solicitar_cancelacion'] = puede_solicitar
+        
+        # Determinar si se puede cancelar definitivamente (requiere solicitud aprobada)
+        puede_cancelar_definitivamente = (
+            venta.estado == 'ACTIVA' and
+            solicitud_cancelacion and
+            solicitud_cancelacion.estado == 'APROBADA' and
+            (venta.vendedor == self.request.user or perm.has_full_access(self.request.user, self.request))
+        )
+        context['puede_cancelar_definitivamente'] = puede_cancelar_definitivamente
+        
+        # Determinar si se puede reciclar (venta cancelada definitivamente)
+        puede_reciclar = (
+            venta.estado == 'CANCELADA' and
+            (venta.vendedor == self.request.user or perm.has_full_access(self.request.user, self.request))
+        )
+        context['puede_reciclar_venta'] = puede_reciclar
+        
+        # Determinar si el usuario puede aprobar/rechazar solicitudes (JEFE, Director General, Director Administrativo)
+        puede_aprobar_rechazar = (
+            solicitud_cancelacion and
+            solicitud_cancelacion.estado == 'PENDIENTE' and
+            perm.can_approve_reject_cancelacion(self.request.user, self.request)
+        )
+        context['puede_aprobar_rechazar_cancelacion'] = puede_aprobar_rechazar
+        
+        # Formulario de solicitud de cancelación
+        if puede_solicitar:
+            context['solicitud_cancelacion_form'] = SolicitudCancelacionForm()
+        
+        # ------------------- Resumen Financiero (solo si está cancelada) -------------------
+        if venta.estado == 'CANCELADA':
+            # ✅ PERFORMANCE: Cargar abonos una sola vez (ya prefetched)
+            abonos_list = list(venta.abonos.all().order_by('fecha_pago'))
+            resumen_financiero = {
+                'total_abonos': len(abonos_list),
+                'monto_total_abonos': sum(abono.monto for abono in abonos_list),
+                'monto_apertura': venta.cantidad_apertura or Decimal('0.00'),
+                'total_pagado': venta.total_pagado,
+                'abonos_detalle': [
+                    {
+                        'fecha': abono.fecha_pago,
+                        'monto': abono.monto,
+                        'forma_pago': abono.get_forma_pago_display(),
+                        'confirmado': abono.confirmado,
+                    }
+                    for abono in abonos_list
+                ],
+            }
+            context['resumen_financiero'] = resumen_financiero
+        else:
+            context['resumen_financiero'] = None
+        
+        return context
+
 
 # ------------------- 3.1. ELIMINAR CONFIRMACIÓN DE VENTA -------------------
 

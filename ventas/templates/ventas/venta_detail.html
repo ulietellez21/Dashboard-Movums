@@ -271,513 +271,17 @@
         <div class="tab-content" id="ventaTabsContent">
             
             <div class="tab-pane fade show active" id="info" role="tabpanel" aria-labelledby="info-tab">
-                <!-- Información General de la Venta -->
-                <div class="row g-3 mb-4">
-                    <div class="col-md-12">
-                        <div class="card shadow-sm border-primary">
-                            <div class="card-header bg-primary text-white">
-                                <i class="fas fa-info-circle me-2"></i>Información General de la Venta
-                            </div>
-                            <div class="card-body">
-                                <div class="row g-3">
-                                    <div class="col-md-3">
-                                        <strong class="text-muted d-block mb-1">Folio:</strong>
-                                        <span class="badge bg-primary fs-6">{{ venta.folio|default:"Sin folio" }}</span>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <strong class="text-muted d-block mb-1">Estado:</strong>
-                                        {% if venta.estado == 'ACTIVA' %}
-                                            <span class="badge bg-success fs-6">Activa</span>
-                                        {% else %}
-                                            <span class="badge bg-danger fs-6">Cancelada</span>
-                                        {% endif %}
-                                        {% if solicitud_cancelacion %}
-                                            <br>
-                                            <small class="text-muted">Solicitud:</small>
-                                            {% if solicitud_cancelacion.estado == 'PENDIENTE' %}
-                                                {% if puede_aprobar_rechazar_cancelacion %}
-                                                    <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#revisarSolicitudCancelacionModal">
-                                                        <i class="fas fa-eye me-1"></i> Pendiente
-                                                    </button>
-                                                {% else %}
-                                                    <span class="badge bg-warning">Pendiente</span>
-                                                {% endif %}
-                                            {% elif solicitud_cancelacion.estado == 'APROBADA' %}
-                                                <span class="badge bg-success">Aprobada</span>
-                                            {% elif solicitud_cancelacion.estado == 'RECHAZADA' %}
-                                                <span class="badge bg-danger">Rechazada</span>
-                                            {% elif solicitud_cancelacion.estado == 'CANCELADA' %}
-                                                <span class="badge bg-secondary">Cancelada</span>
-                                            {% endif %}
-                                        {% endif %}
-                                    </div>
-                                    <div class="col-md-3">
-                                        <strong class="text-muted d-block mb-1">Tipo de Viaje:</strong>
-                                        {% if venta.tipo_viaje == 'INT' %}
-                                            <span class="badge bg-info fs-6"><i class="fas fa-globe me-1"></i>Internacional</span>
-                                        {% else %}
-                                            <span class="badge bg-secondary fs-6"><i class="fas fa-map-marker-alt me-1"></i>Nacional</span>
-                                        {% endif %}
-                                    </div>
-                                    <div class="col-md-3">
-                                        <strong class="text-muted d-block mb-1">Fecha de Creación:</strong>
-                                        <span>{{ venta.fecha_creacion|date:"d/m/Y H:i" }}</span>
-                                    </div>
-                                    {% if venta.cotizacion_origen %}
-                                    <div class="col-md-12">
-                                        <strong class="text-muted d-block mb-1">Cotización Origen:</strong>
-                                        <a href="{% url 'cotizacion_detalle' slug=venta.cotizacion_origen.slug %}" class="text-decoration-none">
-                                            <i class="fas fa-file-invoice me-1"></i>{{ venta.cotizacion_origen.folio|default:"Ver cotización" }}
-                                        </a>
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <div class="d-flex justify-content-end mb-3 d-print-none">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print();" title="Abre el cuadro de impresión para imprimir o guardar como PDF">
+                        <i class="fas fa-print me-1"></i> Imprimir / Guardar como PDF
+                    </button>
                 </div>
-
-                <!-- Acciones de Cancelación -->
-                {% if puede_cancelar_definitivamente or puede_reciclar_venta %}
-                <div class="row g-3 mb-4">
-                    <div class="col-12">
-                        <div class="card shadow-sm border-warning">
-                            <div class="card-header bg-warning text-dark">
-                                <i class="fas fa-exclamation-triangle me-2"></i>Acciones de Cancelación
-                            </div>
-                            <div class="card-body">
-                                {% if puede_cancelar_definitivamente %}
-                                <p class="mb-3">
-                                    <i class="fas fa-info-circle me-2 text-info"></i>
-                                    Tu solicitud de cancelación ha sido aprobada. Puedes proceder con la cancelación definitiva de la venta.
-                                </p>
-                                <form method="post" action="{% url 'cancelar_venta' pk=venta.pk %}" onsubmit="return confirm('¿Estás seguro de que deseas cancelar definitivamente esta venta? Esta acción revertirá KM Movums, promociones y comisiones.');">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-danger">
-                                        <i class="fas fa-times-circle me-2"></i>Cancelar Venta Definitivamente
-                                    </button>
-                                </form>
-                                {% elif puede_reciclar_venta %}
-                                <p class="mb-3">
-                                    <i class="fas fa-recycle me-2 text-success"></i>
-                                    Esta venta ha sido cancelada. Puedes reciclar la venta para crear una nueva venta con los datos de esta venta cancelada (cliente, pasajeros, abonos, etc.).
-                                </p>
-                                <form method="post" action="{% url 'reciclar_venta' pk=venta.pk %}" onsubmit="return confirm('¿Estás seguro de que deseas reciclar esta venta? Se creará una nueva venta con los datos de esta venta cancelada.');">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-success">
-                                        <i class="fas fa-recycle me-2"></i>Reciclar Venta
-                                    </button>
-                                </form>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
+                <div id="venta-print-area">
+                    <h1 class="h2 mb-4 text-primary d-none d-print-block">
+                        <i class="fas fa-receipt me-2"></i> Información General — Venta {{ venta.folio|default:venta.id }}
+                    </h1>
+                    {% include "ventas/_venta_detail_info_content.html" %}
                 </div>
-                {% endif %}
-
-                <!-- Resumen Financiero (solo si está cancelada) -->
-                {% if venta.estado == 'CANCELADA' and resumen_financiero %}
-                <div class="row g-3 mb-4">
-                    <div class="col-12">
-                        <div class="card shadow-sm border-info">
-                            <div class="card-header bg-info text-white">
-                                <i class="fas fa-money-bill-wave me-2"></i>Resumen Financiero
-                            </div>
-                            <div class="card-body">
-                                <div class="row g-3">
-                                    <div class="col-md-4">
-                                        <strong class="text-muted d-block mb-1">Total de Abonos:</strong>
-                                        <span class="fs-5 text-primary">{{ resumen_financiero.total_abonos }}</span>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <strong class="text-muted d-block mb-1">Monto Total Abonado:</strong>
-                                        <span class="fs-5 text-success">${{ resumen_financiero.monto_total_abonos|floatformat:2|intcomma }}</span>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <strong class="text-muted d-block mb-1">Monto de Apertura:</strong>
-                                        <span class="fs-5 text-info">${{ resumen_financiero.monto_apertura|floatformat:2|intcomma }}</span>
-                                    </div>
-                                    <div class="col-md-12">
-                                        <strong class="text-muted d-block mb-2">Total Pagado:</strong>
-                                        <span class="fs-4 fw-bold text-success">${{ resumen_financiero.total_pagado|floatformat:2|intcomma }}</span>
-                                    </div>
-                                    {% if resumen_financiero.abonos_detalle %}
-                                    <div class="col-md-12">
-                                        <hr>
-                                        <strong class="text-muted d-block mb-2">Desglose de Abonos:</strong>
-                                        <div class="table-responsive">
-                                            <table class="table table-sm table-bordered">
-                                                <thead>
-                                                    <tr>
-                                                        <th>Fecha</th>
-                                                        <th>Monto</th>
-                                                        <th>Forma de Pago</th>
-                                                        <th>Estado</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {% for abono in resumen_financiero.abonos_detalle %}
-                                                    <tr>
-                                                        <td>{{ abono.fecha|date:"d/m/Y H:i" }}</td>
-                                                        <td>${{ abono.monto|floatformat:2|intcomma }}</td>
-                                                        <td>{{ abono.forma_pago }}</td>
-                                                        <td>
-                                                            {% if abono.confirmado %}
-                                                                <span class="badge bg-success">Confirmado</span>
-                                                            {% else %}
-                                                                <span class="badge bg-warning">Pendiente</span>
-                                                            {% endif %}
-                                                        </td>
-                                                    </tr>
-                                                    {% endfor %}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
-
-                <!-- Información del Cliente -->
-                <div class="row g-3 mb-4">
-                    <div class="col-md-6">
-                        <div class="card shadow-sm h-100">
-                            <div class="card-header bg-info text-white">
-                                <i class="fas fa-user me-2"></i>Información del Cliente
-                            </div>
-                            <div class="card-body">
-                                <p class="mb-2">
-                                    <strong class="text-muted d-block mb-1">Nombre:</strong>
-                                    <a href="{% url 'detalle_cliente' pk=venta.cliente.pk %}" class="text-decoration-none">
-                                        {% if venta.cliente.tipo_cliente == 'EMPRESA' %}
-                                            <i class="fas fa-building text-info me-1"></i>
-                                            <span class="badge bg-info text-white me-2">Empresa</span>
-                                        {% else %}
-                                            <i class="fas fa-user text-success me-1"></i>
-                                            <span class="badge bg-success text-white me-2">Particular</span>
-                                        {% endif %}
-                                        {{ venta.cliente.nombre_completo_display }}
-                                    </a>
-                                </p>
-                                {% if venta.cliente.tipo_cliente == 'EMPRESA' and venta.cliente.rfc %}
-                                <p class="mb-2">
-                                    <strong class="text-muted d-block mb-1">RFC:</strong>
-                                    <code>{{ venta.cliente.rfc }}</code>
-                                </p>
-                                {% endif %}
-                                {% if venta.cliente.telefono %}
-                                <p class="mb-2">
-                                    <strong class="text-muted d-block mb-1">Teléfono:</strong>
-                                    <a href="tel:{{ venta.cliente.telefono }}">{{ venta.cliente.telefono }}</a>
-                                </p>
-                                {% endif %}
-                                {% if venta.cliente.email %}
-                                <p class="mb-2">
-                                    <strong class="text-muted d-block mb-1">Email:</strong>
-                                    <a href="mailto:{{ venta.cliente.email }}">{{ venta.cliente.email }}</a>
-                                </p>
-                                {% endif %}
-                                <p class="mb-0">
-                                    <strong class="text-muted d-block mb-1">Asesor/Vendedor:</strong>
-                                    {% if venta.vendedor.get_full_name %}
-                                        {{ venta.vendedor.get_full_name }} <small class="text-muted">({{ venta.vendedor.username }})</small>
-                                    {% else %}
-                                        {{ venta.vendedor.username }}
-                                    {% endif %}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="card shadow-sm h-100">
-                            <div class="card-header bg-success text-white">
-                                <i class="fas fa-suitcase me-2"></i>Información del Viaje
-                            </div>
-                            <div class="card-body">
-                                <p class="mb-2">
-                                    <strong class="text-muted d-block mb-1">Servicios Incluidos:</strong>
-                                    {% if venta.servicios_seleccionados_display %}
-                                        <span class="text-primary fw-semibold">{{ venta.servicios_seleccionados_display }}</span>
-                                    {% else %}
-                                        <span class="text-muted">No especificado</span>
-                                    {% endif %}
-                                </p>
-                                <p class="mb-2">
-                                    <strong class="text-muted d-block mb-1">Fecha de Inicio:</strong>
-                                    <i class="fas fa-calendar-alt me-1 text-primary"></i>{{ venta.fecha_inicio_viaje|date:"l, d F Y" }}
-                                </p>
-                                {% if venta.fecha_fin_viaje %}
-                                <p class="mb-2">
-                                    <strong class="text-muted d-block mb-1">Fecha de Regreso:</strong>
-                                    <i class="fas fa-calendar-check me-1 text-primary"></i>{{ venta.fecha_fin_viaje|date:"l, d F Y" }}
-                                </p>
-                                {% endif %}
-                                {% if venta.fecha_vencimiento_pago %}
-                                <p class="mb-2">
-                                    <strong class="text-muted d-block mb-1">Fecha Límite de Pago:</strong>
-                                    <i class="fas fa-clock me-1 text-warning"></i>{{ venta.fecha_vencimiento_pago|date:"d/m/Y" }}
-                                </p>
-                                {% endif %}
-                                {% if venta.proveedor %}
-                                <p class="mb-0">
-                                    <strong class="text-muted d-block mb-1">Proveedor Asignado:</strong>
-                                    <span><i class="fas fa-building me-1"></i>{{ venta.proveedor.nombre }}</span>
-                                    {% if venta.proveedor.ejecutivo %}
-                                        <br><small class="text-muted">Ejecutivo: {{ venta.proveedor.ejecutivo }}</small>
-                                    {% endif %}
-                                    {% if venta.proveedor.telefono_ejecutivo %}
-                                        <br><small class="text-muted">Tel: {{ venta.proveedor.telefono_ejecutivo }}</small>
-                                    {% endif %}
-                                </p>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Información Financiera -->
-                <div class="row g-3 mb-4">
-                    <div class="col-md-12">
-                        <div class="card shadow-sm">
-                            <div class="card-header bg-warning text-dark">
-                                <i class="fas fa-dollar-sign me-2"></i>Información Financiera
-                            </div>
-                            <div class="card-body">
-                                <div class="row g-3">
-                                    {% if venta.tipo_viaje == 'INT' %}
-                                    <div class="col-md-6">
-                                        <h6 class="text-muted mb-3"><i class="fas fa-coins me-1"></i>Montos en USD</h6>
-                                        {% if venta.tarifa_base_usd %}
-                                        <p class="mb-2">
-                                            <strong class="text-muted d-block mb-1">Tarifa Base:</strong>
-                                            USD ${{ venta.tarifa_base_usd|floatformat:2|intcomma }}
-                                        </p>
-                                        {% endif %}
-                                        {% if venta.impuestos_usd %}
-                                        <p class="mb-2">
-                                            <strong class="text-muted d-block mb-1">Impuestos:</strong>
-                                            USD ${{ venta.impuestos_usd|floatformat:2|intcomma }}
-                                        </p>
-                                        {% endif %}
-                                        {% if venta.suplementos_usd %}
-                                        <p class="mb-2">
-                                            <strong class="text-muted d-block mb-1">Suplementos:</strong>
-                                            USD ${{ venta.suplementos_usd|floatformat:2|intcomma }}
-                                        </p>
-                                        {% endif %}
-                                        {% if venta.tours_usd %}
-                                        <p class="mb-2">
-                                            <strong class="text-muted d-block mb-1">Tours:</strong>
-                                            USD ${{ venta.tours_usd|floatformat:2|intcomma }}
-                                        </p>
-                                        {% endif %}
-                                        {% if venta.tipo_cambio %}
-                                        <p class="mb-2">
-                                            <strong class="text-muted d-block mb-1">Tipo de Cambio:</strong>
-                                            ${{ venta.tipo_cambio|floatformat:4 }} MXN/USD
-                                        </p>
-                                        {% endif %}
-                                        {% if venta.total_usd %}
-                                        <p class="mb-0">
-                                            <strong class="text-muted d-block mb-1">Total USD:</strong>
-                                            <span class="badge bg-info fs-6">USD ${{ venta.total_usd|floatformat:2|intcomma }}</span>
-                                        </p>
-                                        {% endif %}
-                                    </div>
-                                    <div class="col-md-6">
-                                        <h6 class="text-muted mb-3"><i class="fas fa-list me-1"></i>Desglose</h6>
-                                    {% else %}
-                                    <div class="col-md-12">
-                                    {% endif %}
-                                        <!-- 1. Costo Neto (Agencia) -->
-                                        <p class="mb-2">
-                                            <strong class="text-muted d-block mb-1">Costo Neto (Agencia):</strong>
-                                            {% if fin_desglose_usd %}
-                                                USD ${{ fin_costo_neto_usd|floatformat:2|intcomma }}
-                                            {% else %}
-                                                ${{ venta.costo_neto|floatformat:2|intcomma }} MXN
-                                            {% endif %}
-                                        </p>
-                                        
-                                        <!-- 2. Total pagado -->
-                                        <p class="mb-2">
-                                            <strong class="text-muted d-block mb-1">Total pagado:</strong>
-                                            {% if fin_desglose_usd %}
-                                                <span class="text-info fw-bold">USD ${{ venta.total_pagado|floatformat:2|intcomma }}</span>
-                                            {% else %}
-                                                <span class="text-info fw-bold">${{ venta.total_pagado|floatformat:2|intcomma }} MXN</span>
-                                            {% endif %}
-                                        </p>
-                                        
-                                        <!-- 3. Descuento Kilómetros Movums -->
-                                        {% if venta.aplica_descuento_kilometros %}
-                                        <p class="mb-2">
-                                            <strong class="text-muted d-block mb-1">Descuento Kilómetros Movums:</strong>
-                                            {% if fin_desglose_usd %}
-                                                <span class="text-success">-USD ${{ fin_descuento_km_usd|floatformat:2|intcomma }}</span>
-                                            {% else %}
-                                                <span class="text-success">-${{ venta.descuento_kilometros_mxn|floatformat:2|intcomma }} MXN</span>
-                                            {% endif %}
-                                        </p>
-                                        {% endif %}
-                                        
-                                        <!-- 4. Descuento por Promociones -->
-                                        {% if venta.descuento_promociones_mxn and venta.descuento_promociones_mxn > 0 %}
-                                        <p class="mb-2">
-                                            <strong class="text-muted d-block mb-1">Descuento por Promociones:</strong>
-                                            {% if fin_desglose_usd %}
-                                                <span class="text-success">-USD ${{ fin_descuento_promo_usd|floatformat:2|intcomma }}</span>
-                                            {% else %}
-                                                <span class="text-success">-${{ venta.descuento_promociones_mxn|floatformat:2|intcomma }} MXN</span>
-                                            {% endif %}
-                                        </p>
-                                        {% endif %}
-                                        
-                                        <!-- 5. Total Descuentos -->
-                                        {% if total_descuentos > 0 %}
-                                        <p class="mb-2">
-                                            <strong class="text-muted d-block mb-1">Total Descuentos:</strong>
-                                            {% if fin_desglose_usd %}
-                                                <span class="text-danger fw-bold">-USD ${{ fin_total_descuentos_usd|floatformat:2|intcomma }}</span>
-                                            {% else %}
-                                                <span class="text-danger fw-bold">-${{ total_descuentos|floatformat:2|intcomma }} MXN</span>
-                                            {% endif %}
-                                        </p>
-                                        {% endif %}
-                                        
-                                        <!-- 6. Total Final (con descuentos): no repetir para INT (ya está Total USD en la otra columna) -->
-                                        {% if not fin_desglose_usd %}
-                                        <p class="mb-2">
-                                            <strong class="text-muted d-block mb-1">Total Final (con descuentos):</strong>
-                                            <span class="badge bg-primary fs-6">${{ total_final|floatformat:2|intcomma }} MXN</span>
-                                        </p>
-                                        {% endif %}
-                                        
-                                        <!-- 7. Apertura/Anticipo -->
-                                        {% if venta.cantidad_apertura and venta.cantidad_apertura > 0 or venta.tipo_viaje == 'INT' and venta.cantidad_apertura_usd %}
-                                        <p class="mb-2">
-                                            <strong class="text-muted d-block mb-1">Apertura/Anticipo:</strong>
-                                            {% if venta.tipo_viaje == 'INT' %}
-                                                USD ${{ venta.cantidad_apertura_usd|default:0|floatformat:2|intcomma }}
-                                            {% else %}
-                                                ${{ venta.cantidad_apertura|floatformat:2|intcomma }} MXN
-                                            {% endif %}
-                                            <span class="badge bg-secondary ms-2">{{ venta.get_modo_pago_apertura_display }}</span>
-                                        </p>
-                                        {% endif %}
-                                        
-                                        <!-- 8. Estado de Confirmación -->
-                                        <p class="mb-0">
-                                            <strong class="text-muted d-block mb-1">Estado de Confirmación:</strong>
-                                            {% if venta.estado_confirmacion == 'COMPLETADO' %}
-                                                <span class="badge bg-success fs-6">Completado</span>
-                                            {% elif venta.estado_confirmacion == 'EN_CONFIRMACION' %}
-                                                <span class="badge bg-warning text-dark fs-6">En Confirmación</span>
-                                            {% else %}
-                                                <span class="badge bg-secondary fs-6">Pendiente</span>
-                                            {% endif %}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Pasajeros y Detalles Adicionales -->
-                <div class="row g-3 mb-4">
-                    <div class="col-md-6">
-                        <div class="card shadow-sm h-100">
-                            <div class="card-header bg-secondary text-white">
-                                <i class="fas fa-users me-2"></i>Pasajeros
-                            </div>
-                            <div class="card-body">
-                                {% if venta.pasajeros %}
-                                <p class="mb-3">
-                                    <strong class="text-muted d-block mb-2">Listado de Pasajeros:</strong>
-                                    <div class="bg-light p-3 rounded">{{ venta.pasajeros|linebreaksbr }}</div>
-                                </p>
-                                {% endif %}
-                                {% if venta.edades_menores %}
-                                <p class="mb-0">
-                                    <strong class="text-muted d-block mb-2">Menores (nombre y edad):</strong>
-                                    <div class="bg-light p-3 rounded">{{ venta.edades_menores|linebreaksbr }}</div>
-                                </p>
-                                {% endif %}
-                                {% if not venta.pasajeros and not venta.edades_menores %}
-                                <p class="text-muted mb-0">No se ha registrado información de pasajeros.</p>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="card shadow-sm h-100">
-                            <div class="card-header bg-dark text-white">
-                                <i class="fas fa-info-circle me-2"></i>Detalles Adicionales
-                            </div>
-                            <div class="card-body">
-                                {% if venta.servicios_detalle_desde_logistica %}
-                                <p class="mb-3">
-                                    <strong class="text-muted d-block mb-2">Descripción Detallada de Servicios:</strong>
-                                    <div class="bg-light p-3 rounded" style="max-height: 200px; overflow-y: auto;">{{ venta.servicios_detalle_desde_logistica|linebreaksbr }}</div>
-                                </p>
-                                {% endif %}
-                                {% if venta.comprobante_apertura_subido_por %}
-                                <p class="mb-2">
-                                    <strong class="text-muted d-block mb-1">Comprobante de Apertura:</strong>
-                                    <span class="badge bg-success me-1">Subido</span>
-                                    {% if venta.comprobante_apertura_subido_en %}
-                                        <small class="text-muted">el {{ venta.comprobante_apertura_subido_en|date:"d/m/Y H:i" }}</small>
-                                    {% endif %}
-                                    <br><small class="text-muted">Por: {{ venta.comprobante_apertura_subido_por.get_full_name|default:venta.comprobante_apertura_subido_por.username }}</small>
-                                </p>
-                                {% endif %}
-                                {% if not venta.servicios_detalle and not venta.comprobante_apertura_subido_por %}
-                                <p class="text-muted mb-0">No hay información adicional disponible.</p>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                {# Sección de Archivos Adjuntos #}
-                {% if archivos_adjuntos %}
-                <div class="card mb-4 shadow-sm mt-4">
-                    <div class="card-header bg-secondary text-white">
-                        <i class="fas fa-paperclip me-2"></i> Archivos Adjuntos ({{ archivos_adjuntos|length }})
-                    </div>
-                    <div class="card-body">
-                        <div class="row g-3">
-                            {% for archivo in archivos_adjuntos %}
-                            <div class="col-md-6 col-lg-4">
-                                <div class="card border h-100">
-                                    <div class="card-body">
-                                        <h6 class="card-title mb-2">
-                                            <i class="fas fa-file me-2 text-primary"></i>
-                                            {{ archivo.nombre }}
-                                        </h6>
-                                        {% if archivo.tipo == 'principal' %}
-                                            <span class="badge bg-primary mb-2">Principal</span>
-                                        {% else %}
-                                            <span class="badge bg-info mb-2">Adicional</span>
-                                        {% endif %}
-                                        <div class="mt-2">
-                                            <a href="{{ archivo.url }}" target="_blank" class="btn btn-sm btn-outline-primary w-100">
-                                                <i class="fas fa-download me-1"></i> Descargar
-                                            </a>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
             </div>
 
             <div class="tab-pane fade" id="abonos" role="tabpanel" aria-labelledby="abonos-tab">
@@ -2125,6 +1629,40 @@
         .logistica-servicio-row.status-paid {
             border-left: 4px solid #198754;
             background-color: rgba(25,135,84,0.08);
+        }
+        /* Impresión: solo zona de Información general, centrada. Evitar position:fixed para que todo el contenido fluya y se imprima en varias páginas. */
+        @media print {
+            /* En impresión la página es toda el ancho; quitar margen del sidebar para centrar bien */
+            html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+            #page-content-wrapper { margin-left: 0 !important; width: 100% !important; max-width: none !important; }
+            #main-content { margin: 0 !important; padding: 0 !important; max-width: none !important; }
+            .container-fluid { margin-left: 0 !important; margin-right: 0 !important; max-width: 100% !important; padding-left: 0 !important; padding-right: 0 !important; }
+            /* Ocultar todo excepto la zona de impresión */
+            body *:not(#venta-print-area):not(#venta-print-area *) { visibility: hidden !important; }
+            #venta-print-area, #venta-print-area * { visibility: visible !important; }
+            .d-print-none, .d-print-none * { display: none !important; visibility: hidden !important; }
+            /* Centrado: márgenes laterales iguales (2.5% cada lado) para que quede centrado en la hoja */
+            #venta-print-area {
+                position: absolute !important;
+                left: 2.5% !important;
+                right: 2.5% !important;
+                width: auto !important;
+                max-width: none !important;
+                top: 0 !important;
+                margin: 0 !important;
+                height: auto !important;
+                min-height: auto !important;
+                overflow: visible !important;
+                padding: 0 1rem !important;
+                box-sizing: border-box;
+                background: white !important;
+                z-index: 99999;
+            }
+            .navbar, .sidebar, nav, header, .breadcrumb, footer, #sidebar-wrapper { display: none !important; }
+            .card { break-inside: avoid; }
+            .card-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            /* En impresión mostrar todo el texto de detalles de servicios (sin recortar a 200px) */
+            .detalle-servicios-texto { max-height: none !important; overflow: visible !important; }
         }
     </style>
     {# Script común para formateo de moneda #}

@@ -159,7 +159,6 @@ urlpatterns = [
         VentaViajeDetailView.as_view(), 
         name='detalle_venta'
     ),
-
     # 3.2 NUEVA RUTA PDF CONTRATO (Debe usar SLUG y PK)
     # Ejemplo: /ventas/viaje-cliente-123/123/contrato-venta/
     path(
