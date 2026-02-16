@@ -589,21 +589,29 @@
                                         {% endif %}
                                     </div>
                                     <div class="col-md-6">
-                                        <h6 class="text-muted mb-3"><i class="fas fa-peso-sign me-1"></i>Montos en MXN</h6>
+                                        <h6 class="text-muted mb-3"><i class="fas fa-list me-1"></i>Desglose</h6>
                                     {% else %}
                                     <div class="col-md-12">
                                     {% endif %}
                                         <!-- 1. Costo Neto (Agencia) -->
                                         <p class="mb-2">
                                             <strong class="text-muted d-block mb-1">Costo Neto (Agencia):</strong>
-                                            ${{ venta.costo_neto|floatformat:2|intcomma }} MXN
+                                            {% if fin_desglose_usd %}
+                                                USD ${{ fin_costo_neto_usd|floatformat:2|intcomma }}
+                                            {% else %}
+                                                ${{ venta.costo_neto|floatformat:2|intcomma }} MXN
+                                            {% endif %}
                                         </p>
                                         
                                         <!-- 2. Costo de Venta Final (sin descuentos) -->
                                         <p class="mb-2">
                                             <strong class="text-muted d-block mb-1">Costo de Venta Final (sin descuentos):</strong>
-                                            <span class="text-muted">${{ costo_base|floatformat:2|intcomma }} MXN</span>
-                                            {% if venta.costo_modificacion and venta.costo_modificacion > 0 %}
+                                            {% if fin_desglose_usd %}
+                                                <span class="text-muted">USD ${{ fin_costo_base_usd|floatformat:2|intcomma }}</span>
+                                            {% else %}
+                                                <span class="text-muted">${{ costo_base|floatformat:2|intcomma }} MXN</span>
+                                            {% endif %}
+                                            {% if venta.costo_modificacion and venta.costo_modificacion > 0 and not fin_desglose_usd %}
                                                 <small class="text-muted d-block mt-1">
                                                     <i class="fas fa-info-circle"></i> Incluye modificaciones: +${{ venta.costo_modificacion|floatformat:2|intcomma }}
                                                 </small>
@@ -614,7 +622,11 @@
                                         {% if venta.aplica_descuento_kilometros %}
                                         <p class="mb-2">
                                             <strong class="text-muted d-block mb-1">Descuento Kilómetros Movums:</strong>
-                                            <span class="text-success">-${{ venta.descuento_kilometros_mxn|floatformat:2|intcomma }} MXN</span>
+                                            {% if fin_desglose_usd %}
+                                                <span class="text-success">-USD ${{ fin_descuento_km_usd|floatformat:2|intcomma }}</span>
+                                            {% else %}
+                                                <span class="text-success">-${{ venta.descuento_kilometros_mxn|floatformat:2|intcomma }} MXN</span>
+                                            {% endif %}
                                         </p>
                                         {% endif %}
                                         
@@ -622,7 +634,11 @@
                                         {% if venta.descuento_promociones_mxn and venta.descuento_promociones_mxn > 0 %}
                                         <p class="mb-2">
                                             <strong class="text-muted d-block mb-1">Descuento por Promociones:</strong>
-                                            <span class="text-success">-${{ venta.descuento_promociones_mxn|floatformat:2|intcomma }} MXN</span>
+                                            {% if fin_desglose_usd %}
+                                                <span class="text-success">-USD ${{ fin_descuento_promo_usd|floatformat:2|intcomma }}</span>
+                                            {% else %}
+                                                <span class="text-success">-${{ venta.descuento_promociones_mxn|floatformat:2|intcomma }} MXN</span>
+                                            {% endif %}
                                         </p>
                                         {% endif %}
                                         
@@ -630,15 +646,21 @@
                                         {% if total_descuentos > 0 %}
                                         <p class="mb-2">
                                             <strong class="text-muted d-block mb-1">Total Descuentos:</strong>
-                                            <span class="text-danger fw-bold">-${{ total_descuentos|floatformat:2|intcomma }} MXN</span>
+                                            {% if fin_desglose_usd %}
+                                                <span class="text-danger fw-bold">-USD ${{ fin_total_descuentos_usd|floatformat:2|intcomma }}</span>
+                                            {% else %}
+                                                <span class="text-danger fw-bold">-${{ total_descuentos|floatformat:2|intcomma }} MXN</span>
+                                            {% endif %}
                                         </p>
                                         {% endif %}
                                         
-                                        <!-- 6. Total Final (con descuentos) -->
+                                        <!-- 6. Total Final (con descuentos): no repetir para INT (ya está Total USD en la otra columna) -->
+                                        {% if not fin_desglose_usd %}
                                         <p class="mb-2">
                                             <strong class="text-muted d-block mb-1">Total Final (con descuentos):</strong>
                                             <span class="badge bg-primary fs-6">${{ total_final|floatformat:2|intcomma }} MXN</span>
                                         </p>
+                                        {% endif %}
                                         
                                         <!-- 7. Apertura/Anticipo -->
                                         {% if venta.cantidad_apertura and venta.cantidad_apertura > 0 or venta.tipo_viaje == 'INT' and venta.cantidad_apertura_usd %}

@@ -809,6 +809,19 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
         context['total_final'] = total_final
         context['descuento_km'] = descuento_km
         context['descuento_promo'] = descuento_promo
+
+        # Para INT: valores en USD para la sección Desglose (mostrar todo en USD, evitar repetir total)
+        if venta.tipo_viaje == 'INT' and venta.tipo_cambio and venta.tipo_cambio > 0:
+            tc = venta.tipo_cambio
+            context['fin_desglose_usd'] = True
+            context['fin_costo_neto_usd'] = (venta.costo_neto or Decimal('0.00')) / tc
+            context['fin_costo_base_usd'] = costo_base / tc
+            context['fin_total_final_usd'] = total_final / tc
+            context['fin_total_descuentos_usd'] = total_descuentos / tc
+            context['fin_descuento_km_usd'] = descuento_km / tc
+            context['fin_descuento_promo_usd'] = descuento_promo / tc
+        else:
+            context['fin_desglose_usd'] = False
         
         # ------------------- Contexto de Solicitud de Cancelación -------------------
         solicitud_cancelacion = getattr(venta, 'solicitud_cancelacion', None)
