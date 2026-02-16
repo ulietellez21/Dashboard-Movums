@@ -603,18 +603,13 @@
                                             {% endif %}
                                         </p>
                                         
-                                        <!-- 2. Costo de Venta Final (sin descuentos) -->
+                                        <!-- 2. Total pagado -->
                                         <p class="mb-2">
-                                            <strong class="text-muted d-block mb-1">Costo de Venta Final (sin descuentos):</strong>
+                                            <strong class="text-muted d-block mb-1">Total pagado:</strong>
                                             {% if fin_desglose_usd %}
-                                                <span class="text-muted">USD ${{ fin_costo_base_usd|floatformat:2|intcomma }}</span>
+                                                <span class="text-info fw-bold">USD ${{ venta.total_pagado|floatformat:2|intcomma }}</span>
                                             {% else %}
-                                                <span class="text-muted">${{ costo_base|floatformat:2|intcomma }} MXN</span>
-                                            {% endif %}
-                                            {% if venta.costo_modificacion and venta.costo_modificacion > 0 and not fin_desglose_usd %}
-                                                <small class="text-muted d-block mt-1">
-                                                    <i class="fas fa-info-circle"></i> Incluye modificaciones: +${{ venta.costo_modificacion|floatformat:2|intcomma }}
-                                                </small>
+                                                <span class="text-info fw-bold">${{ venta.total_pagado|floatformat:2|intcomma }} MXN</span>
                                             {% endif %}
                                         </p>
                                         
