@@ -312,10 +312,12 @@
 </div>
 {% endif %}
 
-{# Botón de exportación #}
+{# Botón de exportación (target="_blank" para mantener la página actual) #}
 <div class="text-center mb-4">
     <a href="{% url 'exportar_comisiones_excel' vendedor.pk %}?mes={{ mes_filtro }}&anio={{ anio_filtro }}" 
-       class="btn btn-success btn-lg">
+       class="btn btn-success btn-lg"
+       target="_blank"
+       rel="noopener noreferrer">
         <i class="fas fa-file-excel me-2"></i>Exportar a Excel
     </a>
 </div>

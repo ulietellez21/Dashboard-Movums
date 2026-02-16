@@ -11647,92 +11647,123 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
         sueldo_base = ejecutivo.sueldo_base if ejecutivo and ejecutivo.sueldo_base else Decimal('10000.00')
         ingreso_total = sueldo_base + comision_total
         
-        # Crear workbook
+        # Crear workbook — mismo formato que reporte financiero (Movums)
+        from openpyxl.utils import get_column_letter
+        from openpyxl.styles import Alignment
+
         wb = Workbook()
         ws = wb.active
         ws.title = "Comisiones"
-        
-        # Estilos
-        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-        header_font = Font(bold=True, color="FFFFFF", size=12)
-        title_font = Font(bold=True, size=14)
+
+        # Estilos Movums (igual que reporte financiero)
+        header_fill = PatternFill(start_color="667EEA", end_color="667EEA", fill_type="solid")
+        title_fill = PatternFill(start_color="5C0CD1", end_color="5C0CD1", fill_type="solid")
+        row_fill_even = PatternFill(start_color="F5F3FF", end_color="F5F3FF", fill_type="solid")
+        row_fill_odd = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF", size=11)
+        title_font = Font(bold=True, color="FFFFFF", size=14)
         border = Border(
-            left=Side(style='thin'),
-            right=Side(style='thin'),
-            top=Side(style='thin'),
-            bottom=Side(style='thin')
+            left=Side(style='thin'), right=Side(style='thin'),
+            top=Side(style='thin'), bottom=Side(style='thin')
         )
-        
-        # Título
-        ws['A1'] = f"Reporte de Comisiones - {vendedor.get_full_name() or vendedor.username}"
-        ws['A1'].font = title_font
-        ws.merge_cells('A1:F1')
-        
+        border_medium = Border(
+            left=Side(style='medium'), right=Side(style='medium'),
+            top=Side(style='medium'), bottom=Side(style='medium')
+        )
+        align_center = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        align_left = Alignment(horizontal='left', vertical='center', wrap_text=True)
+
+        # Título (fila 1, estilo Movums)
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=6)
+        titulo_cell = ws.cell(row=1, column=1, value=f"Reporte de Comisiones — {vendedor.get_full_name() or vendedor.username} · Movums")
+        titulo_cell.fill = title_fill
+        titulo_cell.font = title_font
+        titulo_cell.alignment = Alignment(horizontal='center', vertical='center')
+        titulo_cell.border = border_medium
+        ws.row_dimensions[1].height = 28
+
         row = 3
-        
+
         # Resumen general
-        ws[f'A{row}'] = "RESUMEN GENERAL"
-        ws[f'A{row}'].font = title_font
+        ws.cell(row=row, column=1, value="RESUMEN GENERAL").font = Font(bold=True, size=12)
         row += 1
-        
-        ws[f'A{row}'] = "Concepto"
-        ws[f'B{row}'] = "Monto"
-        for cell in [ws[f'A{row}'], ws[f'B{row}']]:
+
+        for c in range(1, 3):
+            cell = ws.cell(row=row, column=c, value="Concepto" if c == 1 else "Monto")
             cell.fill = header_fill
             cell.font = header_font
             cell.border = border
+            cell.alignment = align_center
+        ws.row_dimensions[row].height = 22
         row += 1
-        
-        ws[f'A{row}'] = "Sueldo Base"
-        ws[f'B{row}'] = float(sueldo_base)
+
+        totales_fill = PatternFill(start_color="E8E4F8", end_color="E8E4F8", fill_type="solid")
+        for label, valor in [
+            ("Sueldo Base", float(sueldo_base)),
+            ("Comisión", float(comision_total)),
+            ("TOTAL", float(ingreso_total)),
+        ]:
+            ws.cell(row=row, column=1, value=label).fill = totales_fill
+            ws.cell(row=row, column=1).border = border
+            ws.cell(row=row, column=1).alignment = align_left
+            if label == "TOTAL":
+                ws.cell(row=row, column=1).font = Font(bold=True)
+            c2 = ws.cell(row=row, column=2, value=valor)
+            c2.number_format = '#,##0.00'
+            c2.fill = totales_fill
+            c2.border = border
+            c2.alignment = align_center
+            if label == "TOTAL":
+                c2.font = Font(bold=True)
+            row += 1
         row += 1
-        
-        ws[f'A{row}'] = "Comisión"
-        ws[f'B{row}'] = float(comision_total)
+
+        # Detalle de ventas (título de sección)
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=6)
+        sec_cell = ws.cell(row=row, column=1, value="DETALLE DE VENTAS")
+        sec_cell.font = Font(bold=True, color="FFFFFF", size=12)
+        sec_cell.fill = header_fill
+        sec_cell.alignment = align_center
+        sec_cell.border = border_medium
         row += 1
-        
-        ws[f'A{row}'] = "TOTAL"
-        ws[f'B{row}'] = float(ingreso_total)
-        ws[f'A{row}'].font = Font(bold=True)
-        ws[f'B{row}'].font = Font(bold=True)
-        row += 2
-        
-        # Detalle de ventas
-        ws[f'A{row}'] = "VENTAS"
-        ws[f'A{row}'].font = title_font
-        ws.merge_cells(f'A{row}:F{row}')
-        row += 1
-        
+
         headers = ['Venta ID', 'Cliente', 'Total Venta', 'Pagado', 'Comisión']
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=row, column=col, value=header)
             cell.fill = header_fill
             cell.font = header_font
             cell.border = border
+            cell.alignment = align_center
+        ws.row_dimensions[row].height = 22
         row += 1
-        
-        for venta in ventas_pagadas:
+
+        for idx, venta in enumerate(ventas_pagadas):
             comision_venta = venta.costo_venta_final * porcentaje_comision
-            ws.cell(row=row, column=1, value=venta.pk)
-            ws.cell(row=row, column=2, value=str(venta.cliente))
-            ws.cell(row=row, column=3, value=float(venta.costo_venta_final))
-            ws.cell(row=row, column=4, value=float(venta.total_pagado))
-            ws.cell(row=row, column=5, value=float(comision_venta))
+            row_fill = row_fill_even if idx % 2 == 0 else row_fill_odd
+            for c, val in enumerate([
+                venta.pk,
+                str(venta.cliente),
+                float(venta.costo_venta_final),
+                float(venta.total_pagado),
+                float(comision_venta),
+            ], 1):
+                cell = ws.cell(row=row, column=c, value=val)
+                cell.fill = row_fill
+                cell.border = border
+                cell.alignment = align_center if c >= 3 else align_left
+                if c >= 3:
+                    cell.number_format = '#,##0.00'
             row += 1
-        
-        # Ajustar ancho de columnas
-        for column in ws.columns:
-            max_length = 0
-            column_letter = column[0].column_letter
-            for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-            adjusted_width = min(max_length + 2, 50)
-            ws.column_dimensions[column_letter].width = adjusted_width
-        
+
+        # Anchos de columna fijos (evita MergedCell)
+        ws.column_dimensions['A'].width = 12
+        ws.column_dimensions['B'].width = 32
+        ws.column_dimensions['C'].width = 14
+        ws.column_dimensions['D'].width = 14
+        ws.column_dimensions['E'].width = 14
+        ws.column_dimensions['F'].width = 14
+        ws.freeze_panes = 'A3'
+
         # Preparar respuesta
         response = HttpResponse(
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
