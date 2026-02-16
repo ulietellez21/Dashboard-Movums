@@ -811,10 +811,16 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
         context['descuento_promo'] = descuento_promo
 
         # Para INT: valores en USD para la sección Desglose (mostrar todo en USD, evitar repetir total)
+        # Costo neto en INT viene del formulario en costo_neto_usd (costo_neto se deja en 0)
         if venta.tipo_viaje == 'INT' and venta.tipo_cambio and venta.tipo_cambio > 0:
             tc = venta.tipo_cambio
             context['fin_desglose_usd'] = True
-            context['fin_costo_neto_usd'] = (venta.costo_neto or Decimal('0.00')) / tc
+            # Usar costo_neto_usd (dato del formulario nueva venta); fallback costo_neto/tc por legacy
+            costo_neto_usd_val = getattr(venta, 'costo_neto_usd', None)
+            if costo_neto_usd_val is not None and costo_neto_usd_val > 0:
+                context['fin_costo_neto_usd'] = costo_neto_usd_val
+            else:
+                context['fin_costo_neto_usd'] = (venta.costo_neto or Decimal('0.00')) / tc
             context['fin_costo_base_usd'] = costo_base / tc
             context['fin_total_final_usd'] = total_final / tc
             context['fin_total_descuentos_usd'] = total_descuentos / tc
