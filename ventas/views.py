@@ -12313,7 +12313,7 @@ class CotizacionListView(LoginRequiredMixin, ListView):
     model = Cotizacion
     template_name = 'ventas/cotizacion_list.html'
     context_object_name = 'cotizaciones'
-    paginate_by = 30  # ESCALABILIDAD: Limitar resultados por página
+    paginate_by = 13  # Mismo criterio que lista de ventas; navegación por números debajo
 
     def get_queryset(self):
         user = self.request.user
@@ -12324,7 +12324,7 @@ class CotizacionListView(LoginRequiredMixin, ListView):
             qs = qs.filter(cliente_id=cliente_id)
         if estado:
             qs = qs.filter(estado=estado)
-        return qs
+        return qs.order_by('-creada_en')
 
     def get_context_data(self, **kwargs):
         from datetime import timedelta
@@ -12345,6 +12345,8 @@ class CotizacionListView(LoginRequiredMixin, ListView):
 
         context['stats_propias'] = rangos(qs_base)
         context['stats_globales'] = rangos(qs_base)
+        context['busqueda_cliente'] = self.request.GET.get('cliente', '')
+        context['busqueda_estado'] = self.request.GET.get('estado', '')
         return context
 
 

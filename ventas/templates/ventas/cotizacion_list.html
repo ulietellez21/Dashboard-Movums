@@ -149,6 +149,28 @@
                 </tbody>
             </table>
         </div>
+        {% if is_paginated and page_obj.paginator.num_pages > 1 %}
+        <nav aria-label="Paginación Cotizaciones" class="mt-2">
+            <ul class="pagination pagination-sm justify-content-center flex-wrap">
+                {% if page_obj.has_previous %}
+                <li class="page-item"><a class="page-link" href="?page=1{% if busqueda_cliente %}&cliente={{ busqueda_cliente }}{% endif %}{% if busqueda_estado %}&estado={{ busqueda_estado }}{% endif %}">&laquo;&laquo;</a></li>
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if busqueda_cliente %}&cliente={{ busqueda_cliente }}{% endif %}{% if busqueda_estado %}&estado={{ busqueda_estado }}{% endif %}">&laquo;</a></li>
+                {% endif %}
+                {% for num in page_obj.paginator.page_range %}
+                {% if num == page_obj.number %}
+                <li class="page-item active" aria-current="page"><span class="page-link">{{ num }}</span></li>
+                {% else %}
+                <li class="page-item"><a class="page-link" href="?page={{ num }}{% if busqueda_cliente %}&cliente={{ busqueda_cliente }}{% endif %}{% if busqueda_estado %}&estado={{ busqueda_estado }}{% endif %}">{{ num }}</a></li>
+                {% endif %}
+                {% endfor %}
+                {% if page_obj.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}{% if busqueda_cliente %}&cliente={{ busqueda_cliente }}{% endif %}{% if busqueda_estado %}&estado={{ busqueda_estado }}{% endif %}">&raquo;</a></li>
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if busqueda_cliente %}&cliente={{ busqueda_cliente }}{% endif %}{% if busqueda_estado %}&estado={{ busqueda_estado }}{% endif %}">&raquo;&raquo;</a></li>
+                {% endif %}
+            </ul>
+            <p class="text-center small text-muted mb-0 mt-1">Pág. {{ page_obj.number }} de {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} cotizaciones)</p>
+        </nav>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
