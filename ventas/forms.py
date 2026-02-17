@@ -1914,11 +1914,11 @@ class VentaViajeForm(forms.ModelForm):
 
         # Capturar la lista de servicios seleccionados del formulario (nombres completos)
         servicios_nombres = self.cleaned_data.get('servicios_seleccionados', [])
-        
+
         # Convertir nombres a códigos usando el diccionario de mapeo
         servicios_codigos = []
         servicios_detalle_list = []
-        
+
         # Mapeo de servicios con dropdown de proveedores
         SERVICIO_PROVEEDOR_MAP = {
             'Vuelo': 'VUELOS',
@@ -1933,12 +1933,12 @@ class VentaViajeForm(forms.ModelForm):
             'Seguro de Viaje': 'SEGUROS_VIAJE',
             'Trámites de Documentación': 'TRAMITE_DOCS',
         }
-        
+
         for nombre in servicios_nombres:
             codigo = SERVICIO_MAP.get(nombre)
             if codigo:
                 servicios_codigos.append(codigo)
-                
+
                 # Obtener proveedor y opción para este servicio
                 proveedor_info = ""
                 opcion_info = ""
@@ -1964,7 +1964,7 @@ class VentaViajeForm(forms.ModelForm):
                         opcion_texto = self.cleaned_data.get(opcion_field_name, '').strip()
                         if opcion_texto:
                             opcion_info = f" - Opción: {opcion_texto}"
-                
+
                 # Si es "Trámites de Documentación", agregar el tipo de trámite
                 tipo_tramite_info = ""
                 if nombre == "Trámites de Documentación":
@@ -1972,17 +1972,16 @@ class VentaViajeForm(forms.ModelForm):
                     if tipo_tramite:
                         tipo_tramite_display = "Visa" if tipo_tramite == "VISA" else "Pasaporte"
                         tipo_tramite_info = f" - Tipo: {tipo_tramite_display}"
-                
+
                 servicios_detalle_list.append(f"{nombre}{tipo_tramite_info}{proveedor_info}{opcion_info}")
-        
+
         # Guardar códigos separados por coma en 'servicios_seleccionados' (ej: "VUE,HOS,SEG")
         instance.servicios_seleccionados = ','.join(servicios_codigos) if servicios_codigos else ''
-        
+
         # Guardar nombres completos con proveedores separados por línea nueva en 'servicios_detalle'
         instance.servicios_detalle = '\n'.join(servicios_detalle_list) if servicios_detalle_list else ''
-        
+
         # Si hay un proveedor principal seleccionado (del dropdown), guardarlo en el campo proveedor
-        # Por ahora, tomamos el primer proveedor seleccionado de los servicios con dropdown
         for nombre in servicios_nombres:
             if nombre in SERVICIO_PROVEEDOR_MAP:
                 field_name = f'proveedor_{nombre.lower().replace(" ", "_")}'

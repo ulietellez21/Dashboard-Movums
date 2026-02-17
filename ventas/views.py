@@ -97,17 +97,11 @@ def get_user_role(user, request=None):
 
 
 def _get_logistica_servicio_formset(venta, request_POST=None, queryset=None, prefix='servicios'):
-    """Formset de servicios logísticos. Con extra filas cuando hay Tour, Vuelo o Hospedaje: 3 por cada uno, mostradas según el selector (JS)."""
-    servicios_codes = [c.strip() for c in (venta.servicios_seleccionados or '').split(',') if c.strip()]
-    has_tou = 'TOU' in servicios_codes
-    has_vue = 'VUE' in servicios_codes
-    has_hos = 'HOS' in servicios_codes
-    # 3 filas extras por cada tipo (TOU, VUE, HOS) que tenga la venta
-    extra = (3 if has_tou else 0) + (3 if has_vue else 0) + (3 if has_hos else 0)
+    """Formset de servicios logísticos. Solo filas existentes (extra=0). Nuevas filas se añaden con POST 'añadir_servicio_logistica'."""
     FormSetClass = modelformset_factory(
         LogisticaServicio,
         form=LogisticaServicioForm,
-        extra=extra,
+        extra=0,
         can_delete=False,
     )
     qs = queryset if queryset is not None else venta.servicios_logisticos.all().order_by('orden', 'pk')
@@ -627,8 +621,32 @@ class _VentaViajeDetailViewPostMixin:
         # self.get_object() utiliza los nuevos kwargs (slug y pk)
         self.object = self.get_object() 
         context = self.get_context_data(object=self.object)
-        
-        # 1. Manejo del control financiero por servicio
+
+        # 0. Añadir un servicio extra (Vuelo/Hospedaje/Tour): crea una fila y redirige a logística
+        if request.POST.get('añadir_servicio_logistica') and self._puede_gestionar_logistica_financiera(request.user, self.object):
+            tipo = (request.POST.get('tipo') or '').strip().upper()
+            servicios_codes = [c.strip() for c in (self.object.servicios_seleccionados or '').split(',') if c.strip()]
+            choices = dict(VentaViaje.SERVICIOS_CHOICES)
+            if tipo == 'TOU' and 'TOU' in servicios_codes:
+                nombre = choices.get('TOU', 'Tour y Actividades')
+                next_orden = (self.object.servicios_logisticos.filter(codigo_servicio='TOU').aggregate(mx=Max('orden'))['mx'] or 0) + 1
+                LogisticaServicio.objects.create(venta=self.object, codigo_servicio='TOU', nombre_servicio=nombre, orden=next_orden)
+                messages.success(request, "Se añadió una fila de Tour. Complete los datos y guarde.")
+            elif tipo == 'VUE' and 'VUE' in servicios_codes:
+                nombre = choices.get('VUE', 'Vuelo')
+                next_orden = (self.object.servicios_logisticos.filter(codigo_servicio='VUE').aggregate(mx=Max('orden'))['mx'] or 0) + 1
+                LogisticaServicio.objects.create(venta=self.object, codigo_servicio='VUE', nombre_servicio=nombre, orden=next_orden)
+                messages.success(request, "Se añadió una fila de Vuelo. Complete los datos y guarde.")
+            elif tipo == 'HOS' and 'HOS' in servicios_codes:
+                nombre = choices.get('HOS', 'Hospedaje')
+                next_orden = (self.object.servicios_logisticos.filter(codigo_servicio='HOS').aggregate(mx=Max('orden'))['mx'] or 0) + 1
+                LogisticaServicio.objects.create(venta=self.object, codigo_servicio='HOS', nombre_servicio=nombre, orden=next_orden)
+                messages.success(request, "Se añadió una fila de Hospedaje. Complete los datos y guarde.")
+            else:
+                messages.error(request, "No se pudo añadir el servicio. Verifique que el tipo sea correcto.")
+            return redirect(reverse('detalle_venta', kwargs={'pk': self.object.pk, 'slug': self.object.slug_safe}) + '?tab=logistica')
+
+        # 1. Manejo del control financiero por servicio (Guardar ajustes)
         if 'actualizar_servicios_logistica' in request.POST:
             if not self._puede_gestionar_logistica_financiera(request.user, self.object):
                 messages.error(request, "No tienes permiso para actualizar el control financiero de esta venta.")
@@ -650,132 +668,10 @@ class _VentaViajeDetailViewPostMixin:
             )
 
             if formset.is_valid():
-                # Crear nuevos TOU, VUE y HOS desde formularios extra que tengan datos (filas mostradas al seleccionar en el dropdown)
-                choices = dict(VentaViaje.SERVICIOS_CHOICES)
-                nombre_tou = choices.get('TOU', 'Tour y Actividades')
-                nombre_vue = choices.get('VUE', 'Vuelo')
-                nombre_hos = choices.get('HOS', 'Hospedaje')
-                
-                servicios_codes = [c.strip() for c in (self.object.servicios_seleccionados or '').split(',') if c.strip()]
-                has_tou = 'TOU' in servicios_codes
-                has_vue = 'VUE' in servicios_codes
-                has_hos = 'HOS' in servicios_codes
-                
-                # Contar filas existentes (con pk) para determinar índices de filas extras (sin pk)
-                num_existentes = sum(1 for form in formset.forms if form.instance.pk)
-                
-                # Orden de extras: TOU (0-2), VUE (3-5), HOS (6-8). Si falta alguno, los siguientes se desplazan.
-                
-                # Crear nuevos TOU desde filas extras
-                if has_tou:
-                    max_orden_tou = self.object.servicios_logisticos.filter(codigo_servicio='TOU').aggregate(
-                        mx=Max('orden')
-                    )['mx']
-                    next_orden_tou = (max_orden_tou if max_orden_tou is not None else 0) + 1
-                    for idx, form in enumerate(formset.forms):
-                        if form.instance.pk or not form.cleaned_data:
-                            continue
-                        # Determinar si esta fila extra es para TOU (siempre primeras 3 extras)
-                        if has_vue or has_hos:
-                            if idx < num_existentes or idx >= num_existentes + 3:
-                                continue
-                        elif has_tou:
-                            # Solo TOU: todas las extras son TOU
-                            if idx < num_existentes:
-                                continue
-                        else:
-                            continue
-                        cd = form.cleaned_data
-                        if not cd.get('opcion_proveedor') and not cd.get('monto_planeado'):
-                            continue
-                        opc = (cd.get('opcion_proveedor') or '').strip() if perm.can_edit_logistica_campos_restringidos(request.user, request) else ''
-                        LogisticaServicio.objects.create(
-                            venta=self.object,
-                            codigo_servicio='TOU',
-                            nombre_servicio=nombre_tou,
-                            orden=next_orden_tou,
-                            monto_planeado=cd.get('monto_planeado') or Decimal('0.00'),
-                            opcion_proveedor=opc,
-                        )
-                        next_orden_tou += 1
-                
-                # Crear nuevos VUE desde filas extras
-                if has_vue:
-                    max_orden_vue = self.object.servicios_logisticos.filter(codigo_servicio='VUE').aggregate(
-                        mx=Max('orden')
-                    )['mx']
-                    next_orden_vue = (max_orden_vue if max_orden_vue is not None else 0) + 1
-                    for idx, form in enumerate(formset.forms):
-                        if form.instance.pk or not form.cleaned_data:
-                            continue
-                        # Determinar si esta fila extra es para VUE (índices 3-5 cuando hay TOU y/o HOS)
-                        if has_tou and has_vue:
-                            if idx < num_existentes + 3 or idx >= num_existentes + 6:
-                                continue
-                        elif has_vue and has_hos:
-                            if idx < num_existentes or idx >= num_existentes + 3:
-                                continue
-                        elif has_vue:
-                            if idx < num_existentes:
-                                continue
-                        else:
-                            continue
-                        cd = form.cleaned_data
-                        if not cd.get('opcion_proveedor') and not cd.get('monto_planeado'):
-                            continue
-                        opc = (cd.get('opcion_proveedor') or '').strip() if perm.can_edit_logistica_campos_restringidos(request.user, request) else ''
-                        LogisticaServicio.objects.create(
-                            venta=self.object,
-                            codigo_servicio='VUE',
-                            nombre_servicio=nombre_vue,
-                            orden=next_orden_vue,
-                            monto_planeado=cd.get('monto_planeado') or Decimal('0.00'),
-                            opcion_proveedor=opc,
-                        )
-                        next_orden_vue += 1
-
-                # Crear nuevos HOS desde filas extras
-                if has_hos:
-                    max_orden_hos = self.object.servicios_logisticos.filter(codigo_servicio='HOS').aggregate(
-                        mx=Max('orden')
-                    )['mx']
-                    next_orden_hos = (max_orden_hos if max_orden_hos is not None else 0) + 1
-                    for idx, form in enumerate(formset.forms):
-                        if form.instance.pk or not form.cleaned_data:
-                            continue
-                        # Determinar si esta fila extra es para HOS
-                        if has_tou and has_vue and has_hos:
-                            if idx < num_existentes + 6:
-                                continue
-                        elif (has_tou and has_hos) or (has_vue and has_hos):
-                            if idx < num_existentes + 3:
-                                continue
-                        elif has_hos:
-                            if idx < num_existentes:
-                                continue
-                        else:
-                            continue
-                        cd = form.cleaned_data
-                        if not cd.get('opcion_proveedor') and not cd.get('monto_planeado'):
-                            continue
-                        opc = (cd.get('opcion_proveedor') or '').strip() if perm.can_edit_logistica_campos_restringidos(request.user, request) else ''
-                        LogisticaServicio.objects.create(
-                            venta=self.object,
-                            codigo_servicio='HOS',
-                            nombre_servicio=nombre_hos,
-                            orden=next_orden_hos,
-                            monto_planeado=cd.get('monto_planeado') or Decimal('0.00'),
-                            opcion_proveedor=opc,
-                        )
-                        next_orden_hos += 1
-
-                # Recargar tras posibles altas
-                servicios_qs = self.object.servicios_logisticos.all().order_by('orden', 'pk')
-                servicios_db_list = list(servicios_qs)
-                originales_limpios = {s.pk: s for s in servicios_db_list}
-
                 total_pagado = self.object.total_pagado
                 total_marcado_pagado = Decimal('0.00')
+                # Snapshot de pagado/fecha_pagado antes de modificar (para revertir si la validación falla)
+                pagado_snapshot = {s.pk: (s.pagado, s.fecha_pagado) for s in servicios_db_list}
 
                 for form in formset.forms:
                     if not form.cleaned_data:
@@ -811,8 +707,12 @@ class _VentaViajeDetailViewPostMixin:
                         if original.pagado:
                             nuevo_pagado = True
 
-                        # 3. OPCIÓN PROVEEDOR: solo Director Admin, Director General y JEFE pueden editarlo
-                        nuevo_opcion_proveedor = (original.opcion_proveedor or '').strip()
+                        # 3. OPCIÓN PROVEEDOR: permitir si está vacío (primera vez); si ya tiene valor, conservar
+                        proveedor_ya_llenado = (original.opcion_proveedor or '').strip()
+                        if proveedor_ya_llenado:
+                            nuevo_opcion_proveedor = proveedor_ya_llenado
+                        else:
+                            nuevo_opcion_proveedor = (form.cleaned_data.get('opcion_proveedor', '') or '').strip()
                     
                     # --- APLICAR CAMBIOS ---
                     original.monto_planeado = nuevo_monto
@@ -829,45 +729,36 @@ class _VentaViajeDetailViewPostMixin:
                     if nuevo_pagado:
                         total_marcado_pagado += nuevo_monto
                 
-                # Validar que la suma de montos planificados coincida con el objetivo (costo neto o, para INT, la suma si no hay costo_neto_usd)
+                # Calcular suma de montos planificados (se usa para INT y para referencia)
                 suma_planeados = sum(
                     (orig.monto_planeado or Decimal('0.00')) for orig in originales_limpios.values()
                 )
-                if self.object.tipo_viaje == 'INT':
-                    objetivo_servicios = (self.object.costo_neto_usd if (getattr(self.object, 'costo_neto_usd', None) is not None and self.object.costo_neto_usd > 0) else None) or suma_planeados
-                else:
-                    objetivo_servicios = self.object.costo_neto or Decimal('0.00')
-                if abs(suma_planeados - objetivo_servicios) >= Decimal('0.01'):
-                    etq_moneda = "USD " if self.object.tipo_viaje == 'INT' else ""
-                    formset._non_form_errors = formset.error_class([
-                        "La suma de los montos planificados debe ser igual al campo Servicios planificados "
-                        f"({etq_moneda}${objetivo_servicios:,.2f}). Actualmente suma {etq_moneda}${suma_planeados:,.2f}. Verifique las cantidades asignadas."
-                    ])
-                    context = self.get_context_data()
-                    self._prepare_logistica_finanzas_context(context, self.object, formset=formset, servicios_qs=servicios_qs)
-                    return self.render_to_response(context)
 
                 # Validar que el total marcado como pagado no exceda el total pagado
                 # Excepción: Crédito (CRE) no requiere apertura ni abonos - se paga fuera del dashboard
                 es_credito = getattr(self.object, 'modo_pago_apertura', None) == 'CRE'
-                if not es_credito and total_marcado_pagado > total_pagado + Decimal('0.01'):
+                pagado_excede = not es_credito and total_marcado_pagado > total_pagado + Decimal('0.01')
+
+                if pagado_excede:
+                    # Revertir casillas de pagado: restaurar valores originales de BD
+                    for pk, (pagado_orig, fecha_orig) in pagado_snapshot.items():
+                        orig = originales_limpios.get(pk)
+                        if orig:
+                            orig.pagado = pagado_orig
+                            orig.fecha_pagado = fecha_orig
+
+                # Guardar siempre montos y proveedores (no se pierden al añadir servicios).
+                # pagado/fecha_pagado solo se persisten si la validación pasa.
+                for orig in originales_limpios.values():
+                    orig.save(update_fields=['monto_planeado', 'pagado', 'fecha_pagado', 'opcion_proveedor'])
+
+                if pagado_excede:
                     formset._non_form_errors = formset.error_class([
                         f"No puedes marcar como pagados ${total_marcado_pagado:,.2f} cuando solo hay ${total_pagado:,.2f} registrados en abonos y apertura."
                     ])
                     context = self.get_context_data()
                     self._prepare_logistica_finanzas_context(context, self.object, formset=formset, servicios_qs=servicios_qs)
                     return self.render_to_response(context)
-                
-                # Guardar todos los cambios (los objetos original ya están actualizados en el bucle anterior)
-                for form in formset.forms:
-                    if not form.cleaned_data:
-                        continue
-                    
-                    servicio_id = form.instance.pk if form.instance.pk else None
-                    original = originales_limpios.get(servicio_id) if servicio_id else None
-                    
-                    if original:
-                        original.save(update_fields=['monto_planeado', 'pagado', 'fecha_pagado', 'opcion_proveedor'])
 
                 # Para INT: si costo_neto_usd no estaba definido, persistir la suma de la tabla como "servicios planificados"
                 if self.object.tipo_viaje == 'INT' and (getattr(self.object, 'costo_neto_usd', None) is None or self.object.costo_neto_usd <= 0) and suma_planeados > 0:
@@ -913,7 +804,15 @@ class _VentaViajeDetailViewPostMixin:
                         s.delete()
 
                 messages.success(request, "Control por servicio actualizado correctamente.")
-                return redirect(reverse('detalle_venta', kwargs={'pk': self.object.pk, 'slug': self.object.slug_safe}) + '?tab=logistica')
+                # Re-renderizar en la misma petición (sin redirect) para que la tabla muestre la fila recién guardada.
+                # No ejecutar sync aquí (skip_sync=True): evitar que se cree un servicio duplicado al guardar.
+                if getattr(self.object, '_prefetched_objects_cache', None) and 'servicios_logisticos' in self.object._prefetched_objects_cache:
+                    del self.object._prefetched_objects_cache['servicios_logisticos']
+                servicios_qs_final = self.object.servicios_logisticos.all().order_by('orden', 'pk')
+                context = self.get_context_data()
+                self._prepare_logistica_finanzas_context(context, self.object, formset=None, servicios_qs=servicios_qs_final, skip_sync=True)
+                context['activar_tab_logistica'] = True  # Mantener pestaña Logística visible tras guardar
+                return self.render_to_response(context)
             else:
                 messages.error(request, "Revisa los montos ingresados para cada servicio.")
 
@@ -1142,6 +1041,7 @@ class _VentaViajeDetailViewPostMixin:
         return self._puede_ver_logistica_tab(user, venta)
 
     def _sync_logistica_servicios(self, venta):
+        """Asegura al menos una fila por cada código en servicios_seleccionados. No toca monto ni pagado; no actualiza filas ya existentes (extras TOU/VUE/HOS)."""
         servicios_codes = []
         if venta.servicios_seleccionados:
             servicios_codes = [
@@ -1149,25 +1049,19 @@ class _VentaViajeDetailViewPostMixin:
                 if code.strip()
             ]
         choices = dict(VentaViaje.SERVICIOS_CHOICES)
-        existentes = {serv.codigo_servicio: serv for serv in venta.servicios_logisticos.all()}
 
-        # Extraer nombre del proveedor (dropdown) desde servicios_detalle para la columna "Nombre del proveedor".
-        # Formato: "Servicio - Proveedor: Nombre" o "Servicio - Proveedor: Nombre - Opción: Opción elegida"
+        # Solo para crear la fila inicial si no existe ninguna de ese tipo
         nombres_proveedor = {}
         if venta.servicios_detalle:
-            servicios_detalle = venta.servicios_detalle.split('\n')
-            for linea in servicios_detalle:
+            for linea in venta.servicios_detalle.split('\n'):
                 linea = linea.strip()
-                if not linea:
-                    continue
-                if ' - Proveedor: ' not in linea:
+                if not linea or ' - Proveedor: ' not in linea:
                     continue
                 partes = linea.split(' - Proveedor: ', 1)
                 if len(partes) != 2:
                     continue
                 nombre_servicio = partes[0].strip()
                 resto = partes[1].strip()
-                # resto es "Nombre" o "Nombre - Opción: Opción elegida"
                 nombre_proveedor = resto.split(' - Opción: ')[0].strip() if ' - Opción: ' in resto else resto
                 if nombre_proveedor:
                     nombres_proveedor[nombre_servicio] = nombre_proveedor
@@ -1176,10 +1070,10 @@ class _VentaViajeDetailViewPostMixin:
             nombre = choices.get(code)
             if not nombre:
                 continue
-            # Usar el nombre del proveedor (dropdown) para la columna "Nombre del proveedor"
-            opcion_proveedor = nombres_proveedor.get(nombre, '')
-            if code not in existentes:
-                # Para registros nuevos, asignar el valor parseado inicial
+            existentes = LogisticaServicio.objects.filter(venta_id=venta.pk, codigo_servicio=code)
+            if not existentes.exists():
+                # Crear fila inicial si no existe ninguna de este tipo
+                opcion_proveedor = nombres_proveedor.get(nombre, '')
                 LogisticaServicio.objects.create(
                     venta=venta,
                     codigo_servicio=code,
@@ -1187,34 +1081,23 @@ class _VentaViajeDetailViewPostMixin:
                     orden=idx,
                     opcion_proveedor=opcion_proveedor
                 )
-            else:
-                serv = existentes[code]
-                update_fields = []
-                if serv.orden != idx:
-                    serv.orden = idx
-                    update_fields.append('orden')
-                # IMPORTANTE: No sobrescribir opcion_proveedor si ya tiene un valor asignado.
-                # TOU y VUE pueden tener múltiples filas con diferentes proveedores, y existentes[code]
-                # solo contiene una de ellas. Además, el usuario puede haber asignado proveedores
-                # manualmente en Logística que no deben sobrescribirse.
-                # Solo asignar el proveedor inicial desde servicios_detalle si el campo está vacío.
-                if opcion_proveedor:
-                    # Para todos los servicios: solo asignar si el campo está vacío (nunca sobrescribir)
-                    if not serv.opcion_proveedor or not serv.opcion_proveedor.strip():
-                        serv.opcion_proveedor = opcion_proveedor
-                        update_fields.append('opcion_proveedor')
-                if update_fields:
-                    serv.save(update_fields=update_fields)
+            elif nombres_proveedor.get(nombre):
+                # Sincronizar nombre de proveedor desde el formulario de edición
+                # en la PRIMERA fila (por defecto) de este servicio, sin importar
+                # cuántas filas extra haya añadido el usuario.
+                fila = existentes.order_by('orden', 'pk').first()
+                nuevo_proveedor = nombres_proveedor[nombre]
+                if fila and (fila.opcion_proveedor or '').strip() != nuevo_proveedor:
+                    fila.opcion_proveedor = nuevo_proveedor
+                    fila.save(update_fields=['opcion_proveedor'])
 
-        # Eliminar servicios que ya no están contratados.
+        # Eliminar servicios que ya no están contratados (consulta directa para no depender de relación en caché).
         # IMPORTANTE: Si servicios_codes está vacío (servicios_seleccionados vacío o None),
-        # NO borrar los servicios existentes. Conservar monto_planeado, pagado, opcion_proveedor
-        # ya ingresados por el usuario. Evita pérdida de datos al volver a la pestaña Logística
-        # tras generar confirmaciones u otras acciones (ventas CRÉDITO y cualquier método de pago).
+        # NO borrar los servicios existentes.
         if servicios_codes:
-            venta.servicios_logisticos.exclude(codigo_servicio__in=servicios_codes).delete()
+            LogisticaServicio.objects.filter(venta_id=venta.pk).exclude(codigo_servicio__in=servicios_codes).delete()
 
-    def _prepare_logistica_finanzas_context(self, context, venta, formset=None, servicios_qs=None):
+    def _prepare_logistica_finanzas_context(self, context, venta, formset=None, servicios_qs=None, skip_sync=False):
         # En pestaña Logística: monto planificado, pagado y nombre proveedor solo editables por JEFE, Gerente y 3 directores
         user_rol = perm.get_user_role(self.request.user, self.request)
         puede_editar_campos_bloqueados = perm.can_edit_campos_bloqueados(self.request.user, self.request)
@@ -1224,9 +1107,15 @@ class _VentaViajeDetailViewPostMixin:
         if not context.get('mostrar_tab_logistica'):
             return
 
-        self._sync_logistica_servicios(venta)
+        # Forzar consulta fresca: limpiar prefetch para que _sync y la tabla vean todos los servicios (incl. recién añadidos)
+        if getattr(venta, '_prefetched_objects_cache', None) and 'servicios_logisticos' in venta._prefetched_objects_cache:
+            del venta._prefetched_objects_cache['servicios_logisticos']
+        # No ejecutar sync al re-renderizar tras "Guardar ajustes": ya tenemos el conjunto correcto y sync podría crear un duplicado
+        if not skip_sync:
+            self._sync_logistica_servicios(venta)
         if servicios_qs is None:
-            servicios_qs = venta.servicios_logisticos.all().order_by('orden', 'pk')
+            # Consulta directa por venta_id para no depender de la relación en memoria (asegura ver servicios recién creados tras redirect)
+            servicios_qs = LogisticaServicio.objects.filter(venta_id=venta.pk).order_by('orden', 'pk')
 
         if formset is None:
             formset = _get_logistica_servicio_formset(venta, queryset=servicios_qs, prefix='servicios')
@@ -1243,23 +1132,24 @@ class _VentaViajeDetailViewPostMixin:
                 for field in form.fields.values():
                     field.widget.attrs['disabled'] = 'disabled'
         else:
-            # Monto planificado y pagado: cualquier rol puede llenar por primera vez (vacío).
+            # Cualquier rol puede llenar campos por primera vez (vacíos).
             # Solo Director Admin, Director General y JEFE pueden EDITAR cuando ya tienen valores.
-            # Nombre del proveedor: solo Director Admin, Director General y JEFE desde el inicio (filas existentes y extra).
             for form in formset.forms:
-                if not puede_editar_restringidos:
-                    form.fields['opcion_proveedor'].widget.attrs['disabled'] = 'disabled'
-                    form.fields['opcion_proveedor'].widget.attrs['readonly'] = 'readonly'
                 if form.instance and form.instance.pk:
-                    # monto_planeado: bloquear solo si ya tiene valor y usuario no puede editar restringidos
-                    if form.instance.monto_planeado and form.instance.monto_planeado > Decimal('0.00'):
-                        if not puede_editar_restringidos:
+                    if not puede_editar_restringidos:
+                        # monto_planeado: bloquear solo si ya tiene valor
+                        if form.instance.monto_planeado and form.instance.monto_planeado > Decimal('0.00'):
                             form.fields['monto_planeado'].widget.attrs['disabled'] = 'disabled'
                             form.fields['monto_planeado'].widget.attrs['readonly'] = 'readonly'
 
-                    # pagado: bloquear solo si ya está marcado y usuario no puede editar restringidos
-                    if form.instance.pagado and not puede_editar_restringidos:
-                        form.fields['pagado'].widget.attrs['disabled'] = 'disabled'
+                        # opcion_proveedor: bloquear solo si ya tiene valor
+                        if (form.instance.opcion_proveedor or '').strip():
+                            form.fields['opcion_proveedor'].widget.attrs['disabled'] = 'disabled'
+                            form.fields['opcion_proveedor'].widget.attrs['readonly'] = 'readonly'
+
+                        # pagado: bloquear solo si ya está marcado
+                        if form.instance.pagado:
+                            form.fields['pagado'].widget.attrs['disabled'] = 'disabled'
 
         resumen = build_financial_summary(venta, servicios_qs)
         # Suma efectiva desde el formset (valores del formulario o POST) para que el alert muestre lo que el usuario ve
@@ -1292,59 +1182,11 @@ class _VentaViajeDetailViewPostMixin:
 
         formset_forms = list(formset.forms)
         filas = build_service_rows(servicios_qs, resumen, formset_forms[: len(servicios_qs)], venta=venta)
-        
-        # Filas extra para "otro(s) proveedor(es) Tour, Vuelo y Hospedaje": se muestran según el selector numérico (JS)
+
         servicios_codes = [c.strip() for c in (venta.servicios_seleccionados or '').split(',') if c.strip()]
         has_tou = 'TOU' in servicios_codes
         has_vue = 'VUE' in servicios_codes
         has_hos = 'HOS' in servicios_codes
-        
-        num_existentes = len(servicios_qs)
-        tou_end = num_existentes + (3 if has_tou else 0)
-        vue_end = tou_end + (3 if has_vue else 0)
-        hos_end = vue_end + (3 if has_hos else 0)
-        extra_index_tou = 1
-        extra_index_vue = 1
-        extra_index_hos = 1
-        
-        for i in range(num_existentes, len(formset_forms)):
-            if i < tou_end:
-                filas.append({
-                    'form': formset_forms[i],
-                    'servicio': None,
-                    'status': 'new',
-                    'badge_class': 'secondary',
-                    'status_label': 'Nuevo',
-                    'status_hint': 'Complete y guarde para agregar otro proveedor',
-                    'es_extra_tou': True,
-                    'extra_index': extra_index_tou,
-                })
-                extra_index_tou += 1
-            elif i < vue_end:
-                filas.append({
-                    'form': formset_forms[i],
-                    'servicio': None,
-                    'status': 'new',
-                    'badge_class': 'secondary',
-                    'status_label': 'Nuevo',
-                    'status_hint': 'Complete y guarde para agregar otro proveedor',
-                    'es_extra_vue': True,
-                    'extra_index': extra_index_vue,
-                })
-                extra_index_vue += 1
-            elif i < hos_end:
-                filas.append({
-                    'form': formset_forms[i],
-                    'servicio': None,
-                    'status': 'new',
-                    'badge_class': 'secondary',
-                    'status_label': 'Nuevo',
-                    'status_hint': 'Complete y guarde para agregar otro proveedor',
-                    'es_extra_hos': True,
-                    'extra_index': extra_index_hos,
-                })
-                extra_index_hos += 1
-            # si hay más formas que slots (no debería), se ignoran
 
         context['servicios_financieros_formset'] = formset
         context['tiene_tou_para_otro_proveedor'] = has_tou
@@ -1475,7 +1317,16 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
         # Botón "Editar datos del viaje": solo Gerente y los 3 directores
         context['puede_editar_datos_viaje'] = perm.can_edit_datos_viaje(self.request.user, self.request)
         if mostrar_tab_logistica:
-            self._prepare_logistica_finanzas_context(context, venta)
+            # Refrescar venta desde BD y limpiar prefetch para que la tabla use siempre datos frescos (evita que filas nuevas guardadas no se vean tras redirect)
+            venta.refresh_from_db()
+            if getattr(venta, '_prefetched_objects_cache', None) and 'servicios_logisticos' in venta._prefetched_objects_cache:
+                del venta._prefetched_objects_cache['servicios_logisticos']
+            # No ejecutar sync cuando estamos re-renderizando tras POST "Guardar ajustes" (evita duplicar filas VUE/HOS/TOU)
+            skip_sync = (
+                self.request.method == 'POST'
+                and 'actualizar_servicios_logistica' in (self.request.POST or {})
+            )
+            self._prepare_logistica_finanzas_context(context, venta, skip_sync=skip_sync)
         
         # Abonos a Proveedor: usar SIEMPRE venta.puede_solicitar_abonos_proveedor (misma regla que POST)
         debe_mostrar_abonos = venta.puede_solicitar_abonos_proveedor
@@ -2326,6 +2177,24 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 
         # Guardar la instancia
         self.object = form.save()
+
+        # Protección de campos bloqueados: si el usuario no puede editar restringidos,
+        # restaurar desde venta_anterior los campos financieros que no debe modificar
+        puede_editar_bloqueados = perm.can_edit_campos_bloqueados(self.request.user, self.request)
+        if not puede_editar_bloqueados:
+            CAMPOS_RESTRINGIDOS = ['costo_neto', 'costo_venta_final', 'cantidad_apertura', 'costo_modificacion']
+            CAMPOS_RESTRINGIDOS_INT = [
+                'tarifa_base_usd', 'impuestos_usd', 'suplementos_usd', 'tours_usd',
+                'tipo_cambio', 'cantidad_apertura_usd', 'costo_venta_final_usd',
+                'costo_neto_usd', 'costo_modificacion_usd',
+            ]
+            for field_name in CAMPOS_RESTRINGIDOS:
+                setattr(self.object, field_name, getattr(venta_anterior, field_name))
+            if self.object.tipo_viaje == 'INT':
+                for field_name in CAMPOS_RESTRINGIDOS_INT:
+                    setattr(self.object, field_name, getattr(venta_anterior, field_name))
+            update_fields = CAMPOS_RESTRINGIDOS + (CAMPOS_RESTRINGIDOS_INT if self.object.tipo_viaje == 'INT' else [])
+            self.object.save(update_fields=update_fields)
 
         # Obtener valores nuevos DESPUÉS de guardar
         aplica_descuento_nuevo = self.object.aplica_descuento_kilometros

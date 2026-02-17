@@ -635,31 +635,20 @@
                                     </thead>
                                     <tbody>
                                         {% for row in servicios_logisticos_rows %}
-                                        <tr class="logistica-servicio-row status-{{ row.status }}{% if row.es_extra_tou %} d-none logistica-extra-tou-row{% endif %}{% if row.es_extra_vue %} d-none logistica-extra-vue-row{% endif %}{% if row.es_extra_hos %} d-none logistica-extra-hos-row{% endif %}"{% if row.es_extra_tou %} id="logistica-extra-tou-row-{{ row.extra_index }}"{% endif %}{% if row.es_extra_vue %} id="logistica-extra-vue-row-{{ row.extra_index }}"{% endif %}{% if row.es_extra_hos %} id="logistica-extra-hos-row-{{ row.extra_index }}"{% endif %}>
+                                        <tr class="logistica-servicio-row status-{{ row.status }}">
                                             <td>
+                                                {% for hidden in row.form.hidden_fields %}{{ hidden }}{% endfor %}
                                                 {% if row.servicio %}
                                                 <strong>{{ row.servicio.nombre_servicio }}</strong>
                                                 {% if row.servicio.fecha_pagado %}
                                                     <div class="text-muted small">Actualizado: {{ row.servicio.fecha_pagado|date:"d/m/Y H:i" }}</div>
                                                 {% endif %}
                                                 {% else %}
-                                                    {% if row.es_extra_tou %}
-                                                    <strong class="text-muted">Tour y Actividades (nuevo)</strong>
-                                                    <small class="d-block text-muted">Complete y guarde para agregar otro proveedor</small>
-                                                    {% elif row.es_extra_vue %}
-                                                    <strong class="text-muted">Vuelo (nuevo)</strong>
-                                                    <small class="d-block text-muted">Complete y guarde para agregar otro proveedor</small>
-                                                    {% elif row.es_extra_hos %}
-                                                    <strong class="text-muted">Hospedaje (nuevo)</strong>
-                                                    <small class="d-block text-muted">Complete y guarde para agregar otro proveedor</small>
-                                                    {% else %}
-                                                    <strong class="text-muted">Servicio (nuevo)</strong>
-                                                    <small class="d-block text-muted">Complete y guarde para agregar otro proveedor</small>
-                                                    {% endif %}
+                                                <strong class="text-muted">Servicio (nuevo)</strong>
+                                                <small class="d-block text-muted">Complete y guarde para agregar otro proveedor</small>
                                                 {% endif %}
                                             </td>
                                             <td>
-                                                {{ row.form.id }}
                                                 <div class="input-group">
                                                     <span class="input-group-text">{% if venta.tipo_viaje == 'INT' %}USD {% endif %}$</span>
                                                     {% if row.servicio %}
@@ -687,14 +676,16 @@
                                             <td>
                                                 <div class="form-check">
                                                     {% if row.servicio %}
-                                                    {% comment %} Usar hidden+display cuando pagado bloqueado. Evita que disabled excluya el valor del POST. {% endcomment %}
                                                     {% if puede_desbloquear_todos_los_campos %}
                                                         {{ row.form.pagado }}
                                                         <label class="form-check-label">Pagado</label>
                                                     {% elif row.servicio.pagado and not puede_editar_logistica_restringidos %}
                                                         <input type="hidden" name="{{ row.form.pagado.name }}" value="on">
-                                                        <input type="checkbox" class="form-check-input logistica-pagado-display" checked disabled style="cursor: not-allowed;" title="El estado de pago está bloqueado y no se puede desmarcar">
+                                                        <input type="checkbox" class="form-check-input" checked disabled style="cursor: not-allowed;" title="El estado de pago está bloqueado y no se puede desmarcar">
                                                         <label class="form-check-label" style="opacity: 0.7;">Pagado</label>
+                                                    {% elif row.status == 'pending' %}
+                                                        <input type="checkbox" class="form-check-input" disabled style="cursor: not-allowed;" title="Fondos insuficientes para marcar como pagado">
+                                                        <label class="form-check-label text-muted">Pagado</label>
                                                     {% else %}
                                                         {{ row.form.pagado }}
                                                         <label class="form-check-label">Pagado</label>
@@ -731,101 +722,47 @@
                                     </tbody>
                                 </table>
                                 {% if puede_editar_servicios_financieros %}
-                                <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mt-3">
-                                    <div class="d-flex flex-wrap align-items-center gap-3">
-                                        {% if tiene_tou_para_otro_proveedor %}
-                                        <div class="d-flex align-items-center gap-2">
-                                            <label for="id_cantidad_filas_tou" class="form-label mb-0">Filas vacías para otro(s) proveedor(es) de Tour:</label>
-                                            <select id="id_cantidad_filas_tou" name="cantidad_filas_tou" class="form-select form-select-sm" style="width: auto;">
-                                                <option value="0" selected>0</option>
-                                                <option value="1">1</option>
-                                                <option value="2">2</option>
-                                                <option value="3">3</option>
-                                            </select>
-                                        </div>
-                                        {% endif %}
-                                        {% if tiene_vue_para_otro_proveedor %}
-                                        <div class="d-flex align-items-center gap-2">
-                                            <label for="id_cantidad_filas_vue" class="form-label mb-0">Filas vacías para otro(s) proveedor(es) de Vuelo:</label>
-                                            <select id="id_cantidad_filas_vue" name="cantidad_filas_vue" class="form-select form-select-sm" style="width: auto;">
-                                                <option value="0" selected>0</option>
-                                                <option value="1">1</option>
-                                                <option value="2">2</option>
-                                                <option value="3">3</option>
-                                            </select>
-                                        </div>
-                                        {% endif %}
-                                        {% if tiene_hos_para_otro_proveedor %}
-                                        <div class="d-flex align-items-center gap-2">
-                                            <label for="id_cantidad_filas_hos" class="form-label mb-0">Filas vacías para otro(s) proveedor(es) de Hospedaje:</label>
-                                            <select id="id_cantidad_filas_hos" name="cantidad_filas_hos" class="form-select form-select-sm" style="width: auto;">
-                                                <option value="0" selected>0</option>
-                                                <option value="1">1</option>
-                                                <option value="2">2</option>
-                                                <option value="3">3</option>
-                                            </select>
-                                        </div>
-                                        {% endif %}
-                                    </div>
-                                    <div class="text-end {% if not tiene_tou_para_otro_proveedor and not tiene_vue_para_otro_proveedor and not tiene_hos_para_otro_proveedor %}ms-auto{% endif %}">
-                                        <button type="submit" class="btn btn-info">
-                                            <i class="fas fa-save me-1"></i> Guardar ajustes
-                                        </button>
-                                    </div>
+                                <div class="text-end mt-3">
+                                    <button type="submit" class="btn btn-info">
+                                        <i class="fas fa-save me-1"></i> Guardar ajustes
+                                    </button>
                                 </div>
                                 {% endif %}
+                            </form>
+                            {% if puede_editar_servicios_financieros %}
+                            <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
                                 {% if tiene_tou_para_otro_proveedor %}
-                                <script>
-                                (function() {
-                                    var sel = document.getElementById('id_cantidad_filas_tou');
-                                    if (!sel) return;
-                                    function actualizarFilas() {
-                                        var n = parseInt(sel.value, 10) || 0;
-                                        for (var i = 1; i <= 3; i++) {
-                                            var row = document.getElementById('logistica-extra-tou-row-' + i);
-                                            if (row) row.classList.toggle('d-none', i > n);
-                                        }
-                                    }
-                                    sel.addEventListener('change', actualizarFilas);
-                                    actualizarFilas();
-                                })();
-                                </script>
+                                <form method="post" class="d-inline">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="añadir_servicio_logistica" value="1">
+                                    <input type="hidden" name="tipo" value="TOU">
+                                    <button type="submit" class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-plus me-1"></i> Añadir otro Tour
+                                    </button>
+                                </form>
                                 {% endif %}
                                 {% if tiene_vue_para_otro_proveedor %}
-                                <script>
-                                (function() {
-                                    var sel = document.getElementById('id_cantidad_filas_vue');
-                                    if (!sel) return;
-                                    function actualizarFilas() {
-                                        var n = parseInt(sel.value, 10) || 0;
-                                        for (var i = 1; i <= 3; i++) {
-                                            var row = document.getElementById('logistica-extra-vue-row-' + i);
-                                            if (row) row.classList.toggle('d-none', i > n);
-                                        }
-                                    }
-                                    sel.addEventListener('change', actualizarFilas);
-                                    actualizarFilas();
-                                })();
-                                </script>
+                                <form method="post" class="d-inline">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="añadir_servicio_logistica" value="1">
+                                    <input type="hidden" name="tipo" value="VUE">
+                                    <button type="submit" class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-plus me-1"></i> Añadir otro Vuelo
+                                    </button>
+                                </form>
                                 {% endif %}
                                 {% if tiene_hos_para_otro_proveedor %}
-                                <script>
-                                (function() {
-                                    var sel = document.getElementById('id_cantidad_filas_hos');
-                                    if (!sel) return;
-                                    function actualizarFilas() {
-                                        var n = parseInt(sel.value, 10) || 0;
-                                        for (var i = 1; i <= 3; i++) {
-                                            var row = document.getElementById('logistica-extra-hos-row-' + i);
-                                            if (row) row.classList.toggle('d-none', i > n);
-                                        }
-                                    }
-                                    sel.addEventListener('change', actualizarFilas);
-                                    actualizarFilas();
-                                })();
-                                </script>
+                                <form method="post" class="d-inline">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="añadir_servicio_logistica" value="1">
+                                    <input type="hidden" name="tipo" value="HOS">
+                                    <button type="submit" class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-plus me-1"></i> Añadir otro Hospedaje
+                                    </button>
+                                </form>
                                 {% endif %}
-                            </form>
+                            </div>
+                            {% endif %}
                             {% else %}
                                 <div class="alert alert-info mb-0">
                                     <i class="fas fa-info-circle me-2"></i> Esta venta todavía no tiene servicios contratados para desglosar.
@@ -1366,6 +1303,7 @@
 
 {% block extra_js %}
 <script>
+    var activar_tab_logistica = {{ activar_tab_logistica|default:False|yesno:"true,false" }};
     // Código JS para la funcionalidad de pestañas y URL
     document.addEventListener('DOMContentLoaded', function() {
         // Al hacer clic en un tab, actualizar la URL para que se mantenga
@@ -1379,7 +1317,11 @@
 
         // Revisar URL para activar la pestaña correcta al cargar
         const urlParams = new URLSearchParams(window.location.search);
-        const activeTabId = urlParams.get('tab');
+        let activeTabId = urlParams.get('tab');
+        // Tras guardar logística (re-render sin redirect), mantener pestaña Logística activa
+        if (typeof activar_tab_logistica !== 'undefined' && activar_tab_logistica) {
+            activeTabId = 'logistica';
+        }
         if (activeTabId) {
             // Aseguramos que el tab exista (ej: si el usuario no es JEFE/CONTADOR, el tab de logística no existe)
             const activeTab = document.querySelector(`#${activeTabId}-tab`);
