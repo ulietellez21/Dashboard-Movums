@@ -1126,6 +1126,33 @@ body {
     line-height: 1.4;
 }
 
+/* Tours dentro de paquetes: mismas reglas para especificaciones largas */
+.card-tour {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    overflow: visible !important;
+}
+
+.card-tour .data-table {
+    overflow: visible !important;
+    page-break-inside: auto !important;
+}
+
+.card-tour .data-table td {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    vertical-align: top !important;
+}
+
+.card-tour .tour-especificaciones {
+    display: block;
+    white-space: normal;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    line-height: 1.4;
+}
+
 /* ============================================
    SEPARADORES Y ESPACIOS
    ============================================ */
