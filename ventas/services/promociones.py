@@ -62,7 +62,7 @@ class PromocionesService:
                 continue
             
             # Validar alcance de la promoción
-            if promo.alcance == 'NAC' and tipo_viaje != 'NAC':
+            if promo.alcance == 'NAC' and tipo_viaje not in ('NAC', 'INT_MXN'):
                 continue
             if promo.alcance == 'INT' and tipo_viaje != 'INT':
                 continue

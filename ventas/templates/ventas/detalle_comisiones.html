@@ -252,6 +252,10 @@
                                 {% if detalle.tipo_cambio %}
                                 <br><small class="text-muted">TC: {{ detalle.tipo_cambio|floatformat:4 }}</small>
                                 {% endif %}
+                            {% elif detalle.tipo_viaje == 'INT_MXN' %}
+                                <span class="badge bg-warning text-dark">
+                                    <i class="fas fa-globe-americas me-1"></i>Internacional MXN
+                                </span>
                             {% else %}
                                 <span class="badge bg-info text-white">
                                     <i class="fas fa-flag me-1"></i>Nacional

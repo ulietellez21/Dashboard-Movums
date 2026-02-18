@@ -133,8 +133,7 @@ def calcular_monto_base_comision(venta):
 
         return monto_base, detalles
     
-    # Venta nacional: costo_venta_final
-    detalles['tipo_calculo'] = 'NACIONAL'
+    detalles['tipo_calculo'] = 'INTERNACIONAL_MXN' if venta.tipo_viaje == 'INT_MXN' else 'NACIONAL'
     detalles['monto_base_calculado'] = str(venta.costo_venta_final)
     return venta.costo_venta_final, detalles
 
@@ -166,6 +165,8 @@ def calcular_comision_venta_mostrador(venta, porcentaje_comision, mes, anio):
     else:
         if venta.tipo_viaje == 'INT':
             tipo_venta = 'INTERNACIONAL'
+        elif venta.tipo_viaje == 'INT_MXN':
+            tipo_venta = 'INTERNACIONAL MXN'
         else:
             tipo_venta = 'NACIONAL'
         

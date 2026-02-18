@@ -44,6 +44,8 @@
                         <strong class="text-muted d-block mb-1">Tipo de Viaje:</strong>
                         {% if venta.tipo_viaje == 'INT' %}
                             <span class="badge bg-info fs-6"><i class="fas fa-globe me-1"></i>Internacional</span>
+                        {% elif venta.tipo_viaje == 'INT_MXN' %}
+                            <span class="badge bg-warning text-dark fs-6"><i class="fas fa-globe-americas me-1"></i>Internacional MXN</span>
                         {% else %}
                             <span class="badge bg-secondary fs-6"><i class="fas fa-map-marker-alt me-1"></i>Nacional</span>
                         {% endif %}

@@ -554,7 +554,7 @@ class SolicitarAbonoProveedorForm(forms.ModelForm):
             self.fields['monto'].label = "Monto (MXN)"
             self.fields['monto'].help_text = 'Monto en MXN a abonar al proveedor'
         
-        if self.venta and self.venta.tipo_viaje == 'NAC':
+        if self.venta and self.venta.tipo_viaje in ('NAC', 'INT_MXN'):
             self.fields['tipo_cambio_aplicado'].required = False
             self.fields['tipo_cambio_aplicado'].help_text = 'Tipo de cambio (opcional, solo si se requiere conversión a USD)'
         elif self.venta and self.venta.tipo_viaje == 'INT':

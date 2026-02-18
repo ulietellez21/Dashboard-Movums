@@ -66,9 +66,10 @@ class VentaViaje(models.Model):
     TIPO_VIAJE_CONTRATO_CHOICES = [
         ('NAC', 'Nacional'),
         ('INT', 'Internacional'),
+        ('INT_MXN', 'Internacional MXN'),
     ]
     tipo_viaje = models.CharField(
-        max_length=3, 
+        max_length=7, 
         choices=TIPO_VIAJE_CONTRATO_CHOICES, 
         default='NAC',
         verbose_name="Tipo de Viaje (Plantilla de Contrato)",
@@ -652,10 +653,9 @@ class VentaViaje(models.Model):
         if self.tipo_viaje == 'INT':
             return True
         # Ventas nacionales: proveedor principal con método de pago preferencial
-        if self.tipo_viaje == 'NAC' and self.proveedor and self.proveedor.metodo_pago_preferencial:
+        if self.tipo_viaje in ('NAC', 'INT_MXN') and self.proveedor and self.proveedor.metodo_pago_preferencial:
             return True
-        # Ventas nacionales: alguna fila de logística con proveedor preferencial (Traslado, Tour, HOS, etc.)
-        if self.tipo_viaje == 'NAC':
+        if self.tipo_viaje in ('NAC', 'INT_MXN'):
             def _normalizar(n):
                 return (n or '').strip().lower().replace(' ', '').replace('\t', '')
             nombres_logistica = list({
@@ -2020,6 +2020,7 @@ class ComisionVenta(models.Model):
     TIPO_VENTA_CHOICES = [
         ('NACIONAL', 'Nacional'),
         ('INTERNACIONAL', 'Internacional'),
+        ('INTERNACIONAL MXN', 'Internacional MXN'),
         ('VUELO', 'Vuelo Solitario'),
     ]
     tipo_venta = models.CharField(

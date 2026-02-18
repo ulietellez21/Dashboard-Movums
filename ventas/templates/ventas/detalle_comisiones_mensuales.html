@@ -152,6 +152,8 @@
                                 <span class="badge bg-warning text-dark">Vuelo Solitario</span>
                             {% elif comision_venta.tipo_venta == 'INTERNACIONAL' %}
                                 <span class="badge bg-success">Internacional</span>
+                            {% elif comision_venta.tipo_venta == 'INTERNACIONAL MXN' %}
+                                <span class="badge bg-warning text-dark">Internacional MXN</span>
                             {% else %}
                                 <span class="badge bg-info">Nacional</span>
                             {% endif %}

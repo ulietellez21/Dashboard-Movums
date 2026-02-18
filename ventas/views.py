@@ -768,7 +768,7 @@ class _VentaViajeDetailViewPostMixin:
                 # Sincronizar venta.proveedor desde la tabla de logística: si algún servicio tiene
                 # "Nombre del proveedor" que coincide con un Proveedor con metodo_pago_preferencial,
                 # asignar ese proveedor a la venta para que se muestre la sección Abonos a Proveedor
-                if self.object.tipo_viaje == 'NAC':
+                if self.object.tipo_viaje in ('NAC', 'INT_MXN'):
                     for original in originales_limpios.values():
                         nombre_prov = (original.opcion_proveedor or '').strip()
                         if nombre_prov:
@@ -2904,7 +2904,7 @@ class ReporteFinancieroView(LoginRequiredMixin, usuarios_mixins.FinancialReportR
 
         # --- Datos para modales de detalle (Ingreso, Pagos, Saldo) ---
         ventas_para_modales = base_ventas.filter(estado='ACTIVA').select_related('cliente').prefetch_related('abonos')
-        ventas_nac = ventas_para_modales.filter(tipo_viaje='NAC')
+        ventas_nac = ventas_para_modales.filter(tipo_viaje__in=['NAC', 'INT_MXN'])
         ventas_int = ventas_para_modales.filter(tipo_viaje='INT')
 
         # Modal 1: Detalle Ingreso Bruto
@@ -2913,7 +2913,7 @@ class ReporteFinancieroView(LoginRequiredMixin, usuarios_mixins.FinancialReportR
         lista_ventas_ingreso = []
         for v in ventas_para_modales.select_related('cliente'):
             costo = v.costo_total_con_modificacion or Decimal('0.00')
-            if v.tipo_viaje == 'NAC':
+            if v.tipo_viaje in ('NAC', 'INT_MXN'):
                 total_nac += costo
             else:
                 total_int += costo
@@ -3592,9 +3592,9 @@ class ContratoVentaPDFView(LoginRequiredMixin, DetailView):
         
         # Verificar si es paquete nacional (directamente o por cotización)
         es_paquete_nacional = False
-        if venta.servicios_seleccionados and 'PAQ' in venta.servicios_seleccionados and venta.tipo_viaje == 'NAC':
+        if venta.servicios_seleccionados and 'PAQ' in venta.servicios_seleccionados and venta.tipo_viaje in ('NAC', 'INT_MXN'):
             es_paquete_nacional = True
-        elif venta.tipo_viaje == 'NAC' and venta.cotizacion_origen:
+        elif venta.tipo_viaje in ('NAC', 'INT_MXN') and venta.cotizacion_origen:
             # Si no tiene PAQ pero tiene cotización, verificar el tipo de cotización
             cotizacion = venta.cotizacion_origen
             if isinstance(cotizacion.propuestas, str):
@@ -4840,7 +4840,7 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         if not es_paquete:
             return HttpResponse("Error: Esta venta no es de paquete.", status=400)
         
-        if venta.tipo_viaje != 'NAC':
+        if venta.tipo_viaje not in ('NAC', 'INT_MXN'):
             return HttpResponse("Error: Esta venta no es nacional.", status=400)
         
         # Obtener datos de la cotización si existe
@@ -11234,7 +11234,7 @@ class AjustarComisionIslaView(LoginRequiredMixin, UserPassesTestMixin, View):
                 estado_pago = 'PENDIENTE'
 
             # Actualizar o crear ComisionVenta
-            tipo_venta = 'INTERNACIONAL' if venta.tipo_viaje == 'INT' else 'NACIONAL'
+            tipo_venta = 'INTERNACIONAL' if venta.tipo_viaje == 'INT' else ('INTERNACIONAL MXN' if venta.tipo_viaje == 'INT_MXN' else 'NACIONAL')
             ComisionVenta.objects.update_or_create(
                 venta=venta,
                 mes=mes,
@@ -11799,9 +11799,7 @@ class PagosPorConfirmarView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
         ).filter(
             # Ventas internacionales: cantidad_apertura_usd > 0
             Q(tipo_viaje='INT', cantidad_apertura_usd__gt=0) |
-            # Ventas nacionales: cantidad_apertura > 0
-            Q(tipo_viaje='NAC', cantidad_apertura__gt=0) |
-            # Casos edge: tipo_viaje NULL o vacío pero con cantidad_apertura > 0
+            Q(tipo_viaje__in=['NAC', 'INT_MXN'], cantidad_apertura__gt=0) |
             Q(tipo_viaje__isnull=True, cantidad_apertura__gt=0)
         )
         

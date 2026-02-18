@@ -56,30 +56,26 @@
                 {# Paquete Nacional: detectar si es 'PAQ' o si tiene 'VUE' y 'HOS' juntos (paquete desglosado) #}
                 {# Paquete Internacional: detectar si es 'PAQ' con tipo_viaje 'INT' #}
                 {# Nota: Django templates no soporta paréntesis, así que usamos múltiples condiciones #}
-                {% if venta.tipo_viaje == 'NAC' %}
+                {% if venta.tipo_viaje == 'NAC' or venta.tipo_viaje == 'INT_MXN' %}
                     {% if 'PAQ' in venta.servicios_seleccionados %}
-                        {# Paquete Nacional explícito: usar contrato específico de paquete nacional #}
                         <a href="{% url 'generar_contrato_paquete_nacional_pdf' slug=venta.slug pk=venta.pk %}" 
                             class="btn btn-danger shadow-sm" target="_blank"
                             title="Genera el contrato de paquete nacional como DOCX">
                             <i class="fas fa-file-contract me-1"></i> Contrato Venta
                         </a>
                     {% elif 'VUE' in venta.servicios_seleccionados and 'HOS' in venta.servicios_seleccionados %}
-                        {# Paquete Nacional desglosado (VUE + HOS): usar contrato específico de paquete nacional #}
                         <a href="{% url 'generar_contrato_paquete_nacional_pdf' slug=venta.slug pk=venta.pk %}" 
                             class="btn btn-danger shadow-sm" target="_blank"
                             title="Genera el contrato de paquete nacional como DOCX">
                             <i class="fas fa-file-contract me-1"></i> Contrato Venta
                         </a>
                     {% elif 'HOS' in venta.servicios_seleccionados %}
-                        {# Solo Hospedaje (sin vuelo): usar contrato específico de hospedaje #}
                         <a href="{% url 'generar_contrato_hospedaje_pdf' slug=venta.slug pk=venta.pk %}" 
                             class="btn btn-danger shadow-sm" target="_blank"
                             title="Genera el contrato de hospedaje como DOCX">
                             <i class="fas fa-file-contract me-1"></i> Contrato Venta
                         </a>
                     {% else %}
-                        {# Otros casos nacionales: usar contrato genérico #}
                         <a href="{% url 'generar_contrato_pdf' slug=venta.slug pk=venta.pk %}" 
                             class="btn btn-danger shadow-sm" target="_blank"
                             title="Genera el contrato de venta como PDF">
