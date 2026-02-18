@@ -4877,13 +4877,23 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         habitacion = ''
         plan_alimentos = ''
         tours = []
-        # Traslado: usar opcion_proveedor de LogisticaServicio TRA (casilla "Opcion de Traslado")
+        # Traslado: usar "Opción de Traslado" del formulario (servicios_detalle), ej. "Privado"
         traslado_info = ''
-        for s in venta.servicios_logisticos.filter(codigo_servicio='TRA'):
-            opc = (s.opcion_proveedor or '').strip()
-            if opc:
-                traslado_info = opc
-                break  # Usar el primero que tenga valor
+        if venta.servicios_detalle:
+            for linea in venta.servicios_detalle.split('\n'):
+                linea = linea.strip()
+                if linea.startswith('Traslado - ') and ' - Opción: ' in linea:
+                    partes = linea.split(' - Opción: ', 1)
+                    if len(partes) == 2:
+                        traslado_info = partes[1].strip()
+                    break
+        if not traslado_info:
+            # Fallback: nombre del proveedor desde LogisticaServicio TRA
+            for s in venta.servicios_logisticos.filter(codigo_servicio='TRA'):
+                opc = (s.opcion_proveedor or '').strip()
+                if opc:
+                    traslado_info = opc
+                    break
         # Adicionales: usar opcion_proveedor de LogisticaServicio TOU (casilla "Opcion de tour y actividades")
         adicionales_info = []
         for s in venta.servicios_logisticos.filter(codigo_servicio='TOU').order_by('orden', 'pk'):
