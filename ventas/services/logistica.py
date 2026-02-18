@@ -38,10 +38,24 @@ def build_financial_summary(venta, servicios_qs):
     if venta.tipo_viaje == 'INT' and (total_servicios_planeados is None or total_servicios_planeados <= 0) and suma_montos_planeados and suma_montos_planeados > 0:
         total_servicios_planeados = suma_montos_planeados
 
-    # Saldo disponible para servicios = parte del cobrado (apertura+abonos) asignada a servicios, menos lo ya pagado
-    # Se capa por servicios_planificados: lo que pase de eso es ganancia, no "saldo para servicios"
+    # Abonos a proveedor comprometidos (APROBADO + COMPLETADO) se descuentan del saldo disponible
+    abonos_proveedor_comprometidos = Decimal('0.00')
+    if hasattr(venta, 'abonos_proveedor'):
+        for abono in venta.abonos_proveedor.filter(estado__in=['APROBADO', 'COMPLETADO']):
+            if venta.tipo_viaje == 'INT':
+                if abono.monto_usd:
+                    abonos_proveedor_comprometidos += abono.monto_usd
+                elif abono.tipo_cambio_aplicado and abono.tipo_cambio_aplicado > 0:
+                    abonos_proveedor_comprometidos += (abono.monto / abono.tipo_cambio_aplicado).quantize(Decimal('0.01'))
+                elif venta.tipo_cambio and venta.tipo_cambio > 0:
+                    abonos_proveedor_comprometidos += (abono.monto / venta.tipo_cambio).quantize(Decimal('0.01'))
+            else:
+                abonos_proveedor_comprometidos += abono.monto
+
+    # Saldo disponible para servicios = parte del cobrado (apertura+abonos) asignada a servicios,
+    # menos lo ya pagado, menos abonos a proveedor comprometidos
     parte_para_servicios = min(total_pagado, total_servicios_planeados)
-    saldo_disponible = max(Decimal('0.00'), parte_para_servicios - pagado_servicios)
+    saldo_disponible = max(Decimal('0.00'), parte_para_servicios - pagado_servicios - abonos_proveedor_comprometidos)
     ganancia_estimada = max(Decimal('0.00'), total_venta - total_servicios_planeados)
     ganancia_en_mano = max(Decimal('0.00'), total_pagado - total_servicios_planeados)
     ganancia_pendiente = max(Decimal('0.00'), ganancia_estimada - ganancia_en_mano)
@@ -58,6 +72,7 @@ def build_financial_summary(venta, servicios_qs):
         'montos_cuadran': montos_cuadran,
         'monto_pagado_servicios': pagado_servicios,
         'saldo_disponible_servicios': saldo_disponible,
+        'abonos_proveedor_comprometidos': abonos_proveedor_comprometidos,
         'ganancia_estimada': ganancia_estimada,
         'ganancia_cobrada': ganancia_en_mano,
         'ganancia_pendiente': ganancia_pendiente,
