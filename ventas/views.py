@@ -11341,10 +11341,12 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
             )
         )
         
-        # OPTIMIZACIÓN N+1: Filtrar ventas pagadas y calcular datos necesarios
+        # OPTIMIZACIÓN N+1: Filtrar ventas pagadas y pendientes, calcular datos necesarios
         ventas_pagadas = []
-        ventas_detalle = []
+        ventas_detalle_pagadas = []
+        ventas_detalle_pendientes = []
         total_ventas_pagadas = Decimal('0.00')
+        total_ventas_pendientes = Decimal('0.00')
         
         for venta in ventas_base:
             total_abonos = getattr(venta, 'total_abonos_confirmados', Decimal('0.00')) or Decimal('0.00')
@@ -11377,10 +11379,23 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
                 total_pagado = total_pagado_calc
                 base_comision = costo_venta
             
-            if total_pagado >= costo_total and costo_total > 0:
+            # Verificar si está pagada completamente
+            esta_pagada = total_pagado >= costo_total and costo_total > 0
+            
+            if esta_pagada:
                 ventas_pagadas.append(venta)
                 total_ventas_pagadas += base_comision
-                ventas_detalle.append({
+                ventas_detalle_pagadas.append({
+                    'venta': venta,
+                    'base_comision': base_comision,
+                    'total_pagado': total_pagado,
+                    'costo_total': costo_total,
+                    'es_internacional': es_internacional,
+                })
+            elif costo_total > 0 and total_pagado > 0:
+                # Venta pendiente (tiene pagos pero no está completamente pagada)
+                total_ventas_pendientes += base_comision
+                ventas_detalle_pendientes.append({
                     'venta': venta,
                     'base_comision': base_comision,
                     'total_pagado': total_pagado,
@@ -11392,10 +11407,23 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
         ejecutivo = getattr(vendedor, 'ejecutivo_asociado', None)
         tipo_vendedor = ejecutivo.tipo_vendedor if ejecutivo else 'MOSTRADOR'
         
-        porcentaje_comision, comision_total = calcular_comision_por_tipo(
-            total_ventas_pagadas, 
+        # Calcular porcentaje basado en total de ventas (pagadas + pendientes)
+        total_ventas_para_comision = total_ventas_pagadas + total_ventas_pendientes
+        porcentaje_comision, _ = calcular_comision_por_tipo(
+            total_ventas_para_comision, 
             tipo_vendedor
         )
+        
+        # Comisiones de ventas pagadas (100%)
+        comision_pagadas = total_ventas_pagadas * porcentaje_comision
+        
+        # Comisiones de ventas pendientes (30% pagada, 70% pendiente)
+        comision_pendientes_pagada = total_ventas_pendientes * porcentaje_comision * Decimal('0.30')
+        comision_pendientes_pendiente = total_ventas_pendientes * porcentaje_comision * Decimal('0.70')
+        
+        comision_total_pagada = comision_pagadas + comision_pendientes_pagada
+        comision_total_pendiente = comision_pendientes_pendiente
+        comision_total = comision_total_pagada + comision_total_pendiente
         
         sueldo_base = ejecutivo.sueldo_base if ejecutivo and ejecutivo.sueldo_base else Decimal('10000.00')
         ingreso_total = sueldo_base + comision_total
@@ -11453,7 +11481,9 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
         totales_fill = PatternFill(start_color="E8E4F8", end_color="E8E4F8", fill_type="solid")
         for label, valor in [
             ("Sueldo Base", float(sueldo_base)),
-            ("Comisión", float(comision_total)),
+            ("Comisión Pagada", float(comision_total_pagada)),
+            ("Comisión Pendiente", float(comision_total_pendiente)),
+            ("Comisión Total", float(comision_total)),
             ("TOTAL", float(ingreso_total)),
         ]:
             ws.cell(row=row, column=1, value=label).fill = totales_fill
@@ -11471,9 +11501,9 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
             row += 1
         row += 1
 
-        # Detalle de ventas (título de sección)
-        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=6)
-        sec_cell = ws.cell(row=row, column=1, value="DETALLE DE VENTAS")
+        # Detalle de ventas PAGADAS (título de sección)
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
+        sec_cell = ws.cell(row=row, column=1, value="DETALLE DE VENTAS PAGADAS (100% comisión)")
         sec_cell.font = Font(bold=True, color="FFFFFF", size=12)
         sec_cell.fill = header_fill
         sec_cell.alignment = align_center
@@ -11490,7 +11520,7 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
         ws.row_dimensions[row].height = 22
         row += 1
 
-        # Variables para totales separados por moneda
+        # Variables para totales separados por moneda (ventas pagadas)
         total_ventas_mxn = Decimal('0.00')
         total_pagado_mxn = Decimal('0.00')
         total_comision_mxn = Decimal('0.00')
@@ -11502,7 +11532,7 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
         row_fill_usd_even = PatternFill(start_color="FFF4CC", end_color="FFF4CC", fill_type="solid")
         row_fill_usd_odd = PatternFill(start_color="FFE699", end_color="FFE699", fill_type="solid")
 
-        for idx, detalle in enumerate(ventas_detalle):
+        for idx, detalle in enumerate(ventas_detalle_pagadas):
             venta = detalle['venta']
             base_comision = detalle['base_comision']
             total_pagado = detalle['total_pagado']
@@ -11556,15 +11586,15 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
                     cell.number_format = '#,##0.00'
             row += 1
         
-        # Filas de totales separadas por moneda
-        if ventas_detalle:
+        # Filas de totales separadas por moneda (ventas pagadas)
+        if ventas_detalle_pagadas:
             row += 1
             totales_fill_bold = PatternFill(start_color="D4C5F9", end_color="D4C5F9", fill_type="solid")
             totales_fill_usd = PatternFill(start_color="FFD966", end_color="FFD966", fill_type="solid")
             
             # Totales MXN
             if total_ventas_mxn > 0:
-                ws.cell(row=row, column=1, value="TOTALES MXN").fill = totales_fill_bold
+                ws.cell(row=row, column=1, value="TOTALES MXN (Pagadas)").fill = totales_fill_bold
                 ws.cell(row=row, column=1).font = Font(bold=True)
                 ws.cell(row=row, column=1).border = border_medium
                 ws.cell(row=row, column=1).alignment = align_left
@@ -11583,7 +11613,7 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
             
             # Totales USD
             if total_ventas_usd > 0:
-                ws.cell(row=row, column=1, value="TOTALES USD").fill = totales_fill_usd
+                ws.cell(row=row, column=1, value="TOTALES USD (Pagadas)").fill = totales_fill_usd
                 ws.cell(row=row, column=1).font = Font(bold=True)
                 ws.cell(row=row, column=1).border = border_medium
                 ws.cell(row=row, column=1).alignment = align_left
@@ -11599,14 +11629,155 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
                     cell.border = border_medium
                     cell.alignment = align_center
                 row += 1
+        
+        # Sección de VENTAS PENDIENTES
+        if ventas_detalle_pendientes:
+            row += 2
+            # Título de sección pendientes
+            ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=6)
+            sec_cell_pend = ws.cell(row=row, column=1, value="DETALLE DE VENTAS PENDIENTES (30% comisión pagada, 70% pendiente)")
+            sec_cell_pend.font = Font(bold=True, color="FFFFFF", size=12)
+            sec_cell_pend.fill = PatternFill(start_color="FF6B6B", end_color="FF6B6B", fill_type="solid")
+            sec_cell_pend.alignment = align_center
+            sec_cell_pend.border = border_medium
+            row += 1
+            
+            headers_pend = ['Folio venta', 'Cliente', 'Total Venta', 'Pagado', 'Comisión Pagada (30%)', 'Comisión Pendiente (70%)']
+            for col, header in enumerate(headers_pend, 1):
+                cell = ws.cell(row=row, column=col, value=header)
+                cell.fill = PatternFill(start_color="FF6B6B", end_color="FF6B6B", fill_type="solid")
+                cell.font = header_font
+                cell.border = border
+                cell.alignment = align_center
+            ws.row_dimensions[row].height = 22
+            row += 1
+            
+            # Variables para totales pendientes separados por moneda
+            total_ventas_pend_mxn = Decimal('0.00')
+            total_pagado_pend_mxn = Decimal('0.00')
+            total_comision_pagada_pend_mxn = Decimal('0.00')
+            total_comision_pendiente_pend_mxn = Decimal('0.00')
+            total_ventas_pend_usd = Decimal('0.00')
+            total_pagado_pend_usd = Decimal('0.00')
+            total_comision_pagada_pend_usd = Decimal('0.00')
+            total_comision_pendiente_pend_usd = Decimal('0.00')
+            
+            # Color para filas pendientes USD (naranja claro)
+            row_fill_pend_usd_even = PatternFill(start_color="FFE5CC", end_color="FFE5CC", fill_type="solid")
+            row_fill_pend_usd_odd = PatternFill(start_color="FFD9B3", end_color="FFD9B3", fill_type="solid")
+            # Color para filas pendientes MXN (rosa claro)
+            row_fill_pend_mxn_even = PatternFill(start_color="FFE5F0", end_color="FFE5F0", fill_type="solid")
+            row_fill_pend_mxn_odd = PatternFill(start_color="FFD1E0", end_color="FFD1E0", fill_type="solid")
+            
+            for idx, detalle in enumerate(ventas_detalle_pendientes):
+                venta = detalle['venta']
+                base_comision = detalle['base_comision']
+                total_pagado = detalle['total_pagado']
+                costo_total = detalle['costo_total']
+                es_internacional = detalle['es_internacional']
+                
+                # Calcular comisiones: 30% pagada, 70% pendiente
+                comision_total_venta = base_comision * porcentaje_comision
+                comision_pagada = comision_total_venta * Decimal('0.30')
+                comision_pendiente = comision_total_venta * Decimal('0.70')
+                
+                if es_internacional:
+                    costo_venta_usd = getattr(venta, 'costo_venta_final_usd', None) or getattr(venta, 'total_usd', None) or Decimal('0.00')
+                    comision_total_usd = Decimal(str(costo_venta_usd)) * porcentaje_comision
+                    comision_pagada_usd = comision_total_usd * Decimal('0.30')
+                    comision_pendiente_usd = comision_total_usd * Decimal('0.70')
+                    
+                    # Acumular totales USD pendientes
+                    total_ventas_pend_usd += costo_total
+                    total_pagado_pend_usd += total_pagado
+                    total_comision_pagada_pend_usd += comision_pagada_usd
+                    total_comision_pendiente_pend_usd += comision_pendiente_usd
+                    
+                    row_fill = row_fill_pend_usd_even if idx % 2 == 0 else row_fill_pend_usd_odd
+                    valores_fila = [
+                        venta.folio or f"Venta-{venta.pk}",
+                        str(venta.cliente) if venta.cliente else '',
+                        float(costo_total),
+                        float(total_pagado),
+                        float(comision_pagada_usd),
+                        float(comision_pendiente_usd),
+                    ]
+                else:
+                    # Acumular totales MXN pendientes
+                    total_ventas_pend_mxn += costo_total
+                    total_pagado_pend_mxn += total_pagado
+                    total_comision_pagada_pend_mxn += comision_pagada
+                    total_comision_pendiente_pend_mxn += comision_pendiente
+                    
+                    row_fill = row_fill_pend_mxn_even if idx % 2 == 0 else row_fill_pend_mxn_odd
+                    valores_fila = [
+                        venta.folio or f"Venta-{venta.pk}",
+                        str(venta.cliente) if venta.cliente else '',
+                        float(costo_total),
+                        float(total_pagado),
+                        float(comision_pagada),
+                        float(comision_pendiente),
+                    ]
+                
+                for c, val in enumerate(valores_fila, 1):
+                    cell = ws.cell(row=row, column=c, value=val if val is not None else 0.0)
+                    cell.fill = row_fill
+                    cell.border = border
+                    cell.alignment = align_center if c >= 3 else align_left
+                    if c >= 3:
+                        cell.number_format = '#,##0.00'
+                row += 1
+            
+            # Totales de ventas pendientes
+            row += 1
+            totales_fill_pend_mxn = PatternFill(start_color="FFB3D9", end_color="FFB3D9", fill_type="solid")
+            totales_fill_pend_usd = PatternFill(start_color="FFCC99", end_color="FFCC99", fill_type="solid")
+            
+            # Totales MXN pendientes
+            if total_ventas_pend_mxn > 0:
+                ws.cell(row=row, column=1, value="TOTALES MXN (Pendientes)").fill = totales_fill_pend_mxn
+                ws.cell(row=row, column=1).font = Font(bold=True)
+                ws.cell(row=row, column=1).border = border_medium
+                ws.cell(row=row, column=1).alignment = align_left
+                
+                ws.cell(row=row, column=2, value="").fill = totales_fill_pend_mxn
+                ws.cell(row=row, column=2).border = border_medium
+                
+                for col, total_val in enumerate([total_ventas_pend_mxn, total_pagado_pend_mxn, total_comision_pagada_pend_mxn, total_comision_pendiente_pend_mxn], 3):
+                    cell = ws.cell(row=row, column=col, value=float(total_val))
+                    cell.number_format = '#,##0.00'
+                    cell.fill = totales_fill_pend_mxn
+                    cell.font = Font(bold=True)
+                    cell.border = border_medium
+                    cell.alignment = align_center
+                row += 1
+            
+            # Totales USD pendientes
+            if total_ventas_pend_usd > 0:
+                ws.cell(row=row, column=1, value="TOTALES USD (Pendientes)").fill = totales_fill_pend_usd
+                ws.cell(row=row, column=1).font = Font(bold=True)
+                ws.cell(row=row, column=1).border = border_medium
+                ws.cell(row=row, column=1).alignment = align_left
+                
+                ws.cell(row=row, column=2, value="").fill = totales_fill_pend_usd
+                ws.cell(row=row, column=2).border = border_medium
+                
+                for col, total_val in enumerate([total_ventas_pend_usd, total_pagado_pend_usd, total_comision_pagada_pend_usd, total_comision_pendiente_pend_usd], 3):
+                    cell = ws.cell(row=row, column=col, value=float(total_val))
+                    cell.number_format = '#,##0.00'
+                    cell.fill = totales_fill_pend_usd
+                    cell.font = Font(bold=True)
+                    cell.border = border_medium
+                    cell.alignment = align_center
+                row += 1
 
         # Anchos de columna fijos (evita MergedCell)
         ws.column_dimensions['A'].width = 20  # Folio puede ser más largo (ej: VUE-20260218-01)
-        ws.column_dimensions['B'].width = 32
-        ws.column_dimensions['C'].width = 14
-        ws.column_dimensions['D'].width = 14
-        ws.column_dimensions['E'].width = 14
-        ws.column_dimensions['F'].width = 14
+        ws.column_dimensions['B'].width = 32  # Cliente
+        ws.column_dimensions['C'].width = 14  # Total Venta
+        ws.column_dimensions['D'].width = 14  # Pagado
+        ws.column_dimensions['E'].width = 18  # Comisión (o Comisión Pagada para pendientes)
+        ws.column_dimensions['F'].width = 18  # Comisión Pendiente (solo para ventas pendientes)
         ws.freeze_panes = 'A3'
 
         # Preparar respuesta
