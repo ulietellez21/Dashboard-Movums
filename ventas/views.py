@@ -2783,7 +2783,8 @@ class LogisticaPendienteView(LoginRequiredMixin, ListView):
             return super().dispatch(request, *args, **kwargs)
 
         self.user_role = perm.get_user_role(request.user, request)
-        if self.user_role in ('JEFE', 'CONTADOR', 'VENDEDOR'):
+        # Misma lógica que can_view_logistica_pendiente: JEFE, DG, Director Admin, Director Ventas, Gerente, Contador, Vendedor
+        if perm.can_view_logistica_pendiente(request.user, request):
             return super().dispatch(request, *args, **kwargs)
 
         messages.error(request, "No tienes permiso para acceder al tablero de logística.")
@@ -2799,6 +2800,7 @@ class LogisticaPendienteView(LoginRequiredMixin, ListView):
             .order_by('fecha_inicio_viaje')
         )
 
+        # Solo vendedores ven únicamente sus propias ventas; el resto (JEFE, CONTADOR, directores, gerente) ve todas
         if self.user_role == 'VENDEDOR':
             queryset = queryset.filter(vendedor=self.request.user)
 
@@ -2817,12 +2819,16 @@ class LogisticaPendienteView(LoginRequiredMixin, ListView):
             for servicio in card['servicios']:
                 stats[servicio['status']] += 1
 
+        # Vendedor solo ve las propias; JEFE, CONTADOR y resto de roles con acceso ven todas
+        mostrando_propias = self.user_role == 'VENDEDOR'
+        puede_ver_todos = not mostrando_propias
+
         context.update({
             'user_rol': self.user_role,
             'tablero_logistica': tablero,
             'stats_servicios': stats,
-            'mostrando_propias': self.user_role == 'VENDEDOR',
-            'puede_ver_todos': self.user_role in ('JEFE', 'CONTADOR'),
+            'mostrando_propias': mostrando_propias,
+            'puede_ver_todos': puede_ver_todos,
         })
         return context
 
