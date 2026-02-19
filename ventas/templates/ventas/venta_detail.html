@@ -474,12 +474,18 @@
                                                     {% if user_rol == 'CONTADOR' %}
                                                     <td>
                                                         {% if abono.forma_pago in 'TRN,TAR,DEP' and not abono.confirmado and abono.comprobante_subido %}
-                                                            <form method="post" action="{% url 'confirmar_abono' abono_id=abono.pk %}" style="display: inline;">
-                                                                {% csrf_token %}
-                                                                <button type="submit" class="btn btn-sm btn-success" title="Confirmar abono">
-                                                                    <i class="fas fa-check"></i> Confirmar
+                                                            {% if venta.tipo_viaje == 'INT' %}
+                                                                <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#modalConfirmarUSD_detalle{{ abono.pk }}">
+                                                                    <i class="fas fa-exclamation-triangle me-1"></i> Confirmar (USD)
                                                                 </button>
-                                                            </form>
+                                                            {% else %}
+                                                                <form method="post" action="{% url 'confirmar_abono' abono_id=abono.pk %}" style="display: inline;">
+                                                                    {% csrf_token %}
+                                                                    <button type="submit" class="btn btn-sm btn-success" title="Confirmar abono">
+                                                                        <i class="fas fa-check"></i> Confirmar
+                                                                    </button>
+                                                                </form>
+                                                            {% endif %}
                                                         {% else %}
                                                             <span class="text-muted">-</span>
                                                         {% endif %}
@@ -841,12 +847,18 @@
                                             <td>
                                                 <div class="btn-group btn-group-sm" role="group">
                                                     {% if abono.estado == 'PENDIENTE' and puede_aprobar_abono_proveedor %}
-                                                        <form method="post" action="{% url 'aprobar_abono_proveedor' abono.id %}" style="display: inline;">
-                                                            {% csrf_token %}
-                                                            <button type="submit" class="btn btn-info btn-sm" title="Aprobar">
-                                                                <i class="fas fa-check"></i>
+                                                        {% if venta.tipo_viaje == 'INT' %}
+                                                            <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalAprobarProvUSD{{ abono.id }}" title="Aprobar (USD)">
+                                                                <i class="fas fa-exclamation-triangle me-1"></i><i class="fas fa-check"></i>
                                                             </button>
-                                                        </form>
+                                                        {% else %}
+                                                            <form method="post" action="{% url 'aprobar_abono_proveedor' abono.id %}" style="display: inline;">
+                                                                {% csrf_token %}
+                                                                <button type="submit" class="btn btn-info btn-sm" title="Aprobar">
+                                                                    <i class="fas fa-check"></i>
+                                                                </button>
+                                                            </form>
+                                                        {% endif %}
                                                     {% endif %}
                                                     {% if abono.estado == 'APROBADO' and puede_confirmar_abono_proveedor %}
                                                         <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#modalConfirmarAbonoProveedor{{ abono.id }}" title="Confirmar con comprobante">
@@ -1274,13 +1286,77 @@
 </div>
 {% endif %}
 
+{% if venta.tipo_viaje == 'INT' %}
+{% for abono in venta.abonos.all %}
+{% if abono.forma_pago in 'TRN,TAR,DEP' and not abono.confirmado and abono.comprobante_subido %}
+<div class="modal fade" id="modalConfirmarUSD_detalle{{ abono.pk }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content border-danger">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>ATENCIÓN: Abono en DÓLARES (USD)</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <strong><i class="fas fa-dollar-sign me-1"></i>Este abono es en DÓLARES AMERICANOS (USD), NO en pesos mexicanos.</strong>
+                </div>
+                <p><strong>Monto:</strong> {% if abono.monto_usd %}USD ${{ abono.monto_usd|floatformat:2 }}{% else %}${{ abono.monto|floatformat:2 }}{% endif %}</p>
+                {% with tc_abono=abono.tipo_cambio_para_display|default:venta.tipo_cambio %}
+                {% if tc_abono %}<p class="text-muted mb-0"><strong>Tipo de cambio del abono:</strong> ${{ tc_abono|floatformat:4 }} MXN/USD</p>{% endif %}
+                {% endwith %}
+                <p><strong>Forma de pago:</strong> {{ abono.get_forma_pago_display }}</p>
+                <hr>
+                <p class="fw-bold">Para confirmar, rectifique el tipo de cambio ingresándolo una vez:</p>
+                <div class="mb-3">
+                    <label class="form-label">Tipo de cambio (MXN/USD)</label>
+                    <input type="number" step="0.0001" min="0" class="form-control usd-tc" data-modal="detalle{{ abono.pk }}" data-expected-tc="{% if abono.tipo_cambio_para_display %}{{ abono.tipo_cambio_para_display|floatformat:4 }}{% elif venta.tipo_cambio %}{{ venta.tipo_cambio|floatformat:4 }}{% endif %}" placeholder="Ej: 17.5000">
+                    <div class="invalid-feedback">El tipo de cambio no coincide con el registrado.</div>
+                </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input usd-check" type="checkbox" data-modal="detalle{{ abono.pk }}" id="checkUSD_detalle{{ abono.pk }}">
+                    <label class="form-check-label fw-bold text-danger" for="checkUSD_detalle{{ abono.pk }}">
+                        Confirmo que este abono es en DÓLARES (USD) y he verificado el tipo de cambio
+                    </label>
+                </div>
+                <form method="post" action="{% url 'confirmar_abono' abono_id=abono.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger w-100 usd-submit" data-modal="detalle{{ abono.pk }}" disabled>
+                        <i class="fas fa-check-circle me-1"></i> Confirmar Abono en USD
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+{% endif %}
+
 {% endblock modals %}
 
 {% block extra_js %}
 <script>
     var activar_tab_logistica = {{ activar_tab_logistica|default:False|yesno:"true,false" }};
-    // Código JS para la funcionalidad de pestañas y URL
+
     document.addEventListener('DOMContentLoaded', function() {
+        // Validación de modales USD (un solo campo TC que debe coincidir con el esperado)
+        document.querySelectorAll('.usd-tc, .usd-check').forEach(function(el) {
+            el.addEventListener('input', function() { validarModalUSD(el.dataset.modal); });
+            el.addEventListener('change', function() { validarModalUSD(el.dataset.modal); });
+        });
+        function validarModalUSD(modalId) {
+            var tcInput = document.querySelector('.usd-tc[data-modal="' + modalId + '"]');
+            var chk = document.querySelector('.usd-check[data-modal="' + modalId + '"]');
+            var btn = document.querySelector('.usd-submit[data-modal="' + modalId + '"]');
+            if (!tcInput || !chk || !btn) return;
+            var v = parseFloat(tcInput.value);
+            var expected = parseFloat(tcInput.getAttribute('data-expected-tc') || '0');
+            var coincide = v > 0 && expected > 0 && Math.abs(v - expected) < 0.0001;
+            tcInput.classList.toggle('is-invalid', tcInput.value && !coincide);
+            tcInput.classList.toggle('is-valid', coincide);
+            btn.disabled = !(coincide && chk.checked);
+        }
+
         // Al hacer clic en un tab, actualizar la URL para que se mantenga
         const tabButtons = document.querySelectorAll('button[data-bs-toggle="tab"]');
         tabButtons.forEach(button => {
@@ -1439,6 +1515,53 @@
     }
 </script>
 
+<!-- Modales para aprobar abono a proveedor USD -->
+{% if venta.tipo_viaje == 'INT' %}
+{% for abono in abonos_proveedor %}
+{% if abono.estado == 'PENDIENTE' and puede_aprobar_abono_proveedor %}
+<div class="modal fade" id="modalAprobarProvUSD{{ abono.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content border-danger">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>ATENCIÓN: Abono a Proveedor en DÓLARES (USD)</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <strong><i class="fas fa-dollar-sign me-1"></i>Este abono a proveedor es en DÓLARES AMERICANOS (USD), NO en pesos mexicanos.</strong>
+                </div>
+                <p><strong>Proveedor:</strong> {{ abono.proveedor }}</p>
+                <p><strong>Monto:</strong> {% if abono.monto_usd_para_display %}<span class="text-danger fw-bold">USD ${{ abono.monto_usd_para_display|floatformat:2|intcomma }}</span>{% else %}<span class="text-danger fw-bold">${{ abono.monto|floatformat:2|intcomma }}</span>{% endif %}</p>
+                {% with tc_abono=abono.tipo_cambio_para_display|default:venta.tipo_cambio %}
+                {% if tc_abono %}<p class="text-muted mb-0"><strong>Tipo de cambio del abono:</strong> ${{ tc_abono|floatformat:4 }} MXN/USD</p>{% endif %}
+                {% endwith %}
+                <hr>
+                <p class="fw-bold">Para aprobar, rectifique el tipo de cambio ingresándolo una vez:</p>
+                <div class="mb-3">
+                    <label class="form-label">Tipo de cambio (MXN/USD)</label>
+                    <input type="number" step="0.0001" min="0" class="form-control usd-tc" data-modal="aprProv{{ abono.id }}" data-expected-tc="{% if abono.tipo_cambio_para_display %}{{ abono.tipo_cambio_para_display|floatformat:4 }}{% elif venta.tipo_cambio %}{{ venta.tipo_cambio|floatformat:4 }}{% endif %}" placeholder="Ej: 17.5000">
+                    <div class="invalid-feedback">El tipo de cambio no coincide con el registrado.</div>
+                </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input usd-check" type="checkbox" data-modal="aprProv{{ abono.id }}" id="checkUSD_aprProv{{ abono.id }}">
+                    <label class="form-check-label fw-bold text-danger" for="checkUSD_aprProv{{ abono.id }}">
+                        Confirmo que este abono a proveedor es en DÓLARES (USD) y he verificado el tipo de cambio
+                    </label>
+                </div>
+                <form method="post" action="{% url 'aprobar_abono_proveedor' abono.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger w-100 usd-submit" data-modal="aprProv{{ abono.id }}" disabled>
+                        <i class="fas fa-check-circle me-1"></i> Aprobar Abono a Proveedor en USD
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+{% endif %}
+
 <!-- Modales para confirmar/reemplazar comprobante de abonos a proveedor (contador: APROBADO = confirmar, COMPLETADO = reemplazar) -->
 {% for abono in abonos_proveedor %}
     {% if puede_confirmar_abono_proveedor and abono.estado == 'APROBADO' or puede_confirmar_abono_proveedor and abono.estado == 'COMPLETADO' %}
@@ -1458,20 +1581,7 @@
                 <form method="post" action="{% url 'confirmar_abono_proveedor' abono_id=abono.id %}" enctype="multipart/form-data">
                     {% csrf_token %}
                     <div class="modal-body">
-                        <p class="text-muted">Proveedor: <strong>{{ abono.proveedor }}</strong></p>
-                        {% if venta.tipo_viaje == 'INT' %}
-                            {% with tc_abono=abono.tipo_cambio_para_display|default:venta.tipo_cambio %}
-                            {% if abono.monto_usd_para_display %}
-                                <p class="text-muted mb-0">Monto: <strong>USD ${{ abono.monto_usd_para_display|floatformat:2|intcomma }}</strong></p>
-                                {% if tc_abono %}<p class="text-muted small mb-0">TC: ${{ tc_abono|floatformat:4 }} MXN/USD</p>{% endif %}
-                            {% else %}
-                                <p class="text-muted mb-0">Monto: <strong>${{ abono.monto|floatformat:2|intcomma }} MXN</strong></p>
-                                {% if tc_abono %}<p class="text-muted small mb-0">TC: ${{ tc_abono|floatformat:4 }} MXN/USD</p>{% endif %}
-                            {% endif %}
-                            {% endwith %}
-                        {% else %}
-                            <p class="text-muted">Monto: <strong>${{ abono.monto|floatformat:2|intcomma }} MXN</strong></p>
-                        {% endif %}
+                        <p class="text-muted mb-2">Proveedor: <strong>{{ abono.proveedor }}</strong> · Monto: {% if venta.tipo_viaje == 'INT' and abono.monto_usd_para_display %}USD ${{ abono.monto_usd_para_display|floatformat:2|intcomma }}{% elif venta.tipo_viaje == 'INT' %}USD ${{ abono.monto|floatformat:2|intcomma }}{% else %}${{ abono.monto|floatformat:2|intcomma }} MXN{% endif %}</p>
                         <hr>
                         <div class="mb-3">
                             <label for="comprobante_abono_{{ abono.id }}" class="form-label">

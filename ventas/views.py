@@ -11586,10 +11586,11 @@ class SubirComprobanteAbonoView(LoginRequiredMixin, View):
         # Crear notificaciones para CONTADOR
         contadores = User.objects.filter(perfil__rol='CONTADOR')
         forma_pago_display = dict(AbonoPago.FORMA_PAGO_CHOICES).get(abono.forma_pago, abono.forma_pago)
-        mensaje_contador = f"Abono pendiente de confirmación: ${abono.monto:,.2f} ({forma_pago_display}) - Venta #{abono.venta.pk} - Cliente: {abono.venta.cliente.nombre_completo_display}"
+        es_usd = abono.venta.tipo_viaje == 'INT'
+        monto_display = f"USD ${abono.monto_usd:,.2f}" if es_usd and abono.monto_usd else f"${abono.monto:,.2f}"
+        mensaje_contador = f"{'⚠️ DÓLARES - ' if es_usd else ''}Abono pendiente de confirmación: {monto_display} ({forma_pago_display}) - Venta #{abono.venta.pk} - Cliente: {abono.venta.cliente.nombre_completo_display}"
         
         for contador in contadores:
-            # Eliminar notificaciones previas del mismo abono para evitar duplicados
             Notificacion.objects.filter(
                 usuario=contador,
                 venta=abono.venta,
@@ -11607,9 +11608,8 @@ class SubirComprobanteAbonoView(LoginRequiredMixin, View):
                 confirmado=False
             )
         
-        # Crear notificaciones para JEFE (información)
         jefes = User.objects.filter(perfil__rol='JEFE')
-        mensaje_jefe = f"Abono pendiente de confirmación: ${abono.monto:,.2f} ({forma_pago_display}) - Venta #{abono.venta.pk} - Cliente: {abono.venta.cliente.nombre_completo_display}"
+        mensaje_jefe = f"{'⚠️ DÓLARES - ' if es_usd else ''}Abono pendiente de confirmación: {monto_display} ({forma_pago_display}) - Venta #{abono.venta.pk} - Cliente: {abono.venta.cliente.nombre_completo_display}"
         for jefe in jefes:
             # Eliminar notificaciones previas del mismo abono
             Notificacion.objects.filter(
@@ -11709,7 +11709,7 @@ class SubirComprobanteAperturaView(LoginRequiredMixin, View):
             monto_display = f"USD ${venta.cantidad_apertura_usd:,.2f}"
         else:
             monto_display = f"${venta.cantidad_apertura:,.2f}"
-        mensaje_contador = f"Pago de apertura pendiente de confirmación: {monto_display} ({modo_pago_display}) - Venta #{venta.pk} - Cliente: {venta.cliente.nombre_completo_display}"
+        mensaje_contador = f"{'⚠️ DÓLARES - ' if venta.tipo_viaje == 'INT' else ''}Pago de apertura pendiente de confirmación: {monto_display} ({modo_pago_display}) - Venta #{venta.pk} - Cliente: {venta.cliente.nombre_completo_display}"
         
         for contador in contadores:
             # Eliminar notificaciones previas de apertura para esta venta
@@ -11731,7 +11731,7 @@ class SubirComprobanteAperturaView(LoginRequiredMixin, View):
         
         # Crear notificaciones para JEFE
         jefes = User.objects.filter(perfil__rol='JEFE')
-        mensaje_jefe = f"Pago de apertura pendiente de confirmación: ${venta.cantidad_apertura:,.2f} ({modo_pago_display}) - Venta #{venta.pk}"
+        mensaje_jefe = f"{'⚠️ DÓLARES - ' if venta.tipo_viaje == 'INT' else ''}Pago de apertura pendiente de confirmación: {monto_display} ({modo_pago_display}) - Venta #{venta.pk}"
         for jefe in jefes:
             # Eliminar notificaciones previas
             Notificacion.objects.filter(
@@ -13353,18 +13353,17 @@ class AprobarAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View):
                     Notificacion.objects.create(
                         usuario=abono.solicitud_por,
                         tipo='ABONO_PROVEEDOR_APROBADO',
-                        mensaje=f"Abono a {abono.proveedor} por ${abono.monto:,.2f} MXN aprobado (Venta #{abono.venta.folio or abono.venta.pk})",
+                        mensaje=f"Abono a {abono.proveedor} por {'USD ' if abono.venta.tipo_viaje == 'INT' else ''}${abono.monto:,.2f}{' MXN' if abono.venta.tipo_viaje != 'INT' else ''} aprobado (Venta #{abono.venta.folio or abono.venta.pk})",
                         venta=abono.venta,
                         abono_proveedor=abono
                     )
                 
-                # Notificar a contadores que hay un abono aprobado pendiente de confirmar
                 contadores = User.objects.filter(perfil__rol='CONTADOR')
                 for contador in contadores:
                     Notificacion.objects.create(
                         usuario=contador,
                         tipo='ABONO_PROVEEDOR_APROBADO',
-                        mensaje=f"Abono a {abono.proveedor} por ${abono.monto:,.2f} MXN aprobado, pendiente de confirmar (Venta #{abono.venta.folio or abono.venta.pk})",
+                        mensaje=f"Abono a {abono.proveedor} por {'USD ' if abono.venta.tipo_viaje == 'INT' else ''}${abono.monto:,.2f}{' MXN' if abono.venta.tipo_viaje != 'INT' else ''} aprobado, pendiente de confirmar (Venta #{abono.venta.folio or abono.venta.pk})",
                         venta=abono.venta,
                         abono_proveedor=abono
                     )
@@ -13415,7 +13414,7 @@ class ConfirmarAbonoProveedorView(LoginRequiredMixin, UserPassesTestMixin, View)
                             Notificacion.objects.create(
                                 usuario=abono.solicitud_por,
                                 tipo='ABONO_PROVEEDOR_COMPLETADO',
-                                mensaje=f"Abono a {abono.proveedor} por ${abono.monto:,.2f} MXN completado (Venta #{abono.venta.folio or abono.venta.pk})",
+                                mensaje=f"Abono a {abono.proveedor} por {'USD ' if abono.venta.tipo_viaje == 'INT' else ''}${abono.monto:,.2f}{' MXN' if abono.venta.tipo_viaje != 'INT' else ''} completado (Venta #{abono.venta.folio or abono.venta.pk})",
                                 venta=abono.venta,
                                 abono_proveedor=abono
                             )

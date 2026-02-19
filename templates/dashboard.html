@@ -451,18 +451,21 @@
             <div class="card-body p-0">
                 <div class="list-group list-group-flush">
                     {% for abono in abonos_pendientes %}
-                    <div class="list-group-item border-0 border-bottom py-3 px-4 abono-pendiente-item" data-abono-id="{{ abono.pk }}">
+                    <div class="list-group-item border-0 border-bottom py-3 px-4 abono-pendiente-item {% if abono.venta.tipo_viaje == 'INT' %}border-start border-4 border-danger bg-danger bg-opacity-10{% endif %}" data-abono-id="{{ abono.pk }}">
                         <div class="d-flex justify-content-between align-items-start">
                             <div class="flex-grow-1">
                                 <div class="d-flex align-items-center mb-2">
                                     <i class="fas fa-clock text-warning me-2"></i>
                                     <span class="badge bg-warning text-dark me-2">Pendiente</span>
+                                    {% if abono.venta.tipo_viaje == 'INT' %}
+                                        <span class="badge bg-danger me-2"><i class="fas fa-dollar-sign me-1"></i>USD - DÓLARES</span>
+                                    {% endif %}
                                     <small class="text-muted">{{ abono.fecha_pago|date:"d/m/Y H:i" }}</small>
                                 </div>
                                 <p class="mb-1">
                                     <strong>Monto:</strong>
                                     {% if abono.venta.tipo_viaje == 'INT' and abono.monto_usd_para_display %}
-                                        USD ${{ abono.monto_usd_para_display|floatformat:2|intcomma }}{% if abono.tipo_cambio_para_display or abono.venta.tipo_cambio %} <small class="text-muted">(TC: ${{ abono.tipo_cambio_para_display|default:abono.venta.tipo_cambio|floatformat:4 }} MXN/USD)</small>{% endif %}
+                                        <span class="text-danger fw-bold">USD ${{ abono.monto_usd_para_display|floatformat:2|intcomma }}</span>{% if abono.tipo_cambio_para_display or abono.venta.tipo_cambio %} <small class="text-muted">(TC: ${{ abono.tipo_cambio_para_display|default:abono.venta.tipo_cambio|floatformat:4 }} MXN/USD)</small>{% endif %}
                                     {% else %}
                                         ${{ abono.monto|floatformat:2|intcomma }}
                                     {% endif %}
