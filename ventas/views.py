@@ -3,6 +3,7 @@ from django.views.generic import (
     ListView, DetailView, CreateView, UpdateView, View, DeleteView, TemplateView
 )
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User 
 from django.template.loader import render_to_string
 from django.urls import reverse_lazy, reverse
@@ -413,6 +414,24 @@ class DashboardView(LoginRequiredMixin, ListView):
             context['ventas_filtradas'] = []
 
         return context
+
+
+@login_required
+def pagos_pendientes_count(request):
+    """Endpoint ligero para polling: devuelve la cantidad de pagos pendientes del contador."""
+    rol = perm.get_user_role(request.user, request)
+    if rol != 'CONTADOR':
+        return JsonResponse({'count': 0})
+    count = AbonoPago.objects.filter(
+        forma_pago__in=['TRN', 'TAR', 'DEP'],
+        confirmado=False,
+        comprobante_subido=True
+    ).count()
+    count += VentaViaje.objects.filter(
+        estado_confirmacion='EN_CONFIRMACION'
+    ).count()
+    return JsonResponse({'count': count})
+
 
 # ------------------- 2. LISTADO DE VENTAS - SOLUCIÓN AL ERROR DE ANOTACIÓN -------------------
 

@@ -1238,6 +1238,91 @@
         }); // Cierre del $(document).ready
     } // Cierre del if (tienePermisoNotificaciones)
 
-
 </script>
+
+{% if user_rol == 'CONTADOR' %}
+<script>
+(function() {
+    var INTERVAL_NORMAL = 60000;
+    var INTERVAL_IDLE = 180000;
+    var IDLE_THRESHOLD = 1800000;
+    var lastKnownCount = null;
+    var lastActivity = Date.now();
+    var pollTimer = null;
+
+    function playNotificationSound() {
+        try {
+            var ctx = new (window.AudioContext || window.webkitAudioContext)();
+            var osc = ctx.createOscillator();
+            var gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.value = 880;
+            osc.type = 'sine';
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.5);
+            setTimeout(function() {
+                var osc2 = ctx.createOscillator();
+                var gain2 = ctx.createGain();
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                osc2.frequency.value = 1100;
+                osc2.type = 'sine';
+                gain2.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+                osc2.start(ctx.currentTime);
+                osc2.stop(ctx.currentTime + 0.6);
+            }, 200);
+        } catch(e) {}
+    }
+
+    function checkPendientes() {
+        fetch('{% url "pagos_pendientes_count" %}')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var count = data.count || 0;
+                if (lastKnownCount !== null && count > lastKnownCount) {
+                    playNotificationSound();
+                    if (Notification.permission === 'granted') {
+                        var diff = count - lastKnownCount;
+                        new Notification('Movums - Pagos por confirmar', {
+                            body: diff + ' nuevo(s) pago(s) pendiente(s) de confirmación',
+                            icon: '/static/images/logo.png'
+                        });
+                    }
+                }
+                lastKnownCount = count;
+                scheduleNext();
+            })
+            .catch(function() { scheduleNext(); });
+    }
+
+    function scheduleNext() {
+        var idle = (Date.now() - lastActivity) > IDLE_THRESHOLD;
+        var interval = idle ? INTERVAL_IDLE : INTERVAL_NORMAL;
+        pollTimer = setTimeout(checkPendientes, interval);
+    }
+
+    ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(function(evt) {
+        document.addEventListener(evt, function() {
+            var wasIdle = (Date.now() - lastActivity) > IDLE_THRESHOLD;
+            lastActivity = Date.now();
+            if (wasIdle && pollTimer) {
+                clearTimeout(pollTimer);
+                scheduleNext();
+            }
+        }, { passive: true });
+    });
+
+    if (Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+
+    checkPendientes();
+})();
+</script>
+{% endif %}
+
 {% endblock %}

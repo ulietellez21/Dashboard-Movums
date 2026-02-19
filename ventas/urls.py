@@ -76,13 +76,15 @@ from .views import (
     EliminarComprobanteAbonoProveedorView,
     CancelarAbonoProveedorView,
     ListaAbonosProveedorView,
+    pagos_pendientes_count,
 )
 
 # app_name = 'ventas' 
 
 urlpatterns = [
     # 1. Dashboard (General)
-    path('dashboard/', DashboardView.as_view(), name='dashboard'), 
+    path('dashboard/', DashboardView.as_view(), name='dashboard'),
+    path('api/pagos-pendientes-count/', pagos_pendientes_count, name='pagos_pendientes_count'),
     
     # 2. Reportes y Logística
     path('logistica-pendiente/', LogisticaPendienteView.as_view(), name='logistica_pendiente'), 
