@@ -11341,23 +11341,47 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
             )
         )
         
-        # OPTIMIZACIÓN N+1: Filtrar ventas pagadas usando anotación
+        # OPTIMIZACIÓN N+1: Filtrar ventas pagadas y calcular datos necesarios
         ventas_pagadas = []
+        ventas_detalle = []
+        total_ventas_pagadas = Decimal('0.00')
+        
         for venta in ventas_base:
             total_abonos = getattr(venta, 'total_abonos_confirmados', Decimal('0.00')) or Decimal('0.00')
             apertura = venta.cantidad_apertura or Decimal('0.00')
             total_pagado_calc = total_abonos + apertura
-            costo_total = (venta.costo_venta_final or Decimal('0.00')) + (venta.costo_modificacion or Decimal('0.00'))
-            if total_pagado_calc >= costo_total:
+            
+            # Calcular costo total (incluye modificaciones)
+            costo_venta = venta.costo_venta_final or Decimal('0.00')
+            costo_modificacion = venta.costo_modificacion or Decimal('0.00')
+            costo_total = costo_venta + costo_modificacion
+            
+            # Calcular base de comisión según tipo de venta
+            if getattr(venta, 'tipo_viaje', 'NAC') == 'INT':
+                # Ventas internacionales: convertir USD a MXN
+                total_usd = getattr(venta, 'costo_venta_final_usd', None) or getattr(venta, 'total_usd', None)
+                tc = getattr(venta, 'tipo_cambio', None)
+                if total_usd and tc and Decimal(str(tc)) > 0:
+                    base_comision = (Decimal(str(total_usd)) * Decimal(str(tc))).quantize(Decimal('0.01'))
+                else:
+                    base_comision = Decimal('0.00')
+            else:
+                # Ventas nacionales: usar costo_venta_final directamente
+                base_comision = costo_venta
+            
+            if total_pagado_calc >= costo_total and costo_total > 0:
                 ventas_pagadas.append(venta)
+                total_ventas_pagadas += base_comision
+                ventas_detalle.append({
+                    'venta': venta,
+                    'base_comision': base_comision,
+                    'total_pagado': total_pagado_calc,
+                    'costo_total': costo_total,
+                })
         
         # Calcular comisiones
         ejecutivo = getattr(vendedor, 'ejecutivo_asociado', None)
         tipo_vendedor = ejecutivo.tipo_vendedor if ejecutivo else 'MOSTRADOR'
-        
-        total_ventas_pagadas = sum(
-            venta.costo_venta_final for venta in ventas_pagadas
-        ) or Decimal('0.00')
         
         porcentaje_comision, comision_total = calcular_comision_por_tipo(
             total_ventas_pagadas, 
@@ -11457,23 +11481,60 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
         ws.row_dimensions[row].height = 22
         row += 1
 
-        for idx, venta in enumerate(ventas_pagadas):
-            comision_venta = venta.costo_venta_final * porcentaje_comision
+        # Variables para totales
+        total_ventas_sum = Decimal('0.00')
+        total_pagado_sum = Decimal('0.00')
+        total_comision_sum = Decimal('0.00')
+
+        for idx, detalle in enumerate(ventas_detalle):
+            venta = detalle['venta']
+            base_comision = detalle['base_comision']
+            total_pagado = detalle['total_pagado']
+            costo_total = detalle['costo_total']
+            
+            # Calcular comisión individual usando el porcentaje global
+            comision_venta = base_comision * porcentaje_comision
+            
+            # Acumular totales
+            total_ventas_sum += costo_total
+            total_pagado_sum += total_pagado
+            total_comision_sum += comision_venta
+            
             row_fill = row_fill_even if idx % 2 == 0 else row_fill_odd
             for c, val in enumerate([
                 venta.pk,
-                str(venta.cliente),
-                float(venta.costo_venta_final),
-                float(venta.total_pagado),
+                str(venta.cliente) if venta.cliente else '',
+                float(costo_total),
+                float(total_pagado),
                 float(comision_venta),
             ], 1):
-                cell = ws.cell(row=row, column=c, value=val)
+                cell = ws.cell(row=row, column=c, value=val if val is not None else 0.0)
                 cell.fill = row_fill
                 cell.border = border
                 cell.alignment = align_center if c >= 3 else align_left
                 if c >= 3:
                     cell.number_format = '#,##0.00'
             row += 1
+        
+        # Fila de totales
+        if ventas_detalle:
+            row += 1
+            totales_fill_bold = PatternFill(start_color="D4C5F9", end_color="D4C5F9", fill_type="solid")
+            ws.cell(row=row, column=1, value="TOTALES").fill = totales_fill_bold
+            ws.cell(row=row, column=1).font = Font(bold=True)
+            ws.cell(row=row, column=1).border = border_medium
+            ws.cell(row=row, column=1).alignment = align_left
+            
+            ws.cell(row=row, column=2, value="").fill = totales_fill_bold
+            ws.cell(row=row, column=2).border = border_medium
+            
+            for col, total_val in enumerate([total_ventas_sum, total_pagado_sum, total_comision_sum], 3):
+                cell = ws.cell(row=row, column=col, value=float(total_val))
+                cell.number_format = '#,##0.00'
+                cell.fill = totales_fill_bold
+                cell.font = Font(bold=True)
+                cell.border = border_medium
+                cell.alignment = align_center
 
         # Anchos de columna fijos (evita MergedCell)
         ws.column_dimensions['A'].width = 12
