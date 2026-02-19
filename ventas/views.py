@@ -97,6 +97,35 @@ def get_user_role(user, request=None):
     return perm.get_user_role(user, request)
 
 
+def _format_edades_menores_contrato(edades_menores):
+    """
+    Formatea el campo edades_menores para contratos: "Nombre - X años, ...".
+    Acepta "Juan - 5; Pedro - 7" o "5, 8, 12" (solo números) y devuelve string o '' si vacío.
+    """
+    if not edades_menores or not str(edades_menores).strip():
+        return ''
+    parts = re.split(r'[,;]', str(edades_menores))
+    result = []
+    for p in parts:
+        p = p.strip()
+        if not p:
+            continue
+        if '-' in p:
+            name_num = p.split('-', 1)
+            name = name_num[0].strip()
+            num = name_num[1].strip()
+            if num.isdigit():
+                result.append(f"{name} - {num} años" if name else f" - {num} años")
+            else:
+                result.append(p)
+        else:
+            if p.isdigit():
+                result.append(f" - {p} años")
+            else:
+                result.append(p)
+    return ', '.join(result)
+
+
 def _get_logistica_servicio_formset(venta, request_POST=None, queryset=None, prefix='servicios'):
     """Formset de servicios logísticos. Solo filas existentes (extra=0). Nuevas filas se añaden con POST 'añadir_servicio_logistica'."""
     FormSetClass = modelformset_factory(
@@ -3806,6 +3835,17 @@ class ContratoVentaPDFView(LoginRequiredMixin, DetailView):
             set_run_font(run2, size=12)
             run2.font.underline = True
         
+        # Menores de edad (debajo de acompañantes)
+        menores_formatted = _format_edades_menores_contrato(getattr(venta, 'edades_menores', None) or '')
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(6)
+        run1 = p.add_run('Menores de edad: ')
+        set_run_font(run1, size=12, bold=True)
+        if menores_formatted:
+            run2 = p.add_run(menores_formatted)
+            set_run_font(run2, size=12)
+        # Si está vacío se deja en blanco (sin subrayar)
+        
         # Sección 2: DATOS DEL SERVICIO TURÍSTICO CONTRATADO
         add_paragraph(doc, '2. DATOS DEL SERVICIO TURÍSTICO CONTRATADO', size=14, bold=True, color=MOVUMS_BLUE, space_before=15, space_after=8)
         
@@ -6028,6 +6068,13 @@ class ContratoPaqueteInternacionalPDFView(LoginRequiredMixin, DetailView):
         p = doc.add_paragraph()
         _run(p, '• Nombre(s) y edad(es): ', bold=True)
         _run(p, pasajeros_texto or '_______________')
+
+        p = doc.add_paragraph()
+        _run(p, 'Menores de edad: ', bold=True)
+        menores_formatted = _format_edades_menores_contrato(getattr(venta, 'edades_menores', None) or '')
+        if menores_formatted:
+            _run(p, menores_formatted)
+        # Si está vacío se deja en blanco
 
         # --- Datos del servicio turístico contratado ---
         doc.add_paragraph()
