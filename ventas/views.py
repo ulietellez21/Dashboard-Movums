@@ -100,11 +100,12 @@ def get_user_role(user, request=None):
 def _format_edades_menores_contrato(edades_menores):
     """
     Formatea el campo edades_menores para contratos: "Nombre - X años, ...".
-    Acepta "Juan - 5; Pedro - 7" o "5, 8, 12" (solo números) y devuelve string o '' si vacío.
+    Acepta entradas con coma, punto y coma o salto de línea; la salida siempre se separa por coma (como acompañantes).
     """
     if not edades_menores or not str(edades_menores).strip():
         return ''
-    parts = re.split(r'[,;]', str(edades_menores))
+    # Separar por coma, punto y coma o salto de línea para que la salida sea siempre "..., ..., ..."
+    parts = re.split(r'[\n\r,;]+', str(edades_menores))
     result = []
     for p in parts:
         p = p.strip()
@@ -5266,6 +5267,17 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         set_run_font(run_acompanantes_label, size=10, bold=False)  # Label sin negritas
         run_acompanantes_val = p_acompanantes.add_run(acompanantes_texto)
         set_run_font(run_acompanantes_val, size=10, bold=True)  # Valor en negritas
+        
+        # Menores de edad (debajo de acompañantes)
+        menores_formatted = _format_edades_menores_contrato(getattr(venta, 'edades_menores', None) or '')
+        p_menores = doc.add_paragraph()
+        p_menores.paragraph_format.space_after = Pt(2)
+        run_menores_label = p_menores.add_run('Menores de edad: ')
+        set_run_font(run_menores_label, size=10, bold=False)
+        if menores_formatted:
+            run_menores_val = p_menores.add_run(menores_formatted)
+            set_run_font(run_menores_val, size=10, bold=True)
+        # Si está vacío se deja en blanco
         
         # Hotel
         p_hotel = doc.add_paragraph()
