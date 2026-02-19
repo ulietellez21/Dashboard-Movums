@@ -1566,9 +1566,8 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     template_name = 'ventas/venta_form.html'
     
     def test_func(self):
-        """Solo JEFE y VENDEDOR pueden crear ventas. CONTADOR solo lectura."""
-        user_rol = perm.get_user_role(self.request.user, self.request)
-        return perm.has_full_access(self.request.user, self.request) or perm.is_vendedor(self.request.user, self.request)
+        """Todos los roles autenticados pueden crear ventas (incluye convertir cotizaciones)."""
+        return self.request.user.is_authenticated
     
     def handle_no_permission(self):
         messages.error(self.request, "No tienes permiso para crear ventas. Solo puedes visualizarlas.")
