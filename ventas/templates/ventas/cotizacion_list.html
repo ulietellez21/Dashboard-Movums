@@ -61,6 +61,97 @@
     </div>
 </div>
 
+<!-- Búsqueda Avanzada (mismos campos que ventas) -->
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-header bg-light py-2">
+        <div class="d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold">
+                <i class="fas fa-search me-2"></i> Búsqueda Avanzada
+            </h6>
+            {% if busqueda_folio or busqueda_cliente or busqueda_servicio or fecha_filtro or fecha_desde %}
+            <a href="{% url 'cotizaciones_lista' %}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-times"></i> Limpiar Filtros
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body py-3">
+        <form method="get" action="{% url 'cotizaciones_lista' %}" class="row g-2 mb-2">
+            <div class="col-md-2">
+                <label for="busqueda_folio" class="form-label small mb-1">
+                    <strong><i class="fas fa-hashtag me-1"></i> Folio / ID</strong>
+                </label>
+                <input type="text" class="form-control form-control-sm" id="busqueda_folio" name="busqueda_folio"
+                       value="{{ busqueda_folio|default:'' }}"
+                       placeholder="Ej: COT-20251217-01">
+            </div>
+            <div class="col-md-3">
+                <label for="busqueda_cliente" class="form-label small mb-1">
+                    <strong><i class="fas fa-user me-1"></i> Nombre de Cliente</strong>
+                </label>
+                <input type="text" class="form-control form-control-sm" id="busqueda_cliente" name="busqueda_cliente"
+                       value="{{ busqueda_cliente|default:'' }}"
+                       placeholder="Nombre, apellido o empresa">
+            </div>
+            <div class="col-md-2">
+                <label for="busqueda_servicio" class="form-label small mb-1">
+                    <strong><i class="fas fa-concierge-bell me-1"></i> Servicio</strong>
+                </label>
+                <select class="form-select form-select-sm" id="busqueda_servicio" name="busqueda_servicio">
+                    <option value="">Todos</option>
+                    <option value="vuelos" {% if busqueda_servicio == 'vuelos' %}selected{% endif %}>Vuelos</option>
+                    <option value="hospedaje" {% if busqueda_servicio == 'hospedaje' %}selected{% endif %}>Hospedaje</option>
+                    <option value="paquete" {% if busqueda_servicio == 'paquete' %}selected{% endif %}>Paquete</option>
+                    <option value="tours" {% if busqueda_servicio == 'tours' %}selected{% endif %}>Tours</option>
+                    <option value="traslados" {% if busqueda_servicio == 'traslados' %}selected{% endif %}>Traslados</option>
+                    <option value="renta_autos" {% if busqueda_servicio == 'renta_autos' %}selected{% endif %}>Renta de Autos</option>
+                    <option value="generica" {% if busqueda_servicio == 'generica' %}selected{% endif %}>Genérica</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="fecha_filtro" class="form-label small mb-1">
+                    <strong><i class="fas fa-calendar me-1"></i> Fecha de Viaje</strong>
+                    <small class="text-muted">(Shift para rango)</small>
+                </label>
+                <input type="text" class="form-control form-control-sm" id="fecha_filtro" name="fecha_filtro"
+                       value="{% if fecha_filtro %}{{ fecha_filtro }}{% elif fecha_desde and fecha_hasta %}{{ fecha_desde }} a {{ fecha_hasta }}{% endif %}"
+                       placeholder="Selecciona fecha o rango" readonly>
+                <input type="hidden" id="fecha_desde" name="fecha_desde" value="{{ fecha_desde }}">
+                <input type="hidden" id="fecha_hasta" name="fecha_hasta" value="{{ fecha_hasta }}">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary btn-sm w-100">
+                    <i class="fas fa-search me-1"></i> Buscar
+                </button>
+            </div>
+        </form>
+        {% if fecha_desde and fecha_hasta %}
+        <div class="alert alert-info py-2 mb-0 mt-2">
+            <small><i class="fas fa-info-circle me-1"></i> Mostrando cotizaciones desde <strong>{{ fecha_desde }}</strong> hasta <strong>{{ fecha_hasta }}</strong></small>
+        </div>
+        {% elif fecha_filtro %}
+        <div class="alert alert-info py-2 mb-0 mt-2">
+            <small><i class="fas fa-info-circle me-1"></i> Mostrando cotizaciones del <strong>{{ fecha_filtro }}</strong></small>
+        </div>
+        {% endif %}
+        {% if busqueda_folio %}
+        <div class="alert alert-info py-2 mb-0 mt-2">
+            <small><i class="fas fa-info-circle me-1"></i> Buscando folio/ID: <strong>{{ busqueda_folio }}</strong></small>
+        </div>
+        {% endif %}
+        {% if busqueda_cliente %}
+        <div class="alert alert-info py-2 mb-0 mt-2">
+            <small><i class="fas fa-info-circle me-1"></i> Buscando cliente: <strong>{{ busqueda_cliente }}</strong></small>
+        </div>
+        {% endif %}
+        {% if busqueda_servicio %}
+        <div class="alert alert-info py-2 mb-0 mt-2">
+            <small><i class="fas fa-info-circle me-1"></i> Filtrando por servicio: <strong>{{ busqueda_servicio }}</strong></small>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
 <div class="card shadow-sm border-0">
     <div class="card-body">
         <div class="table-responsive">
@@ -153,19 +244,19 @@
         <nav aria-label="Paginación Cotizaciones" class="mt-2">
             <ul class="pagination pagination-sm justify-content-center flex-wrap">
                 {% if page_obj.has_previous %}
-                <li class="page-item"><a class="page-link" href="?page=1{% if busqueda_cliente %}&cliente={{ busqueda_cliente }}{% endif %}{% if busqueda_estado %}&estado={{ busqueda_estado }}{% endif %}">&laquo;&laquo;</a></li>
-                <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if busqueda_cliente %}&cliente={{ busqueda_cliente }}{% endif %}{% if busqueda_estado %}&estado={{ busqueda_estado }}{% endif %}">&laquo;</a></li>
+                <li class="page-item"><a class="page-link" href="?page=1{% if busqueda_folio %}&busqueda_folio={{ busqueda_folio }}{% endif %}{% if busqueda_cliente %}&busqueda_cliente={{ busqueda_cliente }}{% endif %}{% if busqueda_servicio %}&busqueda_servicio={{ busqueda_servicio }}{% endif %}{% if fecha_filtro %}&fecha_filtro={{ fecha_filtro }}{% endif %}{% if fecha_desde %}&fecha_desde={{ fecha_desde }}{% endif %}{% if fecha_hasta %}&fecha_hasta={{ fecha_hasta }}{% endif %}">&laquo;&laquo;</a></li>
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if busqueda_folio %}&busqueda_folio={{ busqueda_folio }}{% endif %}{% if busqueda_cliente %}&busqueda_cliente={{ busqueda_cliente }}{% endif %}{% if busqueda_servicio %}&busqueda_servicio={{ busqueda_servicio }}{% endif %}{% if fecha_filtro %}&fecha_filtro={{ fecha_filtro }}{% endif %}{% if fecha_desde %}&fecha_desde={{ fecha_desde }}{% endif %}{% if fecha_hasta %}&fecha_hasta={{ fecha_hasta }}{% endif %}">&laquo;</a></li>
                 {% endif %}
                 {% for num in page_obj.paginator.page_range %}
                 {% if num == page_obj.number %}
                 <li class="page-item active" aria-current="page"><span class="page-link">{{ num }}</span></li>
                 {% else %}
-                <li class="page-item"><a class="page-link" href="?page={{ num }}{% if busqueda_cliente %}&cliente={{ busqueda_cliente }}{% endif %}{% if busqueda_estado %}&estado={{ busqueda_estado }}{% endif %}">{{ num }}</a></li>
+                <li class="page-item"><a class="page-link" href="?page={{ num }}{% if busqueda_folio %}&busqueda_folio={{ busqueda_folio }}{% endif %}{% if busqueda_cliente %}&busqueda_cliente={{ busqueda_cliente }}{% endif %}{% if busqueda_servicio %}&busqueda_servicio={{ busqueda_servicio }}{% endif %}{% if fecha_filtro %}&fecha_filtro={{ fecha_filtro }}{% endif %}{% if fecha_desde %}&fecha_desde={{ fecha_desde }}{% endif %}{% if fecha_hasta %}&fecha_hasta={{ fecha_hasta }}{% endif %}">{{ num }}</a></li>
                 {% endif %}
                 {% endfor %}
                 {% if page_obj.has_next %}
-                <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}{% if busqueda_cliente %}&cliente={{ busqueda_cliente }}{% endif %}{% if busqueda_estado %}&estado={{ busqueda_estado }}{% endif %}">&raquo;</a></li>
-                <li class="page-item"><a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if busqueda_cliente %}&cliente={{ busqueda_cliente }}{% endif %}{% if busqueda_estado %}&estado={{ busqueda_estado }}{% endif %}">&raquo;&raquo;</a></li>
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}{% if busqueda_folio %}&busqueda_folio={{ busqueda_folio }}{% endif %}{% if busqueda_cliente %}&busqueda_cliente={{ busqueda_cliente }}{% endif %}{% if busqueda_servicio %}&busqueda_servicio={{ busqueda_servicio }}{% endif %}{% if fecha_filtro %}&fecha_filtro={{ fecha_filtro }}{% endif %}{% if fecha_desde %}&fecha_desde={{ fecha_desde }}{% endif %}{% if fecha_hasta %}&fecha_hasta={{ fecha_hasta }}{% endif %}">&raquo;</a></li>
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if busqueda_folio %}&busqueda_folio={{ busqueda_folio }}{% endif %}{% if busqueda_cliente %}&busqueda_cliente={{ busqueda_cliente }}{% endif %}{% if busqueda_servicio %}&busqueda_servicio={{ busqueda_servicio }}{% endif %}{% if fecha_filtro %}&fecha_filtro={{ fecha_filtro }}{% endif %}{% if fecha_desde %}&fecha_desde={{ fecha_desde }}{% endif %}{% if fecha_hasta %}&fecha_hasta={{ fecha_hasta }}{% endif %}">&raquo;&raquo;</a></li>
                 {% endif %}
             </ul>
             <p class="text-center small text-muted mb-0 mt-1">Pág. {{ page_obj.number }} de {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} cotizaciones)</p>
@@ -175,3 +266,50 @@
 </div>
 {% endblock %}
 
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const fechaInput = document.getElementById('fecha_filtro');
+    const fechaDesdeInput = document.getElementById('fecha_desde');
+    const fechaHastaInput = document.getElementById('fecha_hasta');
+    if (fechaInput) {
+        var fp = flatpickr(fechaInput, {
+            mode: "range",
+            dateFormat: "Y-m-d",
+            locale: "es",
+            altInput: true,
+            altFormat: "d/m/Y",
+            allowInput: false,
+            onChange: function(selectedDates, dateStr, instance) {
+                if (selectedDates.length === 1) {
+                    fechaDesdeInput.value = selectedDates[0].toISOString().split('T')[0];
+                    fechaHastaInput.value = '';
+                } else if (selectedDates.length === 2) {
+                    fechaDesdeInput.value = selectedDates[0].toISOString().split('T')[0];
+                    fechaHastaInput.value = selectedDates[1].toISOString().split('T')[0];
+                } else {
+                    fechaDesdeInput.value = '';
+                    fechaHastaInput.value = '';
+                }
+            }
+        });
+        var fd = "{{ fecha_desde|default:'' }}";
+        var fh = "{{ fecha_hasta|default:'' }}";
+        var ff = "{{ fecha_filtro|default:'' }}";
+        if (fd && fh) {
+            fechaDesdeInput.value = fd;
+            fechaHastaInput.value = fh;
+            fp.setDate([fd, fh]);
+        } else if (ff) {
+            fp.setDate(ff);
+        }
+    }
+});
+</script>
+{% endblock %}

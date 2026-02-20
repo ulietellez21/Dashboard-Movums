@@ -686,12 +686,25 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
         # 2. Aplicar filtro por folio/ID
         busqueda_folio = self.request.GET.get('busqueda_folio', '').strip()
         if busqueda_folio:
-            # Buscar por folio o por ID numérico
             if busqueda_folio.isdigit():
                 base_query = base_query.filter(Q(folio__icontains=busqueda_folio) | Q(pk=int(busqueda_folio)))
             else:
                 base_query = base_query.filter(folio__icontains=busqueda_folio)
-        
+
+        # 2b. Aplicar filtro por nombre de cliente (nombre, apellido o nombre_empresa; al menos una palabra coincide)
+        busqueda_cliente = self.request.GET.get('busqueda_cliente', '').strip()
+        if busqueda_cliente:
+            palabras = [p.strip() for p in busqueda_cliente.split() if p.strip()]
+            if palabras:
+                q_cliente = Q()
+                for pal in palabras:
+                    q_cliente |= (
+                        Q(cliente__nombre__icontains=pal) |
+                        Q(cliente__apellido__icontains=pal) |
+                        Q(cliente__nombre_empresa__icontains=pal)
+                    )
+                base_query = base_query.filter(q_cliente)
+
         # 3. Aplicar filtro por servicio
         busqueda_servicio = self.request.GET.get('busqueda_servicio', '').strip()
         if busqueda_servicio:
@@ -818,6 +831,7 @@ class VentaViajeListView(LoginRequiredMixin, ListView):
         context['fecha_desde'] = self.request.GET.get('fecha_desde', '')
         context['fecha_hasta'] = self.request.GET.get('fecha_hasta', '')
         context['busqueda_folio'] = self.request.GET.get('busqueda_folio', '')
+        context['busqueda_cliente'] = self.request.GET.get('busqueda_cliente', '')
         context['busqueda_servicio'] = self.request.GET.get('busqueda_servicio', '')
         
         # Para CONTADOR: agregar ventas con pagos pendientes de confirmación
@@ -12742,12 +12756,47 @@ class CotizacionListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         user = self.request.user
         qs = perm.get_cotizaciones_queryset_base(Cotizacion, user, self.request).select_related('cliente', 'vendedor')
-        cliente_id = self.request.GET.get('cliente')
-        estado = self.request.GET.get('estado')
-        if cliente_id:
-            qs = qs.filter(cliente_id=cliente_id)
-        if estado:
-            qs = qs.filter(estado=estado)
+        # Filtros (mismos campos que ventas)
+        busqueda_folio = self.request.GET.get('busqueda_folio', '').strip()
+        if busqueda_folio:
+            if busqueda_folio.isdigit():
+                qs = qs.filter(Q(folio__icontains=busqueda_folio) | Q(pk=int(busqueda_folio)))
+            else:
+                qs = qs.filter(folio__icontains=busqueda_folio)
+        busqueda_cliente = self.request.GET.get('busqueda_cliente', '').strip()
+        if busqueda_cliente:
+            palabras = [p.strip() for p in busqueda_cliente.split() if p.strip()]
+            if palabras:
+                q_cliente = Q()
+                for pal in palabras:
+                    q_cliente |= (
+                        Q(cliente__nombre__icontains=pal) |
+                        Q(cliente__apellido__icontains=pal) |
+                        Q(cliente__nombre_empresa__icontains=pal)
+                    )
+                qs = qs.filter(q_cliente)
+        busqueda_servicio = self.request.GET.get('busqueda_servicio', '').strip()
+        if busqueda_servicio:
+            qs = qs.filter(propuestas__tipo=busqueda_servicio)
+        fecha_filtro = self.request.GET.get('fecha_filtro')
+        fecha_desde = self.request.GET.get('fecha_desde')
+        fecha_hasta = self.request.GET.get('fecha_hasta')
+        if fecha_desde and fecha_hasta:
+            try:
+                from datetime import datetime
+                fd = datetime.strptime(fecha_desde, '%Y-%m-%d').date()
+                fh = datetime.strptime(fecha_hasta, '%Y-%m-%d').date()
+                if fd <= fh:
+                    qs = qs.filter(fecha_inicio__range=[fd, fh])
+            except ValueError:
+                pass
+        elif fecha_filtro:
+            try:
+                from datetime import datetime
+                f_obj = datetime.strptime(fecha_filtro, '%Y-%m-%d').date()
+                qs = qs.filter(fecha_inicio=f_obj)
+            except ValueError:
+                pass
         return qs.order_by('-creada_en')
 
     def get_context_data(self, **kwargs):
@@ -12769,8 +12818,12 @@ class CotizacionListView(LoginRequiredMixin, ListView):
 
         context['stats_propias'] = rangos(qs_base)
         context['stats_globales'] = rangos(qs_base)
-        context['busqueda_cliente'] = self.request.GET.get('cliente', '')
-        context['busqueda_estado'] = self.request.GET.get('estado', '')
+        context['busqueda_folio'] = self.request.GET.get('busqueda_folio', '')
+        context['busqueda_cliente'] = self.request.GET.get('busqueda_cliente', '')
+        context['busqueda_servicio'] = self.request.GET.get('busqueda_servicio', '')
+        context['fecha_filtro'] = self.request.GET.get('fecha_filtro', '')
+        context['fecha_desde'] = self.request.GET.get('fecha_desde', '')
+        context['fecha_hasta'] = self.request.GET.get('fecha_hasta', '')
         return context
 
 
