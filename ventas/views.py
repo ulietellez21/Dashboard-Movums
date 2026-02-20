@@ -6949,14 +6949,18 @@ class ExportarComisionesMensualesExcelView(LoginRequiredMixin, View):
         ws[f'B{row}'].font = Font(bold=True, size=12)
         ws[f'B{row}'].fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
         
-        # Detalle por venta
+        # Detalle por venta (con columnas extra para desglose de ventas internacionales)
         row += 3
         ws[f'A{row}'] = "DETALLE POR VENTA"
         ws[f'A{row}'].font = Font(bold=True, size=12)
-        ws.merge_cells(f'A{row}:H{row}')
+        ws.merge_cells(f'A{row}:N{row}')
         
         row += 1
-        headers = ['Venta #', 'Cliente', 'Tipo', 'Monto Base', 'Porcentaje', 'Comisión Calculada', 'Estado Pago', 'Comisión Pagada', 'Comisión Pendiente']
+        headers = [
+            'Venta #', 'Cliente', 'Tipo', 'Monto Base',
+            'Tarifa Base USD', 'Suplementos USD', 'Tours USD', 'Impuestos USD (excl.)',
+            'Porcentaje', 'Comisión Calculada', 'Estado Pago', 'Comisión Pagada', 'Comisión Pendiente'
+        ]
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=row, column=col, value=header)
             cell.fill = header_fill
@@ -6965,38 +6969,81 @@ class ExportarComisionesMensualesExcelView(LoginRequiredMixin, View):
             cell.border = border
         
         # Datos de ventas
+        es_internacional_key = 'INTERNACIONAL'
         for comision_venta in comisiones_ventas:
             row += 1
             venta = comision_venta.venta
-            
+            es_int = getattr(comision_venta, 'tipo_venta', None) == es_internacional_key
+            detalles = getattr(comision_venta, 'detalles', None) or {}
+
             ws.cell(row=row, column=1, value=venta.pk)
             ws.cell(row=row, column=2, value=venta.cliente.nombre_completo_display)
             ws.cell(row=row, column=3, value=comision_venta.get_tipo_venta_display())
-            ws.cell(row=row, column=4, value=float(comision_venta.monto_base_comision))
-            ws.cell(row=row, column=5, value=f"{comision_venta.porcentaje_aplicado:.2f}%")
-            ws.cell(row=row, column=6, value=float(comision_venta.comision_calculada))
-            ws.cell(row=row, column=7, value=comision_venta.get_estado_pago_venta_display())
-            ws.cell(row=row, column=8, value=float(comision_venta.comision_pagada))
-            ws.cell(row=row, column=9, value=float(comision_venta.comision_pendiente))
-            
-            # Aplicar formato
-            for col in range(1, 10):
+
+            # Monto Base: para INT indicar USD; para MXN sin etiqueta
+            monto_base = float(comision_venta.monto_base_comision)
+            if es_int:
+                ws.cell(row=row, column=4, value=f"USD {monto_base:,.2f}")
+            else:
+                ws.cell(row=row, column=4, value=monto_base)
+
+            # Desglose solo para internacionales (tarifa base, suplementos, tours, impuestos excluidos)
+            if es_int and detalles:
+                for i, key in enumerate(['tarifa_base_usd', 'suplementos_usd', 'tours_usd', 'impuestos_usd'], start=5):
+                    val = detalles.get(key)
+                    if val is not None:
+                        try:
+                            ws.cell(row=row, column=i, value=float(val))
+                        except (TypeError, ValueError):
+                            ws.cell(row=row, column=i, value=val)
+                    else:
+                        ws.cell(row=row, column=i, value='')
+            else:
+                for col in range(5, 9):
+                    ws.cell(row=row, column=col, value='')
+
+            ws.cell(row=row, column=9, value=f"{comision_venta.porcentaje_aplicado:.2f}%")
+
+            # Comisión Calculada / Pagada / Pendiente: para INT indicar USD
+            com_calc = float(comision_venta.comision_calculada)
+            com_pag = float(comision_venta.comision_pagada)
+            com_pend = float(comision_venta.comision_pendiente)
+            if es_int:
+                ws.cell(row=row, column=10, value=f"USD {com_calc:,.2f}")
+                ws.cell(row=row, column=12, value=f"USD {com_pag:,.2f}")
+                ws.cell(row=row, column=13, value=f"USD {com_pend:,.2f}")
+            else:
+                ws.cell(row=row, column=10, value=com_calc)
+                ws.cell(row=row, column=12, value=com_pag)
+                ws.cell(row=row, column=13, value=com_pend)
+
+            ws.cell(row=row, column=11, value=comision_venta.get_estado_pago_venta_display())
+
+            # Aplicar formato y bordes
+            for col in range(1, 14):
                 cell = ws.cell(row=row, column=col)
                 cell.border = border
-                if col in [4, 6, 8, 9]:  # Columnas numéricas
-                    cell.number_format = '#,##0.00'
+                if col in [4, 5, 6, 7, 8, 10, 12, 13]:
                     cell.alignment = Alignment(horizontal='right')
-        
+                    # Solo formato numérico en celdas que son número (no texto "USD x.xx")
+                    if not (es_int and col in (4, 10, 12, 13)):
+                        cell.number_format = '#,##0.00'
+                    elif col in (5, 6, 7, 8) and es_int:
+                        cell.number_format = '#,##0.00'
         # Ajustar ancho de columnas
-        ws.column_dimensions['A'].width = 12
-        ws.column_dimensions['B'].width = 30
-        ws.column_dimensions['C'].width = 15
-        ws.column_dimensions['D'].width = 15
-        ws.column_dimensions['E'].width = 12
-        ws.column_dimensions['F'].width = 18
-        ws.column_dimensions['G'].width = 15
+        ws.column_dimensions['A'].width = 10
+        ws.column_dimensions['B'].width = 28
+        ws.column_dimensions['C'].width = 14
+        ws.column_dimensions['D'].width = 14
+        ws.column_dimensions['E'].width = 14
+        ws.column_dimensions['F'].width = 14
+        ws.column_dimensions['G'].width = 12
         ws.column_dimensions['H'].width = 18
-        ws.column_dimensions['I'].width = 18
+        ws.column_dimensions['I'].width = 10
+        ws.column_dimensions['J'].width = 18
+        ws.column_dimensions['K'].width = 14
+        ws.column_dimensions['L'].width = 16
+        ws.column_dimensions['M'].width = 16
         
         # Preparar respuesta
         nombre_vendedor_safe = (vendedor.get_full_name() or vendedor.username).replace(' ', '_')
