@@ -99,29 +99,42 @@ def get_user_role(user, request=None):
 
 def _format_edades_menores_contrato(edades_menores):
     """
-    Formatea el campo edades_menores para contratos: "Nombre - X años, ...".
-    Acepta entradas con coma, punto y coma o salto de línea; la salida siempre se separa por coma (como acompañantes).
+    Formatea el campo edades_menores para contratos: "NOMBRE APELLIDOS - X AÑOS, ...".
+    Elimina "MENOR 1", "MENOR 2", etc. y reordena a nombre - edad.
+    Acepta entradas con coma, punto y coma o salto de línea; la salida se separa por coma.
     """
     if not edades_menores or not str(edades_menores).strip():
         return ''
-    # Separar por coma, punto y coma o salto de línea para que la salida sea siempre "..., ..., ..."
     parts = re.split(r'[\n\r,;]+', str(edades_menores))
     result = []
+    # Patrón: "MENOR N - X AÑOS NOMBRE APELLIDOS" -> "NOMBRE APELLIDOS - X AÑOS"
+    patron_menor_num = re.compile(
+        r'^\s*MENOR\s+\d+\s*-\s*(\d+)\s*AÑOS?\s+(.+)$',
+        re.IGNORECASE
+    )
     for p in parts:
-        p = p.strip()
+        p = p.strip().rstrip(',')
         if not p:
             continue
+        m = patron_menor_num.match(p)
+        if m:
+            edad, nombre = m.group(1), m.group(2).strip()
+            result.append(f"{nombre} - {edad} AÑOS")
+            continue
+        # Formato ya "Nombre - X" o "Nombre - X años"
         if '-' in p:
             name_num = p.split('-', 1)
             name = name_num[0].strip()
             num = name_num[1].strip()
-            if num.isdigit():
-                result.append(f"{name} - {num} años" if name else f" - {num} años")
+            # Extraer solo dígitos de la edad si viene "12 años" o "12 AÑOS"
+            edad_num = re.sub(r'[^\d]', '', num)
+            if edad_num:
+                result.append(f"{name} - {edad_num} AÑOS" if name else f"{edad_num} AÑOS")
             else:
                 result.append(p)
         else:
             if p.isdigit():
-                result.append(f" - {p} años")
+                result.append(f"{p} AÑOS")
             else:
                 result.append(p)
     return ', '.join(result)
