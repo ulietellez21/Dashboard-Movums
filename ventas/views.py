@@ -3143,9 +3143,9 @@ class ExportarReporteFinancieroExcelView(LoginRequiredMixin, UserPassesTestMixin
             c.alignment = align_center
         ws_detalle_ventas.row_dimensions[header_row].height = 22
         
-        # Obtener todas las ventas con relaciones optimizadas
+        # Obtener todas las ventas con relaciones optimizadas (incl. empresa_asociada del cliente)
         ventas_todas = VentaViaje.objects.select_related(
-            'cliente', 'vendedor', 'vendedor__ejecutivo_asociado__oficina'
+            'cliente', 'cliente__empresa_asociada', 'vendedor', 'vendedor__ejecutivo_asociado__oficina'
         ).prefetch_related('servicios_logisticos').order_by('-fecha_inicio_viaje')
 
         row_detalle = 3
@@ -3211,10 +3211,10 @@ class ExportarReporteFinancieroExcelView(LoginRequiredMixin, UserPassesTestMixin
             # Fecha límite de pago
             fecha_limite = venta.fecha_vencimiento_pago.strftime('%d/%m/%Y') if venta.fecha_vencimiento_pago else ''
             
-            # Empresa: nombre_empresa si es tipo EMPRESA, si no "N/A"
-            empresa_nombre = 'N/A'
-            if venta.cliente and venta.cliente.tipo_cliente == 'EMPRESA':
-                empresa_nombre = venta.cliente.nombre_empresa or 'N/A'
+            # Empresa: empresa asociada del formulario de cliente (cliente.empresa_asociada)
+            empresa_nombre = ''
+            if venta.cliente and venta.cliente.empresa_asociada:
+                empresa_nombre = venta.cliente.empresa_asociada.nombre_empresa or ''
             
             # Escribir fila con formato
             def set_cell(r, col, val, num_fmt=None):
@@ -3266,238 +3266,9 @@ class ExportarReporteFinancieroExcelView(LoginRequiredMixin, UserPassesTestMixin
         ws_detalle_ventas.column_dimensions['Q'].width = 30  # Empresa
         ws_detalle_ventas.freeze_panes = 'A3'  # Congelar título y encabezados
 
-        # --- Hoja 2: Resumen (ahora segunda hoja) ---
-        ws_resumen = wb.create_sheet("Resumen", 1)
-        row = 1
-        ws_resumen.merge_cells(start_row=1, start_column=1, end_row=1, end_column=4)
-        titulo_resumen = ws_resumen.cell(row=row, column=1, value="Reporte Financiero Consolidado · Movums")
-        titulo_resumen.fill = title_fill
-        titulo_resumen.font = title_font
-        titulo_resumen.alignment = Alignment(horizontal='center', vertical='center')
-        titulo_resumen.border = border_medium
-        ws_resumen.row_dimensions[1].height = 26
-        row += 2
+        # Solo se genera la hoja "Detalle de Ventas"; las demás (Resumen, Detalle Ventas, Abonos, etc.) se eliminaron por solicitud
 
-        # Totales (igual que la pantalla Reporte Financiero: todas las ventas)
-        total_ventas = VentaViaje.objects.aggregate(s=Sum('costo_venta_final')).get('s') or Decimal('0.00')
-        total_abonos_sum = AbonoPago.objects.aggregate(s=Sum('monto')).get('s') or Decimal('0.00')
-        total_apertura = VentaViaje.objects.aggregate(s=Sum('cantidad_apertura')).get('s') or Decimal('0.00')
-        total_pagado = total_abonos_sum + total_apertura
-        saldo_pendiente = total_ventas - total_pagado
-        total_ventas = Decimal(total_ventas)
-        total_pagado = Decimal(total_pagado)
-        saldo_pendiente = Decimal(saldo_pendiente)
-
-        # Relleno suave para bloque de totales
-        totales_fill = PatternFill(start_color="E8E4F8", end_color="E8E4F8", fill_type="solid")
-        for r in range(row, row + 3):
-            for col in (1, 2):
-                c = ws_resumen.cell(row=r, column=col, value=None)
-                c.fill = totales_fill
-                c.border = border
-        ws_resumen.cell(row=row, column=1, value="Ingreso Bruto Total (Ventas activas):")
-        ws_resumen.cell(row=row, column=1).font = Font(bold=True)
-        ws_resumen.cell(row=row, column=2, value=float(total_ventas))
-        ws_resumen.cell(row=row, column=2).number_format = '#,##0.00'
-        ws_resumen.cell(row=row, column=2).fill = totales_fill
-        ws_resumen.cell(row=row, column=2).border = border
-        row += 1
-        ws_resumen.cell(row=row, column=1, value="Total Pagos Recibidos:")
-        ws_resumen.cell(row=row, column=1).font = Font(bold=True)
-        ws_resumen.cell(row=row, column=2, value=float(total_pagado))
-        ws_resumen.cell(row=row, column=2).number_format = '#,##0.00'
-        ws_resumen.cell(row=row, column=2).fill = totales_fill
-        ws_resumen.cell(row=row, column=2).border = border
-        row += 1
-        ws_resumen.cell(row=row, column=1, value="Saldo Pendiente (CxC):")
-        ws_resumen.cell(row=row, column=1).font = Font(bold=True)
-        ws_resumen.cell(row=row, column=2, value=float(saldo_pendiente))
-        ws_resumen.cell(row=row, column=2).number_format = '#,##0.00'
-        ws_resumen.cell(row=row, column=2).fill = totales_fill
-        ws_resumen.cell(row=row, column=2).border = border
-        row += 2
-
-        # Liquidez por mes (próximos 12 meses)
-        ws_resumen.merge_cells(start_row=row, start_column=1, end_row=row, end_column=4)
-        liq_titulo = ws_resumen.cell(row=row, column=1, value="Liquidez por mes (próximos 12 meses)")
-        liq_titulo.font = Font(bold=True, size=12, color="FFFFFF")
-        liq_titulo.fill = header_fill_secondary
-        liq_titulo.alignment = Alignment(horizontal='center', vertical='center')
-        liq_titulo.border = border_medium
-        row += 1
-        headers_liq = ['Mes', 'Año', 'Esperado a cobrar (Vista A)', 'Liquidez acumulada (Vista B)']
-        for col, h in enumerate(headers_liq, 1):
-            c = ws_resumen.cell(row=row, column=col, value=h)
-            c.fill = header_fill
-            c.font = header_font
-            c.border = border
-            c.alignment = align_center
-        row += 1
-
-        liquidez_acum = total_pagado  # Lo ya cobrado
-        from calendar import monthrange
-        year = hoy.year
-        month = hoy.month
-        for i in range(12):
-            month += 1
-            if month > 12:
-                month = 1
-                year += 1
-            _, ultimo = monthrange(year, month)
-            inicio_mes = date(year, month, 1)
-            fin_mes = date(year, month, ultimo)
-            ventas_mes = VentaViaje.objects.filter(
-                estado='ACTIVA',
-                fecha_vencimiento_pago__gte=inicio_mes,
-                fecha_vencimiento_pago__lte=fin_mes
-            ).select_related('cliente')  # Solo activas para proyección de cobro
-            esperado_mes = Decimal('0.00')
-            for v in ventas_mes:
-                esperado_mes += v.saldo_restante
-            liquidez_acum += esperado_mes
-            liq_fill = row_fill_even if (row - 1) % 2 == 0 else row_fill_odd
-            for col in range(1, 5):
-                cell = ws_resumen.cell(row=row, column=col)
-                cell.border = border
-                cell.fill = liq_fill
-                cell.alignment = align_center if col > 1 else align_left
-            ws_resumen.cell(row=row, column=1, value=meses_nombres[month])
-            ws_resumen.cell(row=row, column=2, value=year)
-            ws_resumen.cell(row=row, column=3, value=float(esperado_mes))
-            ws_resumen.cell(row=row, column=3).number_format = '#,##0.00'
-            ws_resumen.cell(row=row, column=4, value=float(liquidez_acum))
-            ws_resumen.cell(row=row, column=4).number_format = '#,##0.00'
-            row += 1
-
-        # Ajustar anchos
-        ws_resumen.column_dimensions['A'].width = 18
-        ws_resumen.column_dimensions['B'].width = 10
-        ws_resumen.column_dimensions['C'].width = 28
-        ws_resumen.column_dimensions['D'].width = 28
-
-        # --- Hoja 3: Detalle Ventas (activas + canceladas en sección aparte) ---
-        ws_ventas = wb.create_sheet("Detalle Ventas", 2)
-        headers_ventas = [
-            'ID', 'Folio', 'Cliente', 'Fecha inicio viaje', 'Fecha fin viaje', 'Fecha límite pago',
-            'Costo venta final', 'Total cobrado', 'Saldo pendiente', 'Descuento Km', 'Descuento promociones', 'Estado'
-        ]
-        for col, h in enumerate(headers_ventas, 1):
-            c = ws_ventas.cell(row=1, column=col, value=h)
-            c.fill = header_fill
-            c.font = header_font
-            c.border = border
-            c.alignment = align_center
-        row_v = 2
-        ventas_activas_list = VentaViaje.objects.filter(estado='ACTIVA').select_related('cliente').order_by('fecha_vencimiento_pago')
-        for idx, venta in enumerate(ventas_activas_list):
-            _escribir_fila_venta(ws_ventas, row_v, venta, border, row_fill_even if idx % 2 == 0 else row_fill_odd)
-            row_v += 1
-        row_v += 1
-        ws_ventas.cell(row=row_v, column=1, value="--- VENTAS CANCELADAS ---")
-        ws_ventas.cell(row=row_v, column=1).font = Font(bold=True)
-        ws_ventas.cell(row=row_v, column=1).fill = header_fill_secondary
-        ws_ventas.cell(row=row_v, column=1).font = Font(bold=True, color="FFFFFF")
-        row_v += 1
-        ventas_canceladas = VentaViaje.objects.filter(estado='CANCELADA').select_related('cliente').order_by('-fecha_creacion')
-        for idx, venta in enumerate(ventas_canceladas):
-            _escribir_fila_venta(ws_ventas, row_v, venta, border, row_fill_even if idx % 2 == 0 else row_fill_odd)
-            row_v += 1
-        for col in range(1, len(headers_ventas) + 1):
-            ws_ventas.column_dimensions[get_column_letter(col)].width = 16
-
-        # --- Hoja 4: Detalle Abonos ---
-        ws_abonos = wb.create_sheet("Detalle Abonos", 3)
-        headers_abonos = ['ID Abono', 'Venta ID', 'Cliente', 'Monto', 'Forma pago', 'Fecha pago', 'Confirmado']
-        for col, h in enumerate(headers_abonos, 1):
-            c = ws_abonos.cell(row=1, column=col, value=h)
-            c.fill = header_fill
-            c.font = header_font
-            c.border = border
-            c.alignment = align_center
-        row_ab = 2
-        abonos = AbonoPago.objects.select_related('venta', 'venta__cliente').order_by('-fecha_pago')
-        for ab in abonos:
-            ws_abonos.cell(row=row_ab, column=1, value=ab.pk)
-            ws_abonos.cell(row=row_ab, column=2, value=ab.venta_id)
-            _cliente = getattr(ab.venta, 'cliente', None) if ab.venta_id else None
-            _cliente_nombre = getattr(_cliente, 'nombre_completo_display', '') if _cliente else ''
-            ws_abonos.cell(row=row_ab, column=3, value=_cliente_nombre)
-            ws_abonos.cell(row=row_ab, column=4, value=float(ab.monto))
-            ws_abonos.cell(row=row_ab, column=4).number_format = '#,##0.00'
-            ws_abonos.cell(row=row_ab, column=5, value=ab.get_forma_pago_display())
-            ws_abonos.cell(row=row_ab, column=6, value=ab.fecha_pago.strftime('%d/%m/%Y %H:%M') if ab.fecha_pago else '')
-            ws_abonos.cell(row=row_ab, column=7, value='Sí' if ab.confirmado else 'No')
-            for col in range(1, 8):
-                ws_abonos.cell(row=row_ab, column=col).border = border
-            row_ab += 1
-        for col in range(1, 8):
-            ws_abonos.column_dimensions[get_column_letter(col)].width = 16
-
-        # --- Hoja 5: Abonos a Proveedores ---
-        ws_prov = wb.create_sheet("Abonos a Proveedores", 4)
-        headers_prov = ['ID', 'Venta ID', 'Proveedor', 'Monto', 'Monto USD', 'Estado', 'Fecha solicitud', 'Fecha aprobación', 'Fecha confirmación']
-        for col, h in enumerate(headers_prov, 1):
-            c = ws_prov.cell(row=1, column=col, value=h)
-            c.fill = header_fill
-            c.font = header_font
-            c.border = border
-            c.alignment = align_center
-        row_p = 2
-        abonos_prov = AbonoProveedor.objects.select_related('venta').order_by('-fecha_solicitud')
-        for ap in abonos_prov:
-            ws_prov.cell(row=row_p, column=1, value=ap.pk)
-            ws_prov.cell(row=row_p, column=2, value=ap.venta_id)
-            ws_prov.cell(row=row_p, column=3, value=ap.proveedor or '')
-            ws_prov.cell(row=row_p, column=4, value=float(ap.monto))
-            ws_prov.cell(row=row_p, column=4).number_format = '#,##0.00'
-            ws_prov.cell(row=row_p, column=5, value=float(ap.monto_usd) if ap.monto_usd else '')
-            if ap.monto_usd is not None:
-                ws_prov.cell(row=row_p, column=5).number_format = '#,##0.00'
-            ws_prov.cell(row=row_p, column=6, value=ap.get_estado_display())
-            ws_prov.cell(row=row_p, column=7, value=ap.fecha_solicitud.strftime('%d/%m/%Y %H:%M') if ap.fecha_solicitud else '')
-            ws_prov.cell(row=row_p, column=8, value=ap.fecha_aprobacion.strftime('%d/%m/%Y %H:%M') if ap.fecha_aprobacion else '')
-            ws_prov.cell(row=row_p, column=9, value=ap.fecha_confirmacion.strftime('%d/%m/%Y %H:%M') if ap.fecha_confirmacion else '')
-            for col in range(1, 10):
-                ws_prov.cell(row=row_p, column=col).border = border
-            row_p += 1
-        for col in range(1, 10):
-            ws_prov.column_dimensions[get_column_letter(col)].width = 18
-
-        # --- Hoja 6: Comisiones ---
-        ws_com = wb.create_sheet("Comisiones", 5)
-        headers_com = ['Venta ID', 'Vendedor', 'Mes', 'Año', 'Tipo venta', 'Monto base', 'Porcentaje', 'Comisión calculada', 'Comisión pagada', 'Comisión pendiente', 'Estado pago', 'Cancelada']
-        for col, h in enumerate(headers_com, 1):
-            c = ws_com.cell(row=1, column=col, value=h)
-            c.fill = header_fill
-            c.font = header_font
-            c.border = border
-            c.alignment = align_center
-        row_c = 2
-        comisiones = ComisionVenta.objects.select_related('venta', 'vendedor').order_by('-anio', '-mes', 'venta_id')
-        for cv in comisiones:
-            ws_com.cell(row=row_c, column=1, value=cv.venta_id)
-            ws_com.cell(row=row_c, column=2, value=cv.vendedor.get_full_name() or cv.vendedor.username)
-            ws_com.cell(row=row_c, column=3, value=cv.mes)
-            ws_com.cell(row=row_c, column=4, value=cv.anio)
-            ws_com.cell(row=row_c, column=5, value=cv.get_tipo_venta_display())
-            ws_com.cell(row=row_c, column=6, value=float(cv.monto_base_comision))
-            ws_com.cell(row=row_c, column=6).number_format = '#,##0.00'
-            ws_com.cell(row=row_c, column=7, value=float(cv.porcentaje_aplicado))
-            ws_com.cell(row=row_c, column=8, value=float(cv.comision_calculada))
-            ws_com.cell(row=row_c, column=8).number_format = '#,##0.00'
-            ws_com.cell(row=row_c, column=9, value=float(cv.comision_pagada))
-            ws_com.cell(row=row_c, column=9).number_format = '#,##0.00'
-            ws_com.cell(row=row_c, column=10, value=float(cv.comision_pendiente))
-            ws_com.cell(row=row_c, column=10).number_format = '#,##0.00'
-            ws_com.cell(row=row_c, column=11, value=cv.get_estado_pago_venta_display())
-            ws_com.cell(row=row_c, column=12, value='Sí' if cv.cancelada else 'No')
-            for col in range(1, 13):
-                ws_com.cell(row=row_c, column=col).border = border
-            row_c += 1
-        for col in range(1, 13):
-            ws_com.column_dimensions[get_column_letter(col)].width = 16
-
-        # Guardar en buffer para asegurar que el contenido se envíe correctamente
+        # --- Guardar en buffer ---
         buffer = io.BytesIO()
         wb.save(buffer)
         buffer.seek(0)
@@ -3509,36 +3280,6 @@ class ExportarReporteFinancieroExcelView(LoginRequiredMixin, UserPassesTestMixin
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         response['Content-Length'] = len(buffer.getvalue())
         return response
-
-
-def _escribir_fila_venta(ws, row_v, venta, border, row_fill=None):
-    """Escribe una fila de detalle de venta en la hoja Excel. row_fill opcional para filas alternadas."""
-    cliente = getattr(venta, 'cliente', None)
-    cliente_nombre = getattr(cliente, 'nombre_completo_display', '') if cliente else ''
-    ws.cell(row=row_v, column=1, value=venta.pk)
-    ws.cell(row=row_v, column=2, value=venta.folio or '')
-    ws.cell(row=row_v, column=3, value=cliente_nombre)
-    ws.cell(row=row_v, column=4, value=venta.fecha_inicio_viaje.strftime('%d/%m/%Y') if venta.fecha_inicio_viaje else '')
-    ws.cell(row=row_v, column=5, value=venta.fecha_fin_viaje.strftime('%d/%m/%Y') if venta.fecha_fin_viaje else '')
-    ws.cell(row=row_v, column=6, value=venta.fecha_vencimiento_pago.strftime('%d/%m/%Y') if venta.fecha_vencimiento_pago else '')
-    ws.cell(row=row_v, column=7, value=float(venta.costo_venta_final))
-    ws.cell(row=row_v, column=7).number_format = '#,##0.00'
-    ws.cell(row=row_v, column=8, value=float(venta.total_pagado))
-    ws.cell(row=row_v, column=8).number_format = '#,##0.00'
-    ws.cell(row=row_v, column=9, value=float(venta.saldo_restante))
-    ws.cell(row=row_v, column=9).number_format = '#,##0.00'
-    desc_km = venta.descuento_kilometros_mxn or Decimal('0.00')
-    desc_promo = venta.descuento_promociones_mxn or Decimal('0.00')
-    ws.cell(row=row_v, column=10, value=float(desc_km))
-    ws.cell(row=row_v, column=10).number_format = '#,##0.00'
-    ws.cell(row=row_v, column=11, value=float(desc_promo))
-    ws.cell(row=row_v, column=11).number_format = '#,##0.00'
-    ws.cell(row=row_v, column=12, value=venta.get_estado_display())
-    for col in range(1, 13):
-        cell = ws.cell(row=row_v, column=col)
-        cell.border = border
-        if row_fill:
-            cell.fill = row_fill
 
 
 # ------------------- 9. GENERACIÓN DE PDF (INNOVACIÓN 4) -------------------
