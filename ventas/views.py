@@ -127,6 +127,202 @@ def _format_edades_menores_contrato(edades_menores):
     return ', '.join(result)
 
 
+def _agregar_paginas_legales_contrato_nacional(doc, cliente, set_run_font, Pt, Inches, WD_ALIGN_PARAGRAPH):
+    """
+    Agrega las páginas 2+ del contrato de servicios turísticos nacionales (texto legal completo).
+    Usado por ContratoPaqueteNacionalPDFView y ContratoVentaDirectaPDFView.
+    """
+    nombre_cliente_anexo = (cliente.nombre_completo_display or '').strip() if cliente else ''
+    p_declara = doc.add_paragraph()
+    p_declara.paragraph_format.page_break_before = True
+    p_declara.paragraph_format.space_before = Pt(0)
+    p_declara.paragraph_format.space_after = Pt(8)
+    set_run_font(p_declara.add_run('EL CLIENTE declara que:'), size=10, bold=True)
+    for decl in ['Ha revisado y entendido toda la información contenida en este Anexo.', 'Proporcionó datos veraces y completos.', 'Acepta las condiciones del servicio, políticas de proveedores y cláusulas del contrato.']:
+        p = doc.add_paragraph()
+        p.paragraph_format.left_indent = Inches(0.5)
+        p.paragraph_format.space_after = Pt(4)
+        set_run_font(p.add_run('•'), size=10)
+        set_run_font(p.add_run(decl), size=10)
+    p_nota = doc.add_paragraph()
+    p_nota.paragraph_format.space_before = Pt(12)
+    p_nota.paragraph_format.space_after = Pt(8)
+    set_run_font(p_nota.add_run('NOTA: '), size=10, bold=True)
+    set_run_font(p_nota.add_run('Movums The Travel Store, se reserva el derecho de cancelar sin previo aviso este contrato, si los depósitos no son recibidos en las fechas pactadas con el "CLIENTE" anteriormente estipuladas.'), size=10)
+    p_canc = doc.add_paragraph()
+    p_canc.paragraph_format.space_before = Pt(12)
+    p_canc.paragraph_format.space_after = Pt(8)
+    set_run_font(p_canc.add_run('CANCELACIONES:'), size=10, bold=True)
+    for t in ['Entre la firma del contrato y pago de anticipo, parcial o total no se reembolsará ningún pago', 'No es cancelable, ni reembolsable.', 'Cualquier modificación puede ocasionar cargo extra; y están sujetos a disponibilidad']:
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(4)
+        set_run_font(p.add_run(t), size=10)
+    p_v = doc.add_paragraph()
+    p_v.paragraph_format.space_before = Pt(12)
+    p_v.paragraph_format.space_after = Pt(8)
+    set_run_font(p_v.add_run('VUELOS:'), size=10, bold=True)
+    p_v2 = doc.add_paragraph()
+    p_v2.paragraph_format.space_after = Pt(8)
+    set_run_font(p_v2.add_run('Movums The Travel Store, no se hace responsable por cambios y/o cancelaciones de la aerolínea contratada para el paquete vacacional, en este caso Movums The Travel Store ofrecera las alternativas que nos brinde directamente la aerolínea.'), size=10)
+    p_val = doc.add_paragraph()
+    p_val.paragraph_format.space_before = Pt(12)
+    p_val.paragraph_format.space_after = Pt(8)
+    set_run_font(p_val.add_run('FECHA DE VALIDEZ DEL CONTRATO:'), size=10, bold=True)
+    texto_validez = '•Las condiciones y precios antes mencionados serán mantenidos a la fecha límite de pago, a esta fecha el "CLIENTE" deberá haber cubierto el pago total del paquete o servicio turístico contratado. La aceptación de este contrato será efectiva una vez que el "CLIENTE" envié el contrato debidamente firmado y con el anticipo, pago parcial o pago total; no reembolsable; para que Movums The travel store, proceda con la reservación del servicio contratado'
+    p_tv = doc.add_paragraph()
+    p_tv.paragraph_format.space_after = Pt(12)
+    p_tv.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    partes = texto_validez.split('fecha límite de pago')
+    if len(partes) > 1:
+        set_run_font(p_tv.add_run(partes[0]), size=10)
+        set_run_font(p_tv.add_run('fecha límite de pago'), size=10, bold=True)
+        resto = 'anticipo, pago parcial o pago total'
+        if resto in partes[1]:
+            p2 = partes[1].split(resto)
+            set_run_font(p_tv.add_run(p2[0]), size=10)
+            set_run_font(p_tv.add_run(resto), size=10, bold=True)
+            if len(p2) > 1:
+                set_run_font(p_tv.add_run(p2[1]), size=10)
+        else:
+            set_run_font(p_tv.add_run(partes[1]), size=10)
+    else:
+        set_run_font(p_tv.add_run(texto_validez), size=10)
+    set_run_font(doc.add_paragraph().add_run('FIRMAS:'), size=10, bold=True)
+    for lbl, lin in [('CLIENTE:', 'Nombre y firma: '), ('AGENCIA – Movums The Travel Store', 'Nombre y firma del representante: ')]:
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(12)
+        p.paragraph_format.space_after = Pt(6)
+        set_run_font(p.add_run(lbl), size=10, bold=True)
+        p2 = doc.add_paragraph()
+        p2.paragraph_format.space_after = Pt(6)
+        set_run_font(p2.add_run(lin), size=10)
+        set_run_font(p2.add_run('_' * 50), size=10)
+    p_anexo = doc.add_paragraph()
+    p_anexo.paragraph_format.page_break_before = True
+    p_anexo.paragraph_format.space_before = Pt(0)
+    p_anexo.paragraph_format.space_after = Pt(8)
+    p_anexo.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    set_run_font(p_anexo.add_run('CONTRATO DE MEDIACIÓN PARA LA PRESTACIÓN DE SERVICIOS TURÍSTICOS, QUE CELEBRAN POR UNA PARTE LA AGENCIA DE VIAJES "GRUPO IMVED, S.A. DE C.V." ACTUANDO EN USO DE SU NOMBRE COMERCIAL MOVUMS THE TRAVEL STORE, EN ADELANTE DENOMINADA COMO "LA AGENCIA", Y POR LA OTRA EL/LA C. '), size=7, bold=True)
+    r_cli = p_anexo.add_run(nombre_cliente_anexo)
+    set_run_font(r_cli, size=7, bold=True)
+    r_cli.font.underline = True
+    set_run_font(p_anexo.add_run(' A QUIEN EN LO SUCESIVO SE LE DENOMINARÁ "EL CLIENTE", AL TENOR DE LAS SIGUIENTES DEFINICIONES, DECLARACIONES Y CLÁUSULAS:'), size=7, bold=True)
+    _add_anexo_clausulas_completo(doc, set_run_font, Pt, WD_ALIGN_PARAGRAPH)
+    p_fa = doc.add_paragraph()
+    p_fa.paragraph_format.space_before = Pt(12)
+    p_fa.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    set_run_font(p_fa.add_run('_' * 50), size=7)
+    set_run_font(doc.add_paragraph().add_run('LA AGENCIA'), size=7, bold=True)
+    p_fc = doc.add_paragraph()
+    p_fc.paragraph_format.space_before = Pt(12)
+    p_fc.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    set_run_font(p_fc.add_run('_' * 50), size=7)
+    set_run_font(doc.add_paragraph().add_run('EL CLIENTE  (NOMBRE COMPLETO Y FIRMA)'), size=7, bold=True)
+
+
+def _add_anexo_clausulas_completo(doc, set_run_font, Pt, WD_ALIGN_PARAGRAPH):
+    """Glosario, declaraciones y cláusulas completas del anexo de mediación."""
+    glosario = [
+        ('GLOSARIO', None, 'Para efectos del presente contrato, se entiende por:'),
+        ('Agencia: ', 'Es el proveedor de servicios turísticos que intermedia, contrata u ofrece servicios o productos turístico nacionales, previo pago de un precio cierto y determinado.', None),
+        ('Cliente: ', 'Consumidor que contrata los servicios turísticos nacionales mediante el pago de un precio cierto y determinado.', None),
+        ('Paquete turístico: ', 'Integración de uno o más servicios turísticos en un solo producto, ofrecidos al Cliente y detallado en el Anexo del presente contrato.', None),
+        ('Servicio turístico: ', 'Prestación de carácter comercial en transporte nacional, hospedaje, alimentación, excursiones u otros servicios relacionados,  detallados en el Anexo del presente contrato.', None),
+        ('Caratula: ', 'Documento que detalla servicios, fechas, precios y condiciones del servicio turístico contratado.', None),
+    ]
+    for item in glosario:
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(12) if item[0] == 'GLOSARIO' else Pt(8)
+        p.paragraph_format.space_after = Pt(4) if item[2] else Pt(12)
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        set_run_font(p.add_run(item[0]), size=7, bold=True)
+        if item[1]:
+            set_run_font(p.add_run(item[1]), size=7)
+        if item[2]:
+            p2 = doc.add_paragraph()
+            p2.paragraph_format.space_after = Pt(6)
+            p2.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            set_run_font(p2.add_run(item[2]), size=7)
+    decl_ag = ['Ser una persona moral legalmente constituida conforme a las leyes mexicanas.', 'Ser un Prestador de Servicios Turísticos con Razón Social: GRUPO IMVED, S.A. de C.V.', 'Ser la única propietaria de la marca MOVUMS THE TRAVEL STORE', 'RFC GIM190722FS7  y domicilio ubicado en:  Plaza Mora, Juárez Sur, 321, interior 18, Colonia Centro, Texcoco, Estado de México, C.P. 56100.', ' Teléfono, correo electrónico y horario de atención al público: 59 59319954, 5951255279  ventas@movums.com, lunes a viernes de 10:00 a 19:00 horas. Y sábados de 11:00 a 15:00 hrs.', 'Contar con infraestructura, personal capacitado y experiencia suficiente para la prestación de los servicios turísticos contratados.', 'Haber informado previamente al Cliente sobre los precios, tarifas, condiciones, características y costo total del servicio turístico contratado.']
+    p_da = doc.add_paragraph()
+    p_da.paragraph_format.space_before = Pt(12)
+    p_da.paragraph_format.space_after = Pt(6)
+    p_da.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    set_run_font(p_da.add_run('DECLARACIONES'), size=7, bold=True)
+    p_dag = doc.add_paragraph()
+    p_dag.paragraph_format.space_before = Pt(8)
+    p_dag.paragraph_format.space_after = Pt(6)
+    p_dag.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    set_run_font(p_dag.add_run('Declara LA AGENCIA:'), size=7, bold=True)
+    for t in decl_ag:
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(4)
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        set_run_font(p.add_run(t), size=7)
+    decl_cli = ['Ser persona física/moral con capacidad legal y económica para obligarse en términos del presente contrato.', 'En caso de persona moral: Ser una persona moral legalmente constituida conforme a las leyes mexicanas, conforme lo acredita con copia del instrumento número ____________, de fecha ___________, otorgado ante la Fe del Notario Público Número ____, de ____________, y que el(la) C. _________ __________________ en este acto interviene en su carácter de Representante Legal, calidad que acredita con copia del instrumento número _______, de fecha _________, otorgada ante la Fe del Notario Público número _______ del _________, facultad y calidad  que no le han sido revocadas, modificadas o limitadas a la fecha de firma del presente contrato.', 'Encontrarse inscrito en el Registro Federal de Contribuyentes con la clave que ha manifestado.', 'Haber recibido previamente de LA AGENCIA  información útil, precisa, veraz y detallada sobre los servicios objeto del presente contrato.', 'Proporciona su nombre, domicilio, número telefónico y correo electrónico, tal y como lo ha señalado en la caratula de prestación de servicios, acreditando los mismos con copia de los documentos idóneos para tal efecto.']
+    p_dc = doc.add_paragraph()
+    p_dc.paragraph_format.space_before = Pt(12)
+    p_dc.paragraph_format.space_after = Pt(6)
+    p_dc.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    set_run_font(p_dc.add_run('II. Declara EL CLIENTE:'), size=7, bold=True)
+    for t in decl_cli:
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(4)
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        set_run_font(p.add_run(t), size=7)
+    clausulas = [
+        ('PRIMERA. CONSENTIMIENTO. ', 'Las partes manifiestan su voluntad de celebrar el presente contrato, cuya naturaleza jurídica es la mediación para la prestación de servicios turísticos.'),
+        ('SEGUNDA. OBJETO. ', 'LA AGENCIA intermediará, contratará u ofrecerá servicios turísticos detallados en la CARATULA, previo pago del Cliente de un precio cierto y determinado.'),
+        ('TERCERA. PRECIO, FORMA Y LUGAR DE PAGO. ', 'Las partes manifiestan su conformidad en que el precio total a pagar por EL CLIENTE como contraprestación del Servicio turístico, es la cantidad que por cada concepto se indica en la CARATULA de este Contrato. El importe señalado en la CARATULA, contempla todas las cantidades y conceptos referentes al Servicio turístico, por lo que LA AGENCIA se obliga a respetar en todo momento dicho costo sin poder cobrar otra cantidad o condicionar la prestación del Servicio turístico contratado a la adquisición de otro servicio no requerido por El cliente, salvo que El cliente autorice de manera escrita algún otro cobro no estipulado en el presente Contrato. EL CLIENTE efectuará el pago pactado por el Servicio turístico señalado en la caratula del presente Contrato en los términos y condiciones acordadas pudiendo ser: '),
+        ('', 'Al contado: en efectivo, con tarjeta de débito, tarjeta de crédito, transferencia bancaria, y/o cheque en el domicilio de la agencia en moneda nacional, sin menoscabo de poderlo hacer en moneda extranjera al tipo de cambio publicado en el Diario Oficial de la Federación al día en que el pago se efectúe.'),
+        ('', 'A plazos: El cliente podrá, previo acuerdo con La agencia a pagar en parcialidades, para lo cual, La agencia deberá de entregar a El CLIENTE la información por escrito de las fechas, así como los montos parciales a pagar.'),
+        ('', 'En caso de que El cliente realice el pago con cheque y no se cubra el pago por causas imputables al librador, La agencia tendrá el derecho de realizar el cobro adicional del 20% (veinte por ciento) del valor del documento, por concepto de daños y perjuicios, en caso de que el cheque sea devuelto por causas imputables al librador, conforme al artículo 193 de la Ley General del Títulos y Operaciones de Crédito.'),
+        ('QUINTA. OBLIGACIONES DE LA AGENCIA. ', 'LA AGENCIA SE OBLIGA A:'),
+    ]
+    p_cl = doc.add_paragraph()
+    p_cl.paragraph_format.space_before = Pt(12)
+    p_cl.paragraph_format.space_after = Pt(6)
+    p_cl.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    set_run_font(p_cl.add_run('CLÁUSULAS'), size=7, bold=True)
+    for tit, txt in [c[:2] for c in clausulas if len(c) == 2]:
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(8)
+        p.paragraph_format.space_after = Pt(4)
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        if tit:
+            set_run_font(p.add_run(tit), size=7, bold=True)
+        set_run_font(p.add_run(txt), size=7)
+    oblig_ag = ['Cumplir lo pactado en el contrato.', 'Entregar  a EL CLIENTE copia del contrato y constancias de reservación.', 'Proporcionar a EL CLIENTE boletos, claves de reservación y documentos de viaje.', 'Auxiliar a EL CLIENTE en emergencias  y gestionar indemnizaciones relacionadas con el servicio contratado', 'Solicitar los Servicios turísticos que se especifican en la caratula de este Contrato por cuenta de EL CLIENTE de acuerdo a la disponibilidad de los mismos, a contratarlos fungiendo como intermediario entre éste y las personas encargadas de proporcionar directamente el Servicio turístico.', 'Coadyuvar a EL CLIENTE para reclamar ante el prestador del servicio final, las indemnizaciones que correspondan.', 'Respetar la Ley Federal de Protección al Consumidor y la NOM-010-TUR-2001.']
+    for t in oblig_ag:
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(4)
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        set_run_font(p.add_run(t), size=7)
+    for tit, txt in [
+        ('SEXTA. OBLIGACIONES DE EL CLIENTE: ', 'Cumplir con lo establecido en el presente contrato:'),
+        ('', 'Proporcionar previo a la prestación del servicio los datos generales veraces y documentos requeridos para los servicios contratados (como pueden ser de manera enunciativa más no limitativa, el nombre, edad, identificación, comprobante de domicilio, pasaporte, visas, vacunas, constancia de situación fiscal, número telefónico, correo electrónico). Proporcionará sus propios datos y documentos de su persona así como el de las personas que lo acompañen.'),
+        ('', 'Realizar pagos a la AGENCIA conforme a lo pactado en el presente contrato.'),
+        ('', 'Respetar reglamentos de prestadores finales.'),
+        ('', 'Notificar por lo menos con  20 DÍAS HÁBILES y por escrito a LA AGENCIA cualquier cambio  una vez aceptado el servicio.'),
+        ('SÉPTIMA. VIGENCIA. ', 'El contrato estará vigente mientras se presten los servicios y se cumplan las obligaciones de pago, tiempo en que el presente Contrato surtirá todos sus efectos legales.'),
+        ('OCTAVA. CASO FORTUITO Y FUERZA MAYOR. ', 'Se entiende por caso fortuito o fuerza mayor aquellos hechos o acontecimientos ajenos a la voluntad de las partes, que sean imprevisibles, irresistibles, insuperables y que no provengan de negligencia, dolo o falta de cuidado de alguna de ellas. No se considerarán caso fortuito o fuerza mayor las enfermedades personales de EL CLIENTE o de sus acompañantes. EL CLIENTE reconoce que la AGENCIA no será responsable por errores, omisiones, falta de entrega de documentos, información incompleta o inexacta, ni por cualquier otra actuación u omisión atribuible al propio CLIENTE que afecte la reservación, emisión de boletos, acceso a servicios turísticos, cambios, cancelaciones o cualquier trámite derivado del presente contrato. Cuando el servicio turístico no pueda prestarse total o parcialmente por caso fortuito o fuerza mayor, la AGENCIA reembolsará a EL CLIENTE las cantidades que, conforme a las políticas de los prestadores finales (aerolíneas, hoteles, operadores, etc.), sean efectivamente recuperables y devueltas a la AGENCIA. EL CLIENTE tendrá derecho a recibir el reembolso correspondiente únicamente respecto de los importes efectivamente recuperados. En caso de que el servicio turístico se haya prestado de manera parcial, EL CLIENTE tendrá derecho a un reembolso proporcional exclusivamente respecto de los servicios no utilizados, conforme a lo que determine el proveedor correspondiente.'),
+        ('NOVENA . CAMBIOS DE ORDEN DE LOS SERVICIOS CON AUTORIZACIÓN DE EL CLIENTE. ', 'La agencia podrá modificar el orden de los Servicios turísticos indicados en el presente Contrato, para un mejor desarrollo de los mismos o por las causas que así lo justifiquen, siempre y cuando respete la cantidad y calidad de los Servicios turísticos que se hayan contratado. Este será con la autorización por escrito de EL CLIENTE, sea cual fuese la causa. El cliente no podrá hacer cambios de fechas, rutas, ni servicios, sin previa autorización de La agencia, en caso de que dichos cambios tengan un costo, éste será indicado en al CARATULA del presente Contrato. EL CLIENTE reconoce que, una vez firmado el presente contrato y realizado el anticipo, pago parcial o total, los pagos efectuados no son cancelables ni reembolsables, en virtud de que la AGENCIA realiza de manera inmediata gestiones, reservaciones y pagos a terceros proveedores, los cuales se rigen por políticas propias de cancelación y reembolso que no dependen de la AGENCIA. EL CLIENTE acepta que cualquier solicitud de cambio, corrección o modificación respecto a fechas, nombres, itinerarios, servicios contratados o cualquier otro aspecto, estará sujeta a la disponibilidad de los proveedores, así como al pago de cargos adicionales o penalidades, conforme a las políticas vigentes de dichos proveedores.'),
+        ('DÉCIMA. CANCELACIÓN. ', 'EL CLIENTE reconoce que, una vez firmado el presente Contrato y realizado el anticipo, pago parcial o total, los pagos no son cancelables ni reembolsables, debido a que la AGENCIA realiza de manera inmediata pagos, reservaciones y gestiones con terceros proveedores, cuyas políticas no permiten cancelaciones ni devoluciones. Cualquier solicitud de cancelación o modificación deberá realizarse por escrito, pero no dará derecho a devolución, salvo que algún proveedor permita recuperar total o parcialmente los montos pagados, caso en el cual la AGENCIA entregará al CLIENTE únicamente las cantidades efectivamente devueltas por dicho proveedor. Las modificaciones estarán sujetas a disponibilidad y podrán generar cargos adicionales conforme a las políticas de los prestadores finales. La presente cláusula aplica únicamente a solicitudes voluntarias de cancelación formuladas por EL CLIENTE. Lo anterior es independiente de las consecuencias aplicables por rescisión por incumplimiento, reguladas en las cláusulas siguientes.'),
+        ('DÉCIMA PRIMERA. VUELOS. ', 'EL CLIENTE reconoce que los servicios aéreos incluidos en el paquete vacacional son operados exclusivamente por la aerolínea correspondiente, por lo que Movums The Travel Store no es responsable por cambios de itinerario, demoras, reprogramaciones, sobreventas, cancelaciones, modificaciones operativas o cualquier otra decisión adoptada por la aerolínea, toda vez que dichos actos son ajenos al control de la AGENCIA.EL CLIENTE acepta que toda compensación, reembolso, cambio o beneficio derivado de acciones de la aerolínea está sujeto exclusivamente a las políticas y procedimientos de dicha aerolínea, y que la AGENCIA actuará únicamente como intermediaria en la gestión correspondiente.'),
+        ('DÉCIMA SEGUNDA. RESCISIÓN. ', 'Procede si alguna parte incumple lo pactado o si el servicio no corresponde a lo solicitado. En caso de rescisión del presente Contrato, la parte que incumpla deberá de pagar lo correspondiente a la pena convencional. La AGENCIA podrá dar por terminado el presente contrato cuando EL CLIENTE no realice los depósitos o pagos en las fechas pactadas. En este supuesto, la AGENCIA notificará al CLIENTE mediante los medios de contacto proporcionados, y dicha terminación se considerará efectiva desde la fecha del incumplimiento. El CLIENTE reconoce que la falta de pago oportuno constituye un incumplimiento del contrato y acepta que los anticipos podrán aplicarse a cargos, penalidades o gastos ya generados conforme a las políticas de proveedores y prestadores de servicios turísticos. La rescisión no será considerada como una cancelación voluntaria, sino como una consecuencia jurídica del incumplimiento de cualquiera de las partes.'),
+        ('DÉCIMA TERCERA. PENA CONVENCIONAL. ', 'La parte incumplida pagará la penalidad indicada por el OPERADOR'),
+        ('DÉCIMA CUARTA.  RESERVACIONES Y PAGOS. ', 'La aceptación y formalización del presente contrato se considerará efectiva una vez que EL CLIENTE envíe el contrato debidamente firmado y efectúe el anticipo, pago parcial o total, mismo que no es reembolsable, en virtud de que Movums The Travel Store realiza gestiones inmediatas con terceros proveedores para asegurar la disponibilidad de los servicios solicitados.'),
+        ('DÉCIMA QUINTA. JURISDICCIÓN. ', 'Las partes se someten a PROFECO y, en su caso, a tribunales competentes de Texcoco, Estado de México.'),
+    ]:
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(8)
+        p.paragraph_format.space_after = Pt(4)
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        if tit:
+            set_run_font(p.add_run(tit), size=7, bold=True)
+        set_run_font(p.add_run(txt), size=7)
+
+
 def _get_logistica_servicio_formset(venta, request_POST=None, queryset=None, prefix='servicios'):
     """Formset de servicios logísticos. Solo filas existentes (extra=0). Nuevas filas se añaden con POST 'añadir_servicio_logistica'."""
     FormSetClass = modelformset_factory(
@@ -3378,7 +3574,12 @@ class ContratoVentaPDFView(LoginRequiredMixin, DetailView):
     def get(self, request, *args, **kwargs):
         self.object = self.get_object() 
         venta = self.object
-        
+
+        # Si no tiene cotización (venta directa), usar contrato venta directa
+        if not venta.cotizacion_origen:
+            from django.urls import reverse
+            return HttpResponseRedirect(reverse('generar_contrato_venta_directa_pdf', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}))
+
         # Si es hospedaje, usar el contrato específico
         if venta.servicios_seleccionados and 'HOS' in venta.servicios_seleccionados:
             # Redirigir a la vista específica de hospedaje
@@ -4812,10 +5013,39 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
             # Traslado y adicionales se obtienen desde servicios_logisticos (opcion_proveedor), no desde propuestas
         
         # Si no hay origen/destino en cotización, usar valores por defecto
+        # IMPORTANTE: NUNCA usar servicios_detalle_desde_logistica para destino - contiene
+        # "Vuelo - Proveedor: X", "Hospedaje - Proveedor: Y", etc. (resumen de logística)
         if not origen:
             origen = 'AIFA (FELIPE ANGELES)'  # Valor por defecto según imagen
         if not destino:
-            destino = (venta.servicios_detalle_desde_logistica or 'PAQUETE NACIONAL').strip()
+            # Intentar desde propuestas.general si existe (cotizaciones creadas desde venta_list)
+            if venta.cotizacion_origen and venta.cotizacion_origen.propuestas:
+                prop = venta.cotizacion_origen.propuestas
+                if isinstance(prop, str):
+                    try:
+                        import json
+                        prop = json.loads(prop) if prop.strip() else {}
+                    except (ValueError, TypeError):
+                        prop = {}
+                if isinstance(prop, dict) and prop.get('general'):
+                    gen = prop.get('general', {}) or {}
+                    if isinstance(gen, dict):
+                        destino = (gen.get('destino') or '').strip()
+            destino = destino or 'PAQUETE NACIONAL'
+        
+        # Fallback para VUE+HOS: si hotel/vuelo siguen vacíos, tomar desde LogisticaServicio (opcion_proveedor)
+        if not vuelo_aerolinea:
+            for s in venta.servicios_logisticos.filter(codigo_servicio='VUE'):
+                opc = (s.opcion_proveedor or '').strip()
+                if opc:
+                    vuelo_aerolinea = opc
+                    break
+        if not hotel_nombre:
+            for s in venta.servicios_logisticos.filter(codigo_servicio='HOS'):
+                opc = (s.opcion_proveedor or '').strip()
+                if opc:
+                    hotel_nombre = opc
+                    break
         
         # Calcular valores financieros
         from decimal import Decimal
@@ -5655,6 +5885,174 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         response['Pragma'] = 'no-cache'
         response['Expires'] = '0'
         
+        buffer.close()
+        return response
+
+
+class ContratoVentaDirectaPDFView(LoginRequiredMixin, DetailView):
+    """
+    Vista para generar contrato de ventas creadas directamente (sin cotización).
+    Usa los campos del formulario de nueva venta. Primera página con datos del form,
+    desde la segunda página el mismo texto legal que el contrato nacional.
+    """
+    model = VentaViaje
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        venta = self.object
+        cliente = venta.cliente
+
+        if venta.cotizacion_origen:
+            return HttpResponse("Error: Esta vista es solo para ventas sin cotización. Use el contrato correspondiente.", status=400)
+
+        try:
+            from docx import Document
+            from docx.shared import Pt, RGBColor, Inches
+            from docx.oxml.ns import qn
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+            from datetime import date
+        except ImportError:
+            return HttpResponse("Error: python-docx no está instalado.", status=500)
+
+        from decimal import Decimal
+        precio_total = venta.costo_total_con_modificacion or Decimal('0.00')
+        anticipo = venta.cantidad_apertura or Decimal('0.00')
+        saldo_pendiente = max(Decimal('0.00'), precio_total - venta.total_pagado)
+        fecha_limite = venta.fecha_vencimiento_pago
+        es_internacional = venta.tipo_viaje == 'INT'
+        if es_internacional:
+            precio_total = getattr(venta, 'costo_total_con_modificacion_usd', None) or venta.costo_venta_final_usd or Decimal('0.00')
+            anticipo = venta.cantidad_apertura_usd or Decimal('0.00')
+            saldo_pendiente = max(Decimal('0.00'), (venta.costo_total_con_modificacion_usd or Decimal('0.00')) - (venta.total_pagado_usd or Decimal('0.00')))
+
+        anticipo_texto = numero_a_texto(float(anticipo))
+        anticipo_texto = anticipo_texto.replace('M.N.', 'MXN')
+        if es_internacional:
+            anticipo_texto = anticipo_texto.replace('MXN', 'USD').replace('pesos', 'dólares')
+
+        def format_date(v):
+            if not v:
+                return ''
+            try:
+                if hasattr(v, 'day'):
+                    meses = {1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL', 5: 'MAYO', 6: 'JUNIO',
+                            7: 'JULIO', 8: 'AGOSTO', 9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'}
+                    return f"{v.day:02d} {meses.get(v.month, '')} {v.year}"
+                return str(v)
+            except Exception:
+                return ''
+
+        def format_currency(v):
+            if not v:
+                return '0.00'
+            return f"{v:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+
+        template_path = os.path.join(settings.BASE_DIR, 'static', 'docx', 'membrete.docx')
+        doc = Document(template_path) if os.path.exists(template_path) else Document()
+        style = doc.styles['Normal']
+        style.font.name = 'Arial'
+        style.font.size = Pt(12)
+        style._element.rPr.rFonts.set(qn('w:eastAsia'), 'Arial')
+        MOVUMS_BLUE = RGBColor(0, 74, 142)
+        TEXT_COLOR = RGBColor(47, 47, 47)
+
+        def set_run_font(run, size=10, bold=False, color=TEXT_COLOR):
+            run.font.name = 'Arial'
+            run.font.size = Pt(size)
+            run.bold = bold
+            run.font.color.rgb = color
+
+        p_titulo = doc.add_paragraph()
+        p_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        set_run_font(p_titulo.add_run('CONTRATO DE SERVICIOS TURÍSTICOS'), size=10, bold=True, color=MOVUMS_BLUE)
+        p_fecha = doc.add_paragraph()
+        p_fecha.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        set_run_font(p_fecha.add_run('Fecha: '), size=10, bold=True)
+        set_run_font(p_fecha.add_run(format_date(date.today())), size=10)
+
+        run_texto = doc.add_paragraph().add_run('Movums The travel Store, con domicilio Plaza Mora, Juárez Sur 321 Local 18 CP. 56100 Texcoco Estado de México, recibió de: ')
+        set_run_font(run_texto, size=10)
+        run_cli = doc.add_paragraph().add_run(cliente.nombre_completo_display.upper())
+        set_run_font(run_cli, size=10, bold=True)
+        run_cli.font.underline = True
+        set_run_font(doc.add_paragraph().add_run(' la cantidad de:'), size=10)
+        p_monto = doc.add_paragraph()
+        set_run_font(p_monto.add_run(f'${format_currency(anticipo)}'), size=10, bold=True)
+        set_run_font(p_monto.add_run(f' ({anticipo_texto}).'), size=10)
+
+        pasajeros_txt = (venta.pasajeros or '').strip()
+        lineas = [n.strip() for n in pasajeros_txt.replace('\r\n', '\n').replace('\r', '\n').split('\n') if n.strip()]
+        acompanantes = ', '.join(lineas) if lineas else ''
+        menores_fmt = _format_edades_menores_contrato(getattr(venta, 'edades_menores', None) or '')
+        servs = venta.servicios_seleccionados or ''
+        servs_nombres = dict(venta.SERVICIOS_CHOICES)
+        servs_display = ', '.join([servs_nombres.get(c.strip(), c.strip()) for c in servs.split(',') if c.strip()]) if servs else ''
+        moneda = 'USD' if es_internacional else 'MXN'
+
+        campos_pag1 = [
+            ('FECHA DE IDA:', format_date(venta.fecha_inicio_viaje)),
+            ('FECHA DE REGRESO:', format_date(venta.fecha_fin_viaje)),
+            ('PASAJEROS / ACOMPAÑANTES:', acompanantes or '-'),
+            ('Menores de edad:', menores_fmt),
+            ('SERVICIOS CONTRATADOS:', servs_display or venta.servicios_detalle or '-'),
+            ('DETALLE DE SERVICIOS:', (venta.servicios_detalle or venta.servicios_detalle_desde_logistica or '').strip() or '-'),
+        ]
+        for label, val in campos_pag1:
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(2)
+            set_run_font(p.add_run(label + ' '), size=10, bold=False)
+            set_run_font(p.add_run((val or '-').upper() if val else '-'), size=10, bold=True)
+
+        p_seccion = doc.add_paragraph()
+        p_seccion.paragraph_format.space_before = Pt(8)
+        set_run_font(p_seccion.add_run('PRECIO Y CONDICIONES ECONÓMICAS'), size=10, bold=True)
+        for lbl, v in [
+            ('Precio total:', f'${format_currency(precio_total)} {moneda}'),
+            ('Anticipo recibido:', f'${format_currency(anticipo)} {moneda}'),
+            ('Saldo pendiente:', f'${format_currency(saldo_pendiente)} {moneda}'),
+        ]:
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(2)
+            set_run_font(p.add_run('•' + lbl + ' '), size=10)
+            r = p.add_run(v)
+            set_run_font(r, size=10, bold=True)
+            r.font.underline = True
+        p_fl = doc.add_paragraph()
+        set_run_font(p_fl.add_run('•Fecha límite de pago total: '), size=10)
+        if fecha_limite:
+            meses_c = {1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL', 5: 'MAYO', 6: 'JUNIO',
+                       7: 'JULIO', 8: 'AGOSTO', 9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'}
+            fl_txt = f"{fecha_limite.day:02d}/{meses_c.get(fecha_limite.month, '')}/{fecha_limite.year}"
+        else:
+            fl_txt = '//2026'
+        r_fl = p_fl.add_run(fl_txt)
+        set_run_font(r_fl, size=10, bold=True)
+        r_fl.font.underline = True
+
+        if es_internacional and (getattr(venta, 'tarifa_base_usd', None) or getattr(venta, 'tipo_cambio', None)):
+            p_usd = doc.add_paragraph()
+            p_usd.paragraph_format.space_before = Pt(6)
+            set_run_font(p_usd.add_run('Desglose USD: '), size=10, bold=True)
+            parts = []
+            if venta.tarifa_base_usd:
+                parts.append(f"Tarifa base: ${format_currency(venta.tarifa_base_usd)}")
+            if venta.impuestos_usd:
+                parts.append(f"Impuestos: ${format_currency(venta.impuestos_usd)}")
+            if venta.tipo_cambio:
+                parts.append(f"Tipo cambio ref: {venta.tipo_cambio}")
+            set_run_font(p_usd.add_run(' / '.join(parts)), size=10)
+
+        _agregar_paginas_legales_contrato_nacional(doc, cliente, set_run_font, Pt, Inches, WD_ALIGN_PARAGRAPH)
+
+        from io import BytesIO
+        buffer = BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+        nombre_safe = cliente.nombre_completo_display.replace(' ', '_').replace('/', '_')
+        filename = f"Contrato_Venta_Directa_{venta.pk}_{nombre_safe}.docx"
+        response = HttpResponse(buffer.getvalue(), content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         buffer.close()
         return response
 

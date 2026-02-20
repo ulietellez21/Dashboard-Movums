@@ -53,10 +53,14 @@
                 </span>
             {% else %}
                 {# Lógica condicional para dirigir al contrato correcto según el tipo de servicio #}
-                {# Paquete Nacional: detectar si es 'PAQ' o si tiene 'VUE' y 'HOS' juntos (paquete desglosado) #}
-                {# Paquete Internacional: detectar si es 'PAQ' con tipo_viaje 'INT' #}
-                {# Nota: Django templates no soporta paréntesis, así que usamos múltiples condiciones #}
-                {% if venta.tipo_viaje == 'NAC' or venta.tipo_viaje == 'INT_MXN' %}
+                {# Venta directa (sin cotización): usar contrato venta directa para TODAS las ventas sin cotización #}
+                {% if not venta.cotizacion_origen %}
+                    <a href="{% url 'generar_contrato_venta_directa_pdf' slug=venta.slug pk=venta.pk %}" 
+                        class="btn btn-danger shadow-sm" target="_blank"
+                        title="Genera el contrato para venta directa (sin cotización) como DOCX">
+                        <i class="fas fa-file-contract me-1"></i> Contrato Venta
+                    </a>
+                {% elif venta.tipo_viaje == 'NAC' or venta.tipo_viaje == 'INT_MXN' %}
                     {% if 'PAQ' in venta.servicios_seleccionados %}
                         <a href="{% url 'generar_contrato_paquete_nacional_pdf' slug=venta.slug pk=venta.pk %}" 
                             class="btn btn-danger shadow-sm" target="_blank"

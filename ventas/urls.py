@@ -50,6 +50,7 @@ from .views import (
     ContratoVentaPDFView,
     ContratoHospedajePDFView,
     ContratoPaqueteNacionalPDFView,
+    ContratoVentaDirectaPDFView,
     ContratoPaqueteInternacionalPDFView, 
     
     # Plantillas de Confirmación
@@ -183,6 +184,13 @@ urlpatterns = [
         name='generar_contrato_paquete_nacional_pdf'
     ),
     
+    # 3.2.2b RUTA PDF CONTRATO VENTA DIRECTA (Sin cotización)
+    path(
+        '<slug:slug>-<int:pk>/contrato-venta-directa/',
+        ContratoVentaDirectaPDFView.as_view(),
+        name='generar_contrato_venta_directa_pdf'
+    ),
+
     # 3.2.3 RUTA PDF CONTRATO DE PAQUETE INTERNACIONAL (Específico para paquetes internacionales)
     path(
         '<slug:slug>-<int:pk>/contrato-paquete-internacional/', 
