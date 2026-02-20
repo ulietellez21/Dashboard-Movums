@@ -5965,24 +5965,24 @@ class ContratoVentaDirectaPDFView(LoginRequiredMixin, DetailView):
         p_titulo = doc.add_paragraph()
         p_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
         p_titulo.paragraph_format.space_after = Pt(12)
-        set_run_font(p_titulo.add_run('CONTRATO DE SERVICIOS TURÍSTICOS'), size=10, bold=True, color=MOVUMS_BLUE)
+        set_run_font(p_titulo.add_run('CONTRATO DE SERVICIOS TURÍSTICOS'), size=14, bold=True, color=MOVUMS_BLUE)
         p_fecha = doc.add_paragraph()
         p_fecha.alignment = WD_ALIGN_PARAGRAPH.RIGHT
         p_fecha.paragraph_format.space_after = Pt(24)
-        set_run_font(p_fecha.add_run('Fecha: '), size=10, bold=True)
-        set_run_font(p_fecha.add_run(format_date(date.today())), size=10)
+        set_run_font(p_fecha.add_run('Fecha: '), size=12, bold=True)
+        set_run_font(p_fecha.add_run(format_date(date.today())), size=12)
 
         p_cliente = doc.add_paragraph()
         p_cliente.paragraph_format.space_after = Pt(6)
-        set_run_font(p_cliente.add_run('Movums The travel Store, con domicilio Plaza Mora, Juárez Sur 321 Local 18 CP. 56100 Texcoco Estado de México, recibió de: '), size=10)
+        set_run_font(p_cliente.add_run('Movums The travel Store, con domicilio Plaza Mora, Juárez Sur 321 Local 18 CP. 56100 Texcoco Estado de México, recibió de: '), size=12)
         run_cli = p_cliente.add_run(cliente.nombre_completo_display.upper())
-        set_run_font(run_cli, size=10, bold=True)
+        set_run_font(run_cli, size=12, bold=True)
         run_cli.font.underline = True
-        set_run_font(p_cliente.add_run(' la cantidad de: '), size=10)
+        set_run_font(p_cliente.add_run(' la cantidad de: '), size=12)
         run_monto = p_cliente.add_run(f'${format_currency(anticipo)}')
-        set_run_font(run_monto, size=10, bold=True)
+        set_run_font(run_monto, size=12, bold=True)
         run_monto.font.underline = True
-        set_run_font(p_cliente.add_run(f' ({anticipo_texto}).'), size=10)
+        set_run_font(p_cliente.add_run(f' ({anticipo_texto}).'), size=12)
 
         pasajeros_txt = (venta.pasajeros or '').strip()
         lineas = [n.strip() for n in pasajeros_txt.replace('\r\n', '\n').replace('\r', '\n').split('\n') if n.strip()]
@@ -6010,24 +6010,24 @@ class ContratoVentaDirectaPDFView(LoginRequiredMixin, DetailView):
         for label, val in campos_pag1:
             p = doc.add_paragraph()
             p.paragraph_format.space_after = Pt(2)
-            set_run_font(p.add_run(label + ' '), size=10, bold=False)
+            set_run_font(p.add_run(label + ' '), size=12, bold=False)
             val_display = (val or '-').upper() if val else '-'
-            set_run_font(p.add_run(val_display), size=10, bold=True)
+            set_run_font(p.add_run(val_display), size=12, bold=True)
 
         p_det_label = doc.add_paragraph()
         p_det_label.paragraph_format.space_after = Pt(2)
-        set_run_font(p_det_label.add_run('DETALLE DE SERVICIOS: '), size=10, bold=False)
+        set_run_font(p_det_label.add_run('DETALLE DE SERVICIOS: '), size=12, bold=False)
         if detalle_servicios_lineas:
             for i, linea in enumerate(detalle_servicios_lineas):
                 p_lin = doc.add_paragraph()
                 p_lin.paragraph_format.space_after = Pt(2)
-                set_run_font(p_lin.add_run(linea), size=10, bold=True)
+                set_run_font(p_lin.add_run(linea), size=12, bold=True)
         else:
-            set_run_font(doc.add_paragraph().add_run((venta.servicios_detalle or '-').upper()), size=10, bold=True)
+            set_run_font(doc.add_paragraph().add_run((venta.servicios_detalle or '-').upper()), size=12, bold=True)
 
         p_seccion = doc.add_paragraph()
-        p_seccion.paragraph_format.space_before = Pt(8)
-        set_run_font(p_seccion.add_run('PRECIO Y CONDICIONES ECONÓMICAS'), size=10, bold=True, color=MOVUMS_BLUE)
+        p_seccion.paragraph_format.space_before = Pt(12)
+        set_run_font(p_seccion.add_run('PRECIO Y CONDICIONES ECONÓMICAS'), size=12, bold=True, color=MOVUMS_BLUE)
         for lbl, v in [
             ('Precio total:', f'${format_currency(precio_total)} {moneda}'),
             ('Anticipo recibido:', f'${format_currency(anticipo)} {moneda}'),
@@ -6035,12 +6035,12 @@ class ContratoVentaDirectaPDFView(LoginRequiredMixin, DetailView):
         ]:
             p = doc.add_paragraph()
             p.paragraph_format.space_after = Pt(2)
-            set_run_font(p.add_run('•' + lbl + ' '), size=10)
+            set_run_font(p.add_run('•' + lbl + ' '), size=12)
             r = p.add_run(v)
-            set_run_font(r, size=10, bold=True)
+            set_run_font(r, size=12, bold=True)
             r.font.underline = True
         p_fl = doc.add_paragraph()
-        set_run_font(p_fl.add_run('•Fecha límite de pago total: '), size=10)
+        set_run_font(p_fl.add_run('•Fecha límite de pago total: '), size=12)
         if fecha_limite:
             meses_c = {1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL', 5: 'MAYO', 6: 'JUNIO',
                        7: 'JULIO', 8: 'AGOSTO', 9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'}
@@ -6048,13 +6048,13 @@ class ContratoVentaDirectaPDFView(LoginRequiredMixin, DetailView):
         else:
             fl_txt = '//2026'
         r_fl = p_fl.add_run(fl_txt)
-        set_run_font(r_fl, size=10, bold=True)
+        set_run_font(r_fl, size=12, bold=True)
         r_fl.font.underline = True
 
         if es_internacional and (getattr(venta, 'tarifa_base_usd', None) or getattr(venta, 'tipo_cambio', None)):
             p_usd = doc.add_paragraph()
             p_usd.paragraph_format.space_before = Pt(6)
-            set_run_font(p_usd.add_run('Desglose USD: '), size=10, bold=True)
+            set_run_font(p_usd.add_run('Desglose USD: '), size=12, bold=True)
             parts = []
             if venta.tarifa_base_usd:
                 parts.append(f"Tarifa base: ${format_currency(venta.tarifa_base_usd)}")
@@ -6062,7 +6062,7 @@ class ContratoVentaDirectaPDFView(LoginRequiredMixin, DetailView):
                 parts.append(f"Impuestos: ${format_currency(venta.impuestos_usd)}")
             if venta.tipo_cambio:
                 parts.append(f"Tipo cambio ref: {venta.tipo_cambio}")
-            set_run_font(p_usd.add_run(' / '.join(parts)), size=10)
+            set_run_font(p_usd.add_run(' / '.join(parts)), size=12)
 
         _agregar_paginas_legales_contrato_nacional(doc, cliente, set_run_font, Pt, Inches, WD_ALIGN_PARAGRAPH)
 
