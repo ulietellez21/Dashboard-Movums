@@ -3385,28 +3385,31 @@ class ContratoVentaPDFView(LoginRequiredMixin, DetailView):
             from django.urls import reverse
             return HttpResponseRedirect(reverse('generar_contrato_hospedaje_pdf', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}))
         
-        # Verificar si es paquete nacional (directamente o por cotización)
+        # Verificar si es paquete nacional (directamente, VUE+HOS desglosado, o por cotización)
         es_paquete_nacional = False
-        if venta.servicios_seleccionados and 'PAQ' in venta.servicios_seleccionados and venta.tipo_viaje in ('NAC', 'INT_MXN'):
-            es_paquete_nacional = True
-        elif venta.tipo_viaje in ('NAC', 'INT_MXN') and venta.cotizacion_origen:
-            # Si no tiene PAQ pero tiene cotización, verificar el tipo de cotización
-            cotizacion = venta.cotizacion_origen
-            if isinstance(cotizacion.propuestas, str):
-                try:
-                    import json
-                    propuestas = json.loads(cotizacion.propuestas)
-                except (ValueError, TypeError, json.JSONDecodeError) as e:
-                    logger.warning(f"Error al decodificar propuestas de cotización: {e}")
-                    propuestas = {}
-            elif isinstance(cotizacion.propuestas, dict):
-                propuestas = cotizacion.propuestas
-            else:
-                propuestas = {}
-            
-            tipo_cot = propuestas.get('tipo', '')
-            if tipo_cot == 'paquete':
+        if venta.tipo_viaje in ('NAC', 'INT_MXN'):
+            if venta.servicios_seleccionados and 'PAQ' in venta.servicios_seleccionados:
                 es_paquete_nacional = True
+            elif venta.servicios_seleccionados and 'VUE' in venta.servicios_seleccionados and 'HOS' in venta.servicios_seleccionados:
+                # Paquete desglosado (VUE+HOS) - mismo criterio que venta_detail
+                es_paquete_nacional = True
+            elif venta.cotizacion_origen:
+                # Si no tiene PAQ ni VUE+HOS pero tiene cotización, verificar el tipo de cotización
+                cotizacion = venta.cotizacion_origen
+                if isinstance(cotizacion.propuestas, str):
+                    try:
+                        import json
+                        propuestas = json.loads(cotizacion.propuestas)
+                    except (ValueError, TypeError, json.JSONDecodeError) as e:
+                        logger.warning(f"Error al decodificar propuestas de cotización: {e}")
+                        propuestas = {}
+                elif isinstance(cotizacion.propuestas, dict):
+                    propuestas = cotizacion.propuestas
+                else:
+                    propuestas = {}
+                tipo_cot = propuestas.get('tipo', '')
+                if tipo_cot == 'paquete':
+                    es_paquete_nacional = True
         
         if es_paquete_nacional:
             # Redirigir a la vista específica de paquete nacional
@@ -4714,12 +4717,14 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
             origen = (cotizacion.origen or '').strip()
             destino = (cotizacion.destino or '').strip()
             
-            # Obtener información del paquete
-            paquete = propuestas.get('paquete', {})
+            # Obtener información: para PAQ desde paquete; para VUE+HOS desde vuelos/hoteles
+            paquete = propuestas.get('paquete', {}) or {}
+            if not isinstance(paquete, dict):
+                paquete = {}
             logger.info(f"DEBUG: Paquete encontrado: {bool(paquete)}, tipo: {type(paquete)}")
             
+            # 1) Vuelo: intentar desde paquete.vuelo, si no desde propuestas['vuelos'] (VUE+HOS)
             if paquete:
-                # Información del vuelo - PRIMERO intentar desde paquete
                 vuelo = paquete.get('vuelo', {})
                 logger.info(f"DEBUG: Vuelo desde paquete: {bool(vuelo)}, tipo: {type(vuelo)}, contenido: {vuelo}")
                 
@@ -4730,47 +4735,31 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
                     vuelo_incluye = (vuelo.get('incluye', '') or '').strip()
                     logger.info(f"DEBUG: Vuelo extraído desde paquete - aerolinea: {vuelo_aerolinea}, salida: {vuelo_salida}, regreso: {vuelo_regreso}, incluye: {vuelo_incluye}")
                 
-                # FALLBACK: Si no hay vuelo en paquete o está vacío, buscar en propuestas['vuelos']
-                if not vuelo_aerolinea and propuestas.get('vuelos'):
-                    vuelos_lista = propuestas.get('vuelos', [])
-                    logger.info(f"DEBUG: Buscando vuelo en propuestas['vuelos']: {bool(vuelos_lista)}, tipo: {type(vuelos_lista)}")
-                    
-                    if isinstance(vuelos_lista, list) and len(vuelos_lista) > 0:
-                        # Tomar el primer vuelo de la lista
-                        vuelo_fallback = vuelos_lista[0] if isinstance(vuelos_lista[0], dict) else {}
-                        logger.info(f"DEBUG: Vuelo fallback encontrado: {vuelo_fallback}")
-                        
-                        if vuelo_fallback:
-                            # Si no tenemos aerolínea, intentar obtenerla del vuelo fallback
-                            if not vuelo_aerolinea:
-                                vuelo_aerolinea = (vuelo_fallback.get('aerolinea', '') or vuelo_fallback.get('aerolinea_nombre', '') or '').strip()
-                            if not vuelo_salida:
-                                vuelo_salida = (vuelo_fallback.get('salida', '') or vuelo_fallback.get('fecha_salida', '') or vuelo_fallback.get('ida', '') or '').strip()
-                            if not vuelo_regreso:
-                                vuelo_regreso = (vuelo_fallback.get('regreso', '') or vuelo_fallback.get('fecha_regreso', '') or vuelo_fallback.get('vuelta', '') or '').strip()
-                            if not vuelo_incluye:
-                                vuelo_incluye = (vuelo_fallback.get('incluye', '') or vuelo_fallback.get('equipaje', '') or '').strip()
-                            logger.info(f"DEBUG: Vuelo extraído desde fallback - aerolinea: {vuelo_aerolinea}, salida: {vuelo_salida}, regreso: {vuelo_regreso}, incluye: {vuelo_incluye}")
-                    elif isinstance(vuelos_lista, dict):
-                        # Si es un diccionario único, usarlo directamente
-                        if not vuelo_aerolinea:
-                            vuelo_aerolinea = (vuelos_lista.get('aerolinea', '') or vuelos_lista.get('aerolinea_nombre', '') or '').strip()
-                        if not vuelo_salida:
-                            vuelo_salida = (vuelos_lista.get('salida', '') or vuelos_lista.get('fecha_salida', '') or vuelos_lista.get('ida', '') or '').strip()
-                        if not vuelo_regreso:
-                            vuelo_regreso = (vuelos_lista.get('regreso', '') or vuelos_lista.get('fecha_regreso', '') or vuelos_lista.get('vuelta', '') or '').strip()
-                        if not vuelo_incluye:
-                            vuelo_incluye = (vuelos_lista.get('incluye', '') or vuelos_lista.get('equipaje', '') or '').strip()
-                
-                # Información del hotel - PRIMERO intentar desde paquete
+                # FALLBACK vuelo: se ejecuta más abajo (fuera de if paquete) para VUE+HOS
+            
+            # Extracción de vuelo desde propuestas['vuelos'] (VUE+HOS o fallback cuando paquete no tiene)
+            if not vuelo_aerolinea and propuestas.get('vuelos'):
+                vuelos_lista = propuestas.get('vuelos', [])
+                if isinstance(vuelos_lista, list) and len(vuelos_lista) > 0:
+                    vuelo_fallback = vuelos_lista[0] if isinstance(vuelos_lista[0], dict) else {}
+                    if vuelo_fallback:
+                        vuelo_aerolinea = (vuelo_fallback.get('aerolinea', '') or vuelo_fallback.get('aerolinea_nombre', '') or '').strip()
+                        vuelo_salida = (vuelo_fallback.get('salida', '') or vuelo_fallback.get('fecha_salida', '') or vuelo_fallback.get('ida', '') or '').strip()
+                        vuelo_regreso = (vuelo_fallback.get('regreso', '') or vuelo_fallback.get('fecha_regreso', '') or vuelo_fallback.get('vuelta', '') or '').strip()
+                        vuelo_incluye = (vuelo_fallback.get('incluye', '') or vuelo_fallback.get('equipaje', '') or '').strip()
+                elif isinstance(vuelos_lista, dict):
+                    vuelo_aerolinea = (vuelos_lista.get('aerolinea', '') or vuelos_lista.get('aerolinea_nombre', '') or '').strip()
+                    vuelo_salida = (vuelos_lista.get('salida', '') or vuelos_lista.get('fecha_salida', '') or vuelos_lista.get('ida', '') or '').strip()
+                    vuelo_regreso = (vuelos_lista.get('regreso', '') or vuelos_lista.get('fecha_regreso', '') or vuelos_lista.get('vuelta', '') or '').strip()
+                    vuelo_incluye = (vuelos_lista.get('incluye', '') or vuelos_lista.get('equipaje', '') or '').strip()
+            
+            # Información del hotel: desde paquete (si existe) o desde propuestas['hoteles'] (VUE+HOS)
+            if paquete:
                 hotel = paquete.get('hotel', {})
-                logger.info(f"DEBUG: Hotel desde paquete: {bool(hotel)}, tipo: {type(hotel)}, contenido: {hotel}")
-                
                 if hotel and isinstance(hotel, dict):
                     hotel_nombre = (hotel.get('nombre', '') or '').strip()
                     habitacion = (hotel.get('habitacion', '') or '').strip()
                     plan_alimentos = (hotel.get('plan', '') or '').strip()
-                    logger.info(f"DEBUG: Hotel extraído desde paquete - nombre: {hotel_nombre}, habitacion: {habitacion}, plan: {plan_alimentos}")
             
             # FALLBACK: Si no hay hotel en paquete o está vacío, buscar en propuestas['hoteles']
             if (not hotel_nombre or not habitacion or not plan_alimentos) and propuestas.get('hoteles'):
@@ -4799,21 +4788,13 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
                         habitacion = (hoteles_lista.get('habitacion', '') or hoteles_lista.get('tipo_habitacion', '') or '').strip()
                     if not plan_alimentos:
                         plan_alimentos = (hoteles_lista.get('plan', '') or hoteles_lista.get('plan_alimentos', '') or hoteles_lista.get('alimentos', '') or '').strip()
-                
-                # Tours/Adicionales - PRIMERO intentar desde paquete
-                tours_raw = paquete.get('tours', [])
-                logger.info(f"DEBUG: Tours desde paquete: {bool(tours_raw)}, tipo: {type(tours_raw)}, contenido: {tours_raw}")
-                
-                if tours_raw:
-                    if isinstance(tours_raw, list):
-                        tours = tours_raw
-                    elif isinstance(tours_raw, dict):
-                        # Si es un diccionario, convertirlo a lista
-                        tours = [tours_raw]
-                    else:
-                        tours = []
-                else:
-                    tours = []
+            
+            # Tours/Adicionales: desde paquete o propuestas['tours']
+            tours_raw = paquete.get('tours', []) if paquete else []
+            if tours_raw:
+                tours = tours_raw if isinstance(tours_raw, list) else ([tours_raw] if isinstance(tours_raw, dict) else [])
+            else:
+                tours = []
             
             # FALLBACK: Si no hay tours en paquete, buscar en propuestas['tours']
             if (not tours or len(tours) == 0) and propuestas.get('tours'):
