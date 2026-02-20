@@ -11620,29 +11620,29 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
         total_ventas_pagadas = Decimal('0.00')
         total_ventas_pendientes = Decimal('0.00')
         
+        from ventas.services.comisiones import calcular_monto_base_comision
+
         for venta in ventas_base:
             total_abonos = getattr(venta, 'total_abonos_confirmados', Decimal('0.00')) or Decimal('0.00')
             apertura = venta.cantidad_apertura or Decimal('0.00')
             total_pagado_calc = total_abonos + apertura
             
             es_internacional = getattr(venta, 'tipo_viaje', 'NAC') == 'INT'
-            
-            # Calcular costo total según tipo de venta
+            detalles_int = None
+            base_comision_usd = None
+
+            # Calcular costo total y base de comisión según tipo de venta
             if es_internacional:
-                # Ventas internacionales: usar valores USD
-                costo_total_usd = venta.costo_total_con_modificacion_usd
-                total_pagado_usd = venta.total_pagado_usd
-                
-                # Para cálculo de comisión: convertir USD a MXN
-                costo_venta_usd = getattr(venta, 'costo_venta_final_usd', None) or getattr(venta, 'total_usd', None) or Decimal('0.00')
-                tc = getattr(venta, 'tipo_cambio', None)
+                # Ventas internacionales: base de comisión = tarifa_base + suplementos + tours (sin impuestos)
+                monto_base_usd, detalles_int = calcular_monto_base_comision(venta)
+                base_comision_usd = monto_base_usd
+                tc = getattr(venta, 'tipo_cambio', None) or Decimal('0')
                 if tc and Decimal(str(tc)) > 0:
-                    base_comision = (Decimal(str(costo_venta_usd)) * Decimal(str(tc))).quantize(Decimal('0.01'))
+                    base_comision = (monto_base_usd * Decimal(str(tc))).quantize(Decimal('0.01'))
                 else:
                     base_comision = Decimal('0.00')
-                
-                costo_total = costo_total_usd
-                total_pagado = total_pagado_usd
+                costo_total = venta.costo_total_con_modificacion_usd or Decimal('0.00')
+                total_pagado = venta.total_pagado_usd or Decimal('0.00')
             else:
                 # Ventas nacionales: usar valores MXN
                 costo_venta = venta.costo_venta_final or Decimal('0.00')
@@ -11660,16 +11660,19 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
                 ventas_detalle_pagadas.append({
                     'venta': venta,
                     'base_comision': base_comision,
+                    'base_comision_usd': base_comision_usd,
+                    'detalles_int': detalles_int,
                     'total_pagado': total_pagado,
                     'costo_total': costo_total,
                     'es_internacional': es_internacional,
                 })
             elif costo_total > 0 and total_pagado > 0:
-                # Venta pendiente (tiene pagos pero no está completamente pagada)
                 total_ventas_pendientes += base_comision
                 ventas_detalle_pendientes.append({
                     'venta': venta,
                     'base_comision': base_comision,
+                    'base_comision_usd': base_comision_usd,
+                    'detalles_int': detalles_int,
                     'total_pagado': total_pagado,
                     'costo_total': costo_total,
                     'es_internacional': es_internacional,
@@ -11774,7 +11777,8 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
         row += 1
 
         # Detalle de ventas PAGADAS (título de sección)
-        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
+        NUM_COL_PAGADAS = 9
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=NUM_COL_PAGADAS)
         sec_cell = ws.cell(row=row, column=1, value="DETALLE DE VENTAS PAGADAS (100% comisión)")
         sec_cell.font = Font(bold=True, color="FFFFFF", size=12)
         sec_cell.fill = header_fill
@@ -11782,7 +11786,11 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
         sec_cell.border = border_medium
         row += 1
 
-        headers = ['Folio venta', 'Cliente', 'Total Venta', 'Pagado', 'Comisión']
+        headers = [
+            'Folio venta', 'Cliente', 'Total Venta', 'Pagado',
+            'Tarifa Base USD', 'Suplementos USD', 'Tours USD', 'Impuestos USD (excl.)',
+            'Comisión',
+        ]
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=row, column=col, value=header)
             cell.fill = header_fill
@@ -11807,6 +11815,8 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
         for idx, detalle in enumerate(ventas_detalle_pagadas):
             venta = detalle['venta']
             base_comision = detalle['base_comision']
+            base_comision_usd = detalle.get('base_comision_usd')
+            detalles_int = detalle.get('detalles_int') or {}
             total_pagado = detalle['total_pagado']
             costo_total = detalle['costo_total']
             es_internacional = detalle['es_internacional']
@@ -11814,67 +11824,73 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
             # Calcular comisión individual usando el porcentaje global
             comision_venta = base_comision * porcentaje_comision
             
-            # Para ventas INT, también calcular comisión en USD
+            # Para ventas INT: comisión sobre base sin impuestos (tarifa+suplementos+tours)
             if es_internacional:
-                costo_venta_usd = getattr(venta, 'costo_venta_final_usd', None) or getattr(venta, 'total_usd', None) or Decimal('0.00')
-                comision_venta_usd = Decimal(str(costo_venta_usd)) * porcentaje_comision
-                
-                # Acumular totales USD
+                monto_base_usd = base_comision_usd or Decimal('0.00')
+                comision_venta_usd = monto_base_usd * porcentaje_comision
                 total_ventas_usd += costo_total
                 total_pagado_usd += total_pagado
                 total_comision_usd += comision_venta_usd
-                
-                # Usar color especial para filas USD
                 row_fill = row_fill_usd_even if idx % 2 == 0 else row_fill_usd_odd
+                # Desglose INT desde detalles (tarifa_base_usd, suplementos_usd, tours_usd, impuestos_usd)
+                def _float_detalle(key):
+                    v = detalles_int.get(key)
+                    if v is None:
+                        return ''
+                    try:
+                        return float(v)
+                    except (TypeError, ValueError):
+                        return v
                 valores_fila = [
                     venta.folio or f"Venta-{venta.pk}",
                     str(venta.cliente) if venta.cliente else '',
-                    float(costo_total),
-                    float(total_pagado),
-                    float(comision_venta_usd),
+                    f"USD {float(costo_total):,.2f}",
+                    f"USD {float(total_pagado):,.2f}",
+                    _float_detalle('tarifa_base_usd'),
+                    _float_detalle('suplementos_usd'),
+                    _float_detalle('tours_usd'),
+                    _float_detalle('impuestos_usd'),
+                    f"USD {float(comision_venta_usd):,.2f}",
                 ]
             else:
-                # Acumular totales MXN
                 total_ventas_mxn += costo_total
                 total_pagado_mxn += total_pagado
                 total_comision_mxn += comision_venta
-                
-                # Usar color normal para filas MXN
                 row_fill = row_fill_even if idx % 2 == 0 else row_fill_odd
                 valores_fila = [
                     venta.folio or f"Venta-{venta.pk}",
                     str(venta.cliente) if venta.cliente else '',
                     float(costo_total),
                     float(total_pagado),
+                    '', '', '', '',  # columnas desglose vacías para MXN
                     float(comision_venta),
                 ]
             
             for c, val in enumerate(valores_fila, 1):
-                cell = ws.cell(row=row, column=c, value=val if val is not None else 0.0)
+                cell = ws.cell(row=row, column=c, value=val)
                 cell.fill = row_fill
                 cell.border = border
                 cell.alignment = align_center if c >= 3 else align_left
-                if c >= 3:
+                if isinstance(val, (int, float)):
                     cell.number_format = '#,##0.00'
             row += 1
         
-        # Filas de totales separadas por moneda (ventas pagadas)
+        # Filas de totales separadas por moneda (ventas pagadas) — columnas 3, 4, 9
         if ventas_detalle_pagadas:
             row += 1
             totales_fill_bold = PatternFill(start_color="D4C5F9", end_color="D4C5F9", fill_type="solid")
             totales_fill_usd = PatternFill(start_color="FFD966", end_color="FFD966", fill_type="solid")
             
-            # Totales MXN
+            # Totales MXN (sin etiqueta MXN por solicitud)
             if total_ventas_mxn > 0:
-                ws.cell(row=row, column=1, value="TOTALES MXN (Pagadas)").fill = totales_fill_bold
+                ws.cell(row=row, column=1, value="TOTALES (Pagadas)").fill = totales_fill_bold
                 ws.cell(row=row, column=1).font = Font(bold=True)
                 ws.cell(row=row, column=1).border = border_medium
                 ws.cell(row=row, column=1).alignment = align_left
-                
-                ws.cell(row=row, column=2, value="").fill = totales_fill_bold
-                ws.cell(row=row, column=2).border = border_medium
-                
-                for col, total_val in enumerate([total_ventas_mxn, total_pagado_mxn, total_comision_mxn], 3):
+                for c in range(2, NUM_COL_PAGADAS + 1):
+                    ws.cell(row=row, column=c).fill = totales_fill_bold
+                    ws.cell(row=row, column=c).border = border_medium
+                for col, total_val in [(3, total_ventas_mxn), (4, total_pagado_mxn), (9, total_comision_mxn)]:
                     cell = ws.cell(row=row, column=col, value=float(total_val))
                     cell.number_format = '#,##0.00'
                     cell.fill = totales_fill_bold
@@ -11889,11 +11905,10 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
                 ws.cell(row=row, column=1).font = Font(bold=True)
                 ws.cell(row=row, column=1).border = border_medium
                 ws.cell(row=row, column=1).alignment = align_left
-                
-                ws.cell(row=row, column=2, value="").fill = totales_fill_usd
-                ws.cell(row=row, column=2).border = border_medium
-                
-                for col, total_val in enumerate([total_ventas_usd, total_pagado_usd, total_comision_usd], 3):
+                for c in range(2, NUM_COL_PAGADAS + 1):
+                    ws.cell(row=row, column=c).fill = totales_fill_usd
+                    ws.cell(row=row, column=c).border = border_medium
+                for col, total_val in [(3, total_ventas_usd), (4, total_pagado_usd), (9, total_comision_usd)]:
                     cell = ws.cell(row=row, column=col, value=float(total_val))
                     cell.number_format = '#,##0.00'
                     cell.fill = totales_fill_usd
@@ -11903,10 +11918,10 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
                 row += 1
         
         # Sección de VENTAS PENDIENTES
+        NUM_COL_PENDIENTES = 10
         if ventas_detalle_pendientes:
             row += 2
-            # Título de sección pendientes
-            ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=6)
+            ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=NUM_COL_PENDIENTES)
             sec_cell_pend = ws.cell(row=row, column=1, value="DETALLE DE VENTAS PENDIENTES (30% comisión pagada, 70% pendiente)")
             sec_cell_pend.font = Font(bold=True, color="FFFFFF", size=12)
             sec_cell_pend.fill = PatternFill(start_color="FF6B6B", end_color="FF6B6B", fill_type="solid")
@@ -11914,10 +11929,15 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
             sec_cell_pend.border = border_medium
             row += 1
             
-            headers_pend = ['Folio venta', 'Cliente', 'Total Venta', 'Pagado', 'Comisión Pagada (30%)', 'Comisión Pendiente (70%)']
+            headers_pend = [
+                'Folio venta', 'Cliente', 'Total Venta', 'Pagado',
+                'Tarifa Base USD', 'Suplementos USD', 'Tours USD', 'Impuestos USD (excl.)',
+                'Comisión Pagada (30%)', 'Comisión Pendiente (70%)',
+            ]
+            fill_pend = PatternFill(start_color="FF6B6B", end_color="FF6B6B", fill_type="solid")
             for col, header in enumerate(headers_pend, 1):
                 cell = ws.cell(row=row, column=col, value=header)
-                cell.fill = PatternFill(start_color="FF6B6B", end_color="FF6B6B", fill_type="solid")
+                cell.fill = fill_pend
                 cell.font = header_font
                 cell.border = border
                 cell.alignment = align_center
@@ -11941,81 +11961,88 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
             row_fill_pend_mxn_even = PatternFill(start_color="FFE5F0", end_color="FFE5F0", fill_type="solid")
             row_fill_pend_mxn_odd = PatternFill(start_color="FFD1E0", end_color="FFD1E0", fill_type="solid")
             
+            def _float_detalle_pend(d, key):
+                v = (d.get('detalles_int') or {}).get(key)
+                if v is None:
+                    return ''
+                try:
+                    return float(v)
+                except (TypeError, ValueError):
+                    return v
+
             for idx, detalle in enumerate(ventas_detalle_pendientes):
                 venta = detalle['venta']
                 base_comision = detalle['base_comision']
+                base_comision_usd = detalle.get('base_comision_usd')
                 total_pagado = detalle['total_pagado']
                 costo_total = detalle['costo_total']
                 es_internacional = detalle['es_internacional']
                 
-                # Calcular comisiones: 30% pagada, 70% pendiente
                 comision_total_venta = base_comision * porcentaje_comision
                 comision_pagada = comision_total_venta * Decimal('0.30')
                 comision_pendiente = comision_total_venta * Decimal('0.70')
                 
                 if es_internacional:
-                    costo_venta_usd = getattr(venta, 'costo_venta_final_usd', None) or getattr(venta, 'total_usd', None) or Decimal('0.00')
-                    comision_total_usd = Decimal(str(costo_venta_usd)) * porcentaje_comision
+                    monto_base_usd = base_comision_usd or Decimal('0.00')
+                    comision_total_usd = monto_base_usd * porcentaje_comision
                     comision_pagada_usd = comision_total_usd * Decimal('0.30')
                     comision_pendiente_usd = comision_total_usd * Decimal('0.70')
-                    
-                    # Acumular totales USD pendientes
                     total_ventas_pend_usd += costo_total
                     total_pagado_pend_usd += total_pagado
                     total_comision_pagada_pend_usd += comision_pagada_usd
                     total_comision_pendiente_pend_usd += comision_pendiente_usd
-                    
                     row_fill = row_fill_pend_usd_even if idx % 2 == 0 else row_fill_pend_usd_odd
                     valores_fila = [
                         venta.folio or f"Venta-{venta.pk}",
                         str(venta.cliente) if venta.cliente else '',
-                        float(costo_total),
-                        float(total_pagado),
-                        float(comision_pagada_usd),
-                        float(comision_pendiente_usd),
+                        f"USD {float(costo_total):,.2f}",
+                        f"USD {float(total_pagado):,.2f}",
+                        _float_detalle_pend(detalle, 'tarifa_base_usd'),
+                        _float_detalle_pend(detalle, 'suplementos_usd'),
+                        _float_detalle_pend(detalle, 'tours_usd'),
+                        _float_detalle_pend(detalle, 'impuestos_usd'),
+                        f"USD {float(comision_pagada_usd):,.2f}",
+                        f"USD {float(comision_pendiente_usd):,.2f}",
                     ]
                 else:
-                    # Acumular totales MXN pendientes
                     total_ventas_pend_mxn += costo_total
                     total_pagado_pend_mxn += total_pagado
                     total_comision_pagada_pend_mxn += comision_pagada
                     total_comision_pendiente_pend_mxn += comision_pendiente
-                    
                     row_fill = row_fill_pend_mxn_even if idx % 2 == 0 else row_fill_pend_mxn_odd
                     valores_fila = [
                         venta.folio or f"Venta-{venta.pk}",
                         str(venta.cliente) if venta.cliente else '',
                         float(costo_total),
                         float(total_pagado),
+                        '', '', '', '',
                         float(comision_pagada),
                         float(comision_pendiente),
                     ]
                 
                 for c, val in enumerate(valores_fila, 1):
-                    cell = ws.cell(row=row, column=c, value=val if val is not None else 0.0)
+                    cell = ws.cell(row=row, column=c, value=val)
                     cell.fill = row_fill
                     cell.border = border
                     cell.alignment = align_center if c >= 3 else align_left
-                    if c >= 3:
+                    if isinstance(val, (int, float)):
                         cell.number_format = '#,##0.00'
                 row += 1
             
-            # Totales de ventas pendientes
+            # Totales de ventas pendientes — columnas 3, 4, 9, 10
             row += 1
             totales_fill_pend_mxn = PatternFill(start_color="FFB3D9", end_color="FFB3D9", fill_type="solid")
             totales_fill_pend_usd = PatternFill(start_color="FFCC99", end_color="FFCC99", fill_type="solid")
             
-            # Totales MXN pendientes
             if total_ventas_pend_mxn > 0:
-                ws.cell(row=row, column=1, value="TOTALES MXN (Pendientes)").fill = totales_fill_pend_mxn
+                ws.cell(row=row, column=1, value="TOTALES (Pendientes)").fill = totales_fill_pend_mxn
                 ws.cell(row=row, column=1).font = Font(bold=True)
                 ws.cell(row=row, column=1).border = border_medium
                 ws.cell(row=row, column=1).alignment = align_left
-                
-                ws.cell(row=row, column=2, value="").fill = totales_fill_pend_mxn
-                ws.cell(row=row, column=2).border = border_medium
-                
-                for col, total_val in enumerate([total_ventas_pend_mxn, total_pagado_pend_mxn, total_comision_pagada_pend_mxn, total_comision_pendiente_pend_mxn], 3):
+                for c in range(2, NUM_COL_PENDIENTES + 1):
+                    ws.cell(row=row, column=c).fill = totales_fill_pend_mxn
+                    ws.cell(row=row, column=c).border = border_medium
+                for col, total_val in [(3, total_ventas_pend_mxn), (4, total_pagado_pend_mxn), (9, total_comision_pagada_pend_mxn), (10, total_comision_pendiente_pend_mxn)]:
                     cell = ws.cell(row=row, column=col, value=float(total_val))
                     cell.number_format = '#,##0.00'
                     cell.fill = totales_fill_pend_mxn
@@ -12024,17 +12051,15 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
                     cell.alignment = align_center
                 row += 1
             
-            # Totales USD pendientes
             if total_ventas_pend_usd > 0:
                 ws.cell(row=row, column=1, value="TOTALES USD (Pendientes)").fill = totales_fill_pend_usd
                 ws.cell(row=row, column=1).font = Font(bold=True)
                 ws.cell(row=row, column=1).border = border_medium
                 ws.cell(row=row, column=1).alignment = align_left
-                
-                ws.cell(row=row, column=2, value="").fill = totales_fill_pend_usd
-                ws.cell(row=row, column=2).border = border_medium
-                
-                for col, total_val in enumerate([total_ventas_pend_usd, total_pagado_pend_usd, total_comision_pagada_pend_usd, total_comision_pendiente_pend_usd], 3):
+                for c in range(2, NUM_COL_PENDIENTES + 1):
+                    ws.cell(row=row, column=c).fill = totales_fill_pend_usd
+                    ws.cell(row=row, column=c).border = border_medium
+                for col, total_val in [(3, total_ventas_pend_usd), (4, total_pagado_pend_usd), (9, total_comision_pagada_pend_usd), (10, total_comision_pendiente_pend_usd)]:
                     cell = ws.cell(row=row, column=col, value=float(total_val))
                     cell.number_format = '#,##0.00'
                     cell.fill = totales_fill_pend_usd
@@ -12043,13 +12068,17 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
                     cell.alignment = align_center
                 row += 1
 
-        # Anchos de columna fijos (evita MergedCell)
-        ws.column_dimensions['A'].width = 20  # Folio puede ser más largo (ej: VUE-20260218-01)
-        ws.column_dimensions['B'].width = 32  # Cliente
-        ws.column_dimensions['C'].width = 14  # Total Venta
-        ws.column_dimensions['D'].width = 14  # Pagado
-        ws.column_dimensions['E'].width = 18  # Comisión (o Comisión Pagada para pendientes)
-        ws.column_dimensions['F'].width = 18  # Comisión Pendiente (solo para ventas pendientes)
+        # Anchos de columna fijos
+        ws.column_dimensions['A'].width = 20
+        ws.column_dimensions['B'].width = 28
+        ws.column_dimensions['C'].width = 14
+        ws.column_dimensions['D'].width = 14
+        ws.column_dimensions['E'].width = 14  # Tarifa Base USD
+        ws.column_dimensions['F'].width = 14  # Suplementos USD
+        ws.column_dimensions['G'].width = 12  # Tours USD
+        ws.column_dimensions['H'].width = 18  # Impuestos USD (excl.)
+        ws.column_dimensions['I'].width = 18
+        ws.column_dimensions['J'].width = 18
         ws.freeze_panes = 'A3'
 
         # Preparar respuesta
