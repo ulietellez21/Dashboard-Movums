@@ -4624,6 +4624,9 @@ class ContratoPaqueteNacionalPDFView(LoginRequiredMixin, DetailView):
         es_paquete = False
         if venta.servicios_seleccionados and 'PAQ' in venta.servicios_seleccionados:
             es_paquete = True
+        elif venta.servicios_seleccionados and 'VUE' in venta.servicios_seleccionados and 'HOS' in venta.servicios_seleccionados:
+            # Paquete desglosado (VUE+HOS) - mismo criterio que la plantilla venta_detail
+            es_paquete = True
         elif venta.cotizacion_origen:
             # Si no tiene PAQ pero tiene cotización, verificar el tipo de cotización
             cotizacion = venta.cotizacion_origen
