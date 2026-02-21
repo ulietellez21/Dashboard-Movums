@@ -3052,7 +3052,7 @@ class LogisticaPendienteView(LoginRequiredMixin, ListView):
             .select_related('cliente', 'vendedor')
             .prefetch_related('servicios_logisticos')
             .distinct()
-            .order_by('fecha_inicio_viaje')
+            .order_by('-fecha_inicio_viaje')
         )
 
         # Solo vendedores ven únicamente sus propias ventas; el resto (JEFE, CONTADOR, directores, gerente) ve todas
