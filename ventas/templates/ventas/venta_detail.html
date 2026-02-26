@@ -685,19 +685,21 @@
                                                 {% endfor %}
                                             </td>
                                             <td>
+                                                {% comment %} Valor mostrado: proveedor del formulario (VIVA, RUTA MAYA, etc.) o opcion_proveedor; campo editable según permisos. {% endcomment %}
+                                                {% with valor_proveedor=row.nombre_proveedor_display|default:row.servicio.opcion_proveedor|default:'' %}
                                                 {% if row.servicio %}
-                                                {% comment %} Usar hidden+display cuando opcion_proveedor bloqueado. Preserva el valor en POST. {% endcomment %}
                                                 {% if puede_desbloquear_todos_los_campos %}
-                                                    {{ row.form.opcion_proveedor }}
+                                                    <input type="text" name="{{ row.form.opcion_proveedor.name }}" value="{% firstof row.form.opcion_proveedor.value valor_proveedor %}" class="form-control form-control-sm" placeholder="Ej: Aerolínea, Hotel, etc.">
                                                 {% elif row.servicio.opcion_proveedor and row.servicio.opcion_proveedor.strip and not puede_editar_logistica_restringidos %}
                                                     <input type="hidden" name="{{ row.form.opcion_proveedor.name }}" value="{{ row.servicio.opcion_proveedor }}">
-                                                    <input type="text" class="form-control form-control-sm logistica-proveedor-display" value="{{ row.servicio.opcion_proveedor }}" disabled readonly style="background-color: #e9ecef; cursor: not-allowed;" title="El nombre del proveedor está bloqueado">
+                                                    <input type="text" class="form-control form-control-sm logistica-proveedor-display" value="{{ valor_proveedor }}" disabled readonly style="background-color: #e9ecef; cursor: not-allowed;" title="El nombre del proveedor está bloqueado">
+                                                {% else %}
+                                                    <input type="text" name="{{ row.form.opcion_proveedor.name }}" value="{% firstof row.form.opcion_proveedor.value valor_proveedor %}" class="form-control form-control-sm" placeholder="Ej: Aerolínea, Hotel, etc.">
+                                                {% endif %}
                                                 {% else %}
                                                     {{ row.form.opcion_proveedor }}
                                                 {% endif %}
-                                                {% else %}
-                                                {{ row.form.opcion_proveedor }}
-                                                {% endif %}
+                                                {% endwith %}
                                                 {% for error in row.form.opcion_proveedor.errors %}
                                                     <div class="text-danger small">{{ error }}</div>
                                                 {% endfor %}

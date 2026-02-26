@@ -88,6 +88,7 @@ from .services.logistica import (
     build_financial_summary,
     build_service_rows,
     build_logistica_card,
+    _proveedor_por_nombre_servicio_desde_detalle,
 )
 
 # Función auxiliar para obtener el rol (delega a la capa centralizada de permisos)
@@ -1455,7 +1456,11 @@ class _VentaViajeDetailViewPostMixin:
             resumen['montos_cuadran'] = abs(suma_efectiva - total_objetivo) < Decimal('0.01')
 
         formset_forms = list(formset.forms)
-        filas = build_service_rows(servicios_qs, resumen, formset_forms[: len(servicios_qs)], venta=venta)
+        proveedor_por_nombre = _proveedor_por_nombre_servicio_desde_detalle(venta.servicios_detalle or '')
+        filas = build_service_rows(
+            servicios_qs, resumen, formset_forms[: len(servicios_qs)],
+            venta=venta, proveedor_por_nombre_servicio=proveedor_por_nombre
+        )
 
         servicios_codes = [c.strip() for c in (venta.servicios_seleccionados or '').split(',') if c.strip()]
         has_tou = 'TOU' in servicios_codes

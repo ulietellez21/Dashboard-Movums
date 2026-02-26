@@ -81,13 +81,41 @@ def build_financial_summary(venta, servicios_qs):
     }
 
 
-def build_service_rows(servicios_qs, summary, formset_forms=None, venta=None):
+def _proveedor_por_nombre_servicio_desde_detalle(servicios_detalle):
+    """
+    Parsea servicios_detalle (texto con líneas "Servicio - Proveedor: X - Opción: Y")
+    y devuelve un dict nombre_servicio -> nombre del proveedor (el seleccionado en el formulario).
+    """
+    out = {}
+    if not servicios_detalle or not isinstance(servicios_detalle, str):
+        return out
+    for linea in servicios_detalle.split('\n'):
+        linea = linea.strip()
+        if not linea or ' - Proveedor: ' not in linea:
+            continue
+        partes = linea.split(' - Proveedor: ', 1)
+        if len(partes) != 2:
+            continue
+        nombre_servicio = partes[0].strip()
+        resto = partes[1].strip()
+        # Nombre del proveedor: hasta " - Opción: " o todo el resto
+        if ' - Opción: ' in resto:
+            nombre_proveedor = resto.split(' - Opción: ', 1)[0].strip()
+        else:
+            nombre_proveedor = resto.strip()
+        if nombre_proveedor:
+            out[nombre_servicio] = nombre_proveedor
+    return out
+
+
+def build_service_rows(servicios_qs, summary, formset_forms=None, venta=None, proveedor_por_nombre_servicio=None):
     saldo_disponible = summary['saldo_disponible_servicios']
     badge_map = {
         'paid': ('success', 'Pagado'),
         'ready': ('warning text-dark', 'Listo para pagar'),
         'pending': ('danger', 'Pendiente'),
     }
+    proveedor_map = proveedor_por_nombre_servicio or {}
 
     filas = []
     forms = formset_forms or []
@@ -107,7 +135,9 @@ def build_service_rows(servicios_qs, summary, formset_forms=None, venta=None):
             hint = f"Faltan {prefijo_usd}${faltante:,.2f} para cubrir este servicio."
 
         badge_class, status_label = badge_map[status]
-        
+        # Mostrar el proveedor seleccionado en el formulario (VIVA, RUTA MAYA, etc.); fallback a opcion_proveedor
+        nombre_proveedor_display = proveedor_map.get(servicio.nombre_servicio) or (servicio.opcion_proveedor or '').strip() or ''
+
         filas.append({
             'form': forms[idx] if use_forms else None,
             'servicio': servicio,
@@ -115,6 +145,7 @@ def build_service_rows(servicios_qs, summary, formset_forms=None, venta=None):
             'badge_class': badge_class,
             'status_label': status_label,
             'status_hint': hint,
+            'nombre_proveedor_display': nombre_proveedor_display,
         })
 
     return filas
