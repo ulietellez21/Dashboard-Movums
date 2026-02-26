@@ -510,6 +510,10 @@ body {
                             <td>{{ venta.fecha_inicio_viaje|date:"d/m/Y"|default:"-" }}</td>
                         </tr>
                         <tr>
+                            <td>📋 Fecha límite de pago:</td>
+                            <td>{{ venta.fecha_vencimiento_pago|date:"d/m/Y"|default:"-" }}</td>
+                        </tr>
+                        <tr>
                             <td>👨‍💼 Asesor:</td>
                             <td>{{ venta.vendedor.get_full_name|default:venta.vendedor.username }}</td>
                         </tr>
