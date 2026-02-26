@@ -1322,8 +1322,9 @@ class _VentaViajeDetailViewPostMixin:
             ]
         choices = dict(VentaViaje.SERVICIOS_CHOICES)
 
-        # Extraer la OPCIÓN elegida (Opción de Vuelo/Hospedaje/Traslado), no el nombre del proveedor.
-        opciones_por_servicio = {}
+        # Extraer el PROVEEDOR (nombre de empresa: VIVA, RUTA MAYA, etc.) desde servicios_detalle.
+        # Formato de línea: "Servicio - Proveedor: EMPRESA - Opción: DETALLE"
+        proveedores_por_servicio = {}
         if venta.servicios_detalle:
             for linea in venta.servicios_detalle.split('\n'):
                 linea = linea.strip()
@@ -1334,13 +1335,12 @@ class _VentaViajeDetailViewPostMixin:
                     continue
                 nombre_servicio = partes[0].strip()
                 resto = partes[1].strip()
-                # Usar la OPCIÓN (texto después de " - Opción: ") para contrato/detalle; si no hay, fallback al proveedor.
                 if ' - Opción: ' in resto:
-                    opcion_texto = resto.split(' - Opción: ', 1)[1].strip()
+                    nombre_proveedor = resto.split(' - Opción: ', 1)[0].strip()
                 else:
-                    opcion_texto = resto.strip()
-                if opcion_texto:
-                    opciones_por_servicio[nombre_servicio] = opcion_texto
+                    nombre_proveedor = resto.strip()
+                if nombre_proveedor:
+                    proveedores_por_servicio[nombre_servicio] = nombre_proveedor
 
         for idx, code in enumerate(servicios_codes):
             nombre = choices.get(code)
@@ -1348,8 +1348,7 @@ class _VentaViajeDetailViewPostMixin:
                 continue
             existentes = LogisticaServicio.objects.filter(venta_id=venta.pk, codigo_servicio=code)
             if not existentes.exists():
-                # Crear fila inicial si no existe ninguna de este tipo
-                opcion_proveedor = opciones_por_servicio.get(nombre, '')
+                opcion_proveedor = proveedores_por_servicio.get(nombre, '')
                 LogisticaServicio.objects.create(
                     venta=venta,
                     codigo_servicio=code,
@@ -1357,12 +1356,12 @@ class _VentaViajeDetailViewPostMixin:
                     orden=idx,
                     opcion_proveedor=opcion_proveedor
                 )
-            elif opciones_por_servicio.get(nombre):
-                # Sincronizar OPCIÓN (opción de vuelo/hospedaje/traslado) desde el formulario en la PRIMERA fila.
+            elif proveedores_por_servicio.get(nombre):
+                # Sincronizar nombre del proveedor desde el formulario en la PRIMERA fila.
                 fila = existentes.order_by('orden', 'pk').first()
-                nueva_opcion = opciones_por_servicio[nombre]
-                if fila and (fila.opcion_proveedor or '').strip() != nueva_opcion:
-                    fila.opcion_proveedor = nueva_opcion
+                nuevo_proveedor = proveedores_por_servicio[nombre]
+                if fila and (fila.opcion_proveedor or '').strip() != nuevo_proveedor:
+                    fila.opcion_proveedor = nuevo_proveedor
                     fila.save(update_fields=['opcion_proveedor'])
 
         # Eliminar servicios que ya no están contratados (consulta directa para no depender de relación en caché).
