@@ -90,6 +90,7 @@ from .services.logistica import (
     build_logistica_card,
 )
 from .services import dashboard_vendedor as dv
+from .services import dashboard_gerente as dg
 
 # Función auxiliar para obtener el rol (delega a la capa centralizada de permisos)
 # NOTA: Usar perm.get_user_role(user, request) directamente en las vistas para aprovechar cache
@@ -617,6 +618,42 @@ class DashboardView(LoginRequiredMixin, ListView):
                 dias = (hoy - cot.creada_en.date()).days
                 cotizaciones_con_dias.append({'cotizacion': cot, 'dias_desde_creacion': dias})
             context['cotizaciones_pendientes_vendedor'] = cotizaciones_con_dias
+
+        # --- Dashboard de Gerente: KPIs de Oficina ---
+        elif user_rol == 'GERENTE':
+            notificaciones_gerente = Notificacion.objects.filter(
+                usuario=user, vista=False
+            ).select_related('venta', 'venta__cliente', 'abono').order_by('-fecha_creacion')
+            context['notificaciones'] = notificaciones_gerente[:30]
+            context['notificaciones_count'] = notificaciones_gerente.count()
+
+            oficina_id = perm._get_gerente_oficina_id(user)
+            context['gerente_oficina_id'] = oficina_id
+
+            if oficina_id:
+                from ventas.models import Oficina
+                try:
+                    context['gerente_oficina_nombre'] = Oficina.objects.get(pk=oficina_id).nombre
+                except Oficina.DoesNotExist:
+                    context['gerente_oficina_nombre'] = '—'
+
+                periodo = self.request.GET.get('periodo', 'semanal')
+                fecha_inicio, fecha_fin = dg._fechas_periodo(periodo)
+                hoy = timezone.localdate()
+                context['periodo_gerente'] = periodo
+                context['periodo_fecha_inicio'] = fecha_inicio
+                context['periodo_fecha_fin'] = fecha_fin
+
+                context['kpis_clave'] = dg.kpis_clave(oficina_id, fecha_inicio, fecha_fin)
+                context['ventas_por_vendedor'] = dg.ventas_por_vendedor(oficina_id, fecha_inicio, fecha_fin)
+                context['kpis_comisiones_oficina'] = dg.kpis_comisiones(oficina_id, hoy.month, hoy.year)
+
+                context['kpis_productividad'] = dg.kpis_productividad(oficina_id, fecha_inicio, fecha_fin)
+
+                context['kpis_cartera'] = dg.kpis_cartera(oficina_id, fecha_inicio, fecha_fin)
+
+                context['ranking_vendedores'] = dg.ranking_vendedores_oficina(oficina_id, fecha_inicio, fecha_fin)
+                context['rentabilidad_tipo'] = dg.rentabilidad_por_tipo(oficina_id, fecha_inicio, fecha_fin)
 
         # Agregar filtros de fecha al contexto
         context['fecha_filtro'] = self.request.GET.get('fecha_filtro', '')
