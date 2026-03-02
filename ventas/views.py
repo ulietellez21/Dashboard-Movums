@@ -91,6 +91,7 @@ from .services.logistica import (
 )
 from .services import dashboard_vendedor as dv
 from .services import dashboard_gerente as dg
+from .services import dashboard_director_ventas as ddv
 
 # Función auxiliar para obtener el rol (delega a la capa centralizada de permisos)
 # NOTA: Usar perm.get_user_role(user, request) directamente en las vistas para aprovechar cache
@@ -654,6 +655,27 @@ class DashboardView(LoginRequiredMixin, ListView):
 
                 context['ranking_vendedores'] = dg.ranking_vendedores_oficina(oficina_id, fecha_inicio, fecha_fin)
                 context['rentabilidad_tipo'] = dg.rentabilidad_por_tipo(oficina_id, fecha_inicio, fecha_fin)
+
+        # --- Dashboard Director de Ventas ---
+        elif user_rol == 'DIRECTOR_VENTAS':
+            notif_dv = Notificacion.objects.filter(
+                usuario=user, vista=False
+            ).select_related('venta', 'venta__cliente', 'abono').order_by('-fecha_creacion')
+            context['notificaciones'] = notif_dv[:30]
+            context['notificaciones_count'] = notif_dv.count()
+
+            periodo = self.request.GET.get('periodo', 'semanal')
+            fecha_inicio, fecha_fin = ddv._fechas_periodo(periodo)
+            hoy = timezone.localdate()
+            context['periodo_dv'] = periodo
+            context['periodo_fecha_inicio'] = fecha_inicio
+            context['periodo_fecha_fin'] = fecha_fin
+
+            context['macrokpis'] = ddv.macrokpis(fecha_inicio, fecha_fin)
+            context['embudo_nacional'] = ddv.embudo_nacional(fecha_inicio, fecha_fin)
+            canales, total_general = ddv.ventas_por_canal(fecha_inicio, fecha_fin)
+            context['ventas_canal'] = canales
+            context['ventas_canal_total'] = total_general
 
         # Agregar filtros de fecha al contexto
         context['fecha_filtro'] = self.request.GET.get('fecha_filtro', '')
