@@ -581,8 +581,8 @@ class DashboardView(LoginRequiredMixin, ListView):
             context['notificaciones'] = notificaciones_vendedor[:30]
             context['notificaciones_count'] = notificaciones_vendedor.count()
 
-            # Periodo: diario (default) o mensual
-            periodo = self.request.GET.get('periodo', 'diario')
+            # Periodo: semanal (default), mensual o mes_anterior
+            periodo = self.request.GET.get('periodo', 'semanal')
             fecha_inicio, fecha_fin = dv._fechas_periodo(periodo)
             hoy = timezone.localdate()
             context['periodo_vendedor'] = periodo

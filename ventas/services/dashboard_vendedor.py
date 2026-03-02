@@ -17,8 +17,10 @@ DIAS_RIESGO_COBRO = 7
 def _fechas_periodo(periodo):
     """Devuelve (fecha_inicio, fecha_fin) según el periodo seleccionado."""
     hoy = timezone.localdate()
-    if periodo == 'diario':
-        return hoy, hoy
+    if periodo == 'semanal':
+        # Lunes a hoy (inicio de semana ISO: lunes = 0)
+        inicio_semana = hoy - timedelta(days=hoy.weekday())
+        return inicio_semana, hoy
     if periodo == 'mes_anterior':
         primer_dia_mes_actual = hoy.replace(day=1)
         ultimo_dia_anterior = primer_dia_mes_actual - timedelta(days=1)

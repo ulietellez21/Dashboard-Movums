@@ -473,8 +473,8 @@
     <div class="col-12 d-flex align-items-center gap-2">
         <h4 class="fw-bold mb-0"><i class="fas fa-chart-line me-2"></i>Mi Dashboard</h4>
         <div class="btn-group ms-auto" role="group">
-            <a href="?periodo=diario" class="btn btn-sm {% if periodo_vendedor == 'diario' %}btn-primary{% else %}btn-outline-primary{% endif %}">
-                <i class="fas fa-calendar-day me-1"></i>Hoy
+            <a href="?periodo=semanal" class="btn btn-sm {% if periodo_vendedor == 'semanal' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                <i class="fas fa-calendar-week me-1"></i>Esta semana
             </a>
             <a href="?periodo=mensual" class="btn btn-sm {% if periodo_vendedor == 'mensual' %}btn-primary{% else %}btn-outline-primary{% endif %}">
                 <i class="fas fa-calendar-alt me-1"></i>Este mes
@@ -486,8 +486,8 @@
     </div>
     <div class="col-12">
         <small class="text-muted">
-            {% if periodo_vendedor == 'diario' %}
-                Mostrando datos de hoy: {{ periodo_fecha_inicio|date:"d/m/Y" }}
+            {% if periodo_vendedor == 'semanal' %}
+                Mostrando datos de esta semana: {{ periodo_fecha_inicio|date:"d/m/Y" }} al {{ periodo_fecha_fin|date:"d/m/Y" }}
             {% elif periodo_vendedor == 'mes_anterior' %}
                 Mostrando datos del mes anterior: {{ periodo_fecha_inicio|date:"d/m/Y" }} al {{ periodo_fecha_fin|date:"d/m/Y" }}
             {% else %}
