@@ -89,6 +89,7 @@ from .services.logistica import (
     build_service_rows,
     build_logistica_card,
 )
+from .services import dashboard_vendedor as dv
 
 # Función auxiliar para obtener el rol (delega a la capa centralizada de permisos)
 # NOTA: Usar perm.get_user_role(user, request) directamente en las vistas para aprovechar cache
@@ -572,57 +573,40 @@ class DashboardView(LoginRequiredMixin, ListView):
                 ).select_related('venta', 'abono_proveedor').order_by('-fecha_creacion')[:10]
                 context['notificaciones_abonos_proveedor'] = notificaciones_abonos_proveedor
             
-        # --- Lógica de KPIs (se mantiene para vendedores) ---
+        # --- Dashboard de Vendedor: KPIs, Alertas y Competencia ---
         elif user_rol == 'VENDEDOR':
-            # Notificaciones para VENDEDOR: solo las notificaciones creadas específicamente para este vendedor
-            # IMPORTANTE: Simplificar la consulta - si la notificación está asignada al usuario, no hace falta filtrar por ventas
-            # Filtrar por vista=False para que desaparezcan al marcarlas
             notificaciones_vendedor = Notificacion.objects.filter(
-                usuario=user,  # Solo notificaciones creadas para este vendedor específico
-                vista=False  # Solo mostrar notificaciones no vistas
+                usuario=user, vista=False
             ).select_related('venta', 'venta__cliente', 'abono').order_by('-fecha_creacion')
-            
-            # Mostrar las últimas 30 no vistas
             context['notificaciones'] = notificaciones_vendedor[:30]
-            context['notificaciones_count'] = notificaciones_vendedor.count()  # Contador solo de no vistas
-            # OPTIMIZACIÓN N+1: Prefetch abonos confirmados para evitar consultas extra
-            mis_ventas = VentaViaje.objects.filter(vendedor=user).prefetch_related(
-                Prefetch(
-                    'abonos',
-                    queryset=AbonoPago.objects.filter(Q(confirmado=True) | Q(forma_pago='EFE'))
-                )
-            )
-            
-            # KPI 1: Mi Saldo Pendiente
-            mi_total_vendido_agg = mis_ventas.aggregate(Sum('costo_venta_final'))['costo_venta_final__sum']
-            mi_total_vendido = mi_total_vendido_agg if mi_total_vendido_agg is not None else Decimal('0.00')
-            
-            # Total pagado incluye abonos + montos de apertura
-            mi_total_abonos_agg = AbonoPago.objects.filter(
-                venta__vendedor=user
-            ).filter(
-                Q(confirmado=True) | Q(forma_pago='EFE')
-            ).aggregate(Sum('monto'))['monto__sum']
-            mi_total_abonos = mi_total_abonos_agg if mi_total_abonos_agg is not None else Decimal('0.00')
-            
-            mi_total_apertura_agg = mis_ventas.aggregate(Sum('cantidad_apertura'))['cantidad_apertura__sum']
-            mi_total_apertura = mi_total_apertura_agg if mi_total_apertura_agg is not None else Decimal('0.00')
-            
-            mi_total_pagado = mi_total_abonos + mi_total_apertura
-            
-            context['mi_saldo_pendiente'] = mi_total_vendido - mi_total_pagado
+            context['notificaciones_count'] = notificaciones_vendedor.count()
 
-            # KPI 2: Mis Ventas Cerradas (ventas donde el total pagado >= costo_venta_final)
-            # El total pagado ahora incluye cantidad_apertura + abonos (calculado en la propiedad total_pagado)
-            # OPTIMIZACIÓN: Los abonos ya están prefetched, no genera N+1
-            ventas_cerradas = 0
-            for venta in mis_ventas:
-                if venta.total_pagado >= venta.costo_venta_final:
-                    ventas_cerradas += 1
-            context['mis_ventas_cerradas'] = ventas_cerradas
-
-            # Cotizaciones propias del vendedor que aún no están convertidas en venta (con días desde realización)
+            # Periodo: diario (default) o mensual
+            periodo = self.request.GET.get('periodo', 'diario')
+            fecha_inicio, fecha_fin = dv._fechas_periodo(periodo)
             hoy = timezone.localdate()
+            context['periodo_vendedor'] = periodo
+            context['periodo_fecha_inicio'] = fecha_inicio
+            context['periodo_fecha_fin'] = fecha_fin
+
+            # Fase 1: Embudo y Ventas
+            context['kpis_embudo'] = dv.kpis_embudo(user, fecha_inicio, fecha_fin)
+            context['kpis_ventas'] = dv.kpis_ventas(user, fecha_inicio, fecha_fin)
+
+            # Fase 2: Cobranza y Comisiones
+            context['kpis_cobranza'] = dv.kpis_cobranza(user, fecha_inicio, fecha_fin)
+            context['kpis_comisiones'] = dv.kpis_comisiones(user, hoy.month, hoy.year)
+
+            # Fase 3: Kilómetros Movums
+            context['kpis_kilometros'] = dv.kpis_kilometros(user, fecha_inicio, fecha_fin)
+
+            # Fase 4: Alertas automáticas
+            context['alertas_vendedor'] = dv.alertas_vendedor(user)
+
+            # Fase 5: Competencia interna
+            context['competencia'] = dv.competencia_interna(user, hoy.month, hoy.year)
+
+            # Cotizaciones pendientes (tabla existente)
             cotizaciones_pendientes_qs = Cotizacion.objects.filter(
                 vendedor=user
             ).exclude(
