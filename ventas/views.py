@@ -92,6 +92,7 @@ from .services.logistica import (
 from .services import dashboard_vendedor as dv
 from .services import dashboard_gerente as dg
 from .services import dashboard_director_ventas as ddv
+from .services import dashboard_director_admin as dda
 
 # Función auxiliar para obtener el rol (delega a la capa centralizada de permisos)
 # NOTA: Usar perm.get_user_role(user, request) directamente en las vistas para aprovechar cache
@@ -676,6 +677,24 @@ class DashboardView(LoginRequiredMixin, ListView):
             canales, total_general = ddv.ventas_por_canal(fecha_inicio, fecha_fin)
             context['ventas_canal'] = canales
             context['ventas_canal_total'] = total_general
+
+        # --- Dashboard Director Administrativo ---
+        elif user_rol == 'DIRECTOR_ADMINISTRATIVO':
+            notif_da = Notificacion.objects.filter(
+                usuario=user, vista=False
+            ).select_related('venta', 'venta__cliente', 'abono').order_by('-fecha_creacion')
+            context['notificaciones'] = notif_da[:30]
+            context['notificaciones_count'] = notif_da.count()
+
+            periodo = self.request.GET.get('periodo', 'semanal')
+            fecha_inicio, fecha_fin = dda._fechas_periodo(periodo)
+            context['periodo_da'] = periodo
+            context['periodo_fecha_inicio'] = fecha_inicio
+            context['periodo_fecha_fin'] = fecha_fin
+
+            context['flujo_efectivo'] = dda.flujo_efectivo(fecha_inicio, fecha_fin)
+            context['riesgo_financiero'] = dda.riesgo_financiero(fecha_inicio, fecha_fin)
+            context['control_interno'] = dda.control_interno(fecha_inicio, fecha_fin)
 
         # Agregar filtros de fecha al contexto
         context['fecha_filtro'] = self.request.GET.get('fecha_filtro', '')
