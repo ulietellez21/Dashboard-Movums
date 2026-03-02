@@ -481,16 +481,24 @@
             <a href="?periodo=mensual" class="btn btn-sm {% if periodo_vendedor == 'mensual' %}btn-primary{% else %}btn-outline-primary{% endif %}">
                 <i class="fas fa-calendar-alt me-1"></i>Este mes
             </a>
+            <a href="?periodo=mes_anterior" class="btn btn-sm {% if periodo_vendedor == 'mes_anterior' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                <i class="fas fa-calendar-minus me-1"></i>Mes anterior
+            </a>
         </div>
     </div>
     <div class="col-12">
         <small class="text-muted">
             {% if periodo_vendedor == 'diario' %}
                 Mostrando datos de hoy: {{ periodo_fecha_inicio|date:"d/m/Y" }}
+            {% elif periodo_vendedor == 'mes_anterior' %}
+                Mostrando datos del mes anterior: {{ periodo_fecha_inicio|date:"d/m/Y" }} al {{ periodo_fecha_fin|date:"d/m/Y" }}
             {% else %}
                 Mostrando datos del mes: {{ periodo_fecha_inicio|date:"d/m/Y" }} al {{ periodo_fecha_fin|date:"d/m/Y" }}
             {% endif %}
         </small>
+        {% if kpis_ventas.ventas_cerradas_count == 0 and periodo_vendedor != 'mes_anterior' %}
+        <br><small class="text-info"><i class="fas fa-info-circle me-1"></i>Sin ventas en este periodo. Prueba <a href="?periodo=mes_anterior">Mes anterior</a> para ver datos de meses pasados.</small>
+        {% endif %}
     </div>
 </div>
 

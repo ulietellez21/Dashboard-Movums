@@ -19,7 +19,12 @@ def _fechas_periodo(periodo):
     hoy = timezone.localdate()
     if periodo == 'diario':
         return hoy, hoy
-    # mensual por defecto
+    if periodo == 'mes_anterior':
+        primer_dia_mes_actual = hoy.replace(day=1)
+        ultimo_dia_anterior = primer_dia_mes_actual - timedelta(days=1)
+        primer_dia_anterior = ultimo_dia_anterior.replace(day=1)
+        return primer_dia_anterior, ultimo_dia_anterior
+    # mensual (mes actual)
     primer_dia = hoy.replace(day=1)
     return primer_dia, hoy
 
