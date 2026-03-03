@@ -1139,7 +1139,7 @@
                         <tbody>
                             {% for r in ca.ventas_riesgo %}
                             <tr>
-                                <td><a href="{% url 'venta_detail' pk=r.venta.pk %}" class="fw-semibold">#{{ r.venta.pk }}</a></td>
+                                <td><a href="{% url 'detalle_venta' slug=r.venta.slug_safe pk=r.venta.pk %}" class="fw-semibold">#{{ r.venta.pk }}</a></td>
                                 <td>{{ r.venta.cliente.nombre_completo_display }}</td>
                                 <td>{{ r.vendedor_nombre }}</td>
                                 <td class="text-center">
@@ -1182,7 +1182,7 @@
                         <tbody>
                             {% for sc in ca.cancelaciones %}
                             <tr>
-                                <td><a href="{% url 'venta_detail' pk=sc.venta.pk %}" class="fw-semibold">#{{ sc.venta.pk }}</a></td>
+                                <td><a href="{% url 'detalle_venta' slug=sc.venta.slug_safe pk=sc.venta.pk %}" class="fw-semibold">#{{ sc.venta.pk }}</a></td>
                                 <td>{{ sc.venta.cliente.nombre_completo_display }}</td>
                                 <td>{{ sc.venta.vendedor.get_full_name|default:sc.venta.vendedor.username }}</td>
                                 <td>{{ sc.fecha_cancelacion_definitiva|date:"d/m/Y" }}</td>
@@ -1668,7 +1668,7 @@
                         <tbody>
                             {% for sc in r.cancelaciones %}
                             <tr>
-                                <td><a href="{% url 'venta_detail' pk=sc.venta.pk %}" class="fw-semibold">#{{ sc.venta.pk }}</a></td>
+                                <td><a href="{% url 'detalle_venta' slug=sc.venta.slug_safe pk=sc.venta.pk %}" class="fw-semibold">#{{ sc.venta.pk }}</a></td>
                                 <td>{{ sc.venta.cliente.nombre_completo_display }}</td>
                                 <td>{{ sc.venta.vendedor.get_full_name|default:sc.venta.vendedor.username }}</td>
                                 <td>{{ sc.fecha_solicitud|date:"d/m/Y" }}</td>
@@ -1707,7 +1707,7 @@
                         <tbody>
                             {% for item in r.ventas_margen_bajo %}
                             <tr>
-                                <td><a href="{% url 'venta_detail' pk=item.venta.pk %}" class="fw-semibold">#{{ item.venta.pk }}</a></td>
+                                <td><a href="{% url 'detalle_venta' slug=item.venta.slug_safe pk=item.venta.pk %}" class="fw-semibold">#{{ item.venta.pk }}</a></td>
                                 <td>{{ item.venta.cliente.nombre_completo_display }}</td>
                                 <td>{{ item.venta.vendedor.get_full_name|default:item.venta.vendedor.username }}</td>
                                 <td class="text-end">${{ item.monto_mxn|floatformat:0 }}</td>
@@ -1780,7 +1780,7 @@
                         <tbody>
                             {% for d in ci.diferencias_contables %}
                             <tr>
-                                <td><a href="{% url 'venta_detail' pk=d.venta.pk %}" class="fw-semibold">#{{ d.venta.pk }}</a></td>
+                                <td><a href="{% url 'detalle_venta' slug=d.venta.slug_safe pk=d.venta.pk %}" class="fw-semibold">#{{ d.venta.pk }}</a></td>
                                 <td>{{ d.venta.cliente.nombre_completo_display }}</td>
                                 <td class="text-end text-danger">${{ d.saldo|floatformat:2 }}</td>
                                 <td><span class="badge bg-danger">{{ d.tipo }}</span></td>
@@ -1823,7 +1823,7 @@
                         <tbody>
                             {% for v in ci.ventas_sin_docs %}
                             <tr>
-                                <td><a href="{% url 'venta_detail' pk=v.pk %}" class="fw-semibold">#{{ v.pk }}</a></td>
+                                <td><a href="{% url 'detalle_venta' slug=v.slug_safe pk=v.pk %}" class="fw-semibold">#{{ v.pk }}</a></td>
                                 <td>{{ v.cliente.nombre_completo_display }}</td>
                                 <td>{{ v.vendedor.get_full_name|default:v.vendedor.username }}</td>
                                 <td>{{ v.fecha_creacion|date:"d/m/Y H:i" }}</td>
