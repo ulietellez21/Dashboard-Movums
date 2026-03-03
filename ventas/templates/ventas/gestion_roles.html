@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load humanize %}
 {% load widget_tweaks %}
+{% load usuario_tags %}
 
 {% block title %}Gestión de Roles{% endblock %}
 
@@ -63,8 +64,8 @@
                             </td>
                             <td>{{ ejecutivo.telefono }}</td>
                             <td>
-                                {% if ejecutivo.usuario and ejecutivo.usuario.perfil %}
-                                    {% with ejecutivo.usuario.perfil.rol|default:""|upper as rol_ej %}
+                                {% if ejecutivo.usuario|tiene_perfil %}
+                                    {% with ejecutivo.usuario|rol_safe as rol_ej %}
                                         {% if rol_ej == 'JEFE' %}
                                             <span class="badge bg-danger text-white">Jefe</span>
                                         {% elif rol_ej == 'DIRECTOR_GENERAL' %}
@@ -91,6 +92,8 @@
                                             <span class="badge bg-secondary">{{ ejecutivo.usuario.perfil.get_rol_display|default:"N/A" }}</span>
                                         {% endif %}
                                     {% endwith %}
+                                {% elif ejecutivo.usuario %}
+                                    <span class="badge bg-warning text-dark">Perfil no configurado</span>
                                 {% else %}
                                     <span class="badge bg-warning text-dark">Sin Usuario</span>
                                 {% endif %}
@@ -126,7 +129,7 @@
                                     data-oficina="{% if ejecutivo.oficina %}{{ ejecutivo.oficina.id }}{% endif %}"
                                     data-fecha-ingreso="{{ ejecutivo.fecha_ingreso|date:'Y-m-d' }}"
                                     data-fecha-nacimiento="{{ ejecutivo.fecha_nacimiento|date:'Y-m-d' }}"
-                                    data-tipo-usuario="{% if ejecutivo.usuario.perfil %}{{ ejecutivo.usuario.perfil.rol }}{% else %}VENDEDOR{% endif %}"
+                                    data-tipo-usuario="{% if ejecutivo.usuario|tiene_perfil %}{{ ejecutivo.usuario|rol_safe }}{% else %}VENDEDOR{% endif %}"
                                     data-usuario="{% if ejecutivo.usuario %}{{ ejecutivo.usuario.username }}{% endif %}"
                                 >
                                     <i class="fas fa-edit"></i> Editar
