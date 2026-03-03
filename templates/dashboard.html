@@ -1847,6 +1847,253 @@
 {% endif %}
 <!-- ===================== FIN DASHBOARD DIRECTOR ADMINISTRATIVO ===================== -->
 
+<!-- ===================== DASHBOARD DIRECTOR GENERAL ===================== -->
+{% if user_rol == 'DIRECTOR_GENERAL' %}
+
+<div class="row mb-4">
+    <div class="col-12 d-flex align-items-center gap-2 flex-wrap">
+        <h4 class="fw-bold mb-0"><i class="fas fa-crown me-2"></i>Vista Ejecutiva</h4>
+        <div class="btn-group ms-auto" role="group">
+            <a href="?periodo=semanal" class="btn btn-sm {% if periodo_dg == 'semanal' %}btn-dark{% else %}btn-outline-dark{% endif %}">Semana</a>
+            <a href="?periodo=mensual" class="btn btn-sm {% if periodo_dg == 'mensual' %}btn-dark{% else %}btn-outline-dark{% endif %}">Mes</a>
+            <a href="?periodo=mes_anterior" class="btn btn-sm {% if periodo_dg == 'mes_anterior' %}btn-dark{% else %}btn-outline-dark{% endif %}">Mes ant.</a>
+        </div>
+    </div>
+    <div class="col-12"><small class="text-muted">{{ periodo_fecha_inicio|date:"d/m/Y" }} — {{ periodo_fecha_fin|date:"d/m/Y" }}</small></div>
+</div>
+
+{% with k=kpis_maestros %}
+<!-- 12 KPIs Maestros -->
+<div class="row g-2 mb-4">
+    <div class="col-12"><h6 class="text-uppercase text-muted fw-bold mb-2">KPIs maestros</h6></div>
+    <div class="col-6 col-lg-4 col-xl-2">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-3 text-center">
+                <div class="text-muted small">Ventas totales</div>
+                <div class="h5 fw-bold text-primary mb-0">${{ k.ventas_totales|floatformat:0 }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-4 col-xl-2">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-3 text-center">
+                <div class="text-muted small">Utilidad neta</div>
+                <div class="h5 fw-bold text-success mb-0">${{ k.utilidad_neta|floatformat:0 }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-4 col-xl-2">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-3 text-center">
+                <div class="text-muted small">Margen</div>
+                <div class="h5 fw-bold {% if k.margen_consolidado >= 15 %}text-success{% else %}text-warning{% endif %} mb-0">{{ k.margen_consolidado }}%</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-4 col-xl-2">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-3 text-center">
+                <div class="text-muted small">Crec. mensual</div>
+                <div class="h5 fw-bold {% if k.crecimiento_mom > 0 %}text-success{% elif k.crecimiento_mom < 0 %}text-danger{% else %}text-secondary{% endif %} mb-0">{% if k.crecimiento_mom > 0 %}+{% endif %}{{ k.crecimiento_mom }}%</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-4 col-xl-2">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-3 text-center">
+                <div class="text-muted small">Crec. anual</div>
+                <div class="h5 fw-bold {% if k.crecimiento_yoy > 0 %}text-success{% elif k.crecimiento_yoy < 0 %}text-danger{% else %}text-secondary{% endif %} mb-0">{% if k.crecimiento_yoy > 0 %}+{% endif %}{{ k.crecimiento_yoy }}%</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-4 col-xl-2">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-3 text-center">
+                <div class="text-muted small">Recompra</div>
+                <div class="h5 fw-bold text-info mb-0">{{ k.recompra_clientes_pct }}%</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-4 col-xl-2">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-3 text-center">
+                <div class="text-muted small">Ticket prom.</div>
+                <div class="h5 fw-bold mb-0">${{ k.ticket_promedio|floatformat:0 }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-4 col-xl-2">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-3 text-center">
+                <div class="text-muted small">Cancelac.</div>
+                <div class="h5 fw-bold text-danger mb-0">{{ k.pct_cancelaciones }}%</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-4 col-xl-2">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-3 text-center">
+                <div class="text-muted small">Flujo disp.</div>
+                <div class="h5 fw-bold {% if k.flujo_disponible >= 0 %}text-success{% else %}text-danger{% endif %} mb-0">${{ k.flujo_disponible|floatformat:0 }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ventas por oficina (resumen) -->
+<div class="row g-2 mb-4">
+    <div class="col-12"><h6 class="text-uppercase text-muted fw-bold mb-2">Ventas por oficina</h6></div>
+    {% for of in k.ventas_por_oficina %}
+    <div class="col-6 col-md-4 col-lg-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-2 text-center">
+                <div class="small text-truncate" title="{{ of.nombre }}">{{ of.nombre }}</div>
+                <div class="fw-bold">${{ of.mxn|floatformat:0 }}</div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Ventas por canal -->
+<div class="row g-2 mb-4">
+    <div class="col-12"><h6 class="text-uppercase text-muted fw-bold mb-2">Canal</h6></div>
+    {% for c in k.ventas_por_canal %}
+    <div class="col-6 col-md-3">
+        <div class="d-flex justify-content-between align-items-center p-2 rounded bg-light">
+            <span>{{ c.label }}</span>
+            <span class="fw-bold">{{ c.pct }}%</span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endwith %}
+
+<!-- Expansión -->
+<div class="row g-3 mb-4">
+    <div class="col-12"><h6 class="text-uppercase text-muted fw-bold mb-2">Rentabilidad por oficina</h6></div>
+    <div class="col-12">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead><tr><th>Oficina</th><th class="text-end">Ventas</th><th class="text-end">Utilidad</th><th class="text-end">Margen</th></tr></thead>
+                <tbody>
+                    {% for r in rentabilidad_oficina %}
+                    <tr>
+                        <td>{{ r.nombre }}</td>
+                        <td class="text-end">${{ r.ventas_mxn|floatformat:0 }}</td>
+                        <td class="text-end text-success">${{ r.utilidad|floatformat:0 }}</td>
+                        <td class="text-end {% if r.margen >= 15 %}text-success{% else %}text-warning{% endif %}">{{ r.margen }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="row g-2 mb-4">
+    <div class="col-12"><h6 class="text-uppercase text-muted fw-bold mb-2">Penetración por segmento</h6></div>
+    {% for s in penetracion_segmento %}
+    <div class="col-6 col-md-3">
+        <div class="d-flex justify-content-between align-items-center p-2 rounded bg-light">
+            <span>{{ s.label }}</span>
+            <span class="fw-bold">{{ s.pct }}%</span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Inteligencia estratégica -->
+<div class="row g-3 mb-4">
+    <div class="col-12"><h6 class="text-uppercase text-muted fw-bold mb-2">Dependencia proveedores (Top 3 = {{ dependencia_top3_pct }}%)</h6></div>
+    <div class="col-12">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead><tr><th>Proveedor</th><th class="text-end">MXN</th><th class="text-end">%</th></tr></thead>
+                <tbody>
+                    {% for p in dependencia_proveedores %}
+                    <tr><td>{{ p.proveedor }}</td><td class="text-end">${{ p.mxn|floatformat:0 }}</td><td class="text-end">{{ p.pct }}%</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <h6 class="text-uppercase text-muted fw-bold mb-2">Concentración vendedores</h6>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                {% for v in concentracion_ingresos.vendedores %}
+                <tr><td>{{ v.nombre }}</td><td class="text-end">{{ v.pct }}%</td></tr>
+                {% empty %}
+                <tr><td class="text-muted">—</td></tr>
+                {% endfor %}
+            </table>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <h6 class="text-uppercase text-muted fw-bold mb-2">Concentración oficinas</h6>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                {% for o in concentracion_ingresos.oficinas %}
+                <tr><td>{{ o.nombre }}</td><td class="text-end">{{ o.pct }}%</td></tr>
+                {% empty %}
+                <tr><td class="text-muted">—</td></tr>
+                {% endfor %}
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12"><h6 class="text-uppercase text-muted fw-bold mb-2">Temporadas (12 meses) — Pico vs Valle</h6></div>
+    <div class="col-12">
+        <div class="d-flex flex-wrap gap-2 align-items-end" style="min-height:80px;">
+            {% for t in temporadas %}
+            <div class="d-flex flex-column align-items-center" title="{{ t.label }}: ${{ t.mxn|floatformat:0 }}">
+                <div class="rounded-top {% if t.es_pico %}bg-success{% elif t.es_valle %}bg-warning{% else %}bg-secondary{% endif %} bg-opacity-25" style="width:24px; height:{{ t.altura_pct|default:8 }}px; min-height:8px;"></div>
+                <small class="text-muted mt-1">{{ t.label }}</small>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12"><h6 class="text-uppercase text-muted fw-bold mb-2">Elasticidad precios (ticket histórico vs actual)</h6></div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small">Ticket 12 meses</div>
+                <div class="h4 fw-bold">${{ elasticidad_precios.ticket_historico|floatformat:0 }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small">Ticket mes actual</div>
+                <div class="h4 fw-bold">${{ elasticidad_precios.ticket_actual|floatformat:0 }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small">Variación</div>
+                <div class="h4 fw-bold {% if elasticidad_precios.variacion_pct > 0 %}text-success{% elif elasticidad_precios.variacion_pct < 0 %}text-danger{% else %}text-secondary{% endif %}">
+                    {% if elasticidad_precios.variacion_pct > 0 %}+{% endif %}{{ elasticidad_precios.variacion_pct }}%
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+<!-- ===================== FIN DASHBOARD DIRECTOR GENERAL ===================== -->
+
 <!-- Sección Cotizaciones pendientes por convertir (solo VENDEDOR) -->
 {% if user_rol == 'VENDEDOR' %}
 <div class="row g-4 mb-5">
@@ -1932,8 +2179,8 @@
     // Leer variables de Django desde data attributes
     const djangoVarsEl = document.getElementById('django-vars');
     const userRol = djangoVarsEl ? djangoVarsEl.getAttribute('data-user-rol') || 'INVITADO' : 'INVITADO';
-    const tienePermisoNotificaciones = userRol === 'JEFE' || userRol === 'CONTADOR' || userRol === 'VENDEDOR' || userRol === 'GERENTE' || userRol === 'DIRECTOR_VENTAS' || userRol === 'DIRECTOR_ADMINISTRATIVO';
-    const puedeMarcarVista = userRol === 'JEFE' || userRol === 'VENDEDOR' || userRol === 'GERENTE' || userRol === 'DIRECTOR_VENTAS' || userRol === 'DIRECTOR_ADMINISTRATIVO';
+    const tienePermisoNotificaciones = userRol === 'JEFE' || userRol === 'CONTADOR' || userRol === 'VENDEDOR' || userRol === 'GERENTE' || userRol === 'DIRECTOR_VENTAS' || userRol === 'DIRECTOR_ADMINISTRATIVO' || userRol === 'DIRECTOR_GENERAL';
+    const puedeMarcarVista = userRol === 'JEFE' || userRol === 'VENDEDOR' || userRol === 'GERENTE' || userRol === 'DIRECTOR_VENTAS' || userRol === 'DIRECTOR_ADMINISTRATIVO' || userRol === 'DIRECTOR_GENERAL';
 
     // Funcionalidad de Notificaciones (para JEFE, CONTADOR y VENDEDOR)
     if (tienePermisoNotificaciones) {

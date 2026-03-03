@@ -93,6 +93,7 @@ from .services import dashboard_vendedor as dv
 from .services import dashboard_gerente as dg
 from .services import dashboard_director_ventas as ddv
 from .services import dashboard_director_admin as dda
+from .services import dashboard_director_general as ddg
 
 # Función auxiliar para obtener el rol (delega a la capa centralizada de permisos)
 # NOTA: Usar perm.get_user_role(user, request) directamente en las vistas para aprovechar cache
@@ -422,8 +423,33 @@ class DashboardView(LoginRequiredMixin, ListView):
         context['notificaciones'] = Notificacion.objects.none()
         context['notificaciones_count'] = 0
 
+        # --- Dashboard Director General (prioridad sobre bloque genérico) ---
+        if user_rol == 'DIRECTOR_GENERAL':
+            notif_dg = Notificacion.objects.filter(
+                usuario=user, vista=False
+            ).select_related('venta', 'venta__cliente', 'abono').order_by('-fecha_creacion')
+            context['notificaciones'] = notif_dg[:30]
+            context['notificaciones_count'] = notif_dg.count()
+
+            periodo = self.request.GET.get('periodo', 'semanal')
+            fecha_inicio, fecha_fin = ddg._fechas_periodo(periodo)
+            context['periodo_dg'] = periodo
+            context['periodo_fecha_inicio'] = fecha_inicio
+            context['periodo_fecha_fin'] = fecha_fin
+
+            context['kpis_maestros'] = ddg.kpis_maestros(fecha_inicio, fecha_fin)
+            context['rentabilidad_oficina'] = ddg.rentabilidad_por_oficina(fecha_inicio, fecha_fin)
+            context['penetracion_segmento'] = ddg.penetracion_segmento(fecha_inicio, fecha_fin)
+            prov_list, top3_pct = ddg.dependencia_proveedores(fecha_inicio, fecha_fin)
+            context['dependencia_proveedores'] = prov_list
+            context['dependencia_top3_pct'] = top3_pct
+            context['concentracion_ingresos'] = ddg.concentracion_ingresos(fecha_inicio, fecha_fin)
+            temps, _ = ddg.temporadas_pico_valle()
+            context['temporadas'] = temps
+            context['elasticidad_precios'] = ddg.elasticidad_precios()
+
         # --- Lógica de KPIs (roles con acceso total y CONTADOR; Gerente/Directores ven según su scope en listado) ---
-        if perm.has_full_access(user, self.request) or perm.is_contador(user, self.request):
+        elif perm.has_full_access(user, self.request) or perm.is_contador(user, self.request):
             # KPI 1: Saldo Pendiente Global
             total_vendido_agg = VentaViaje.objects.aggregate(Sum('costo_venta_final'))['costo_venta_final__sum']
             total_vendido = total_vendido_agg if total_vendido_agg is not None else Decimal('0.00')
