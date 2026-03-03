@@ -106,7 +106,7 @@
                     <tr>
                         <th>Tipo de Usuario:</th>
                         <td>
-                            {% with ejecutivo.usuario.perfil.rol|default:""|upper as rol_ej %}
+                            {% with rol_ejecutivo_safe as rol_ej %}
                                 {% if rol_ej == 'JEFE' %}
                                     <span class="badge bg-danger text-white">Jefe</span>
                                 {% elif rol_ej == 'DIRECTOR_GENERAL' %}
@@ -129,8 +129,10 @@
                                     {% else %}
                                         <span class="badge bg-success text-white">Asesor</span>
                                     {% endif %}
+                                {% elif perfil_ejecutivo %}
+                                    <span class="badge bg-secondary">{{ perfil_ejecutivo.get_rol_display|default:"N/A" }}</span>
                                 {% else %}
-                                    <span class="badge bg-secondary">{{ ejecutivo.usuario.perfil.get_rol_display|default:"N/A" }}</span>
+                                    <span class="badge bg-warning text-dark">Perfil no configurado</span>
                                 {% endif %}
                             {% endwith %}
                         </td>

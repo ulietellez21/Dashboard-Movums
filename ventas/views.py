@@ -8077,6 +8077,22 @@ class EjecutivoDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
     template_name = 'ventas/ejecutivo_detail.html'
     context_object_name = 'ejecutivo'
     
+    def get_context_data(self, **kwargs):
+        """Añade rol_ejecutivo_safe y perfil_ejecutivo al contexto para evitar 500 cuando el usuario no tiene Perfil."""
+        context = super().get_context_data(**kwargs)
+        ejecutivo = context.get('ejecutivo')
+        rol_ej = ""
+        perfil_ej = None
+        if ejecutivo and ejecutivo.usuario_id:
+            try:
+                perfil_ej = ejecutivo.usuario.perfil
+                rol_ej = (perfil_ej.rol or "").upper()
+            except Perfil.DoesNotExist:
+                pass
+        context['rol_ejecutivo_safe'] = rol_ej
+        context['perfil_ejecutivo'] = perfil_ej
+        return context
+    
     def test_func(self):
         """Solo JEFE puede ver detalles de ejecutivos."""
         user_rol = perm.get_user_role(self.request.user, self.request)
