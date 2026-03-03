@@ -365,10 +365,10 @@
                                                 {% endif %}
                                                     <td><span class="badge bg-info">{{ venta.get_modo_pago_apertura_display }}</span></td>
                                                     <td>
-                                                        {# Apertura confirmada solo cuando el contador la aprobó (y comprobante). TRN/TAR/DEP usan apertura_confirmada; EFE/LIG/PRO no requieren contador. #}
-                                                        {% if venta.modo_pago_apertura in 'EFE,LIG,PRO' %}
+                                                        {# Apertura confirmada solo cuando el contador la aprobó (y comprobante). TRN/TAR/DEP/LIG usan apertura_confirmada; EFE/PRO no requieren contador. #}
+                                                        {% if venta.modo_pago_apertura in 'EFE,PRO' %}
                                                             <span class="badge bg-success"><i class="fas fa-check"></i> Confirmado</span>
-                                                        {% elif venta.modo_pago_apertura in 'TRN,TAR,DEP' %}
+                                                        {% elif venta.modo_pago_apertura in 'TRN,TAR,DEP,LIG' %}
                                                             {% if venta.apertura_confirmada %}
                                                                 <span class="badge bg-success"><i class="fas fa-check"></i> Confirmado</span>
                                                             {% else %}
@@ -387,7 +387,7 @@
                                                     <td>
                                                         {% if venta.modo_pago_apertura == 'CRE' %}
                                                             <span class="badge bg-info">Crédito - Pendiente de validación</span>
-                                                        {% elif venta.modo_pago_apertura in 'TRN,TAR,DEP' %}
+                                                        {% elif venta.modo_pago_apertura in 'TRN,TAR,DEP,LIG' %}
                                                             {% if venta.comprobante_apertura_subido and venta.comprobante_apertura %}
                                                                 {% if not venta.apertura_confirmada %}
                                                                     <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalEditarComprobanteApertura" title="Editar comprobante">
@@ -408,7 +408,7 @@
                                                     <td><em>Apertura/Anticipo</em> - {{ venta.vendedor.username|default:"Sistema" }}</td>
                                                     {% if user_rol == 'CONTADOR' %}
                                                     <td>
-                                                        {% if venta.modo_pago_apertura in 'TRN,TAR,DEP' and not venta.apertura_confirmada and venta.comprobante_apertura_subido %}
+                                                        {% if venta.modo_pago_apertura in 'TRN,TAR,DEP,LIG' and not venta.apertura_confirmada and venta.comprobante_apertura_subido %}
                                                             <form method="post" action="{% url 'confirmar_pago_desde_lista' tipo='apertura' pk=venta.pk %}" style="display: inline;">
                                                                 {% csrf_token %}
                                                                 <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('¿Confirmar este pago de apertura?')" title="Aprobar apertura">
@@ -1054,7 +1054,7 @@
 </div>
 
 <!-- Modal para editar comprobante de apertura (cuando ya está subido pero no confirmado por el contador) -->
-{% if venta.modo_pago_apertura in 'TRN,TAR,DEP' and venta.comprobante_apertura_subido and venta.comprobante_apertura and not venta.apertura_confirmada %}
+{% if venta.modo_pago_apertura in 'TRN,TAR,DEP,LIG' and venta.comprobante_apertura_subido and venta.comprobante_apertura and not venta.apertura_confirmada %}
 <div class="modal fade" id="modalEditarComprobanteApertura" tabindex="-1" aria-labelledby="modalEditarComprobanteAperturaLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">

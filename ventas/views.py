@@ -545,14 +545,14 @@ class DashboardView(LoginRequiredMixin, ListView):
                 
                 # Ventas con apertura pendiente (para mostrar en el dashboard)
                 # IMPORTANTE: Debe coincidir con la lógica de PagosPorConfirmarView
-                # Para TRN/TAR/DEP: requiere comprobante subido
+                # Para TRN/TAR/DEP/LIG: requiere comprobante subido
                 # Para CRE: no requiere comprobante, solo estar en EN_CONFIRMACION
                 ventas_apertura_pendiente = VentaViaje.objects.filter(
                     Q(estado_confirmacion='EN_CONFIRMACION') &  # Solo las que están en confirmación
                     (
-                        # Transferencia, Tarjeta, Depósito: requieren comprobante
+                        # Transferencia, Tarjeta, Depósito, Liga de Pago: requieren comprobante
                         # Para NAC: cantidad_apertura > 0; para INT: cantidad_apertura_usd > 0
-                        (Q(modo_pago_apertura__in=['TRN', 'TAR', 'DEP']) & 
+                        (Q(modo_pago_apertura__in=['TRN', 'TAR', 'DEP', 'LIG']) & 
                          Q(comprobante_apertura_subido=True) &
                          (
                              Q(cantidad_apertura__gt=0) |  # Ventas nacionales
@@ -1647,8 +1647,10 @@ class VentaViajeDetailView(LoginRequiredMixin, usuarios_mixins.VentaPermissionMi
         else:
             tiene_apertura = (venta.cantidad_apertura or 0) > 0
         if tiene_apertura:
-            if venta.modo_pago_apertura == 'EFE':
+            if venta.modo_pago_apertura in ['EFE', 'PRO']:
                 apertura_confirmada = True
+            elif venta.modo_pago_apertura in ['TRN', 'TAR', 'DEP', 'LIG']:
+                apertura_confirmada = bool(venta.apertura_confirmada)
             else:
                 apertura_confirmada = venta.estado_confirmacion == 'COMPLETADO'
         
@@ -2360,8 +2362,8 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
             self.object.estado_confirmacion = 'EN_CONFIRMACION'
             self.object.cantidad_apertura = Decimal('0.00')
             self.object.save(update_fields=['estado_confirmacion', 'cantidad_apertura'])
-        elif cantidad_apertura > 0 and modo_pago in ['TRN', 'TAR', 'DEP']:
-            # Cambiar estado a "En confirmación"
+        elif cantidad_apertura > 0 and modo_pago in ['TRN', 'TAR', 'DEP', 'LIG']:
+            # Cambiar estado a "En confirmación" (requiere comprobante y confirmación del contador)
             self.object.estado_confirmacion = 'EN_CONFIRMACION'
             self.object.save(update_fields=['estado_confirmacion'])
         elif cantidad_apertura > 0 and modo_pago == 'EFE':
@@ -2697,9 +2699,9 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
                     confirmado=True
                 )
         
-        # Si tiene apertura TRN/TAR/DEP y aún no la confirmó el contador, mantener EN_CONFIRMACION
+        # Si tiene apertura TRN/TAR/DEP/LIG y aún no la confirmó el contador, mantener EN_CONFIRMACION
         cantidad_apertura = getattr(self.object, 'cantidad_apertura', None) or Decimal('0.00')
-        if (modo_pago in ['TRN', 'TAR', 'DEP'] and cantidad_apertura > 0 and
+        if (modo_pago in ['TRN', 'TAR', 'DEP', 'LIG'] and cantidad_apertura > 0 and
                 not getattr(self.object, 'apertura_confirmada', False)):
             if self.object.estado_confirmacion != 'COMPLETADO':
                 self.object.estado_confirmacion = 'EN_CONFIRMACION'
@@ -8263,7 +8265,7 @@ class ConfirmarPagoView(LoginRequiredMixin, UserPassesTestMixin, View):
                     venta.estado_confirmacion = 'PENDIENTE'
             else:
                 # Si no hay abono, es una apertura - confirmarla solo si hay comprobante subido
-                if venta.modo_pago_apertura in ['TRN', 'TAR', 'DEP'] and not venta.comprobante_apertura_subido:
+                if venta.modo_pago_apertura in ['TRN', 'TAR', 'DEP', 'LIG'] and not venta.comprobante_apertura_subido:
                     messages.error(request, "No se puede confirmar la apertura: debe estar subido el comprobante de apertura.")
                     return redirect(reverse('pagos_por_confirmar'))
                 venta.apertura_confirmada = True
@@ -12395,7 +12397,7 @@ class SubirComprobanteAperturaView(LoginRequiredMixin, View):
             messages.error(request, "Esta venta no tiene pago de apertura.")
             return redirect(reverse('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}) + '?tab=abonos')
         
-        if venta.modo_pago_apertura not in ['TRN', 'TAR', 'DEP']:
+        if venta.modo_pago_apertura not in ['TRN', 'TAR', 'DEP', 'LIG']:
             messages.error(request, "Este tipo de pago no requiere comprobante.")
             return redirect(reverse('detalle_venta', kwargs={'pk': venta.pk, 'slug': venta.slug_safe}) + '?tab=abonos')
         
@@ -12524,9 +12526,9 @@ class PagosPorConfirmarView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
             estado_confirmacion='COMPLETADO'
         )
         
-        # Para TRN/TAR/DEP: deben tener comprobante subido Y algún monto de apertura válido
-        ventas_trn_tar_dep = base_query.filter(
-            modo_pago_apertura__in=['TRN', 'TAR', 'DEP'],
+        # Para TRN/TAR/DEP/LIG: deben tener comprobante subido Y algún monto de apertura válido
+        ventas_trn_tar_dep_lig = base_query.filter(
+            modo_pago_apertura__in=['TRN', 'TAR', 'DEP', 'LIG'],
             comprobante_apertura_subido=True
         ).filter(
             # Ventas internacionales: cantidad_apertura_usd > 0
@@ -12541,7 +12543,7 @@ class PagosPorConfirmarView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
         )
         
         # Combinar ambas consultas
-        ventas_apertura_pendiente = (ventas_trn_tar_dep | ventas_cre).distinct().select_related('cliente', 'vendedor').order_by('-fecha_creacion')
+        ventas_apertura_pendiente = (ventas_trn_tar_dep_lig | ventas_cre).distinct().select_related('cliente', 'vendedor').order_by('-fecha_creacion')
         
         # Abonos a proveedor pendientes: PENDIENTE (para aprobar) y APROBADO (para confirmar)
         abonos_proveedor_pendientes = AbonoProveedor.objects.filter(
@@ -12576,14 +12578,14 @@ class PagosPorConfirmarView(LoginRequiredMixin, UserPassesTestMixin, TemplateVie
         
         # Ventas con apertura confirmada - SOLO las que tienen modo_pago que requiere confirmación
         # y que fueron confirmadas (estado_confirmacion='COMPLETADO')
-        # Para TRN/TAR/DEP: requieren comprobante subido
+        # Para TRN/TAR/DEP/LIG: requieren comprobante subido
         # Para CRE: no requiere comprobante, solo que estado no sea EN_CONFIRMACION
         ventas_apertura_confirmada = VentaViaje.objects.filter(
             Q(estado_confirmacion='COMPLETADO') &
             (
-                # Transferencia, Tarjeta, Depósito: requieren comprobante subido
+                # Transferencia, Tarjeta, Depósito, Liga de Pago: requieren comprobante subido
                 # Para NAC: cantidad_apertura > 0; para INT: cantidad_apertura_usd > 0
-                (Q(modo_pago_apertura__in=['TRN', 'TAR', 'DEP']) & 
+                (Q(modo_pago_apertura__in=['TRN', 'TAR', 'DEP', 'LIG']) & 
                  Q(comprobante_apertura_subido=True) &
                  (
                      Q(cantidad_apertura__gt=0) |  # Ventas nacionales
@@ -12775,8 +12777,8 @@ class ConfirmarPagoDesdeListaView(LoginRequiredMixin, UserPassesTestMixin, View)
         elif tipo == 'apertura':
             venta = get_object_or_404(VentaViaje, pk=pk)
             
-            # Verificar que tenga comprobante subido (solo para TRN/TAR/DEP, no para crédito)
-            if venta.modo_pago_apertura in ['TRN', 'TAR', 'DEP'] and not venta.comprobante_apertura_subido:
+            # Verificar que tenga comprobante subido (para TRN/TAR/DEP/LIG, no para crédito)
+            if venta.modo_pago_apertura in ['TRN', 'TAR', 'DEP', 'LIG'] and not venta.comprobante_apertura_subido:
                 messages.error(request, "Este pago de apertura no tiene comprobante subido.")
                 return redirect('pagos_por_confirmar')
             
