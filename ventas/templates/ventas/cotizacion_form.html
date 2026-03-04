@@ -19,7 +19,7 @@
             {% csrf_token %}
             {{ form.propuestas }} {# hidden #}
             {% for error in form.propuestas.errors %}
-            <div class="alert alert-danger"><i class="fas fa-exclamation-circle me-1"></i> Propuestas: {{ error }}</div>
+            <div class="alert alert-danger"><i class="fas fa-exclamation-circle me-1"></i> <strong>Datos de la propuesta:</strong> {{ error }}</div>
             {% endfor %}
 
             <div class="alert alert-info mb-4">
@@ -28,10 +28,10 @@
 
             {% if form.errors %}
             <div class="alert alert-danger" id="formErrorsSummary">
-                <h6 class="fw-bold mb-2"><i class="fas fa-exclamation-triangle me-1"></i> Por favor corrige los siguientes errores:</h6>
+                <h6 class="fw-bold mb-2"><i class="fas fa-exclamation-triangle me-1"></i> No se pudo guardar la cotización. Corrige lo siguiente:</h6>
                 {% for field, errors in form.errors.items %}
                 {% for err in errors %}
-                <div><i class="fas fa-times-circle me-1"></i> <strong>{{ field }}:</strong> {{ err }}</div>
+                <div><i class="fas fa-times-circle me-1"></i>{% if field == 'propuestas' %}<strong>Datos de la propuesta:</strong>{% else %}<strong>{{ field }}:</strong>{% endif %} {{ err }}</div>
                 {% endfor %}
                 {% endfor %}
             </div>
@@ -1530,25 +1530,32 @@
         form.addEventListener('submit', function (e) {
             // Actualizar edades de menores antes de enviar
             actualizarEdadesMenoresHidden();
+            // Construir propuestas antes de enviar
+            buildPropuestas();
 
-            // Construir propuestas antes de enviar (con manejo de errores)
-            try {
-                buildPropuestas();
-            } catch (err) {
-                console.error('Error en buildPropuestas:', err);
+            // Debug: verificar el contenido antes de enviar
+            if (propuestasInput && propuestasInput.value) {
+                try {
+                    const propuestasData = JSON.parse(propuestasInput.value);
+                    console.log('Propuestas antes de enviar:', propuestasData);
+                    if (propuestasData.tipo === 'paquete') {
+                        console.log('Tipo es paquete, objeto paquete:', propuestasData.paquete);
+                        if (!propuestasData.paquete) {
+                            console.error('ERROR: El objeto paquete no existe aunque el tipo es paquete!');
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error parseando propuestas:', err);
+                }
             }
 
-            // Si buildPropuestas falló y propuestas sigue vacío, intentar construir un objeto mínimo
-            if (propuestasInput && (!propuestasInput.value || propuestasInput.value === '{}')) {
-                const tipoActual = tipoSelect ? tipoSelect.value : 'vuelos';
-                const propuestasMinimas = {
-                    tipo: tipoActual,
-                    fecha_cotizacion: new Date().toISOString().split('T')[0]
-                };
-                propuestasInput.value = JSON.stringify(propuestasMinimas);
-                console.log('Propuestas mínimas generadas como fallback:', propuestasMinimas);
+            // Verificar que el campo propuestas tenga valor
+            if (!propuestasInput || !propuestasInput.value || propuestasInput.value === '{}') {
+                e.preventDefault();
+                alert('Por favor, completa al menos una propuesta antes de guardar.');
+                return false;
             }
-
+            
             // Verificar que para renta_autos haya al menos algún dato
             try {
                 const propuestasData = JSON.parse(propuestasInput.value);
@@ -2288,7 +2295,7 @@
             });
         });
 
-        // Auto-scroll a errores si existen
+        // Si hay errores de validación, hacer scroll para que el usuario los vea
         const errorsSummary = document.getElementById('formErrorsSummary');
         if (errorsSummary) {
             errorsSummary.scrollIntoView({ behavior: 'smooth', block: 'center' });

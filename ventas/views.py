@@ -12958,12 +12958,9 @@ class CotizacionCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
     def form_invalid(self, form):
-        post_keys = list(self.request.POST.keys())
-        propuestas_val = self.request.POST.get('propuestas', '')[:200]
         logging.error(
-            "CotizacionCreateView form_invalid — user=%s errors=%s post_keys=%s propuestas_preview=%s",
-            self.request.user, form.errors.as_json(),
-            post_keys, propuestas_val
+            "CotizacionCreateView form_invalid — user=%s errors=%s",
+            self.request.user, form.errors.as_json()
         )
         return super().form_invalid(form)
 
@@ -12980,13 +12977,6 @@ class CotizacionUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_queryset(self):
         return perm.get_cotizaciones_queryset_base(Cotizacion, self.request.user, self.request).select_related('cliente', 'vendedor')
-
-    def form_invalid(self, form):
-        logging.error(
-            "CotizacionUpdateView form_invalid — user=%s slug=%s errors=%s",
-            self.request.user, self.kwargs.get('slug'), form.errors.as_json()
-        )
-        return super().form_invalid(form)
 
     def get_success_url(self):
         return reverse('cotizacion_detalle', kwargs={'slug': self.object.slug})
