@@ -12957,6 +12957,13 @@ class CotizacionCreateView(LoginRequiredMixin, CreateView):
         form.instance.vendedor = self.request.user
         return super().form_valid(form)
 
+    def form_invalid(self, form):
+        logging.error(
+            "CotizacionCreateView form_invalid — user=%s errors=%s",
+            self.request.user, form.errors.as_json()
+        )
+        return super().form_invalid(form)
+
     def get_success_url(self):
         return reverse('cotizacion_detalle', kwargs={'slug': self.object.slug})
 
