@@ -53,6 +53,7 @@ from .models import (
     Oficina,
     PlantillaConfirmacion,
     Cotizacion,
+    CotizacionImagen,
     VentaPromocionAplicada,
     AbonoProveedor,
     ComisionVenta,
@@ -12955,7 +12956,26 @@ class CotizacionCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.vendedor = self.request.user
-        return super().form_valid(form)
+        tipo = form.cleaned_data.get('tipo')
+        response = super().form_valid(form)
+        if tipo == 'generica':
+            self._guardar_imagenes_generica()
+        return response
+
+    def _guardar_imagenes_generica(self):
+        """
+        Guarda las imágenes subidas en la sección de plantilla genérica
+        y las asocia a la cotización recién creada.
+        """
+        archivos = self.request.FILES.getlist('generica_imagenes')
+        if not archivos:
+            return
+        for idx, archivo in enumerate(archivos):
+            CotizacionImagen.objects.create(
+                cotizacion=self.object,
+                imagen=archivo,
+                orden=idx,
+            )
 
     def form_invalid(self, form):
         logging.error(
@@ -12977,6 +12997,13 @@ class CotizacionUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_queryset(self):
         return perm.get_cotizaciones_queryset_base(Cotizacion, self.request.user, self.request).select_related('cliente', 'vendedor')
+
+    def form_valid(self, form):
+        tipo = form.cleaned_data.get('tipo')
+        response = super().form_valid(form)
+        if tipo == 'generica':
+            self._guardar_imagenes_generica()
+        return response
 
     def get_success_url(self):
         return reverse('cotizacion_detalle', kwargs={'slug': self.object.slug})
@@ -13524,6 +13551,23 @@ class CotizacionDocxView(LoginRequiredMixin, DetailView):
                             p.paragraph_format.space_after = Pt(4)
                             run = p.add_run(linea.strip())
                             set_run_font(run, size=12)
+
+            # Insertar imágenes asociadas a la cotización (si existen)
+            imagenes = getattr(cot, 'imagenes_generica', None)
+            if imagenes:
+                from docx.shared import Inches
+                for img in imagenes.all():
+                    if not img.imagen:
+                        continue
+                    doc.add_paragraph()  # pequeño espacio
+                    try:
+                        doc.add_picture(img.imagen.path, width=Inches(5.5))
+                    except Exception:
+                        logging.warning(
+                            "No se pudo agregar imagen de cotización genérica %s",
+                            img.pk,
+                            exc_info=True,
+                        )
 
         try:
             buffer = io.BytesIO()

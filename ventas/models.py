@@ -1995,6 +1995,31 @@ class Cotizacion(models.Model):
         return f"Cotización {self.pk} - {self.cliente.nombre_completo_display}"
 
 
+# ------------------- IMÁGENES PARA COTIZACIÓN (PLANTILLA GENÉRICA) -------------------
+
+class CotizacionImagen(models.Model):
+    cotizacion = models.ForeignKey(
+        Cotizacion,
+        on_delete=models.CASCADE,
+        related_name='imagenes_generica',
+        verbose_name="Cotización"
+    )
+    imagen = models.ImageField(
+        upload_to='cotizaciones/generica/%Y/%m/%d/',
+        verbose_name="Imagen para plantilla genérica"
+    )
+    orden = models.PositiveIntegerField(default=0)
+    descripcion = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ['orden', 'pk']
+        verbose_name = "Imagen de cotización genérica"
+        verbose_name_plural = "Imágenes de cotización genérica"
+
+    def __str__(self):
+        return f"Imagen genérica {self.pk} de cotización {self.cotizacion_id}"
+
+
 # ------------------- MODELOS DE COMISIONES -------------------
 
 class ComisionVenta(models.Model):

@@ -13,6 +13,18 @@
             <div class="contenido-generica-texto">{{ propuestas.generica.contenido|linebreaks }}</div>
         </div>
         {% endif %}
+
+        {% if cotizacion.imagenes_generica.all %}
+        <div class="imagenes-generica">
+            {% for img in cotizacion.imagenes_generica.all %}
+                {% if img.imagen %}
+                <div class="imagen-generica" style="margin-top: 12px;">
+                    <img src="{{ img.imagen.url }}" style="max-width: 100%; height: auto;">
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
     </div>
 {% endblock %}
 
