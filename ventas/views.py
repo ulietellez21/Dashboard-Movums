@@ -12998,6 +12998,20 @@ class CotizacionUpdateView(LoginRequiredMixin, UpdateView):
     def get_queryset(self):
         return perm.get_cotizaciones_queryset_base(Cotizacion, self.request.user, self.request).select_related('cliente', 'vendedor')
 
+    def _guardar_imagenes_generica(self):
+        """Guarda las imágenes subidas en la sección de plantilla genérica y las asocia a la cotización."""
+        archivos = self.request.FILES.getlist('generica_imagenes')
+        if not archivos:
+            return
+        # Orden: después de las que ya existan
+        orden_inicial = self.object.imagenes_generica.count()
+        for idx, archivo in enumerate(archivos):
+            CotizacionImagen.objects.create(
+                cotizacion=self.object,
+                imagen=archivo,
+                orden=orden_inicial + idx,
+            )
+
     def form_valid(self, form):
         tipo = form.cleaned_data.get('tipo')
         response = super().form_valid(form)
@@ -13825,13 +13839,13 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
                         continue
                     img_abs = os.path.abspath(img_path)
                     if os.name == 'nt':
-                        url = f\"file:///{img_abs.replace(os.sep, '/')}\"  # Windows
+                        url = f"file:///{img_abs.replace(os.sep, '/')}"  # Windows
                     else:
-                        url = f\"file://{img_abs}\"
+                        url = f"file://{img_abs}"
                     imagenes_urls.append(url)
             except Exception:
                 logging.warning(
-                    \"No se pudieron preparar URLs de imágenes para cotización genérica %s\",
+                    "No se pudieron preparar URLs de imágenes para cotización genérica %s",
                     cotizacion.pk,
                     exc_info=True,
                 )
