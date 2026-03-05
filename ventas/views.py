@@ -52,6 +52,7 @@ from .models import (
     Ejecutivo,
     Oficina,
     PlantillaConfirmacion,
+    PlantillaConfirmacionImagen,
     Cotizacion,
     CotizacionImagen,
     VentaPromocionAplicada,
@@ -9356,6 +9357,18 @@ class CrearPlantillaConfirmacionView(LoginRequiredMixin, View):
                 plantilla.creado_por = request.user
             plantilla.save()
         
+        # Imágenes para plantilla genérica (crear y editar)
+        if self.tipo_plantilla == 'GENERICA':
+            archivos = request.FILES.getlist('generica_imagenes')
+            if archivos:
+                orden_inicial = plantilla.imagenes_generica.count()
+                for idx, archivo in enumerate(archivos):
+                    PlantillaConfirmacionImagen.objects.create(
+                        plantilla=plantilla,
+                        imagen=archivo,
+                        orden=orden_inicial + idx,
+                    )
+        
         messages.success(request, f"Plantilla {self.get_tipo_display()} guardada correctamente.")
         return redirect('listar_confirmaciones', pk=venta.pk, slug=venta.slug_safe)
     
@@ -9714,7 +9727,26 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                     plantillas_html.append(html_plantilla)
                 continue  # ya se añadieron a plantillas_html
             elif tipo == 'GENERICA':
-                html_plantilla = self._generar_html_generica(datos)
+                imagenes_urls = []
+                try:
+                    for img in plantilla.imagenes_generica.all():
+                        if not img.imagen:
+                            continue
+                        img_path = img.imagen.path
+                        if not os.path.exists(img_path):
+                            continue
+                        img_abs = os.path.abspath(img_path)
+                        if os.name == 'nt':
+                            imagenes_urls.append(f"file:///{img_abs.replace(os.sep, '/')}")
+                        else:
+                            imagenes_urls.append(f"file://{img_abs}")
+                except Exception:
+                    logger.warning(
+                        "No se pudieron preparar URLs de imágenes para plantilla genérica %s",
+                        plantilla.pk,
+                        exc_info=True,
+                    )
+                html_plantilla = self._generar_html_generica(datos, imagenes_urls=imagenes_urls)
             
             if html_plantilla:
                 plantillas_html.append(html_plantilla)
@@ -10224,9 +10256,10 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         
         return "".join(html_parts)
     
-    def _generar_html_generica(self, datos):
-        """Genera HTML para plantilla genérica (EXACTAMENTE igual que cotizaciones con cards)."""
+    def _generar_html_generica(self, datos, imagenes_urls=None):
+        """Genera HTML para plantilla genérica (igual que cotizaciones con cards). Incluye imágenes si se pasan URLs."""
         html_parts = []
+        imagenes_urls = imagenes_urls or []
         
         # Card principal con header (IGUAL QUE COTIZACIONES)
         html_parts.append('<div class="card">')
@@ -10247,6 +10280,12 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
             html_parts.append(f'<div style="padding: 12px 18px; font-size: 9pt; line-height: 1.5;">{contenido_html}</div>')
         else:
             html_parts.append('<div style="padding: 12px 18px; font-size: 9pt; line-height: 1.5;">-</div>')
+        
+        if imagenes_urls:
+            html_parts.append('<div class="imagenes-generica" style="padding: 0 18px 18px;">')
+            for url in imagenes_urls:
+                html_parts.append(f'<div class="imagen-generica" style="margin-top: 12px;"><img src="{url}" style="max-width: 100%; height: auto;"></div>')
+            html_parts.append('</div>')
         
         html_parts.append('</div>')  # Cierre de card
         return "".join(html_parts)

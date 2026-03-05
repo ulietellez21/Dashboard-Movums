@@ -1927,6 +1927,32 @@ class PlantillaConfirmacion(models.Model):
         return f"{self.get_tipo_display()} - Venta #{self.venta.pk} - {self.fecha_creacion.strftime('%d/%m/%Y')}"
 
 
+# ------------------- IMÁGENES PARA PLANTILLA CONFIRMACIÓN GENÉRICA -------------------
+
+class PlantillaConfirmacionImagen(models.Model):
+    """Imágenes adjuntas a la plantilla genérica de confirmación (capturas, etc.)."""
+    plantilla = models.ForeignKey(
+        PlantillaConfirmacion,
+        on_delete=models.CASCADE,
+        related_name='imagenes_generica',
+        verbose_name="Plantilla de Confirmación"
+    )
+    imagen = models.ImageField(
+        upload_to='confirmaciones/generica/%Y/%m/%d/',
+        verbose_name="Imagen para plantilla genérica"
+    )
+    orden = models.PositiveIntegerField(default=0)
+    descripcion = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ['orden', 'pk']
+        verbose_name = "Imagen de plantilla confirmación genérica"
+        verbose_name_plural = "Imágenes de plantilla confirmación genérica"
+
+    def __str__(self):
+        return f"Imagen genérica {self.pk} de plantilla {self.plantilla_id}"
+
+
 # ------------------- MODELO: Cotización -------------------
 class Cotizacion(models.Model):
     folio = models.CharField(
