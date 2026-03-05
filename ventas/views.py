@@ -13812,6 +13812,30 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
         # Lista explícita de tours del paquete para el PDF (evita problemas de visualización en template)
         if tipo == 'paquete':
             contexto['paquete_tours'] = propuestas.get('paquete', {}).get('tours', [])
+
+        # URLs absolutas (file://) de imágenes para cotizaciones genéricas
+        if tipo == 'generica':
+            imagenes_urls = []
+            try:
+                for img in cotizacion.imagenes_generica.all():
+                    if not img.imagen:
+                        continue
+                    img_path = img.imagen.path
+                    if not os.path.exists(img_path):
+                        continue
+                    img_abs = os.path.abspath(img_path)
+                    if os.name == 'nt':
+                        url = f\"file:///{img_abs.replace(os.sep, '/')}\"  # Windows
+                    else:
+                        url = f\"file://{img_abs}\"
+                    imagenes_urls.append(url)
+            except Exception:
+                logging.warning(
+                    \"No se pudieron preparar URLs de imágenes para cotización genérica %s\",
+                    cotizacion.pk,
+                    exc_info=True,
+                )
+            contexto['imagenes_generica_urls'] = imagenes_urls
         return contexto
     
     def _generar_pdf(self, cotizacion):
