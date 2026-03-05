@@ -15,7 +15,7 @@
 
 <div class="card shadow-sm border-0">
     <div class="card-body">
-        <form method="post" novalidate id="cotizacionForm">
+        <form method="post" enctype="multipart/form-data" novalidate id="cotizacionForm">
             {% csrf_token %}
             {{ form.propuestas }} {# hidden #}
             {% for error in form.propuestas.errors %}
