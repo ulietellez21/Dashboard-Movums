@@ -12,11 +12,15 @@
    Generados con WeasyPrint
    ============================================ */
 {% if membrete_url %}
-    /* Márgenes en @page para TODAS las páginas. El membrete va en body::before (full-bleed).
-       En WeasyPrint el background-image en @page solo pinta el área de contenido, no los márgenes. */
+    /* Márgenes en @page. Membrete como fondo de @page para evitar position:fixed
+       (WeasyPrint con fixed oculta el contenido a partir de la 3ª página). */
     @page {
         size: letter;
-        margin: 3.5cm 2.0cm 2.5cm 2.0cm; /* top right bottom left = mismo en todas las páginas */
+        margin: 3.5cm 2.0cm 2.5cm 2.0cm;
+        background-image: url("{{ membrete_url }}");
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: cover;
     }
 {% else %}
     /* CONFIGURACIÓN SIN MEMBRETE (DEFAULT) */
@@ -90,26 +94,9 @@ body {
 }
 
 /* ============================================
-   MEMBRETE FULL-BLEED (igual que cotizaciones)
-   body::before se repite en cada página y llega a los bordes.
+   MEMBRETE: ya no usamos body::before con position:fixed
+   (WeasyPrint ocultaba contenido en página 3+). Ahora el membrete va en @page.
    ============================================ */
-{% if membrete_url %}
-body::before {
-    content: "";
-    display: block;
-    position: fixed;
-    /* Extender hasta los bordes de la hoja (coordenadas = márgenes de @page) */
-    top: -3.5cm;
-    left: -2.0cm;
-    right: -2.0cm;
-    bottom: -2.5cm;
-    z-index: -1000;
-    background-image: url("{{ membrete_url }}");
-    background-position: center;
-    background-repeat: no-repeat;
-    background-size: cover;
-}
-{% endif %}
 
 .header {
     display: none; /* Header oculto, el membrete es fondo */
