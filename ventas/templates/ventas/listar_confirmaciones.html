@@ -30,6 +30,11 @@
                    data-no-transition="true">
                     <i class="fas fa-file-pdf"></i> Generar PDF
                 </a>
+                <a href="{% url 'generar_documento_confirmacion_docx' pk=venta.pk slug=venta.slug_safe %}"
+                   class="btn btn-primary"
+                   data-no-transition="true">
+                    <i class="fas fa-file-word"></i> Generar Word
+                </a>
             {% endif %}
         </div>
         
