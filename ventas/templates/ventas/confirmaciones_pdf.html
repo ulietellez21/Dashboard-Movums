@@ -654,11 +654,8 @@ strong {
             {% if forloop.first %}
                 <!-- Primera plantilla: sin wrapper -->
                 {{ plantilla_html|safe }}
-            {% elif forloop.last %}
-                <!-- Última plantilla (ej. traslado): sin content-wrapper para que WeasyPrint la muestre igual que la primera -->
-                <div style="margin-top: 24px;">{{ plantilla_html|safe }}</div>
             {% else %}
-                <!-- Plantillas intermedias: con wrapper para espacio superior -->
+                <!-- Todas las demás plantillas con content-wrapper (z-index, overflow) para que WeasyPrint las muestre -->
                 <div class="content-wrapper">
                     {{ plantilla_html|safe }}
                 </div>
