@@ -9697,6 +9697,10 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
             else:
                 membrete_url = f"file://{membrete_abs_path}"
         
+        # Solo aplicar el reparto (título+texto pág.1 / resto pág.2) a la genérica cuando el PDF tiene ÚNICAMENTE plantilla(s) genérica
+        tipos_presentes = set(plantillas.values_list('tipo', flat=True))
+        solo_plantilla_generica = (tipos_presentes == {'GENERICA'})
+
         # Procesar cada plantilla y generar HTML
         plantillas_html = []
         for plantilla in plantillas:
@@ -9746,7 +9750,25 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                         plantilla.pk,
                         exc_info=True,
                     )
-                html_plantilla = self._generar_html_generica(datos, imagenes_urls=imagenes_urls)
+                contenido = datos.get('contenido') or ''
+                contenido_html_resuelto = _resolver_imagenes_html_a_file_urls(contenido) if (contenido and '<img' in contenido) else None
+                if solo_plantilla_generica:
+                    html_primera = self._generar_html_generica_primera_pagina(datos, imagenes_urls=imagenes_urls, contenido_html_resuelto=contenido_html_resuelto)
+                    html_resto = self._generar_html_generica_resto(datos, imagenes_urls=imagenes_urls, contenido_html_resuelto=contenido_html_resuelto)
+                    if html_primera:
+                        plantillas_html.append(html_primera)
+                        if html_resto:
+                            plantillas_html.append('<div class="content-wrapper" style="page-break-before: always;"></div>')
+                            plantillas_html.append(html_resto)
+                    else:
+                        html_plantilla = self._generar_html_generica(datos, imagenes_urls=imagenes_urls, contenido_html_resuelto=contenido_html_resuelto)
+                        if html_plantilla:
+                            plantillas_html.append(html_plantilla)
+                else:
+                    html_plantilla = self._generar_html_generica(datos, imagenes_urls=imagenes_urls, contenido_html_resuelto=contenido_html_resuelto)
+                    if html_plantilla:
+                        plantillas_html.append(html_plantilla)
+                continue
             
             if html_plantilla:
                 plantillas_html.append(html_plantilla)
@@ -10256,12 +10278,66 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         
         return "".join(html_parts)
     
-    def _generar_html_generica(self, datos, imagenes_urls=None):
-        """Genera HTML para plantilla genérica (igual que cotizaciones con cards). Incluye imágenes si se pasan URLs."""
+    def _card_header_generica(self, datos):
+        """Solo el header (título verde) de la card genérica."""
+        titulo = datos.get('titulo', 'INFORMACIÓN ADICIONAL')
+        return (
+            '<div class="card card-generica-pagina1">'
+            '<div class="card-header">'
+            '<span class="icon">'
+            '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">'
+            '<path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" fill="white" stroke="none"/>'
+            '</svg></span>'
+            f'<span>{titulo.upper()}</span>'
+            '</div>'
+        )
+
+    def _split_generica_para_paginas(self, contenido_html_resuelto, imagenes_urls):
+        """
+        Parte el contenido genérico en (intro, resto): intro = lo que va en primera página (título + texto que quepa),
+        resto = resto del texto + imágenes. Si no hay texto, intro lleva las imágenes.
+        """
+        LIMITE_CARACTERES_PAGINA1 = 2800  # ~28 líneas para aprovechar la primera página
+        imagenes_urls = imagenes_urls or []
+        if not contenido_html_resuelto and not imagenes_urls:
+            return None, None
+        if not contenido_html_resuelto:
+            return None, None
+        img_tags = re.findall(r'<img[^>]+>', contenido_html_resuelto)
+        texto_sin_imgs = re.sub(r'<img[^>]+>', ' ', contenido_html_resuelto)
+        texto_plano = re.sub(r'<[^>]+>', ' ', texto_sin_imgs).replace('&nbsp;', ' ').replace('\n', ' ')
+        texto_plano = re.sub(r'\s+', ' ', texto_plano).strip()
+        if not texto_plano and not img_tags and not imagenes_urls:
+            return None, None
+        if not texto_plano:
+            return None, None
+        if len(texto_plano) <= LIMITE_CARACTERES_PAGINA1:
+            intro_texto = texto_plano
+            resto_texto = ''
+        else:
+            corte = LIMITE_CARACTERES_PAGINA1
+            if corte < len(texto_plano) and texto_plano[corte] != ' ':
+                ultimo_espacio = texto_plano.rfind(' ', 0, corte + 1)
+                if ultimo_espacio > 2000:
+                    corte = ultimo_espacio
+            intro_texto = texto_plano[:corte].strip()
+            resto_texto = texto_plano[corte:].strip()
+        intro_html = intro_texto.replace('\n', '<br>')
+        resto_body = resto_texto.replace('\n', '<br>') if resto_texto else ''
+        if img_tags:
+            resto_body += ''.join(f'<div class="imagen-generica" style="margin-top: 12px;">{t}</div>' for t in img_tags)
+        elif imagenes_urls:
+            resto_body += '<div class="imagenes-generica" style="padding: 0 18px 18px;">'
+            for url in imagenes_urls:
+                resto_body += f'<div class="imagen-generica" style="margin-top: 12px;"><img src="{url}" alt=""></div>'
+            resto_body += '</div>'
+        return intro_html, resto_body.strip() if resto_body else None
+
+    def _generar_html_generica(self, datos, imagenes_urls=None, contenido_html_resuelto=None):
+        """Genera HTML para plantilla genérica. Si contenido_html_resuelto tiene HTML con img (file://), lo usa; si no, texto + imágenes legacy."""
         html_parts = []
         imagenes_urls = imagenes_urls or []
         
-        # Card principal con header (IGUAL QUE COTIZACIONES)
         html_parts.append('<div class="card">')
         html_parts.append('<div class="card-header">')
         html_parts.append('<span class="icon">')
@@ -10273,22 +10349,87 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         html_parts.append(f'<span>{titulo.upper()}</span>')
         html_parts.append('</div>')
         
-        contenido = datos.get('contenido', '')
-        if contenido:
-            contenido_normalizado = self._normalizar_valor_campo(contenido, limpiar_saltos_linea=True)
-            contenido_html = contenido_normalizado.replace('\n', '<br>')
-            html_parts.append(f'<div style="padding: 12px 18px; font-size: 9pt; line-height: 1.5;">{contenido_html}</div>')
+        if contenido_html_resuelto:
+            html_parts.append(f'<div class="contenido-generica-texto" style="padding: 12px 18px; font-size: 9pt; line-height: 1.5;">{contenido_html_resuelto}</div>')
         else:
-            html_parts.append('<div style="padding: 12px 18px; font-size: 9pt; line-height: 1.5;">-</div>')
+            contenido = datos.get('contenido', '')
+            if contenido:
+                contenido_normalizado = self._normalizar_valor_campo(contenido, limpiar_saltos_linea=True)
+                contenido_html = contenido_normalizado.replace('\n', '<br>')
+                html_parts.append(f'<div style="padding: 12px 18px; font-size: 9pt; line-height: 1.5;">{contenido_html}</div>')
+            else:
+                html_parts.append('<div style="padding: 12px 18px; font-size: 9pt; line-height: 1.5;">-</div>')
+            if imagenes_urls:
+                html_parts.append('<div class="imagenes-generica" style="padding: 0 18px 18px;">')
+                for url in imagenes_urls:
+                    html_parts.append(f'<div class="imagen-generica" style="margin-top: 12px;"><img src="{url}" style="max-width: 100%; height: auto;"></div>')
+                html_parts.append('</div>')
         
-        if imagenes_urls:
-            html_parts.append('<div class="imagenes-generica" style="padding: 0 18px 18px;">')
-            for url in imagenes_urls:
-                html_parts.append(f'<div class="imagen-generica" style="margin-top: 12px;"><img src="{url}" style="max-width: 100%; height: auto;"></div>')
-            html_parts.append('</div>')
-        
-        html_parts.append('</div>')  # Cierre de card
+        html_parts.append('</div>')
         return "".join(html_parts)
+
+    def _generar_html_generica_primera_pagina(self, datos, imagenes_urls=None, contenido_html_resuelto=None):
+        """Bloque para primera página: título verde + lo que quepa del texto; si no hay texto, imágenes."""
+        header = self._card_header_generica(datos)
+        imagenes_urls = imagenes_urls or []
+        if contenido_html_resuelto:
+            intro_texto, resto = self._split_generica_para_paginas(contenido_html_resuelto, imagenes_urls)
+            if intro_texto is not None:
+                body = f'<div class="contenido-generica-texto" style="padding: 12px 18px; font-size: 9pt; line-height: 1.5;">{intro_texto}</div>'
+                return header + body + '</div>'
+            if not resto and (re.findall(r'<img[^>]+>', contenido_html_resuelto) or imagenes_urls):
+                sin_texto_imgs = re.sub(r'<[^>]+>', '', contenido_html_resuelto).replace('&nbsp;', '').strip()
+                if not sin_texto_imgs and (re.findall(r'<img[^>]+>', contenido_html_resuelto) or imagenes_urls):
+                    imgs_html = ''.join(f'<div class="imagen-generica" style="margin-top: 12px;">{t}</div>' for t in re.findall(r'<img[^>]+>', contenido_html_resuelto))
+                    if imagenes_urls:
+                        imgs_html += ''.join(f'<div class="imagen-generica" style="margin-top: 12px;"><img src="{u}" alt=""></div>' for u in imagenes_urls)
+                    return header + '<div class="contenido-generica-texto" style="padding: 12px 18px; font-size: 9pt;">' + imgs_html + '</div></div>'
+        contenido = datos.get('contenido', '')
+        if not contenido and imagenes_urls:
+            imgs = ''.join(f'<div class="imagen-generica" style="margin-top: 12px;"><img src="{u}" alt=""></div>' for u in imagenes_urls)
+            return header + '<div class="contenido-generica-texto" style="padding: 12px 18px;">' + imgs + '</div></div>'
+        if contenido:
+            norm = self._normalizar_valor_campo(contenido, limpiar_saltos_linea=True)
+            texto_plano = re.sub(r'<[^>]+>', ' ', norm).replace('&nbsp;', ' ')
+            texto_plano = re.sub(r'\s+', ' ', texto_plano).strip()
+            limite = 2800
+            if len(texto_plano) > limite:
+                corte = limite
+                if texto_plano[corte:corte+1] != ' ':
+                    idx = texto_plano.rfind(' ', 0, corte + 1)
+                    if idx > 2000:
+                        corte = idx
+                intro_texto = texto_plano[:corte].strip().replace('\n', '<br>')
+            else:
+                intro_texto = norm.replace('\n', '<br>')
+            return header + f'<div class="contenido-generica-texto" style="padding: 12px 18px; font-size: 9pt; line-height: 1.5;">{intro_texto}</div></div>'
+        return header + '<div class="contenido-generica-texto" style="padding: 12px 18px;">-</div></div>'
+
+    def _generar_html_generica_resto(self, datos, imagenes_urls=None, contenido_html_resuelto=None):
+        """Bloque para página(s) siguiente(s): resto del texto + imágenes."""
+        imagenes_urls = imagenes_urls or []
+        if contenido_html_resuelto:
+            _, resto_body = self._split_generica_para_paginas(contenido_html_resuelto, imagenes_urls)
+            if resto_body:
+                return '<div class="card card-generica-resto"><div class="contenido-generica-texto" style="padding: 12px 18px; font-size: 9pt; line-height: 1.5;">' + resto_body + '</div></div>'
+        contenido = datos.get('contenido', '')
+        if not contenido and imagenes_urls:
+            return None
+        if contenido:
+            norm = self._normalizar_valor_campo(contenido, limpiar_saltos_linea=True)
+            texto_plano = re.sub(r'<[^>]+>', ' ', norm).replace('&nbsp;', ' ')
+            texto_plano = re.sub(r'\s+', ' ', texto_plano).strip()
+            limite = 2800
+            if len(texto_plano) > limite:
+                corte = limite
+                if texto_plano[corte:corte+1] != ' ':
+                    idx = texto_plano.rfind(' ', 0, corte + 1)
+                    if idx > 2000:
+                        corte = idx
+                resto_texto = texto_plano[corte:].strip().replace('\n', '<br>')
+                imgs = ''.join(f'<div class="imagen-generica" style="margin-top: 12px;"><img src="{u}" alt=""></div>' for u in imagenes_urls)
+                return '<div class="card card-generica-resto"><div class="contenido-generica-texto" style="padding: 12px 18px; font-size: 9pt;">' + resto_texto + imgs + '</div></div>'
+        return None
     
     # ===== MÉTODOS ANTIGUOS (deprecated - mantenidos por compatibilidad pero ya no se usan) =====
     
@@ -11279,9 +11420,53 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                         run.font.size = Pt(12)
 
 
-# ------------------- API: Previsualización de promociones -------------------
+# ------------------- API: Subida de imagen al pegar (plantilla genérica) -------------------
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+
+
+@login_required
+@require_POST
+def upload_imagen_generica_inline(request):
+    """
+    Recibe una imagen (p. ej. pegada en contenteditable), la guarda en media y devuelve su URL.
+    POST: imagen (file), tipo: 'cotizacion' | 'confirmacion'
+    """
+    imagen = request.FILES.get('imagen')
+    tipo = (request.POST.get('tipo') or request.GET.get('tipo') or '').strip().lower()
+    if not imagen or tipo not in ('cotizacion', 'confirmacion'):
+        return JsonResponse({'ok': False, 'error': 'Faltan imagen o tipo (cotizacion|confirmacion)'}, status=400)
+    if not imagen.content_type or not imagen.content_type.startswith('image/'):
+        return JsonResponse({'ok': False, 'error': 'El archivo debe ser una imagen'}, status=400)
+    ext = 'jpg'
+    if 'png' in (imagen.content_type or ''):
+        ext = 'png'
+    elif 'gif' in (imagen.content_type or ''):
+        ext = 'gif'
+    elif 'webp' in (imagen.content_type or ''):
+        ext = 'webp'
+    from datetime import datetime
+    import uuid
+    subdir = datetime.now().strftime('%Y/%m/%d')
+    nombre = f"{uuid.uuid4().hex[:12]}.{ext}"
+    if tipo == 'cotizacion':
+        ruta = f"cotizaciones/generica/inline/{subdir}/{nombre}"
+    else:
+        ruta = f"confirmaciones/generica/inline/{subdir}/{nombre}"
+    try:
+        saved = default_storage.save(ruta, ContentFile(imagen.read()))
+        url = default_storage.url(saved)
+        if not url.startswith('http') and not url.startswith('/'):
+            url = '/' + url
+        return JsonResponse({'ok': True, 'url': url})
+    except Exception as e:
+        logger.exception("Error subiendo imagen genérica inline: %s", e)
+        return JsonResponse({'ok': False, 'error': str(e)}, status=500)
+
+
+# ------------------- API: Previsualización de promociones -------------------
 from ventas.services.promociones import PromocionesService
 
 
@@ -13594,25 +13779,55 @@ class CotizacionDocxView(LoginRequiredMixin, DetailView):
         elif tipo == 'generica' and propuestas.get('generica'):
             generica_data = propuestas.get('generica', {})
             agregar_titulo_principal("COTIZACIÓN GENÉRICA")
-            if generica_data.get('contenido'):
-                contenido = generica_data.get('contenido', '').strip()
-                if contenido:
-                    lineas = contenido.split('\n')
-                    for linea in lineas:
-                        if linea.strip():
-                            p = doc.add_paragraph()
-                            p.paragraph_format.space_after = Pt(4)
-                            run = p.add_run(linea.strip())
-                            set_run_font(run, size=12)
-
-            # Insertar imágenes asociadas a la cotización (si existen)
+            contenido = (generica_data.get('contenido') or '').strip()
+            if contenido and '<img' in contenido:
+                # Contenido HTML con imágenes inline: parsear y añadir texto e imágenes en orden
+                from docx.shared import Inches
+                media_root = settings.MEDIA_ROOT
+                parts = re.split(r'<img[^>]+src="([^"]+)"[^>]*>', contenido)
+                for i, part in enumerate(parts):
+                    if i % 2 == 0:
+                        # Texto: quitar tags HTML y añadir párrafos por línea
+                        text = re.sub(r'<[^>]+>', ' ', part).replace('&nbsp;', ' ').strip()
+                        if text:
+                            for linea in text.split('\n'):
+                                if linea.strip():
+                                    p = doc.add_paragraph()
+                                    p.paragraph_format.space_after = Pt(4)
+                                    run = p.add_run(linea.strip())
+                                    set_run_font(run, size=12)
+                    else:
+                        # src de imagen: resolver a ruta y añadir picture
+                        src = part.strip()
+                        if src.startswith('/media/'):
+                            path_rel = src.replace('/media/', '').lstrip('/')
+                        elif src.startswith('media/'):
+                            path_rel = src.replace('media/', '', 1).lstrip('/')
+                        else:
+                            continue
+                        path_abs = os.path.normpath(os.path.join(media_root, path_rel))
+                        if os.path.exists(path_abs):
+                            doc.add_paragraph()
+                            try:
+                                doc.add_picture(path_abs, width=Inches(5.5))
+                            except Exception:
+                                logging.warning("No se pudo agregar imagen DOCX: %s", path_abs, exc_info=True)
+            elif contenido:
+                lineas = contenido.split('\n')
+                for linea in lineas:
+                    if linea.strip():
+                        p = doc.add_paragraph()
+                        p.paragraph_format.space_after = Pt(4)
+                        run = p.add_run(linea.strip())
+                        set_run_font(run, size=12)
+            # Imágenes legacy (tabla CotizacionImagen)
             imagenes = getattr(cot, 'imagenes_generica', None)
             if imagenes:
                 from docx.shared import Inches
                 for img in imagenes.all():
                     if not img.imagen:
                         continue
-                    doc.add_paragraph()  # pequeño espacio
+                    doc.add_paragraph()
                     try:
                         doc.add_picture(img.imagen.path, width=Inches(5.5))
                     except Exception:
@@ -13643,6 +13858,27 @@ class CotizacionDocxView(LoginRequiredMixin, DetailView):
             error_msg = f'Error al generar el documento DOCX: {str(e)}'
             logging.error(error_msg, exc_info=True)
             return HttpResponse(error_msg, status=500)
+
+
+def _resolver_imagenes_html_a_file_urls(html_content, media_root=None):
+    """Reemplaza src="/media/..." en img por file:// (ruta absoluta) para WeasyPrint."""
+    if not html_content or '<img' not in html_content:
+        return html_content
+    if media_root is None:
+        media_root = settings.MEDIA_ROOT
+    def reemplazar(m):
+        src = m.group(1).strip()
+        if not src.startswith('/media/') and not src.startswith('media/'):
+            return m.group(0)
+        path_rel = src.replace('/media/', '').lstrip('/').replace('media/', '')
+        path_abs = os.path.normpath(os.path.join(media_root, path_rel))
+        if not os.path.exists(path_abs):
+            return m.group(0)
+        path_abs = os.path.abspath(path_abs)
+        if os.name == 'nt':
+            return f'src="file:///{path_abs.replace(os.sep, "/")}"'
+        return f'src="file://{path_abs}"'
+    return re.sub(r'src="([^"]+)"', reemplazar, html_content)
 
 
 class CotizacionPDFView(LoginRequiredMixin, DetailView):
@@ -13866,7 +14102,7 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
         if tipo == 'paquete':
             contexto['paquete_tours'] = propuestas.get('paquete', {}).get('tours', [])
 
-        # URLs absolutas (file://) de imágenes para cotizaciones genéricas
+        # Cotización genérica: contenido (puede ser HTML con img inline) y/o imágenes legacy
         if tipo == 'generica':
             imagenes_urls = []
             try:
@@ -13878,7 +14114,7 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
                         continue
                     img_abs = os.path.abspath(img_path)
                     if os.name == 'nt':
-                        url = f"file:///{img_abs.replace(os.sep, '/')}"  # Windows
+                        url = f"file:///{img_abs.replace(os.sep, '/')}"
                     else:
                         url = f"file://{img_abs}"
                     imagenes_urls.append(url)
@@ -13889,6 +14125,11 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
                     exc_info=True,
                 )
             contexto['imagenes_generica_urls'] = imagenes_urls
+            contenido = (propuestas.get('generica') or {}).get('contenido') or ''
+            if contenido and '<img' in contenido:
+                contexto['generica_contenido_html'] = _resolver_imagenes_html_a_file_urls(contenido)
+            else:
+                contexto['generica_contenido_html'] = None
         return contexto
     
     def _generar_pdf(self, cotizacion):

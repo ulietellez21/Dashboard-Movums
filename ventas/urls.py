@@ -63,6 +63,7 @@ from .views import (
     EliminarPlantillaConfirmacionView,
     GenerarDocumentoConfirmacionView,
     preview_promociones,
+    upload_imagen_generica_inline,
     
     # Gestión de Comprobantes y Pagos por Confirmar
     SubirComprobanteAbonoView,
@@ -113,6 +114,7 @@ urlpatterns = [
     path('cotizaciones/<slug:slug>/pdf/', CotizacionPDFView.as_view(), name='cotizacion_pdf'),
     path('cotizaciones/<slug:slug>/convertir/', CotizacionConvertirView.as_view(), name='cotizacion_convertir'),
     path('promociones/preview/', preview_promociones, name='preview_promociones'),
+    path('upload-imagen-generica-inline/', upload_imagen_generica_inline, name='upload_imagen_generica_inline'),
     path('proveedores/', ProveedorListCreateView.as_view(), name='proveedores'),
     path('proveedores/<int:pk>/editar/', ProveedorUpdateView.as_view(), name='editar_proveedor'),
     path('proveedores/<int:pk>/eliminar/', ProveedorDeleteView.as_view(), name='eliminar_proveedor'),

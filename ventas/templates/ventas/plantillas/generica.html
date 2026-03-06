@@ -86,7 +86,7 @@
                 <h4 class="mb-0">Información Genérica</h4>
             </div>
             <div class="card-body">
-                <form method="post" enctype="multipart/form-data">
+                <form method="post" id="formGenericaConfirmacion">
                     {% csrf_token %}
                     
                     <div class="mb-3">
@@ -95,15 +95,11 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Contenido Completo (Copia y Pega aquí)</label>
-                        <textarea name="contenido" class="form-control" rows="20" placeholder="Pega aquí toda la información que copiaste de la captura de pantalla...">{{ datos.contenido|default:'' }}</textarea>
-                        <small class="form-text text-muted">Copia y pega toda la información relevante de la captura</small>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Imágenes / Capturas de pantalla</label>
-                        <input type="file" name="generica_imagenes" class="form-control" multiple accept="image/*">
-                        <small class="form-text text-muted">Puedes subir varias imágenes; se incluirán en el PDF de confirmaciones.</small>
+                        <label class="form-label fw-bold">Contenido</label>
+                        <div id="confirmacion_contenido_editor" class="form-control generica-editor" contenteditable="true"
+                            style="min-height: 280px; max-height: 400px; overflow-y: auto; padding: 0.75rem;">{{ datos.contenido|default:''|safe }}</div>
+                        <input type="hidden" name="contenido" id="confirmacion_contenido" value="">
+                        <small class="form-text text-muted">Escribe o pega texto e imágenes (Ctrl+V para pegar capturas).</small>
                     </div>
                     
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
@@ -117,6 +113,51 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var editor = document.getElementById('confirmacion_contenido_editor');
+    var hidden = document.getElementById('confirmacion_contenido');
+    var form = document.getElementById('formGenericaConfirmacion');
+    if (!editor || !form) return;
+    var uploadUrl = "{% url 'upload_imagen_generica_inline' %}";
+    var csrfToken = (document.querySelector('input[name=csrfmiddlewaretoken]') || {}).value || '';
+    if (hidden) hidden.value = editor.innerHTML || '';
+    editor.addEventListener('paste', function(e) {
+        var items = (e.clipboardData || {}).items;
+        if (!items) return;
+        for (var i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                e.preventDefault();
+                var file = items[i].getAsFile();
+                if (!file) return;
+                var fd = new FormData();
+                fd.append('imagen', file);
+                fd.append('tipo', 'confirmacion');
+                fd.append('csrfmiddlewaretoken', csrfToken);
+                fetch(uploadUrl, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.ok && data.url) {
+                            var img = document.createElement('img');
+                            img.src = data.url;
+                            img.style.maxWidth = '100%';
+                            img.style.height = 'auto';
+                            document.execCommand('insertHTML', false, img.outerHTML);
+                        }
+                    })
+                    .catch(function() {});
+                return;
+            }
+        }
+    });
+    form.addEventListener('submit', function() {
+        if (hidden) hidden.value = editor.innerHTML || '';
+    });
+});
+</script>
 {% endblock %}
 
 

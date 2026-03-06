@@ -582,6 +582,21 @@ body {
     padding-bottom: 0 !important;
 }
 
+/* Imágenes en plantilla genérica: limitar tamaño máximo y mínimo para que quepan bien en página */
+.card.card-generica .contenido-generica-texto img,
+.card.card-generica .imagenes-generica img {
+    max-width: 100% !important;
+    width: auto !important;
+    height: auto !important;
+    max-height: 650px !important; /* Ajustado para que quepan bien en la segunda página debajo del título */
+    min-height: 80px !important;  /* Imágenes muy pequeñas se muestran un poco más grandes */
+    min-width: 120px !important;
+    object-fit: contain !important;
+    display: block !important;
+    margin-top: 8px !important;
+    margin-bottom: 8px !important;
+}
+
 /* Mantener header y total juntos con la tabla */
 .card-header {
     page-break-after: avoid; /* Header no se separa de la tabla */

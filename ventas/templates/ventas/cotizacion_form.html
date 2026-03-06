@@ -521,26 +521,14 @@
                 <h5 class="text-primary fw-bold mb-3"><i class="fas fa-file-alt"></i> Plantilla Genérica</h5>
                 <div class="alert alert-info">
                     <i class="fas fa-info-circle me-2"></i>
-                    Utiliza esta plantilla para incluir cualquier información personalizada en tu cotización.
+                    Escribe o pega aquí el contenido. Puedes pegar capturas de pantalla con Ctrl+V; se insertarán en el texto.
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold">Contenido de la Cotización</label>
-                    <textarea class="form-control" name="generica_contenido" rows="15"
-                        placeholder="Ingresa aquí toda la información que deseas incluir en la cotización. Puedes incluir texto, detalles de servicios, precios, condiciones, etc."></textarea>
-                    <small class="form-text text-muted">Este contenido se incluirá tal cual en la cotización
-                        generada.</small>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Imágenes (opcional)</label>
-                    <input type="file"
-                           class="form-control"
-                           name="generica_imagenes"
-                           id="generica_imagenes"
-                           accept="image/*"
-                           multiple>
-                    <small class="form-text text-muted">
-                        Puedes adjuntar capturas de pantalla o imágenes relacionadas; se insertarán al final de la plantilla genérica en el documento.
-                    </small>
+                    <div id="generica_contenido_editor" class="form-control generica-editor" contenteditable="true" data-placeholder="Escribe o pega texto e imágenes aquí..."
+                        style="min-height: 280px; max-height: 400px; overflow-y: auto; padding: 0.75rem;"></div>
+                    <input type="hidden" name="generica_contenido" id="generica_contenido" value="">
+                    <small class="form-text text-muted">Pega imágenes con Ctrl+V; se guardarán en el documento.</small>
                 </div>
             </div>
 
@@ -830,6 +818,44 @@
         const sections = form.querySelectorAll('.cotizacion-section');
         const propuestasInput = document.getElementById('id_propuestas');
         const docxBtn = document.getElementById('docxBtn');
+
+        // Editor genérico: pegar imagen → subir y insertar <img>
+        (function() {
+            const editor = document.getElementById('generica_contenido_editor');
+            const hidden = document.getElementById('generica_contenido');
+            if (!editor) return;
+            var uploadUrl = "{% url 'upload_imagen_generica_inline' %}";
+            var csrfToken = (document.querySelector('input[name=csrfmiddlewaretoken]') || {}).value || '';
+            if (hidden && hidden.value) editor.innerHTML = hidden.value;
+            editor.addEventListener('paste', function(e) {
+                var items = (e.clipboardData || {}).items;
+                if (!items) return;
+                for (var i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf('image') !== -1) {
+                        e.preventDefault();
+                        var file = items[i].getAsFile();
+                        if (!file) return;
+                        var fd = new FormData();
+                        fd.append('imagen', file);
+                        fd.append('tipo', 'cotizacion');
+                        fd.append('csrfmiddlewaretoken', csrfToken);
+                        fetch(uploadUrl, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                            .then(function(r) { return r.json(); })
+                            .then(function(data) {
+                                if (data.ok && data.url) {
+                                    var img = document.createElement('img');
+                                    img.src = data.url;
+                                    img.style.maxWidth = '100%';
+                                    img.style.height = 'auto';
+                                    document.execCommand('insertHTML', false, img.outerHTML);
+                                }
+                            })
+                            .catch(function() {});
+                        return;
+                    }
+                }
+            });
+        })();
 
         // Función para mostrar/ocultar campos de traslado redondo
         function toggleTrasladoRedondo() {
@@ -1285,7 +1311,10 @@
                 }
                 // 8. Restaurar Generica
                 if (data.generica) {
-                    if (form.elements['generica_contenido']) form.elements['generica_contenido'].value = data.generica.contenido || '';
+                    const val = data.generica.contenido || '';
+                    if (form.elements['generica_contenido']) form.elements['generica_contenido'].value = val;
+                    const genericaEditor = document.getElementById('generica_contenido_editor');
+                    if (genericaEditor) genericaEditor.innerHTML = val;
                 }
             } catch (e) {
                 console.error("Error restaurando datos de propuestas:", e);
@@ -1540,6 +1569,10 @@
         }
 
         form.addEventListener('submit', function (e) {
+            // Sincronizar editor genérico (contenteditable) al campo oculto antes de buildPropuestas
+            const genericaEditor = document.getElementById('generica_contenido_editor');
+            const genericaHidden = document.getElementById('generica_contenido');
+            if (genericaEditor && genericaHidden) genericaHidden.value = genericaEditor.innerHTML || '';
             // Actualizar edades de menores antes de enviar
             actualizarEdadesMenoresHidden();
             // Construir propuestas antes de enviar

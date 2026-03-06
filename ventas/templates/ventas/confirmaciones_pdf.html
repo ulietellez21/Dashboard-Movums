@@ -547,6 +547,30 @@ body::before {
     margin-bottom: 16px;
 }
 
+/* Primera página genérica: título + texto que quepa, sin forzar salto de página */
+.card-generica-pagina1 {
+    page-break-after: auto;
+    page-break-inside: avoid;
+}
+.card-generica-resto {
+    page-break-before: always;
+}
+
+/* Imágenes en plantilla genérica: tamaño estándar para que quepan en la página */
+.contenido-generica-texto img,
+.imagenes-generica img {
+    max-width: 100% !important;
+    width: auto !important;
+    height: auto !important;
+    max-height: 650px !important;
+    min-height: 80px !important;
+    min-width: 120px !important;
+    object-fit: contain !important;
+    display: block !important;
+    margin-top: 8px !important;
+    margin-bottom: 8px !important;
+}
+
 /* Texto adicional */
 .texto-adicional {
     font-size: 10.5pt;

@@ -7,18 +7,22 @@
             <span>{{ cotizacion.titulo|upper|default:"COTIZACIÓN GENÉRICA" }}</span>
         </div>
         
-        {% if propuestas.generica.contenido %}
+        {% if generica_contenido_html %}
+        <div class="contenido-generica">
+            <div class="contenido-generica-texto">{{ generica_contenido_html|safe }}</div>
+        </div>
+        {% elif propuestas.generica.contenido %}
         <div class="contenido-generica">
             <div class="contenido-generica-label"><strong>Contenido:</strong></div>
             <div class="contenido-generica-texto">{{ propuestas.generica.contenido|linebreaks }}</div>
         </div>
         {% endif %}
 
-        {% if imagenes_generica_urls %}
+        {% if not generica_contenido_html and imagenes_generica_urls %}
         <div class="imagenes-generica">
             {% for url in imagenes_generica_urls %}
             <div class="imagen-generica" style="margin-top: 12px;">
-                <img src="{{ url }}" style="max-width: 100%; height: auto;">
+                <img src="{{ url }}" alt="">
             </div>
             {% endfor %}
         </div>
