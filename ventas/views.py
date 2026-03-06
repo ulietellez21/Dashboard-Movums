@@ -9714,16 +9714,26 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                 html_plantilla = self._generar_html_vuelo_redondo(datos, format_date)
             elif tipo == 'HOSPEDAJE':
                 html_plantilla = self._generar_html_hospedaje(datos, format_date, request)
-            elif tipo == 'TRASLADO':
-                # Normalizar: 'traslados' puede ser None, lista vacía o lista de dicts; legacy: un solo traslado en datos
-                raw = datos.get('traslados')
+            elif tipo == 'TRASLADO' or (isinstance(tipo, str) and tipo.upper() == 'TRASLADO'):
+                # Normalizar: 'traslados' puede ser None, lista vacía, o lista de dicts; legacy: un solo traslado en datos
+                raw = datos.get('traslados') if isinstance(datos, dict) else None
                 if raw is None:
                     raw = []
-                traslados_list = raw if isinstance(raw, list) else []
-                # Solo usar lista si tiene al menos un elemento que sea dict (datos de un traslado)
-                usar_lista = traslados_list and all(isinstance(t, dict) for t in traslados_list)
-                if usar_lista:
-                    for i, traslado in enumerate(traslados_list):
+                # Aceptar lista o dict con índices "0","1",... (por si el JSON devuelve objeto en lugar de array)
+                if isinstance(raw, list):
+                    traslados_list = raw
+                elif isinstance(raw, dict):
+                    try:
+                        keys_sorted = sorted(raw.keys(), key=lambda x: int(x) if str(x).isdigit() else 999)
+                    except (ValueError, TypeError):
+                        keys_sorted = list(raw.keys())
+                    traslados_list = [raw[k] for k in keys_sorted]
+                else:
+                    traslados_list = []
+                # Filtrar solo elementos que sean dict para generar cards
+                items_traslado = [t for t in traslados_list if isinstance(t, dict)]
+                if items_traslado:
+                    for i, traslado in enumerate(items_traslado):
                         card_html = self._generar_html_traslado(traslado, format_date)
                         if i == 0:
                             card_html = f'<div class="traslado-primera-espacio">{card_html}</div>'
@@ -9731,8 +9741,15 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                             card_html = f'<div class="traslado-tabla-grande">{card_html}</div>'
                         plantillas_html.append(card_html)
                 else:
-                    # Lista vacía, formato legacy (un solo traslado en datos) o datos sin 'traslados'
-                    card_html = self._generar_html_traslado(datos, format_date)
+                    # Sin lista válida: usar primer elemento de datos.traslados si existe, o datos como un solo traslado
+                    primer_traslado = datos if isinstance(datos, dict) else {}
+                    if isinstance(datos, dict) and isinstance(datos.get('traslados'), list) and len(datos['traslados']) > 0:
+                        first = datos['traslados'][0]
+                        if isinstance(first, dict):
+                            primer_traslado = first
+                    if not isinstance(primer_traslado, dict):
+                        primer_traslado = {}
+                    card_html = self._generar_html_traslado(primer_traslado, format_date)
                     plantillas_html.append(f'<div class="traslado-primera-espacio">{card_html}</div>')
                 continue  # ya se añadieron a plantillas_html
             elif tipo == 'GENERICA':

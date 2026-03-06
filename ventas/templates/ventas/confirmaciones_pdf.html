@@ -162,6 +162,13 @@ body::before {
     overflow: visible;
 }
 
+/* Traslado: evitar que .card { overflow: hidden } recorte la sección en el PDF */
+.traslado-primera-espacio .card,
+.traslado-tabla-grande .card {
+    overflow: visible !important;
+    page-break-inside: auto;
+}
+
 /* Vuelo de Regreso: forzar nueva página; el margen superior lo da @page (3.5cm) */
 .vuelo-regreso-nueva-pagina {
     page-break-before: always;
