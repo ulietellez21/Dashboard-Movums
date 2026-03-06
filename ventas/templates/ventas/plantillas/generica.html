@@ -125,31 +125,86 @@ document.addEventListener('DOMContentLoaded', function() {
     var uploadUrl = "{% url 'upload_imagen_generica_inline' %}";
     var csrfToken = (document.querySelector('input[name=csrfmiddlewaretoken]') || {}).value || '';
     if (hidden) hidden.value = editor.innerHTML || '';
+
+    var TAGS_PERMITIDOS = { p:1, br:1, div:1, span:1, strong:1, em:1, b:1, i:1, u:1, ul:1, ol:1, li:1, h1:1, h2:1, h3:1, h4:1, h5:1, h6:1 };
+    function sanitizarHtml(html) {
+        if (!html) return '';
+        var div = document.createElement('div');
+        div.innerHTML = html;
+        function sanitizeNode(node) {
+            if (node.nodeType === 3) return node.cloneNode(true);
+            if (node.nodeType !== 1) return null;
+            var tag = node.tagName.toLowerCase();
+            if (tag === 'br') return document.createElement('br');
+            if (!TAGS_PERMITIDOS[tag]) {
+                var frag = document.createDocumentFragment();
+                for (var j = 0; j < node.childNodes.length; j++) {
+                    var c = sanitizeNode(node.childNodes[j]);
+                    if (c) frag.appendChild(c);
+                }
+                return frag;
+            }
+            var el = document.createElement(tag);
+            for (var k = 0; k < node.childNodes.length; k++) {
+                var ch = sanitizeNode(node.childNodes[k]);
+                if (ch) el.appendChild(ch);
+            }
+            return el;
+        }
+        var out = document.createDocumentFragment();
+        for (var i = 0; i < div.childNodes.length; i++) {
+            var n = sanitizeNode(div.childNodes[i]);
+            if (n) out.appendChild(n);
+        }
+        var wrap = document.createElement('div');
+        wrap.appendChild(out);
+        return wrap.innerHTML;
+    }
+
     editor.addEventListener('paste', function(e) {
         var items = (e.clipboardData || {}).items;
+        var dt = e.clipboardData;
         if (!items) return;
+        var tieneImagen = false;
         for (var i = 0; i < items.length; i++) {
             if (items[i].type.indexOf('image') !== -1) {
+                tieneImagen = true;
+                break;
+            }
+        }
+        if (tieneImagen) {
+            e.preventDefault();
+            for (var j = 0; j < items.length; j++) {
+                if (items[j].type.indexOf('image') !== -1) {
+                    var file = items[j].getAsFile();
+                    if (!file) return;
+                    var fd = new FormData();
+                    fd.append('imagen', file);
+                    fd.append('tipo', 'confirmacion');
+                    fd.append('csrfmiddlewaretoken', csrfToken);
+                    fetch(uploadUrl, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            if (data.ok && data.url) {
+                                var img = document.createElement('img');
+                                img.src = data.url;
+                                img.style.maxWidth = '100%';
+                                img.style.height = 'auto';
+                                document.execCommand('insertHTML', false, img.outerHTML);
+                            }
+                        })
+                        .catch(function() {});
+                    return;
+                }
+            }
+            return;
+        }
+        if (dt && dt.types && dt.types.indexOf('text/html') !== -1) {
+            var html = dt.getData('text/html');
+            if (html) {
                 e.preventDefault();
-                var file = items[i].getAsFile();
-                if (!file) return;
-                var fd = new FormData();
-                fd.append('imagen', file);
-                fd.append('tipo', 'confirmacion');
-                fd.append('csrfmiddlewaretoken', csrfToken);
-                fetch(uploadUrl, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
-                        if (data.ok && data.url) {
-                            var img = document.createElement('img');
-                            img.src = data.url;
-                            img.style.maxWidth = '100%';
-                            img.style.height = 'auto';
-                            document.execCommand('insertHTML', false, img.outerHTML);
-                        }
-                    })
-                    .catch(function() {});
-                return;
+                var limpio = sanitizarHtml(html);
+                document.execCommand('insertHTML', false, limpio);
             }
         }
     });

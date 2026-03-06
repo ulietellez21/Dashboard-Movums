@@ -71,6 +71,10 @@
     box-sizing: border-box;
 }
 
+html, body {
+    overflow: visible !important; /* Que el contenido fluya a pág.3+ sin recortes (WeasyPrint) */
+}
+
 body {
     font-family: 'Pangea', 'Arial', 'Helvetica', 'Segoe UI', sans-serif;
     font-size: 9pt;
@@ -139,7 +143,8 @@ body::before {
     margin-top: 24px;
     padding-top: 0;
     box-sizing: border-box;
-    overflow: visible;
+    overflow: visible !important;
+    min-height: 0; /* Permitir que el contenido fluya a varias páginas */
 }
 
 /* Primera tabla de Traslado: separación estándar (el espacio superior lo da @page en pág 2+) */
@@ -547,13 +552,29 @@ body::before {
     margin-bottom: 16px;
 }
 
-/* Primera página genérica: título + texto que quepa, sin forzar salto de página */
+/* Genérica (solo cuando es única plantilla): permitir que el contenido fluya entre páginas */
 .card-generica-pagina1 {
     page-break-after: auto;
-    page-break-inside: avoid;
+    page-break-inside: auto;   /* Permitir partir: título y texto que quepa en pág.1, resto sigue en pág.2 */
+    break-inside: auto;
+    overflow: visible;         /* Anular .card { overflow: hidden } para no recortar en varias páginas */
+}
+.card-generica-pagina1 .card-header {
+    page-break-after: avoid;  /* Mantener título con el párrafo siguiente */
+}
+.card-generica-pagina1 .contenido-generica-texto {
+    page-break-inside: auto;
+    overflow: visible;
 }
 .card-generica-resto {
     page-break-before: always;
+    page-break-inside: auto;   /* El resto puede seguir en pág.3, 4... */
+    break-inside: auto;
+    overflow: visible;
+}
+.card-generica-resto .contenido-generica-texto {
+    page-break-inside: auto;
+    overflow: visible;
 }
 
 /* Imágenes en plantilla genérica: tamaño estándar para que quepan en la página */
