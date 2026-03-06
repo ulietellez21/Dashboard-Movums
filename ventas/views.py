@@ -9733,12 +9733,8 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                 # Filtrar solo elementos que sean dict para generar cards
                 items_traslado = [t for t in traslados_list if isinstance(t, dict)]
                 if items_traslado:
-                    for i, traslado in enumerate(items_traslado):
+                    for traslado in items_traslado:
                         card_html = self._generar_html_traslado(traslado, format_date)
-                        if i == 0:
-                            card_html = f'<div class="traslado-primera-espacio">{card_html}</div>'
-                        else:
-                            card_html = f'<div class="traslado-tabla-grande">{card_html}</div>'
                         plantillas_html.append(card_html)
                 else:
                     # Sin lista válida: usar primer elemento de datos.traslados si existe, o datos como un solo traslado
@@ -9750,7 +9746,7 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                     if not isinstance(primer_traslado, dict):
                         primer_traslado = {}
                     card_html = self._generar_html_traslado(primer_traslado, format_date)
-                    plantillas_html.append(f'<div class="traslado-primera-espacio">{card_html}</div>')
+                    plantillas_html.append(card_html)
                 continue  # ya se añadieron a plantillas_html
             elif tipo == 'GENERICA':
                 imagenes_urls = []

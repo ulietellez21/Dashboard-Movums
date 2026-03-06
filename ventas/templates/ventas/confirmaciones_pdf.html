@@ -165,18 +165,11 @@ body::before {
     overflow: visible;
 }
 
-/* Traslado: evitar que .card { overflow: hidden } recorte la sección y que quede bajo otras capas */
-.traslado-primera-espacio,
-.traslado-tabla-grande {
-    position: relative;
-    z-index: 2; /* Por encima de content-wrapper y otras cards para que siempre se vea */
-}
+/* Traslado: mismo flujo que Hospedaje/Vuelos (sin wrappers extra); reglas por si se usan en el futuro */
 .traslado-primera-espacio .card,
 .traslado-tabla-grande .card {
     overflow: visible !important;
     page-break-inside: auto;
-    position: relative;
-    z-index: 1;
 }
 
 /* Vuelo de Regreso: forzar nueva página; el margen superior lo da @page (3.5cm) */
