@@ -540,6 +540,29 @@ body::before {
     margin-bottom: 16px;
 }
 
+/* ============================================
+   SECCIÓN TRASLADO - Forzar visibilidad en WeasyPrint
+   (evita que la tabla de traslados no se muestre en la última página)
+   ============================================ */
+.seccion-traslado-pdf {
+    overflow: visible !important;
+    position: relative;
+    z-index: 2;
+    page-break-inside: auto;
+    min-height: 1px;
+    display: block !important;
+}
+.seccion-traslado-pdf .card {
+    overflow: visible !important;
+}
+.seccion-traslado-pdf .data-table {
+    overflow: visible;
+}
+/* Forzar nueva página antes de la sección Traslado para que WeasyPrint la renderice (evita que no aparezca) */
+.primera-traslado-pagina {
+    page-break-before: always;
+}
+
 /* Genérica (solo cuando es única plantilla): permitir que el contenido fluya entre páginas */
 .card-generica-pagina1 {
     page-break-after: auto;

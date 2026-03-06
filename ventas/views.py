@@ -9726,15 +9726,33 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                 if not isinstance(traslados_list, list):
                     traslados_list = []
                 added = False
+                first_traslado = True
                 for traslado in traslados_list:
                     if isinstance(traslado, dict):
                         card_html = self._generar_html_traslado(traslado, format_date)
-                        plantillas_html.append(card_html)
+                        # Wrapper para que WeasyPrint no recorte/oculte la sección; nueva página en el primero
+                        wrapper_cls = 'seccion-traslado-pdf primera-traslado-pagina' if first_traslado else 'seccion-traslado-pdf'
+                        plantillas_html.append('<div class="' + wrapper_cls + '">' + card_html + '</div>')
                         added = True
+                        first_traslado = False
                 if not added:
-                    # Como DOCX: un solo traslado con datos (lista vacía o sin dicts)
-                    card_html = self._generar_html_traslado(datos, format_date)
-                    plantillas_html.append(card_html)
+                    # Fallback: extraer primer traslado de datos['traslados'] (dict o lista) o usar datos completos
+                    single_traslado = None
+                    raw_traslados = datos.get('traslados') if isinstance(datos, dict) else None
+                    if isinstance(raw_traslados, dict) and raw_traslados:
+                        try:
+                            keys = sorted([k for k in raw_traslados.keys() if str(k).isdigit()], key=int)
+                            if keys and isinstance(raw_traslados.get(keys[0]), dict):
+                                single_traslado = raw_traslados[keys[0]]
+                        except (ValueError, TypeError):
+                            pass
+                    if single_traslado is None and isinstance(traslados_list, list) and len(traslados_list) > 0 and isinstance(traslados_list[0], dict):
+                        single_traslado = traslados_list[0]
+                    if single_traslado is not None:
+                        card_html = self._generar_html_traslado(single_traslado, format_date)
+                    else:
+                        card_html = self._generar_html_traslado(datos, format_date)
+                    plantillas_html.append('<div class="seccion-traslado-pdf primera-traslado-pagina">' + card_html + '</div>')
                 continue  # ya se añadieron a plantillas_html
             elif tipo == 'GENERICA':
                 imagenes_urls = []
@@ -11783,10 +11801,26 @@ class GenerarDocumentoConfirmacionDocxView(GenerarDocumentoConfirmacionView):
                 )
             elif tipo == 'TRASLADO':
                 traslados_list = datos.get('traslados', [])
-                if isinstance(traslados_list, list) and traslados_list:
+                if isinstance(traslados_list, dict):
+                    try:
+                        keys_sorted = sorted(traslados_list.keys(), key=lambda x: int(x) if str(x).isdigit() else 999)
+                    except (ValueError, TypeError):
+                        keys_sorted = list(traslados_list.keys())
+                    traslados_list = [traslados_list[k] for k in keys_sorted]
+                if not isinstance(traslados_list, list):
+                    traslados_list = []
+                if traslados_list:
                     for traslado in traslados_list:
+                        if isinstance(traslado, dict):
+                            self._procesar_traslado(
+                                doc, traslado,
+                                agregar_titulo_principal, agregar_subtitulo_con_vineta,
+                                agregar_info_inline, agregar_info_line, agregar_salto_entre_secciones,
+                                set_run_font, MOVUMS_BLUE_CORP, Pt, format_date,
+                            )
+                    if not any(isinstance(t, dict) for t in traslados_list):
                         self._procesar_traslado(
-                            doc, traslado,
+                            doc, datos,
                             agregar_titulo_principal, agregar_subtitulo_con_vineta,
                             agregar_info_inline, agregar_info_line, agregar_salto_entre_secciones,
                             set_run_font, MOVUMS_BLUE_CORP, Pt, format_date,
