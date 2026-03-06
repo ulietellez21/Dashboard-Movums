@@ -62,6 +62,7 @@ from .views import (
     CrearGenericaView,
     EliminarPlantillaConfirmacionView,
     GenerarDocumentoConfirmacionView,
+    GenerarDocumentoConfirmacionDocxView,
     preview_promociones,
     upload_imagen_generica_inline,
     
@@ -258,6 +259,11 @@ urlpatterns = [
         '<slug:slug>-<int:pk>/confirmaciones/generar-documento/',
         GenerarDocumentoConfirmacionView.as_view(),
         name='generar_documento_confirmacion'
+    ),
+    path(
+        '<slug:slug>-<int:pk>/confirmaciones/generar-documento/docx/',
+        GenerarDocumentoConfirmacionDocxView.as_view(),
+        name='generar_documento_confirmacion_docx'
     ),
 
     # Rutas Base (Debe ir al final para no anular otras rutas)

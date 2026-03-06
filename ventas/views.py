@@ -9758,7 +9758,6 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                     if html_primera:
                         plantillas_html.append(html_primera)
                         if html_resto:
-                            plantillas_html.append('<div class="content-wrapper" style="page-break-before: always;"></div>')
                             plantillas_html.append(html_resto)
                     else:
                         html_plantilla = self._generar_html_generica(datos, imagenes_urls=imagenes_urls, contenido_html_resuelto=contenido_html_resuelto)
@@ -11538,6 +11537,296 @@ def preview_promociones(request):
         })
 
     return JsonResponse({'ok': True, 'promos': promos_serialized})
+
+
+# ------------------- DOCX CONFIRMACIONES -------------------
+
+class GenerarDocumentoConfirmacionDocxView(GenerarDocumentoConfirmacionView):
+    """
+    Genera el documento de confirmaciones en formato Word (.docx).
+    Reutiliza los métodos _procesar_* de la vista base.
+    """
+    def get(self, request, *args, **kwargs):
+        try:
+            from docx import Document
+            from docx.shared import Pt, RGBColor, Inches
+            from docx.oxml.ns import qn
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+        except ImportError:
+            return HttpResponse(
+                "Error: python-docx no está instalado. Ejecuta: pip install python-docx",
+                status=500,
+            )
+
+        try:
+            venta = self.get_object()
+        except Exception as e:
+            logger.error("Error obteniendo venta para DOCX confirmaciones: %s", e)
+            return HttpResponse(f"Error: No se pudo obtener la venta. {str(e)}", status=400)
+
+        from django.db.models import Case, When, Value, IntegerField
+        plantillas = PlantillaConfirmacion.objects.filter(venta=venta).annotate(
+            orden_tipo=Case(
+                When(tipo='VUELO_UNICO', then=Value(0)),
+                When(tipo='VUELO_REDONDO', then=Value(1)),
+                When(tipo='HOSPEDAJE', then=Value(2)),
+                When(tipo='TRASLADO', then=Value(3)),
+                When(tipo='GENERICA', then=Value(4)),
+                default=Value(5),
+                output_field=IntegerField(),
+            )
+        ).order_by('orden_tipo', '-fecha_creacion')
+
+        if not plantillas.exists():
+            messages.warning(request, "No hay plantillas de confirmación para generar el documento.")
+            return redirect('listar_confirmaciones', pk=venta.pk, slug=venta.slug_safe)
+
+        def format_date(value):
+            if not value:
+                return '-'
+            try:
+                if isinstance(value, datetime.date):
+                    return value.strftime('%d/%m/%Y')
+                if isinstance(value, str):
+                    parsed = datetime.date.fromisoformat(value)
+                    return parsed.strftime('%d/%m/%Y')
+                return str(value)
+            except Exception:
+                return str(value)
+
+        template_path = os.path.join(settings.BASE_DIR, 'static', 'docx', 'membrete.docx')
+        if not os.path.exists(template_path):
+            doc = Document()
+        else:
+            doc = Document(template_path)
+
+        MOVUMS_BLUE_CORP = RGBColor(0, 74, 142)
+        TEXT_COLOR = RGBColor(20, 20, 20)
+
+        style = doc.styles['Normal']
+        style.font.name = 'Arial'
+        style.font.size = Pt(12)
+        if hasattr(style._element.rPr, 'rFonts') and style._element.rPr.rFonts is not None:
+            style._element.rPr.rFonts.set(qn('w:eastAsia'), 'Arial')
+
+        def set_run_font(run, size=12, bold=False, color=TEXT_COLOR):
+            run.font.name = 'Arial'
+            run.font.size = Pt(size)
+            run.bold = bold
+            run.font.color.rgb = color
+
+        def agregar_titulo_principal(texto):
+            p = doc.add_paragraph()
+            p.paragraph_format.space_before = Pt(12)
+            p.paragraph_format.space_after = Pt(10)
+            run = p.add_run(texto)
+            set_run_font(run, size=18, bold=True, color=MOVUMS_BLUE_CORP)
+            return p
+
+        def agregar_subtitulo_con_vineta(texto):
+            p = doc.add_paragraph()
+            p.paragraph_format.space_before = Pt(10)
+            p.paragraph_format.space_after = Pt(4)
+            bullet_run = p.add_run('• ')
+            set_run_font(bullet_run, size=14, bold=True, color=MOVUMS_BLUE_CORP)
+            texto_run = p.add_run(texto)
+            set_run_font(texto_run, size=14, bold=True, color=MOVUMS_BLUE_CORP)
+            doc.add_paragraph().paragraph_format.space_after = Pt(2)
+            return p
+
+        def agregar_info_line(etiqueta, valor):
+            if valor is None or valor == '':
+                return
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(4)
+            label_run = p.add_run(f'{etiqueta}: ')
+            set_run_font(label_run, size=12, bold=True)
+            value_run = p.add_run(str(valor))
+            set_run_font(value_run, size=12)
+            return p
+
+        def agregar_info_inline(*pares_etiqueta_valor, separador=' | '):
+            if not pares_etiqueta_valor:
+                return
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(4)
+            for idx, (etiqueta, valor) in enumerate(pares_etiqueta_valor):
+                if valor is None or valor == '':
+                    continue
+                if idx > 0:
+                    sep_run = p.add_run(separador)
+                    set_run_font(sep_run, size=12)
+                label_run = p.add_run(f'{etiqueta}: ')
+                set_run_font(label_run, size=12, bold=True)
+                value_run = p.add_run(str(valor))
+                set_run_font(value_run, size=12)
+            return p
+
+        def agregar_salto_entre_secciones():
+            spacer = doc.add_paragraph()
+            spacer.paragraph_format.space_after = Pt(6)
+            return spacer
+
+        def _agregar_contenido_html_formateado(doc_obj, html_content, set_run_font_fn, pt_cls, text_color):
+            """Añade al documento párrafos con formato a partir de HTML (saltos de línea, negrita, cursiva)."""
+            # Normalizar saltos: bloques y <br> a newline
+            s = re.sub(r'<br\s*/?>', '\n', html_content, flags=re.I)
+            s = re.sub(r'</p>|</div>|</tr>', '\n', s, flags=re.I)
+            s = re.sub(r'<p\s[^>]*>|<p>|<div\s[^>]*>|<div>', '\n', s, flags=re.I)
+            lineas = [ln.strip() for ln in s.split('\n') if ln.strip()]
+            for linea in lineas:
+                linea = linea.replace('&nbsp;', ' ')
+                p = doc_obj.add_paragraph()
+                p.paragraph_format.space_after = pt_cls(4)
+                pos = 0
+                while pos < len(linea):
+                    # Siguiente etiqueta de apertura
+                    abre = re.search(r'<(strong|b|em|i)\s*>', linea[pos:], re.I)
+                    # Siguiente etiqueta de cierre
+                    cierre = re.search(r'</(strong|b|em|i)\s*>', linea[pos:], re.I)
+                    # Texto hasta la próxima etiqueta relevante
+                    next_pos = len(linea) - pos
+                    if abre:
+                        next_pos = min(next_pos, abre.start())
+                    if cierre:
+                        next_pos = min(next_pos, cierre.start())
+                    if next_pos > 0:
+                        texto_plano = linea[pos:pos + next_pos]
+                        texto_plano = re.sub(r'<[^>]+>', '', texto_plano)
+                        if texto_plano:
+                            run = p.add_run(texto_plano)
+                            set_run_font_fn(run, size=12, color=text_color)
+                    pos += next_pos
+                    if pos >= len(linea):
+                        break
+                    # Si ahora toca apertura, buscar cierre y añadir run formateado
+                    if abre and abre.start() == next_pos:
+                        tag = (abre.group(1) or '').lower()
+                        pos += abre.end()
+                        fin = re.search(r'</(?:strong|b|em|i)\s*>', linea[pos:], re.I)
+                        if fin:
+                            texto_tag = linea[pos:pos + fin.start()]
+                            texto_tag = re.sub(r'<[^>]+>', '', texto_tag)
+                            if texto_tag:
+                                run = p.add_run(texto_tag)
+                                set_run_font_fn(run, size=12, bold=(tag in ('strong', 'b')), color=text_color)
+                                if tag in ('em', 'i'):
+                                    run.italic = True
+                            pos += fin.end()
+                        else:
+                            texto_tag = re.sub(r'<[^>]+>', '', linea[pos:])
+                            if texto_tag:
+                                run = p.add_run(texto_tag)
+                                set_run_font_fn(run, size=12, bold=(tag in ('strong', 'b')), color=text_color)
+                                if tag in ('em', 'i'):
+                                    run.italic = True
+                            pos = len(linea)
+                    elif cierre and cierre.start() == next_pos:
+                        pos += cierre.end()
+                if not p.runs:
+                    run = p.add_run(' ')
+                    set_run_font_fn(run, size=12, color=text_color)
+
+        # Encabezado: título centrado y datos del cliente (azul, como títulos)
+        titulo_p = doc.add_paragraph()
+        titulo_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        titulo_p.paragraph_format.space_after = Pt(12)
+        titulo_run = titulo_p.add_run('CONFIRMACIONES DE VIAJE')
+        set_run_font(titulo_run, size=18, bold=True, color=MOVUMS_BLUE_CORP)
+
+        p_cliente = doc.add_paragraph()
+        p_cliente.paragraph_format.space_after = Pt(4)
+        r_cliente_label = p_cliente.add_run('Cliente: ')
+        set_run_font(r_cliente_label, size=12, bold=True, color=MOVUMS_BLUE_CORP)
+        r_cliente_val = p_cliente.add_run(venta.cliente.nombre_completo_display or '-')
+        set_run_font(r_cliente_val, size=12)
+
+        p_fecha = doc.add_paragraph()
+        p_fecha.paragraph_format.space_after = Pt(8)
+        r_fecha_label = p_fecha.add_run('Fecha de Generación: ')
+        set_run_font(r_fecha_label, size=12, bold=True, color=MOVUMS_BLUE_CORP)
+        r_fecha_val = p_fecha.add_run(datetime.datetime.now().strftime('%d/%m/%Y %H:%M'))
+        set_run_font(r_fecha_val, size=12)
+
+        agregar_salto_entre_secciones()
+
+        for plantilla in plantillas:
+            datos = dict(plantilla.datos or {})
+            tipo = plantilla.tipo
+
+            if tipo == 'VUELO_UNICO':
+                self._procesar_vuelo_unico(
+                    doc, datos,
+                    agregar_titulo_principal, agregar_subtitulo_con_vineta,
+                    agregar_info_inline, agregar_info_line, agregar_salto_entre_secciones,
+                    set_run_font, MOVUMS_BLUE_CORP, Pt,
+                )
+            elif tipo == 'VUELO_REDONDO':
+                self._procesar_vuelo_redondo(
+                    doc, datos,
+                    agregar_titulo_principal, agregar_subtitulo_con_vineta,
+                    agregar_info_inline, agregar_info_line, agregar_salto_entre_secciones,
+                    set_run_font, MOVUMS_BLUE_CORP, Pt, RGBColor,
+                )
+            elif tipo == 'HOSPEDAJE':
+                self._procesar_hospedaje(
+                    doc, datos,
+                    agregar_titulo_principal, agregar_subtitulo_con_vineta,
+                    agregar_info_inline, agregar_info_line, agregar_salto_entre_secciones,
+                    set_run_font, MOVUMS_BLUE_CORP, Pt, Inches, request,
+                )
+            elif tipo == 'TRASLADO':
+                traslados_list = datos.get('traslados', [])
+                if isinstance(traslados_list, list) and traslados_list:
+                    for traslado in traslados_list:
+                        self._procesar_traslado(
+                            doc, traslado,
+                            agregar_titulo_principal, agregar_subtitulo_con_vineta,
+                            agregar_info_inline, agregar_info_line, agregar_salto_entre_secciones,
+                            set_run_font, MOVUMS_BLUE_CORP, Pt, format_date,
+                        )
+                else:
+                    self._procesar_traslado(
+                        doc, datos,
+                        agregar_titulo_principal, agregar_subtitulo_con_vineta,
+                        agregar_info_inline, agregar_info_line, agregar_salto_entre_secciones,
+                        set_run_font, MOVUMS_BLUE_CORP, Pt, format_date,
+                    )
+            elif tipo == 'GENERICA':
+                titulo_gen = datos.get('titulo', 'Información Adicional')
+                if titulo_gen:
+                    agregar_titulo_principal(titulo_gen.upper())
+                contenido = (datos.get('contenido') or '').strip()
+                if contenido:
+                    if '<' in contenido and '>' in contenido:
+                        # Conservar formato: saltos de línea y negrita/cursiva
+                        _agregar_contenido_html_formateado(
+                            doc, contenido, set_run_font, Pt, TEXT_COLOR,
+                        )
+                    else:
+                        datos_plain = dict(datos)
+                        datos_plain['contenido'] = contenido
+                        self._procesar_generica(
+                            doc, datos_plain,
+                            agregar_titulo_principal, agregar_subtitulo_con_vineta,
+                            agregar_info_line, agregar_salto_entre_secciones,
+                            set_run_font, Pt,
+                        )
+
+        buffer = io.BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+
+        nombre_cliente_safe = venta.cliente.nombre_completo_display.replace(' ', '_').replace('/', '_')
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"Confirmaciones_Venta_{venta.pk}_{nombre_cliente_safe}_{timestamp}.docx"
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        return response
 
 
 # ------------------- VISTAS DE DETALLE Y EXPORTACIÓN DE COMISIONES -------------------
