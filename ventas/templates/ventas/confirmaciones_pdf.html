@@ -150,28 +150,6 @@ body::before {
     z-index: 1; /* Evitar que quede debajo de otras capas (cards anteriores, membrete) */
 }
 
-/* Primera tabla de Traslado: separación estándar (el espacio superior lo da @page en pág 2+) */
-.traslado-primera-espacio {
-    margin-top: 24px;
-    box-sizing: border-box;
-}
-
-/* 2ª y siguientes tablas Traslado: misma separación que content-wrapper */
-.traslado-tabla-grande {
-    margin-top: 24px;
-    padding-top: 0;
-    box-sizing: border-box;
-    display: block;
-    overflow: visible;
-}
-
-/* Traslado: mismo flujo que Hospedaje/Vuelos (sin wrappers extra); reglas por si se usan en el futuro */
-.traslado-primera-espacio .card,
-.traslado-tabla-grande .card {
-    overflow: visible !important;
-    page-break-inside: auto;
-}
-
 /* Vuelo de Regreso: forzar nueva página; el margen superior lo da @page (3.5cm) */
 .vuelo-regreso-nueva-pagina {
     page-break-before: always;
@@ -180,11 +158,11 @@ body::before {
     box-sizing: border-box;
 }
 
-/* Evitar que las cards y secciones se partan entre páginas */
+/* Cards: permitir flujo entre páginas para que WeasyPrint no oculte contenido (p. ej. Traslado) */
 .card {
     page-break-before: auto;
-    page-break-inside: avoid; /* Evitar que la card se parta */
-    page-break-after: avoid; /* Mantener la card junta con su total */
+    page-break-inside: auto;
+    page-break-after: auto;
     margin-top: 0;
     margin-bottom: 8px; /* Espaciado reducido a la mitad entre cards (16px → 8px) */
 }
@@ -205,13 +183,13 @@ body::before {
     padding: 0;
     margin: 0 0 8px 0; /* Espaciado reducido a la mitad entre cards (16px → 8px) */
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); /* Sombra sutil */
-    page-break-inside: avoid; /* Evitar que la card se parta */
+    page-break-inside: auto; /* Permitir partir para que WeasyPrint no oculte la card */
     page-break-before: auto;
-    page-break-after: avoid; /* Mantener card y total juntos */
+    page-break-after: auto;
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
-    overflow: hidden; /* Asegurar que el contenido respete el border-radius */
+    overflow: visible; /* Crítico: visible para que WeasyPrint no desaparezca la tabla (Traslado, etc.) */
 }
 
 /* Mantener header y total juntos con la tabla */
@@ -248,7 +226,7 @@ body::before {
     flex-direction: row;
     min-height: 44px; /* Altura mínima reducida */
     overflow: visible;
-    border-radius: 6px 6px 0 0; /* Esquinas redondeadas solo arriba */
+    border-radius: 8px 8px 0 0; /* Esquinas superiores alineadas con .card (8px) */
 }
 
 .card-header::after {
