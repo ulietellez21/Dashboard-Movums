@@ -9715,9 +9715,14 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
             elif tipo == 'HOSPEDAJE':
                 html_plantilla = self._generar_html_hospedaje(datos, format_date, request)
             elif tipo == 'TRASLADO':
-                traslados_list = datos.get('traslados', [])
-                if traslados_list and isinstance(traslados_list, list):
-                    # Cada traslado como plantilla separada: evita bug WeasyPrint con page-break-before que oculta la última tabla
+                # Normalizar: 'traslados' puede ser None, lista vacía o lista de dicts; legacy: un solo traslado en datos
+                raw = datos.get('traslados')
+                if raw is None:
+                    raw = []
+                traslados_list = raw if isinstance(raw, list) else []
+                # Solo usar lista si tiene al menos un elemento que sea dict (datos de un traslado)
+                usar_lista = traslados_list and all(isinstance(t, dict) for t in traslados_list)
+                if usar_lista:
                     for i, traslado in enumerate(traslados_list):
                         card_html = self._generar_html_traslado(traslado, format_date)
                         if i == 0:
@@ -9726,9 +9731,9 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                             card_html = f'<div class="traslado-tabla-grande">{card_html}</div>'
                         plantillas_html.append(card_html)
                 else:
+                    # Lista vacía, formato legacy (un solo traslado en datos) o datos sin 'traslados'
                     card_html = self._generar_html_traslado(datos, format_date)
-                    html_plantilla = f'<div class="traslado-primera-espacio">{card_html}</div>'
-                    plantillas_html.append(html_plantilla)
+                    plantillas_html.append(f'<div class="traslado-primera-espacio">{card_html}</div>')
                 continue  # ya se añadieron a plantillas_html
             elif tipo == 'GENERICA':
                 imagenes_urls = []
