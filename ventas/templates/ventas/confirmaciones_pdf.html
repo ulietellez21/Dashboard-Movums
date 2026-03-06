@@ -124,6 +124,7 @@ body::before {
     padding: 0; /* Ya no necesitamos padding aquí, lo tiene el body */
     background: transparent;
     position: relative;
+    z-index: 1; /* Por encima del membrete (body::before z-index: -1000) */
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -145,6 +146,8 @@ body::before {
     box-sizing: border-box;
     overflow: visible !important;
     min-height: 0; /* Permitir que el contenido fluya a varias páginas */
+    position: relative;
+    z-index: 1; /* Evitar que quede debajo de otras capas (cards anteriores, membrete) */
 }
 
 /* Primera tabla de Traslado: separación estándar (el espacio superior lo da @page en pág 2+) */
@@ -162,11 +165,18 @@ body::before {
     overflow: visible;
 }
 
-/* Traslado: evitar que .card { overflow: hidden } recorte la sección en el PDF */
+/* Traslado: evitar que .card { overflow: hidden } recorte la sección y que quede bajo otras capas */
+.traslado-primera-espacio,
+.traslado-tabla-grande {
+    position: relative;
+    z-index: 2; /* Por encima de content-wrapper y otras cards para que siempre se vea */
+}
 .traslado-primera-espacio .card,
 .traslado-tabla-grande .card {
     overflow: visible !important;
     page-break-inside: auto;
+    position: relative;
+    z-index: 1;
 }
 
 /* Vuelo de Regreso: forzar nueva página; el margen superior lo da @page (3.5cm) */
