@@ -125,9 +125,7 @@ body::before {
     background: transparent;
     position: relative;
     z-index: 1; /* Por encima del membrete (body::before z-index: -1000) */
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+    display: block; /* block evita bug WeasyPrint: flex no fragmenta bien tras 2ª página y recorta contenido */
     overflow: visible; /* No recortar contenido (p. ej. 2ª tabla Traslado en última página) */
 }
 
