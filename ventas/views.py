@@ -9701,8 +9701,9 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
         tipos_presentes = set(plantillas.values_list('tipo', flat=True))
         solo_plantilla_generica = (tipos_presentes == {'GENERICA'})
 
-        # Procesar cada plantilla y generar HTML
-        plantillas_html = []
+        # Procesar cada plantilla: separar Traslado del resto para poner Traslado en la primera hoja (prueba WeasyPrint)
+        html_traslado = []
+        html_otras = []
         for plantilla in plantillas:
             datos = plantilla.datos or {}
             tipo = plantilla.tipo
@@ -9730,13 +9731,11 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                 for traslado in traslados_list:
                     if isinstance(traslado, dict):
                         card_html = self._generar_html_traslado(traslado, format_date)
-                        # Wrapper para que WeasyPrint no recorte/oculte la sección; nueva página en el primero
-                        wrapper_cls = 'seccion-traslado-pdf primera-traslado-pagina' if first_traslado else 'seccion-traslado-pdf'
-                        plantillas_html.append('<div class="' + wrapper_cls + '">' + card_html + '</div>')
+                        # Sin page-break: Traslado va en la primera hoja
+                        html_traslado.append('<div class="seccion-traslado-pdf">' + card_html + '</div>')
                         added = True
                         first_traslado = False
                 if not added:
-                    # Fallback: extraer primer traslado de datos['traslados'] (dict o lista) o usar datos completos
                     single_traslado = None
                     raw_traslados = datos.get('traslados') if isinstance(datos, dict) else None
                     if isinstance(raw_traslados, dict) and raw_traslados:
@@ -9752,8 +9751,8 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                         card_html = self._generar_html_traslado(single_traslado, format_date)
                     else:
                         card_html = self._generar_html_traslado(datos, format_date)
-                    plantillas_html.append('<div class="seccion-traslado-pdf primera-traslado-pagina">' + card_html + '</div>')
-                continue  # ya se añadieron a plantillas_html
+                    html_traslado.append('<div class="seccion-traslado-pdf">' + card_html + '</div>')
+                continue
             elif tipo == 'GENERICA':
                 imagenes_urls = []
                 try:
@@ -9780,21 +9779,24 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                     html_primera = self._generar_html_generica_primera_pagina(datos, imagenes_urls=imagenes_urls, contenido_html_resuelto=contenido_html_resuelto)
                     html_resto = self._generar_html_generica_resto(datos, imagenes_urls=imagenes_urls, contenido_html_resuelto=contenido_html_resuelto)
                     if html_primera:
-                        plantillas_html.append(html_primera)
+                        html_otras.append(html_primera)
                         if html_resto:
-                            plantillas_html.append(html_resto)
+                            html_otras.append(html_resto)
                     else:
                         html_plantilla = self._generar_html_generica(datos, imagenes_urls=imagenes_urls, contenido_html_resuelto=contenido_html_resuelto)
                         if html_plantilla:
-                            plantillas_html.append(html_plantilla)
+                            html_otras.append(html_plantilla)
                 else:
                     html_plantilla = self._generar_html_generica(datos, imagenes_urls=imagenes_urls, contenido_html_resuelto=contenido_html_resuelto)
                     if html_plantilla:
-                        plantillas_html.append(html_plantilla)
+                        html_otras.append(html_plantilla)
                 continue
             
             if html_plantilla:
-                plantillas_html.append(html_plantilla)
+                html_otras.append(html_plantilla)
+
+        # Traslado primero (primera hoja) para evitar que WeasyPrint lo oculte en páginas siguientes
+        plantillas_html = html_traslado + html_otras
         
         # Contexto para la plantilla HTML
         context = {
