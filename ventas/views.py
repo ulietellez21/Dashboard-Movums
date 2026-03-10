@@ -11942,8 +11942,9 @@ class DetalleComisionesView(LoginRequiredMixin, TemplateView):
         tipo_vendedor = ejecutivo.tipo_vendedor if ejecutivo else 'MOSTRADOR'
         
         # Base de comisión: total de ventas generadas en el periodo (no solo pagadas)
-        # INT: convertir USD a MXN con tipo_cambio; NAC: costo_venta_final
-        total_ventas_periodo = Decimal('0.00')
+        # NAC: costo_venta_final (MXN). INT: mostrar USD sin conversiones (cálculo manual aparte).
+        total_ventas_periodo = Decimal('0.00')  # Base MXN para cálculo automático (no incluye INT)
+        total_ventas_periodo_usd = Decimal('0.00')  # Solo informativo
         ventas_detalle = []
         
         for venta in ventas_periodo:
@@ -11951,24 +11952,25 @@ class DetalleComisionesView(LoginRequiredMixin, TemplateView):
             if getattr(venta, 'tipo_viaje', 'NAC') == 'INT':
                 total_usd = getattr(venta, 'costo_venta_final_usd', None) or (getattr(venta, 'total_usd', None) if hasattr(venta, 'total_usd') else None)
                 tc = getattr(venta, 'tipo_cambio', None)
-                if total_usd and tc and Decimal(str(tc)) > 0:
-                    base_comision = (Decimal(str(total_usd)) * Decimal(str(tc))).quantize(Decimal('0.01'))
-                    moneda_base = 'USD'
-                    monto_base_usd = Decimal(str(total_usd))
-                else:
-                    base_comision = Decimal('0.00')
-                    moneda_base = 'USD'
-                    monto_base_usd = Decimal('0.00')
+                monto_base_usd = Decimal(str(total_usd)) if total_usd else Decimal('0.00')
+                base_comision = monto_base_usd  # Mostrar en USD (sin conversiones)
+                moneda_base = 'USD'
+                es_comision_manual = True
             else:
                 base_comision = venta.costo_venta_final or Decimal('0.00')
                 moneda_base = 'MXN'
                 monto_base_usd = None
+                tc = None
+                es_comision_manual = False
             
             # Solo ventas que generan comisión (base > 0)
             if base_comision <= 0:
                 continue
 
-            total_ventas_periodo += base_comision
+            if moneda_base == 'MXN':
+                total_ventas_periodo += base_comision
+            else:
+                total_ventas_periodo_usd += base_comision
             
             # Calcular estado de pago
             total_abonos = getattr(venta, 'total_abonos_confirmados', Decimal('0.00')) or Decimal('0.00')
@@ -11988,12 +11990,13 @@ class DetalleComisionesView(LoginRequiredMixin, TemplateView):
                 'base_comision': base_comision,
                 'moneda_base': moneda_base,
                 'monto_base_usd': monto_base_usd,
-                'tipo_cambio': getattr(venta, 'tipo_cambio', None),
+                'tipo_cambio': tc if tc is not None else getattr(venta, 'tipo_cambio', None),
                 'total_pagado': total_pagado_calc,
                 'costo_total': costo_total,
                 'esta_pagada': esta_pagada,
                 'porcentaje_pago': porcentaje_pago,
                 'fecha_creacion': venta.fecha_creacion,
+                'es_comision_manual': es_comision_manual,
             })
         
         # Usar total_ventas_periodo como base (no total_ventas_pagadas)
@@ -12029,6 +12032,12 @@ class DetalleComisionesView(LoginRequiredMixin, TemplateView):
         comision_total_pendiente = Decimal('0.00')
         
         for detalle in ventas_detalle:
+            if detalle.get('es_comision_manual'):
+                detalle['comision_total'] = None
+                detalle['comision_pagada'] = None
+                detalle['comision_pendiente'] = None
+                continue
+
             comision_venta = detalle['base_comision'] * porcentaje_a_usar
             if detalle['esta_pagada']:
                 # Venta pagada al 100% = 100% de comisión
@@ -12065,6 +12074,7 @@ class DetalleComisionesView(LoginRequiredMixin, TemplateView):
             'user_rol': user_rol,
             'sueldo_base': sueldo_base,
             'total_ventas_periodo': total_ventas_periodo,
+            'total_ventas_periodo_usd': total_ventas_periodo_usd,
             'total_ventas_pagadas': total_ventas_periodo,  # Mantener para compatibilidad
             'porcentaje_comision': porcentaje_a_usar * 100,
             'comision_total': comision_total,

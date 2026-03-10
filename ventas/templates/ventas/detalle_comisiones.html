@@ -287,16 +287,28 @@
                             <strong>{{ detalle.porcentaje_pago|floatformat:1 }}%</strong>
                         </td>
                         <td class="text-end">
-                            <strong class="text-primary">${{ detalle.comision_total|floatformat:2|intcomma }}</strong>
-                        </td>
-                        <td class="text-end">
-                            <span class="text-success fw-bold">${{ detalle.comision_pagada|floatformat:2|intcomma }}</span>
-                        </td>
-                        <td class="text-end">
-                            {% if detalle.comision_pendiente > 0 %}
-                                <span class="text-warning fw-bold">${{ detalle.comision_pendiente|floatformat:2|intcomma }}</span>
+                            {% if detalle.es_comision_manual %}
+                                <span class="badge bg-secondary">Manual</span>
                             {% else %}
-                                <span class="text-muted">$0.00</span>
+                                <strong class="text-primary">${{ detalle.comision_total|floatformat:2|intcomma }}</strong>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if detalle.es_comision_manual %}
+                                <span class="text-muted">—</span>
+                            {% else %}
+                                <span class="text-success fw-bold">${{ detalle.comision_pagada|floatformat:2|intcomma }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if detalle.es_comision_manual %}
+                                <span class="text-muted">—</span>
+                            {% else %}
+                                {% if detalle.comision_pendiente > 0 %}
+                                    <span class="text-warning fw-bold">${{ detalle.comision_pendiente|floatformat:2|intcomma }}</span>
+                                {% else %}
+                                    <span class="text-muted">$0.00</span>
+                                {% endif %}
                             {% endif %}
                         </td>
                     </tr>
