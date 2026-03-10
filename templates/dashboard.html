@@ -2223,22 +2223,22 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for item in comisiones_mes_detalle %}
-                            <tr class="{% if item.estado_pago_venta == 'PAGADA' %}table-success{% else %}table-warning{% endif %}">
-                                <td class="fw-bold">{{ item.venta.folio|default:item.venta.id }}</td>
-                                <td>{{ item.venta.cliente }}</td>
+                            {% for cv in comisiones_mes_detalle %}
+                            <tr class="{% if cv.estado_pago_venta == 'PAGADA' %}table-success{% else %}table-warning{% endif %}">
+                                <td class="fw-bold">{{ cv.venta.folio|default:cv.venta.id }}</td>
+                                <td>{{ cv.venta.cliente }}</td>
                                 <td class="text-center">
-                                    {% if item.estado_pago_venta == 'PAGADA' %}
+                                    {% if cv.estado_pago_venta == 'PAGADA' %}
                                         <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>100%</span>
                                     {% else %}
                                         <span class="badge bg-warning text-dark"><i class="fas fa-clock me-1"></i>30%</span>
                                     {% endif %}
                                 </td>
-                                <td class="text-end fw-bold text-primary">${{ item.comision_total|floatformat:2|intcomma }}</td>
-                                <td class="text-end fw-bold text-success">${{ item.comision_pagada|floatformat:2|intcomma }}</td>
-                                <td class="text-end fw-bold text-warning">${{ item.comision_pendiente|floatformat:2|intcomma }}</td>
+                                <td class="text-end fw-bold text-primary">${{ cv.comision_calculada|floatformat:2|intcomma }}</td>
+                                <td class="text-end fw-bold text-success">${{ cv.comision_pagada|floatformat:2|intcomma }}</td>
+                                <td class="text-end fw-bold text-warning">${{ cv.comision_pendiente|floatformat:2|intcomma }}</td>
                                 <td class="text-end">
-                                    <a href="{% url 'detalle_venta' slug=item.venta.slug_safe pk=item.venta.pk %}" class="btn btn-sm btn-outline-primary" target="_blank" title="Ver venta">
+                                    <a href="{% url 'detalle_venta' slug=cv.venta.slug_safe pk=cv.venta.pk %}" class="btn btn-sm btn-outline-primary" target="_blank" title="Ver venta">
                                         <i class="fas fa-eye"></i>
                                     </a>
                                 </td>
