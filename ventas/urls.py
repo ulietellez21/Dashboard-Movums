@@ -81,6 +81,7 @@ from .views import (
     CancelarAbonoProveedorView,
     ListaAbonosProveedorView,
     pagos_pendientes_count,
+    calendario_eventos_api,
 )
 
 # app_name = 'ventas' 
@@ -88,6 +89,7 @@ from .views import (
 urlpatterns = [
     # 1. Dashboard (General)
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
+    path('api/calendario-eventos/', calendario_eventos_api, name='calendario_eventos_api'),
     path('api/pagos-pendientes-count/', pagos_pendientes_count, name='pagos_pendientes_count'),
     
     # 2. Reportes y Logística

@@ -1,0 +1,188 @@
+{# Calendario visual de check-in de viajes. Carga eventos vía AJAX para navegar sin recargar. #}
+{% load static %}
+<div class="row g-4 mb-5">
+    <div class="col-12">
+        <div class="card shadow-sm border-0 rounded-4">
+            <div class="card-header bg-light py-3 d-flex flex-wrap align-items-center gap-2">
+                <h5 class="fw-bold mb-0 me-auto">
+                    <i class="fas fa-calendar-check me-2"></i>Calendario de Viajes (Check-in)
+                </h5>
+                <div class="d-flex align-items-center gap-2 flex-wrap" id="calendario-filtro-wrap">
+                    <label class="mb-0 text-nowrap">Mes:</label>
+                    <select class="form-select form-select-sm" style="width: auto;" id="calendario-mes-select">
+                        <option value="1" {% if calendario_mes == 1 %}selected{% endif %}>Enero</option>
+                        <option value="2" {% if calendario_mes == 2 %}selected{% endif %}>Febrero</option>
+                        <option value="3" {% if calendario_mes == 3 %}selected{% endif %}>Marzo</option>
+                        <option value="4" {% if calendario_mes == 4 %}selected{% endif %}>Abril</option>
+                        <option value="5" {% if calendario_mes == 5 %}selected{% endif %}>Mayo</option>
+                        <option value="6" {% if calendario_mes == 6 %}selected{% endif %}>Junio</option>
+                        <option value="7" {% if calendario_mes == 7 %}selected{% endif %}>Julio</option>
+                        <option value="8" {% if calendario_mes == 8 %}selected{% endif %}>Agosto</option>
+                        <option value="9" {% if calendario_mes == 9 %}selected{% endif %}>Septiembre</option>
+                        <option value="10" {% if calendario_mes == 10 %}selected{% endif %}>Octubre</option>
+                        <option value="11" {% if calendario_mes == 11 %}selected{% endif %}>Noviembre</option>
+                        <option value="12" {% if calendario_mes == 12 %}selected{% endif %}>Diciembre</option>
+                    </select>
+                    <label class="mb-0 text-nowrap">Año:</label>
+                    <select class="form-select form-select-sm" style="width: auto;" id="calendario-anio-select">
+                        {% for ani in calendario_anios %}
+                            <option value="{{ ani }}" {% if calendario_anio == ani %}selected{% endif %}>{{ ani }}</option>
+                        {% endfor %}
+                    </select>
+                    <label class="mb-0 text-nowrap ms-2" id="calendario-dia-label">Día:</label>
+                    <select class="form-select form-select-sm" style="width: auto; max-width: 4.5rem;" id="calendario-dia-select" title="Saltar a un día del mes (útil en vista Día)">
+                        <!-- Opciones 1-31 se generan en JS según días del mes -->
+                    </select>
+                    <button type="button" class="btn btn-sm btn-primary" id="calendario-ir-btn">
+                        <i class="fas fa-search me-1"></i>Ir
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-3">
+                <div id="calendario-viajes" style="min-height: 400px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.20/locales/es.global.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var calendarEl = document.getElementById('calendario-viajes');
+    if (!calendarEl) return;
+
+    var apiUrl = '{% url "calendario_eventos_api" %}';
+    var mesActual = {{ calendario_mes }};
+    var anioActual = {{ calendario_anio }};
+
+    function diasEnMes(m, y) {
+        return new Date(y, m, 0).getDate();
+    }
+
+    function actualizarSelectDia(m, y, diaActual) {
+        var diaSel = document.getElementById('calendario-dia-select');
+        if (!diaSel) return;
+        var maxDias = diasEnMes(m, y);
+        diaSel.innerHTML = '';
+        for (var d = 1; d <= maxDias; d++) {
+            var opt = document.createElement('option');
+            opt.value = d;
+            opt.textContent = d;
+            if (d === diaActual) opt.selected = true;
+            diaSel.appendChild(opt);
+        }
+    }
+
+    function sincronizarFiltros(m, y, dia) {
+        dia = dia || 1;
+        var mesSel = document.getElementById('calendario-mes-select');
+        var anioSel = document.getElementById('calendario-anio-select');
+        var diaSel = document.getElementById('calendario-dia-select');
+        if (mesSel) mesSel.value = m;
+        if (anioSel) {
+            var tieneOpcion = false;
+            for (var i = 0; i < anioSel.options.length; i++) {
+                if (anioSel.options[i].value === String(y)) { tieneOpcion = true; break; }
+            }
+            if (!tieneOpcion) {
+                var opt = document.createElement('option');
+                opt.value = y;
+                opt.textContent = y;
+                anioSel.appendChild(opt);
+            }
+            anioSel.value = y;
+        }
+        actualizarSelectDia(m, y, dia);
+    }
+
+    function cargarEventos(info, successCallback, failureCallback) {
+        var start = info.start;
+        var end = info.end;
+        var diffDias = (end - start) / (24 * 60 * 60 * 1000);
+        var m, y, d;
+        if (diffDias <= 2) {
+            m = start.getMonth() + 1;
+            y = start.getFullYear();
+            d = start.getDate();
+        } else {
+            var mid = new Date((start.getTime() + end.getTime()) / 2);
+            m = mid.getMonth() + 1;
+            y = mid.getFullYear();
+            d = 1;
+        }
+        mesActual = m;
+        anioActual = y;
+        var url = apiUrl + '?mes=' + m + '&anio=' + y;
+        fetch(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin'
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            successCallback(Array.isArray(data) ? data : []);
+            sincronizarFiltros(m, y, d);
+        })
+        .catch(function(err) {
+            console.error('Error cargando eventos:', err);
+            if (typeof failureCallback === 'function') failureCallback(err);
+            successCallback([]);
+        });
+    }
+
+    var calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        initialDate: anioActual + '-' + String(mesActual).padStart(2, '0') + '-01',
+        events: cargarEventos,
+        locale: 'es',
+        firstDay: 1,
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridDay'
+        },
+        buttonText: {
+            today: 'Hoy',
+            month: 'Mes',
+            day: 'Día'
+        },
+        eventClick: function(info) {
+            if (info.event.url) {
+                info.jsEvent.preventDefault();
+                window.location.href = info.event.url;
+            }
+        },
+        dateClick: function(info) {
+            if (calendar.view.type === 'dayGridMonth') {
+                calendar.changeView('timeGridDay', info.dateStr);
+            }
+        }
+    });
+    calendar.render();
+
+    // Inicializar select de día
+    actualizarSelectDia(mesActual, anioActual, 1);
+
+    // Botón "Ir" navega a la fecha seleccionada (mes, año, día)
+    var irBtn = document.getElementById('calendario-ir-btn');
+    var mesSelect = document.getElementById('calendario-mes-select');
+    var anioSelect = document.getElementById('calendario-anio-select');
+    var diaSelect = document.getElementById('calendario-dia-select');
+    if (irBtn && mesSelect && anioSelect && diaSelect) {
+        irBtn.addEventListener('click', function() {
+            var m = parseInt(mesSelect.value, 10);
+            var y = parseInt(anioSelect.value, 10);
+            var d = parseInt(diaSelect.value, 10);
+            if (!isNaN(m) && !isNaN(y) && !isNaN(d)) {
+                var maxD = diasEnMes(m, y);
+                if (d > maxD) d = maxD;
+                calendar.gotoDate(new Date(y, m - 1, d));
+            }
+        });
+    }
+});
+</script>

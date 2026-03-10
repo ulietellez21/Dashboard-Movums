@@ -97,6 +97,7 @@ from .services import dashboard_gerente as dg
 from .services import dashboard_director_ventas as ddv
 from .services import dashboard_director_admin as dda
 from .services import dashboard_director_general as ddg
+from .services.calendario_viajes import ventas_para_calendario
 
 # Función auxiliar para obtener el rol (delega a la capa centralizada de permisos)
 # NOTA: Usar perm.get_user_role(user, request) directamente en las vistas para aprovechar cache
@@ -726,6 +727,22 @@ class DashboardView(LoginRequiredMixin, ListView):
             context['riesgo_financiero'] = dda.riesgo_financiero(fecha_inicio, fecha_fin)
             context['control_interno'] = dda.control_interno(fecha_inicio, fecha_fin)
 
+        # --- Calendario de viajes (VENDEDOR, GERENTE, DIRECTOR_ADMINISTRATIVO) ---
+        if user_rol in ('VENDEDOR', 'GERENTE', 'DIRECTOR_ADMINISTRATIVO'):
+            hoy = timezone.localdate()
+            try:
+                calendario_anio = int(self.request.GET.get('calendario_anio', hoy.year))
+                calendario_mes = int(self.request.GET.get('calendario_mes', hoy.month))
+                if calendario_mes < 1 or calendario_mes > 12:
+                    calendario_mes = hoy.month
+                if calendario_anio < 2000 or calendario_anio > 2100:
+                    calendario_anio = hoy.year
+            except (ValueError, TypeError):
+                calendario_anio, calendario_mes = hoy.year, hoy.month
+            context['calendario_mes'] = calendario_mes
+            context['calendario_anio'] = calendario_anio
+            context['calendario_anios'] = [calendario_anio + i for i in range(-2, 3)]
+
         # Agregar filtros de fecha al contexto
         context['fecha_filtro'] = self.request.GET.get('fecha_filtro', '')
         context['fecha_desde'] = self.request.GET.get('fecha_desde', '')
@@ -745,6 +762,32 @@ class DashboardView(LoginRequiredMixin, ListView):
             context['ventas_filtradas'] = []
 
         return context
+
+
+@login_required
+def calendario_eventos_api(request):
+    """
+    API JSON para el calendario de viajes (check-in). Soporta navegación sin recargar.
+    GET: mes, anio (opcionales, por defecto mes/año actual).
+    Solo VENDEDOR, GERENTE, DIRECTOR_ADMINISTRATIVO.
+    """
+    user = request.user
+    user_rol = perm.get_user_role(user, request)
+    if user_rol not in ('VENDEDOR', 'GERENTE', 'DIRECTOR_ADMINISTRATIVO'):
+        return JsonResponse({'error': 'No autorizado'}, status=403)
+    hoy = timezone.localdate()
+    try:
+        anio = int(request.GET.get('anio', hoy.year))
+        mes = int(request.GET.get('mes', hoy.month))
+        if mes < 1 or mes > 12:
+            mes = hoy.month
+        if anio < 2000 or anio > 2100:
+            anio = hoy.year
+    except (ValueError, TypeError):
+        anio, mes = hoy.year, hoy.month
+    qs_base = perm.get_ventas_queryset_base(VentaViaje, user, request)
+    eventos = ventas_para_calendario(qs_base, anio, mes)
+    return JsonResponse(eventos, safe=False)
 
 
 @login_required
