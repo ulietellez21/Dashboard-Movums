@@ -3416,6 +3416,7 @@ class ExportarReporteFinancieroExcelView(LoginRequiredMixin, UserPassesTestMixin
         title_fill = PatternFill(start_color="5C0CD1", end_color="5C0CD1", fill_type="solid")  # Morado principal
         row_fill_even = PatternFill(start_color="F5F3FF", end_color="F5F3FF", fill_type="solid")  # Lavanda muy suave
         row_fill_odd = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+        row_fill_cancelada = PatternFill(start_color="FFCCCB", end_color="FFCCCB", fill_type="solid")  # Rojo claro para ventas canceladas
         header_font = Font(bold=True, color="FFFFFF", size=11)
         title_font = Font(bold=True, color="FFFFFF", size=14)
         border = Border(
@@ -3468,8 +3469,11 @@ class ExportarReporteFinancieroExcelView(LoginRequiredMixin, UserPassesTestMixin
 
         row_detalle = 3
         for idx, venta in enumerate(ventas_todas):
-            # Filas alternadas (lavanda suave / blanco)
-            row_fill = row_fill_even if idx % 2 == 0 else row_fill_odd
+            # Filas canceladas en rojo claro; el resto alternadas (lavanda / blanco)
+            if venta.estado == 'CANCELADA':
+                row_fill = row_fill_cancelada
+            else:
+                row_fill = row_fill_even if idx % 2 == 0 else row_fill_odd
             # Oficina: desde vendedor → ejecutivo_asociado → oficina
             oficina_nombre = ''
             if venta.vendedor and hasattr(venta.vendedor, 'ejecutivo_asociado'):
