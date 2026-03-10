@@ -688,6 +688,9 @@
                         <div class="d-flex flex-wrap gap-2 mt-2">
                             <span class="badge bg-success">Recibida: ${{ cm.comision_recibida|floatformat:2|intcomma }}</span>
                             <span class="badge bg-warning text-dark">Pendiente: ${{ cm.comision_pendiente|floatformat:2|intcomma }}</span>
+                            {% if cm.ventas_int_count %}
+                                <span class="badge bg-secondary">INT (manual): {{ cm.ventas_int_count }} venta{{ cm.ventas_int_count|pluralize }}</span>
+                            {% endif %}
                         </div>
                         <small class="text-muted d-block mt-2">Ventas pagadas otorgan 100% de comisión; ventas pendientes otorgan 30% y el 70% queda pendiente.</small>
                     </div>
@@ -2215,6 +2218,8 @@
                             <tr>
                                 <th>Folio</th>
                                 <th>Cliente</th>
+                                <th class="text-center">Moneda</th>
+                                <th class="text-center">TC</th>
                                 <th class="text-center">Estado</th>
                                 <th class="text-end">Comisión total (100%)</th>
                                 <th class="text-end">Recibida</th>
@@ -2228,15 +2233,45 @@
                                 <td class="fw-bold">{{ cv.venta.folio|default:cv.venta.id }}</td>
                                 <td>{{ cv.venta.cliente }}</td>
                                 <td class="text-center">
+                                    <span class="badge {% if cv.moneda_base == 'USD' %}bg-success{% else %}bg-info{% endif %} text-white">
+                                        {{ cv.moneda_base|default:"MXN" }}
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    {% if cv.moneda_base == 'USD' and cv.tipo_cambio %}
+                                        <small class="text-muted">{{ cv.tipo_cambio|floatformat:4 }}</small>
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
                                     {% if cv.estado_pago_venta == 'PAGADA' %}
                                         <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>100%</span>
                                     {% else %}
                                         <span class="badge bg-warning text-dark"><i class="fas fa-clock me-1"></i>30%</span>
                                     {% endif %}
                                 </td>
-                                <td class="text-end fw-bold text-primary">${{ cv.comision_calculada|floatformat:2|intcomma }}</td>
-                                <td class="text-end fw-bold text-success">${{ cv.comision_pagada|floatformat:2|intcomma }}</td>
-                                <td class="text-end fw-bold text-warning">${{ cv.comision_pendiente|floatformat:2|intcomma }}</td>
+                                <td class="text-end fw-bold text-primary">
+                                    {% if cv.es_comision_manual %}
+                                        <span class="badge bg-secondary">Manual</span>
+                                    {% else %}
+                                        ${{ cv.comision_total|floatformat:2|intcomma }}
+                                    {% endif %}
+                                </td>
+                                <td class="text-end fw-bold text-success">
+                                    {% if cv.es_comision_manual %}
+                                        <span class="text-muted">—</span>
+                                    {% else %}
+                                        ${{ cv.comision_pagada|floatformat:2|intcomma }}
+                                    {% endif %}
+                                </td>
+                                <td class="text-end fw-bold text-warning">
+                                    {% if cv.es_comision_manual %}
+                                        <span class="text-muted">—</span>
+                                    {% else %}
+                                        ${{ cv.comision_pendiente|floatformat:2|intcomma }}
+                                    {% endif %}
+                                </td>
                                 <td class="text-end">
                                     <a href="{% url 'detalle_venta' slug=cv.venta.slug_safe pk=cv.venta.pk %}" class="btn btn-sm btn-outline-primary" target="_blank" title="Ver venta">
                                         <i class="fas fa-eye"></i>

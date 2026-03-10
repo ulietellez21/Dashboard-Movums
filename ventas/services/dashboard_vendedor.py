@@ -253,6 +253,8 @@ def kpis_comisiones(user, mes, anio):
         'comision_total': res['comision_total'],
         'comision_recibida': res['comision_recibida'],
         'comision_pendiente': res['comision_pendiente'],
+        'ventas_int_count': res.get('ventas_int_count', 0),
+        'total_ventas_periodo_usd': res.get('total_ventas_periodo_usd', Decimal('0.00')),
     }
 
 
@@ -289,16 +291,16 @@ def comisiones_mes_desde_ventas(user, mes, anio, limit=200):
 
     ventas_base = []
     total_ventas_periodo = Decimal('0.00')
+    total_ventas_periodo_usd = Decimal('0.00')
+    ventas_int_count = 0
 
     for venta in ventas_qs:
         es_int = getattr(venta, 'tipo_viaje', 'NAC') == 'INT'
         if es_int:
+            # INT: sin conversiones; cálculo de comisión es manual
             monto_base_usd = _calcular_monto_base_comision_int(venta)
-            tc = getattr(venta, 'tipo_cambio', None) or Decimal('0')
-            if tc and Decimal(str(tc)) > 0:
-                base_comision = (monto_base_usd * Decimal(str(tc))).quantize(Decimal('0.01'))
-            else:
-                base_comision = Decimal('0.00')
+            tc = getattr(venta, 'tipo_cambio', None)
+            base_comision = (monto_base_usd or Decimal('0.00')).quantize(Decimal('0.01'))
             costo_total = venta.costo_total_con_modificacion_usd or Decimal('0.00')
             total_pagado = venta.total_pagado_usd or Decimal('0.00')
         else:
@@ -314,9 +316,27 @@ def comisiones_mes_desde_ventas(user, mes, anio, limit=200):
         if base_comision <= 0:
             continue
 
-        total_ventas_periodo += base_comision
         esta_pagada = (costo_total > 0 and total_pagado >= costo_total)
-        ventas_base.append({'venta': venta, 'base_comision': base_comision, 'esta_pagada': esta_pagada})
+
+        if es_int:
+            ventas_int_count += 1
+            total_ventas_periodo_usd += base_comision
+            ventas_base.append({
+                'venta': venta,
+                'base_comision': base_comision,
+                'esta_pagada': esta_pagada,
+                'es_comision_manual': True,
+                'tipo_cambio': tc,
+            })
+        else:
+            total_ventas_periodo += base_comision
+            ventas_base.append({
+                'venta': venta,
+                'base_comision': base_comision,
+                'esta_pagada': esta_pagada,
+                'es_comision_manual': False,
+                'tipo_cambio': None,
+            })
 
     # Porcentaje
     if tipo_vendedor == 'ISLA':
@@ -336,6 +356,20 @@ def comisiones_mes_desde_ventas(user, mes, anio, limit=200):
     for item in ventas_base[:limit]:
         base = item['base_comision']
         esta_pagada = item['esta_pagada']
+        if item.get('es_comision_manual'):
+            detalle.append({
+                'venta': item['venta'],
+                'estado_pago_venta': 'PAGADA' if esta_pagada else 'PENDIENTE',
+                'moneda_base': 'USD',
+                'tipo_cambio': item.get('tipo_cambio'),
+                'base_comision': base,
+                'es_comision_manual': True,
+                'comision_total': None,
+                'comision_pagada': None,
+                'comision_pendiente': None,
+            })
+            continue
+
         com_total = (base * porcentaje_a_usar).quantize(Decimal('0.01'))
         if esta_pagada:
             com_pag = com_total
@@ -353,6 +387,10 @@ def comisiones_mes_desde_ventas(user, mes, anio, limit=200):
         detalle.append({
             'venta': item['venta'],
             'estado_pago_venta': estado,
+            'moneda_base': 'MXN',
+            'tipo_cambio': None,
+            'base_comision': base,
+            'es_comision_manual': False,
             'comision_total': com_total,
             'comision_pagada': com_pag,
             'comision_pendiente': com_pend,
@@ -363,6 +401,8 @@ def comisiones_mes_desde_ventas(user, mes, anio, limit=200):
         'comision_recibida': comision_recibida,
         'comision_pendiente': comision_pendiente,
         'detalle': detalle,
+        'ventas_int_count': ventas_int_count,
+        'total_ventas_periodo_usd': total_ventas_periodo_usd,
     }
 
 
