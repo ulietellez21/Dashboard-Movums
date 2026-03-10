@@ -2219,7 +2219,6 @@
                                 <th>Folio</th>
                                 <th>Cliente</th>
                                 <th class="text-center">Moneda</th>
-                                <th class="text-center">TC</th>
                                 <th class="text-center">Estado</th>
                                 <th class="text-end">Comisión total (100%)</th>
                                 <th class="text-end">Recibida</th>
@@ -2236,13 +2235,6 @@
                                     <span class="badge {% if cv.moneda_base == 'USD' %}bg-success{% else %}bg-info{% endif %} text-white">
                                         {{ cv.moneda_base|default:"MXN" }}
                                     </span>
-                                </td>
-                                <td class="text-center">
-                                    {% if cv.moneda_base == 'USD' and cv.tipo_cambio %}
-                                        <small class="text-muted">{{ cv.tipo_cambio|floatformat:4 }}</small>
-                                    {% else %}
-                                        <span class="text-muted">—</span>
-                                    {% endif %}
                                 </td>
                                 <td class="text-center">
                                     {% if cv.estado_pago_venta == 'PAGADA' %}
