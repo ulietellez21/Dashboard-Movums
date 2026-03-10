@@ -8,7 +8,39 @@ from decimal import Decimal
 from django.db.models import Sum, Count, Q, F, ExpressionWrapper, DecimalField, Avg
 from django.utils import timezone
 
-from ventas.models import VentaViaje, Cotizacion, ComisionVenta, SolicitudCancelacion, AbonoPago
+from ventas.models import VentaViaje, Cotizacion, ComisionVenta, SolicitudCancelacion, AbonoPago, ComisionMensual
+
+
+def _calcular_comision_por_tipo(total_ventas, tipo_vendedor):
+    """
+    Copia del cálculo legacy para evitar imports circulares.
+    """
+    if tipo_vendedor == 'CAMPO' or tipo_vendedor == 'CALLE':
+        porcentaje = Decimal('0.04')
+        return porcentaje, total_ventas * porcentaje
+
+    if tipo_vendedor in ['MOSTRADOR', 'ISLA', 'OFICINA']:
+        if total_ventas < Decimal('100000'):
+            porcentaje = Decimal('0.01')
+        elif total_ventas < Decimal('200000'):
+            porcentaje = Decimal('0.02')
+        elif total_ventas < Decimal('300000'):
+            porcentaje = Decimal('0.03')
+        elif total_ventas < Decimal('400000'):
+            porcentaje = Decimal('0.04')
+        else:
+            porcentaje = Decimal('0.05')
+        return porcentaje, total_ventas * porcentaje
+
+    porcentaje = Decimal('0.04')
+    return porcentaje, total_ventas * porcentaje
+
+
+def _calcular_monto_base_comision_int(venta):
+    # Import local para evitar problemas de import en arranque
+    from ventas.services.comisiones import calcular_monto_base_comision
+    monto_base_usd, _ = calcular_monto_base_comision(venta)
+    return monto_base_usd
 
 MARGEN_MINIMO = Decimal('0.15')
 DIAS_RIESGO_COBRO = 7
@@ -211,35 +243,127 @@ def kpis_cobranza(user, fecha_inicio, fecha_fin):
 
 
 def kpis_comisiones(user, mes, anio):
-    """Comisiones del mes: total (100%), recibida y pendiente."""
-    comisiones = ComisionVenta.objects.filter(
-        vendedor=user,
-        mes=mes,
-        anio=anio,
-    )
-    total = comisiones.aggregate(total=Sum('comision_calculada'))['total'] or Decimal('0.00')
-    recibida = comisiones.aggregate(total=Sum('comision_pagada'))['total'] or Decimal('0.00')
-    pendiente = comisiones.aggregate(total=Sum('comision_pendiente'))['total'] or Decimal('0.00')
+    """
+    Comisiones del mes: total (100%), recibida y pendiente.
 
+    Se calcula desde ventas del mes para que coincida con el detalle, sin depender de `ComisionVenta`.
+    """
+    res = comisiones_mes_desde_ventas(user, mes, anio)
     return {
-        'comision_total': total,
-        'comision_recibida': recibida,
-        'comision_pendiente': pendiente,
+        'comision_total': res['comision_total'],
+        'comision_recibida': res['comision_recibida'],
+        'comision_pendiente': res['comision_pendiente'],
     }
 
 
 def detalle_comisiones_mes(user, mes, anio, limit=200):
-    """Listado de comisiones por venta del mes (para modal en dashboard)."""
-    return list(
-        ComisionVenta.objects.filter(
+    """Listado por venta del mes (para modal en dashboard)."""
+    return comisiones_mes_desde_ventas(user, mes, anio, limit=limit)['detalle']
+
+
+def comisiones_mes_desde_ventas(user, mes, anio, limit=200):
+    from datetime import datetime
+
+    inicio = timezone.make_aware(datetime(anio, mes, 1, 0, 0, 0))
+    if mes == 12:
+        fin = timezone.make_aware(datetime(anio + 1, 1, 1, 0, 0, 0))
+    else:
+        fin = timezone.make_aware(datetime(anio, mes + 1, 1, 0, 0, 0))
+
+    ventas_qs = (
+        VentaViaje.objects.filter(
             vendedor=user,
-            mes=mes,
-            anio=anio,
-        ).select_related(
-            'venta',
-            'venta__cliente',
-        ).order_by('-venta__fecha_creacion')[:limit]
+            fecha_creacion__gte=inicio,
+            fecha_creacion__lt=fin,
+        )
+        .exclude(estado='CANCELADA')
+        .select_related('cliente')
+        .prefetch_related(
+            'abonos',
+        )
+        .order_by('-fecha_creacion')
     )
+
+    ejecutivo = getattr(user, 'ejecutivo_asociado', None)
+    tipo_vendedor = ejecutivo.tipo_vendedor if ejecutivo else 'MOSTRADOR'
+
+    ventas_base = []
+    total_ventas_periodo = Decimal('0.00')
+
+    for venta in ventas_qs:
+        es_int = getattr(venta, 'tipo_viaje', 'NAC') == 'INT'
+        if es_int:
+            monto_base_usd = _calcular_monto_base_comision_int(venta)
+            tc = getattr(venta, 'tipo_cambio', None) or Decimal('0')
+            if tc and Decimal(str(tc)) > 0:
+                base_comision = (monto_base_usd * Decimal(str(tc))).quantize(Decimal('0.01'))
+            else:
+                base_comision = Decimal('0.00')
+            costo_total = venta.costo_total_con_modificacion_usd or Decimal('0.00')
+            total_pagado = venta.total_pagado_usd or Decimal('0.00')
+        else:
+            base_comision = venta.costo_venta_final or Decimal('0.00')
+            costo_total = (venta.costo_venta_final or Decimal('0.00')) + (venta.costo_modificacion or Decimal('0.00'))
+
+            total_abonos = Decimal('0.00')
+            for ab in venta.abonos.all():
+                if getattr(ab, 'confirmado', False) or getattr(ab, 'forma_pago', None) == 'EFE':
+                    total_abonos += ab.monto or Decimal('0.00')
+            total_pagado = total_abonos + (venta.cantidad_apertura or Decimal('0.00'))
+
+        if base_comision <= 0:
+            continue
+
+        total_ventas_periodo += base_comision
+        esta_pagada = (costo_total > 0 and total_pagado >= costo_total)
+        ventas_base.append({'venta': venta, 'base_comision': base_comision, 'esta_pagada': esta_pagada})
+
+    # Porcentaje
+    if tipo_vendedor == 'ISLA':
+        cm = ComisionMensual.objects.filter(vendedor=user, mes=mes, anio=anio, tipo_vendedor='ISLA').first()
+        if cm and cm.porcentaje_ajustado_manual:
+            porcentaje_a_usar = (cm.porcentaje_ajustado_manual / Decimal('100'))
+        else:
+            porcentaje_a_usar = Decimal('0.00')
+    else:
+        porcentaje_a_usar, _ = _calcular_comision_por_tipo(total_ventas_periodo, tipo_vendedor)
+
+    detalle = []
+    comision_recibida = Decimal('0.00')
+    comision_pendiente = Decimal('0.00')
+    comision_total = Decimal('0.00')
+
+    for item in ventas_base[:limit]:
+        base = item['base_comision']
+        esta_pagada = item['esta_pagada']
+        com_total = (base * porcentaje_a_usar).quantize(Decimal('0.01'))
+        if esta_pagada:
+            com_pag = com_total
+            com_pend = Decimal('0.00')
+            estado = 'PAGADA'
+        else:
+            com_pag = (com_total * Decimal('0.30')).quantize(Decimal('0.01'))
+            com_pend = (com_total * Decimal('0.70')).quantize(Decimal('0.01'))
+            estado = 'PENDIENTE'
+
+        comision_total += com_total
+        comision_recibida += com_pag
+        comision_pendiente += com_pend
+
+        detalle.append({
+            'venta': item['venta'],
+            'estado_pago_venta': estado,
+            'comision_total': com_total,
+            'comision_pagada': com_pag,
+            'comision_pendiente': com_pend,
+        })
+
+    return {
+        'comision_total': comision_total,
+        'comision_recibida': comision_recibida,
+        'comision_pendiente': comision_pendiente,
+        'detalle': detalle,
+    }
 
 
 # --------------- FASE 3: Kilómetros Movums ---------------
