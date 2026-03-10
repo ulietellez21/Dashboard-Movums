@@ -675,19 +675,32 @@
 {% with cm=kpis_comisiones %}
 <div class="row g-3 mb-4">
     <div class="col-12"><h5 class="fw-bold text-secondary mb-0"><i class="fas fa-coins me-2"></i>Comisiones (mes actual)</h5></div>
-    <div class="col-lg-4 col-md-6">
-        <div class="card shadow-sm border-0 rounded-4 h-100 border-start border-4" style="border-color: var(--movums-primary) !important;">
+    <div class="col-12">
+        <div class="card shadow-sm border-0 rounded-4" style="background: linear-gradient(90deg, rgba(102,126,234,0.10), rgba(34,197,94,0.10));">
             <div class="card-body p-3">
-                <div class="text-muted small">Comisión proyectada</div>
-                <h2 class="fw-bold mb-0" style="color: var(--movums-primary);">${{ cm.comision_proyectada|floatformat:2|intcomma }}</h2>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-4 col-md-6">
-        <div class="card shadow-sm border-0 rounded-4 h-100 border-start border-4 border-success">
-            <div class="card-body p-3">
-                <div class="text-muted small">Comisión confirmada</div>
-                <h2 class="fw-bold text-success mb-0">${{ cm.comision_confirmada|floatformat:2|intcomma }}</h2>
+                <div class="row g-3 align-items-center">
+                    <div class="col-lg-8">
+                        <div class="text-muted small mb-1">Resumen de comisiones del mes actual</div>
+                        <h4 class="fw-bold mb-1">
+                            <i class="fas fa-hand-holding-usd me-2 text-info"></i>${{ cm.comision_total|floatformat:2|intcomma }}
+                            <small class="text-muted fw-normal">(total 100%)</small>
+                        </h4>
+                        <div class="d-flex flex-wrap gap-2 mt-2">
+                            <span class="badge bg-success">Recibida: ${{ cm.comision_recibida|floatformat:2|intcomma }}</span>
+                            <span class="badge bg-warning text-dark">Pendiente: ${{ cm.comision_pendiente|floatformat:2|intcomma }}</span>
+                        </div>
+                        <small class="text-muted d-block mt-2">Ventas pagadas otorgan 100% de comisión; ventas pendientes otorgan 30% y el 70% queda pendiente.</small>
+                    </div>
+                    <div class="col-lg-4 text-lg-end">
+                        <button type="button" class="btn btn-outline-primary w-100 w-lg-auto mb-2" data-bs-toggle="modal" data-bs-target="#modalComisionesMes">
+                            <i class="fas fa-receipt me-2"></i>Ver ventas del mes
+                        </button>
+                        <a href="{% url 'detalle_comisiones' user.pk %}?mes={% now 'n' %}&anio={% now 'Y' %}" class="btn btn-info btn-lg text-white fw-bold w-100 w-lg-auto">
+                            <i class="fas fa-list-alt me-2"></i>Detalle de comisiones
+                        </a>
+                        <div class="small text-muted mt-2">Para meses anteriores, usa los filtros en el detalle.</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1048,6 +1061,12 @@
                 <h4 class="fw-bold text-success mb-0">${{ c.comisiones_pagadas|floatformat:0|default:"0" }}</h4>
             </div>
         </div>
+    </div>
+    <div class="col-12">
+        <a href="{% url 'reporte_comisiones' %}?mes={% now 'n' %}&anio={% now 'Y' %}" class="btn btn-outline-info w-100">
+            <i class="fas fa-list-alt me-2"></i>Detalle de comisiones
+        </a>
+        <small class="text-muted d-block mt-1">Consulta el desglose por vendedor y ventas del mes.</small>
     </div>
 </div>
 {% endwith %}
@@ -2171,6 +2190,77 @@
 <!-- Variables de Django para JavaScript (ocultas) -->
 <div id="django-vars" data-user-rol="{{ user_rol|default:'INVITADO' }}" style="display: none;"></div>
 
+{% endblock %}
+
+{% block modals %}
+{% if user_rol == 'VENDEDOR' %}
+<div class="modal fade" id="modalComisionesMes" tabindex="-1" aria-labelledby="modalComisionesMesLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalComisionesMesLabel">
+                    <i class="fas fa-receipt me-2"></i>Ventas del mes — comisión 100% vs 30%
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <span class="badge bg-success">Comisión 100% (venta pagada)</span>
+                    <span class="badge bg-warning text-dark">Comisión 30% (venta pendiente)</span>
+                    <span class="badge bg-light text-dark border">Total: {{ comisiones_mes_detalle|length }}</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Folio</th>
+                                <th>Cliente</th>
+                                <th class="text-center">Estado</th>
+                                <th class="text-end">Comisión total (100%)</th>
+                                <th class="text-end">Recibida</th>
+                                <th class="text-end">Pendiente</th>
+                                <th class="text-end"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cv in comisiones_mes_detalle %}
+                            <tr class="{% if cv.estado_pago_venta == 'PAGADA' %}table-success{% else %}table-warning{% endif %}">
+                                <td class="fw-bold">{{ cv.venta.folio|default:cv.venta.id }}</td>
+                                <td>{{ cv.venta.cliente }}</td>
+                                <td class="text-center">
+                                    {% if cv.estado_pago_venta == 'PAGADA' %}
+                                        <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>100%</span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark"><i class="fas fa-clock me-1"></i>30%</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end fw-bold text-primary">${{ cv.comision_calculada|floatformat:2|intcomma }}</td>
+                                <td class="text-end fw-bold text-success">${{ cv.comision_pagada|floatformat:2|intcomma }}</td>
+                                <td class="text-end fw-bold text-warning">${{ cv.comision_pendiente|floatformat:2|intcomma }}</td>
+                                <td class="text-end">
+                                    <a href="{% url 'detalle_venta' slug=cv.venta.slug_safe pk=cv.venta.pk %}" class="btn btn-sm btn-outline-primary" target="_blank" title="Ver venta">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    <i class="fas fa-info-circle me-1"></i>Aún no hay comisiones registradas para este mes.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 

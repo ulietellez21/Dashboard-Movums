@@ -211,19 +211,35 @@ def kpis_cobranza(user, fecha_inicio, fecha_fin):
 
 
 def kpis_comisiones(user, mes, anio):
-    """Comisión proyectada y confirmada del mes."""
+    """Comisiones del mes: total (100%), recibida y pendiente."""
     comisiones = ComisionVenta.objects.filter(
         vendedor=user,
         mes=mes,
         anio=anio,
     )
-    proyectada = comisiones.aggregate(total=Sum('comision_calculada'))['total'] or Decimal('0.00')
-    confirmada = comisiones.aggregate(total=Sum('comision_pagada'))['total'] or Decimal('0.00')
+    total = comisiones.aggregate(total=Sum('comision_calculada'))['total'] or Decimal('0.00')
+    recibida = comisiones.aggregate(total=Sum('comision_pagada'))['total'] or Decimal('0.00')
+    pendiente = comisiones.aggregate(total=Sum('comision_pendiente'))['total'] or Decimal('0.00')
 
     return {
-        'comision_proyectada': proyectada,
-        'comision_confirmada': confirmada,
+        'comision_total': total,
+        'comision_recibida': recibida,
+        'comision_pendiente': pendiente,
     }
+
+
+def detalle_comisiones_mes(user, mes, anio, limit=200):
+    """Listado de comisiones por venta del mes (para modal en dashboard)."""
+    return list(
+        ComisionVenta.objects.filter(
+            vendedor=user,
+            mes=mes,
+            anio=anio,
+        ).select_related(
+            'venta',
+            'venta__cliente',
+        ).order_by('-venta__fecha_creacion')[:limit]
+    )
 
 
 # --------------- FASE 3: Kilómetros Movums ---------------

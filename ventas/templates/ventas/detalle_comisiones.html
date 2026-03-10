@@ -9,9 +9,11 @@
     <h1 class="text-primary">
         <i class="fas fa-chart-line"></i> Detalle de Comisiones - {{ vendedor.get_full_name|default:vendedor.username }}
     </h1>
-    <a href="{% url 'reporte_comisiones' %}?mes={{ mes_filtro }}&anio={{ anio_filtro }}" class="btn btn-secondary">
-        <i class="fas fa-arrow-left me-2"></i>Volver al Reporte
-    </a>
+    <div class="d-flex gap-2">
+        <a href="{% url 'reporte_comisiones' %}?mes={{ mes_filtro }}&anio={{ anio_filtro }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Volver al Reporte
+        </a>
+    </div>
 </div>
 
 {# Filtros por mes y año #}
@@ -41,7 +43,7 @@
             </div>
             <div class="col-md-4">
                 <button type="submit" class="btn btn-primary w-100">
-                    <i class="fas fa-filter me-2"></i>Filtrar
+                    <i class="fas fa-search me-2"></i>Buscar
                 </button>
             </div>
         </form>

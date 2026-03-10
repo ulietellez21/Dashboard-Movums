@@ -628,6 +628,7 @@ class DashboardView(LoginRequiredMixin, ListView):
             # Fase 2: Cobranza y Comisiones
             context['kpis_cobranza'] = dv.kpis_cobranza(user, fecha_inicio, fecha_fin)
             context['kpis_comisiones'] = dv.kpis_comisiones(user, hoy.month, hoy.year)
+            context['comisiones_mes_detalle'] = dv.detalle_comisiones_mes(user, hoy.month, hoy.year)
 
             # Fase 3: Kilómetros Movums
             context['kpis_kilometros'] = dv.kpis_kilometros(user, fecha_inicio, fecha_fin)
@@ -11919,6 +11920,8 @@ class DetalleComisionesView(LoginRequiredMixin, TemplateView):
             vendedor=vendedor,
             fecha_creacion__gte=fecha_inicio,
             fecha_creacion__lt=fecha_fin
+        ).exclude(
+            estado='CANCELADA'
         ).select_related(
             'cliente', 'proveedor'
         ).prefetch_related(
@@ -11961,6 +11964,10 @@ class DetalleComisionesView(LoginRequiredMixin, TemplateView):
                 moneda_base = 'MXN'
                 monto_base_usd = None
             
+            # Solo ventas que generan comisión (base > 0)
+            if base_comision <= 0:
+                continue
+
             total_ventas_periodo += base_comision
             
             # Calcular estado de pago
@@ -12054,6 +12061,7 @@ class DetalleComisionesView(LoginRequiredMixin, TemplateView):
             'ejecutivo': ejecutivo,
             'tipo_vendedor': tipo_vendedor,
             'ventas_detalle': ventas_detalle,
+            'ventas_detalle_count': len(ventas_detalle),
             'user_rol': user_rol,
             'sueldo_base': sueldo_base,
             'total_ventas_periodo': total_ventas_periodo,
@@ -12272,7 +12280,9 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
             raise PermissionDenied("No tienes permiso para exportar este detalle")
         
         # OPTIMIZACIÓN N+1: Obtener ventas con prefetch y anotación
-        ventas_base = VentaViaje.objects.filter(vendedor=vendedor).select_related(
+        ventas_base = VentaViaje.objects.filter(vendedor=vendedor).exclude(
+            estado='CANCELADA'
+        ).select_related(
             'cliente'
         ).prefetch_related(
             Prefetch(
@@ -12324,6 +12334,10 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
                 costo_total = costo_venta + costo_modificacion
                 total_pagado = total_pagado_calc
                 base_comision = costo_venta
+
+            # Solo ventas comisionables (base > 0)
+            if base_comision <= 0:
+                continue
             
             # Verificar si está pagada completamente
             esta_pagada = total_pagado >= costo_total and costo_total > 0
@@ -12451,11 +12465,12 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
         row += 1
 
         # Detalle de ventas PAGADAS (título de sección)
-        NUM_COL_PAGADAS = 9
+        # Mostrar también Total/Pagada/Pendiente para claridad visual (100% vs 30%)
+        NUM_COL_PAGADAS = 11
         ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=NUM_COL_PAGADAS)
         sec_cell = ws.cell(row=row, column=1, value="DETALLE DE VENTAS PAGADAS (100% comisión)")
         sec_cell.font = Font(bold=True, color="FFFFFF", size=12)
-        sec_cell.fill = header_fill
+        sec_cell.fill = PatternFill(start_color="22C55E", end_color="22C55E", fill_type="solid")
         sec_cell.alignment = align_center
         sec_cell.border = border_medium
         row += 1
@@ -12463,11 +12478,11 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
         headers = [
             'Folio venta', 'Cliente', 'Total Venta', 'Pagado',
             'Tarifa Base USD', 'Suplementos USD', 'Tours USD', 'Impuestos USD (excl.)',
-            'Comisión',
+            'Comisión Total (100%)', 'Comisión Pagada', 'Comisión Pendiente',
         ]
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=row, column=col, value=header)
-            cell.fill = header_fill
+            cell.fill = PatternFill(start_color="22C55E", end_color="22C55E", fill_type="solid")
             cell.font = header_font
             cell.border = border
             cell.alignment = align_center
@@ -12525,6 +12540,8 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
                     _float_detalle('tours_usd'),
                     _float_detalle('impuestos_usd'),
                     f"USD {float(comision_venta_usd):,.2f}",
+                    f"USD {float(comision_venta_usd):,.2f}",
+                    f"USD {0.00:,.2f}",
                 ]
             else:
                 total_ventas_mxn += costo_total
@@ -12538,6 +12555,8 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
                     float(total_pagado),
                     '', '', '', '',  # columnas desglose vacías para MXN
                     float(comision_venta),
+                    float(comision_venta),
+                    float(Decimal('0.00')),
                 ]
             
             for c, val in enumerate(valores_fila, 1):
@@ -12549,7 +12568,7 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
                     cell.number_format = '#,##0.00'
             row += 1
         
-        # Filas de totales separadas por moneda (ventas pagadas) — columnas 3, 4, 9
+        # Filas de totales separadas por moneda (ventas pagadas) — columnas 3, 4, 9, 10, 11
         if ventas_detalle_pagadas:
             row += 1
             totales_fill_bold = PatternFill(start_color="D4C5F9", end_color="D4C5F9", fill_type="solid")
@@ -12564,7 +12583,13 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
                 for c in range(2, NUM_COL_PAGADAS + 1):
                     ws.cell(row=row, column=c).fill = totales_fill_bold
                     ws.cell(row=row, column=c).border = border_medium
-                for col, total_val in [(3, total_ventas_mxn), (4, total_pagado_mxn), (9, total_comision_mxn)]:
+                for col, total_val in [
+                    (3, total_ventas_mxn),
+                    (4, total_pagado_mxn),
+                    (9, total_comision_mxn),
+                    (10, total_comision_mxn),
+                    (11, Decimal('0.00')),
+                ]:
                     cell = ws.cell(row=row, column=col, value=float(total_val))
                     cell.number_format = '#,##0.00'
                     cell.fill = totales_fill_bold
@@ -12582,7 +12607,13 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
                 for c in range(2, NUM_COL_PAGADAS + 1):
                     ws.cell(row=row, column=c).fill = totales_fill_usd
                     ws.cell(row=row, column=c).border = border_medium
-                for col, total_val in [(3, total_ventas_usd), (4, total_pagado_usd), (9, total_comision_usd)]:
+                for col, total_val in [
+                    (3, total_ventas_usd),
+                    (4, total_pagado_usd),
+                    (9, total_comision_usd),
+                    (10, total_comision_usd),
+                    (11, Decimal('0.00')),
+                ]:
                     cell = ws.cell(row=row, column=col, value=float(total_val))
                     cell.number_format = '#,##0.00'
                     cell.fill = totales_fill_usd
@@ -12598,7 +12629,7 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
             ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=NUM_COL_PENDIENTES)
             sec_cell_pend = ws.cell(row=row, column=1, value="DETALLE DE VENTAS PENDIENTES (30% comisión pagada, 70% pendiente)")
             sec_cell_pend.font = Font(bold=True, color="FFFFFF", size=12)
-            sec_cell_pend.fill = PatternFill(start_color="FF6B6B", end_color="FF6B6B", fill_type="solid")
+            sec_cell_pend.fill = PatternFill(start_color="F59E0B", end_color="F59E0B", fill_type="solid")
             sec_cell_pend.alignment = align_center
             sec_cell_pend.border = border_medium
             row += 1
@@ -12608,7 +12639,7 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
                 'Tarifa Base USD', 'Suplementos USD', 'Tours USD', 'Impuestos USD (excl.)',
                 'Comisión Pagada (30%)', 'Comisión Pendiente (70%)',
             ]
-            fill_pend = PatternFill(start_color="FF6B6B", end_color="FF6B6B", fill_type="solid")
+            fill_pend = PatternFill(start_color="F59E0B", end_color="F59E0B", fill_type="solid")
             for col, header in enumerate(headers_pend, 1):
                 cell = ws.cell(row=row, column=col, value=header)
                 cell.fill = fill_pend
@@ -12751,8 +12782,9 @@ class ExportarComisionesExcelView(LoginRequiredMixin, View):
         ws.column_dimensions['F'].width = 14  # Suplementos USD
         ws.column_dimensions['G'].width = 12  # Tours USD
         ws.column_dimensions['H'].width = 18  # Impuestos USD (excl.)
-        ws.column_dimensions['I'].width = 18
-        ws.column_dimensions['J'].width = 18
+        ws.column_dimensions['I'].width = 18   # Comisión total
+        ws.column_dimensions['J'].width = 18   # Comisión pagada
+        ws.column_dimensions['K'].width = 18   # Comisión pendiente
         ws.freeze_panes = 'A3'
 
         # Preparar respuesta
