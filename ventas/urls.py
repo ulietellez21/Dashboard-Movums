@@ -40,6 +40,7 @@ from .views import (
     CotizacionListView,
     CotizacionCreateView,
     CotizacionUpdateView,
+    CotizacionAdjudicarView,
     CotizacionDetailView,
     CotizacionDocxView,
     CotizacionPDFView,
@@ -110,6 +111,7 @@ urlpatterns = [
     path('cotizaciones/', CotizacionListView.as_view(), name='cotizaciones_lista'),
     path('cotizaciones/nueva/', CotizacionCreateView.as_view(), name='cotizacion_crear'),
     path('cotizaciones/<slug:slug>/', CotizacionDetailView.as_view(), name='cotizacion_detalle'),
+    path('cotizaciones/<slug:slug>/adjudicar/', CotizacionAdjudicarView.as_view(), name='cotizacion_adjudicar'),
     path('cotizaciones/<slug:slug>/editar/', CotizacionUpdateView.as_view(), name='cotizacion_editar'),
     path('cotizaciones/<slug:slug>/docx/', CotizacionDocxView.as_view(), name='cotizacion_docx'),  # Deprecated, mantener por compatibilidad
     path('cotizaciones/<slug:slug>/pdf/', CotizacionPDFView.as_view(), name='cotizacion_pdf'),

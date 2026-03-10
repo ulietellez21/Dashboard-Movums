@@ -3,7 +3,11 @@
 Capa centralizada de permisos por rol.
 Usar en vistas (test_func, get_queryset) y en templates (templatetags).
 """
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
+from django.db.models import Q
+from django.utils import timezone
 
 User = get_user_model()
 
@@ -278,6 +282,47 @@ def can_view_cotizacion(user, cotizacion, request=None):
     if is_vendedor(user, request):
         return cotizacion.vendedor_id == user.pk
     return True
+
+
+def is_director_o_superior(user, request=None):
+    """
+    Director (Ventas, Administrativo, General), Jefe o Director General.
+    Pueden adjudicar cotizaciones sin restricción de tiempo ni de "una sola vez".
+    """
+    rol = get_user_role(user, request)
+    return rol in (ROL_JEFE, ROL_DIRECTOR_GENERAL, ROL_DIRECTOR_VENTAS, ROL_DIRECTOR_ADMINISTRATIVO)
+
+
+def can_adjudicate_cotizacion(user, cotizacion, request=None):
+    """
+    True si el usuario puede adjudicar o cambiar el vendedor de la cotización.
+    - Director o superior: siempre.
+    - Resto: solo si la cotización no ha sido adjudicada antes y tiene menos de 1 día de creada.
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if is_director_o_superior(user, request):
+        return True
+    if getattr(cotizacion, 'vendedor_adjudicado_en', None) is not None:
+        return False
+    creada = getattr(cotizacion, 'creada_en', None)
+    if not creada:
+        return True
+    return timezone.now() - creada <= timedelta(days=1)
+
+
+def get_queryset_vendedores_adjudicables(user, request=None):
+    """
+    Queryset de usuarios a los que se puede adjudicar una cotización.
+    Incluye asesores de campo definidos en Perfil.tipo_vendedor O en Ejecutivo.tipo_vendedor
+    (Gestión de Roles usa Ejecutivo; así aparece quien sea "Asesor de Campo" en cualquiera de los dos).
+    """
+    return User.objects.filter(
+        perfil__rol=ROL_VENDEDOR,
+        is_active=True
+    ).filter(
+        Q(perfil__tipo_vendedor='CAMPO') | Q(ejecutivo_asociado__tipo_vendedor='CAMPO')
+    ).order_by('first_name', 'last_name', 'username').distinct()
 
 
 def can_view_venta(user, venta, request=None):

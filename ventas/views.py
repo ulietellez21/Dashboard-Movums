@@ -81,6 +81,7 @@ from .forms import (
     EjecutivoForm,
     OficinaForm,
     CotizacionForm,
+    CotizacionAdjudicarForm,
     SolicitarAbonoProveedorForm,
     ConfirmarAbonoProveedorForm,
     SolicitudCancelacionForm,
@@ -2258,10 +2259,7 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         # 1. Guarda temporalmente la instancia sin enviarla a la base de datos (commit=False)
         instance = form.save(commit=False)
         
-        # 2. Asigna el vendedor (que es el usuario logueado)
-        instance.vendedor = self.request.user
-        
-        # Si viene de cotización, enlazar (verificar GET parameter o sesión). Solo cotizaciones propias del vendedor.
+        # Si viene de cotización, enlazar y usar su vendedor (para que la venta cuente del asesor adjudicado)
         cot = None
         qs_cot = perm.get_cotizaciones_queryset_base(Cotizacion, self.request.user, self.request)
         cot_slug = self.request.GET.get('cotizacion')
@@ -2281,6 +2279,10 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         
         if cot:
             instance.cotizacion_origen = cot
+            # La venta debe quedar del vendedor de la cotización (asesor adjudicado) para comisiones y reportes
+            instance.vendedor = cot.vendedor if cot.vendedor_id else self.request.user
+        else:
+            instance.vendedor = self.request.user
 
         # 3. ¡IMPORTANTE! Eliminamos la lógica manual de generación de slug de aquí.
         # El modelo VentaViaje se encarga de generar y asegurar el slug único 
@@ -13571,6 +13573,46 @@ class CotizacionUpdateView(LoginRequiredMixin, UpdateView):
         return reverse('cotizacion_detalle', kwargs={'slug': self.object.slug})
 
 
+class CotizacionAdjudicarView(LoginRequiredMixin, View):
+    """
+    Adjudica la cotización a un vendedor (por ahora solo asesores de campo).
+    Solo se puede ejecutar una vez por no-directores; pasado 1 día solo director.
+    """
+    def get_cotizacion(self):
+        qs = perm.get_cotizaciones_queryset_base(Cotizacion, self.request.user, self.request)
+        return get_object_or_404(qs.select_related('vendedor'), slug=self.kwargs['slug'])
+
+    def post(self, request, *args, **kwargs):
+        cotizacion = self.get_cotizacion()
+        if not perm.can_adjudicate_cotizacion(request.user, cotizacion, request):
+            messages.error(
+                request,
+                'No puedes adjudicar esta cotización: ya fue adjudicada o pasó más de un día desde su creación. Solo un director puede cambiarla.'
+            )
+            return redirect('cotizacion_detalle', slug=cotizacion.slug)
+        form = CotizacionAdjudicarForm(request.POST, request=request)
+        if not form.is_valid():
+            for _field, errors in form.errors.items():
+                for err in errors:
+                    messages.error(request, err)
+            return redirect('cotizacion_detalle', slug=cotizacion.slug)
+        nuevo_vendedor = form.cleaned_data['vendedor']
+        adjudicables = perm.get_queryset_vendedores_adjudicables(request.user, request)
+        if not adjudicables.filter(pk=nuevo_vendedor.pk).exists():
+            messages.error(request, 'El vendedor seleccionado no es válido para adjudicación.')
+            return redirect('cotizacion_detalle', slug=cotizacion.slug)
+        cotizacion.vendedor = nuevo_vendedor
+        if not perm.is_director_o_superior(request.user, request):
+            cotizacion.vendedor_adjudicado_en = timezone.now()
+            cotizacion.save(update_fields=['vendedor', 'vendedor_adjudicado_en'])
+        else:
+            cotizacion.save(update_fields=['vendedor'])
+        # Redirigir al detalle de la cotización si el usuario puede verla; si no (ej. ya no es suya), a la lista
+        if perm.can_view_cotizacion(request.user, cotizacion, request):
+            return redirect('cotizacion_detalle', slug=cotizacion.slug)
+        return redirect('cotizaciones_lista')
+
+
 class CotizacionDetailView(LoginRequiredMixin, DetailView):
     model = Cotizacion
     template_name = 'ventas/cotizacion_detail.html'
@@ -13586,6 +13628,13 @@ class CotizacionDetailView(LoginRequiredMixin, DetailView):
         if not obj.folio:
             obj.save(update_fields=[])  # trigger folio generation
         return obj
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        cotizacion = context['cotizacion']
+        context['can_adjudicate'] = perm.can_adjudicate_cotizacion(self.request.user, cotizacion, self.request)
+        context['adjudicar_form'] = CotizacionAdjudicarForm(request=self.request)
+        return context
 
 
 class CotizacionDocxView(LoginRequiredMixin, DetailView):

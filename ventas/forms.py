@@ -2442,6 +2442,25 @@ class CotizacionForm(forms.ModelForm):
         return instance
 
 
+# ------------------- CotizacionAdjudicarForm -------------------
+
+class CotizacionAdjudicarForm(forms.Form):
+    """Formulario para adjudicar una cotización a un vendedor (por ahora solo asesores de campo)."""
+    vendedor = forms.ModelChoiceField(
+        queryset=User.objects.none(),
+        required=True,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Adjudicar a',
+        help_text='Seleccione el asesor de campo al que se adjudicará esta cotización.'
+    )
+
+    def __init__(self, *args, request=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if request and request.user.is_authenticated:
+            from usuarios import permissions as perm
+            self.fields['vendedor'].queryset = perm.get_queryset_vendedores_adjudicables(request.user, request)
+
+
 # ------------------- SolicitudCancelacionForm -------------------
 
 class SolicitudCancelacionForm(forms.ModelForm):

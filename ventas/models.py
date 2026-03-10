@@ -1993,6 +1993,13 @@ class Cotizacion(models.Model):
 
     creada_en = models.DateTimeField(auto_now_add=True)
     actualizada_en = models.DateTimeField(auto_now=True)
+    # Marca la primera adjudicación de vendedor; solo directores pueden cambiar después o pasados 1 día
+    vendedor_adjudicado_en = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Adjudicada a vendedor en",
+        help_text="Fecha/hora en que se adjudicó por primera vez a un vendedor. Pasado 1 día o tras esta adjudicación, solo un director puede cambiar el vendedor."
+    )
 
     class Meta:
         ordering = ['-creada_en']
