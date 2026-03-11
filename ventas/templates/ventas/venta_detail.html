@@ -2,6 +2,7 @@
 {% load humanize %}
 {% load widget_tweaks %} 
 {% load venta_filters %}
+{% load permisos_tags %}
 {% load static %}
 {% block title %}Venta {{ venta.folio|default:venta.id }} | {{ venta.cliente.nombre_completo_display }}{% endblock %}
 
@@ -263,6 +264,7 @@
             <div class="tab-pane fade" id="abonos" role="tabpanel" aria-labelledby="abonos-tab">
                 <div class="row">
                     <div class="col-md-4">
+                        {% if not user|is_solo_lectura_ventas %}
                         <div class="card mb-4 shadow-sm border-success">
                             <div class="card-header bg-success text-white">
                                 Registrar Nuevo Abono
@@ -327,6 +329,13 @@
                                 {% endif %}
                             </div>
                         </div>
+                        {% else %}
+                        <div class="card mb-4 shadow-sm border-secondary">
+                            <div class="card-body text-center text-muted">
+                                <i class="fas fa-eye me-1"></i> Solo consulta. No puedes registrar ni confirmar abonos.
+                            </div>
+                        </div>
+                        {% endif %}
                     </div>
 
                     <div class="col-md-8">

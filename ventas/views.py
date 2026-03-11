@@ -1254,7 +1254,10 @@ class _VentaViajeDetailViewPostMixin:
 
         # 3. Manejo del Formulario de Abono
         elif 'registrar_abono' in request.POST:
-            # CONTADOR solo lectura, no puede registrar abonos
+            # Consultor solo lectura y CONTADOR solo lectura no pueden registrar abonos
+            if perm.is_solo_lectura_ventas(request.user, request):
+                messages.error(request, "No tienes permiso para registrar abonos. Solo puedes visualizarlos.")
+                return redirect(reverse('detalle_venta', kwargs={'pk': self.object.pk, 'slug': self.object.slug_safe}) + '?tab=abonos')
             user_rol = perm.get_user_role(request.user, request)
             if user_rol == 'CONTADOR':
                 messages.error(request, "No tienes permiso para registrar abonos. Solo puedes visualizarlos.")
