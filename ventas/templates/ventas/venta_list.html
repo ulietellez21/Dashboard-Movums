@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load humanize %}
 {% load static %}
+{% load permisos_tags %}
 
 {# Asegúrate de que tienes una URL configurada como 'eliminar_venta' que acepte el PK #}
 
@@ -11,14 +12,16 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
 <h1>
 <i class="fas fa-handshake"></i>
-{% if user.perfil.rol == 'JEFE' or user.perfil.rol == 'CONTADOR' %}
+{% if user|is_solo_lectura_ventas %}
+Ventas (solo lectura)
+{% elif user.perfil.rol == 'JEFE' or user.perfil.rol == 'CONTADOR' %}
 Gestión de Contratos (Total) 📊
 {% else %}
 Mis Ventas 💼
 {% endif %}
 </h1>
 {% with user.perfil.rol|default:""|upper as user_rol %}
-    {% if "CONTADOR" not in user_rol %}
+    {% if not user|is_solo_lectura_ventas and "CONTADOR" not in user_rol %}
         <div class="d-flex flex-wrap gap-2">
             <a href="{% url 'crear_venta' %}" class="btn btn-success">
                 <i class="fas fa-plus-circle"></i> Registrar Nueva Venta

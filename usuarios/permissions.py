@@ -67,6 +67,19 @@ def _is_rol(user, rol, request=None):
     return get_user_role(user, request) == rol
 
 
+def is_solo_lectura_ventas(user, request=None):
+    """
+    Usuario consultor: solo ve ventas (listado/detalle) y calendario en dashboard, sin modificar nada.
+    No es un rol; es un flag en Perfil (solo_lectura_ventas).
+    """
+    if not user or not user.is_authenticated:
+        return False
+    try:
+        return getattr(user.perfil, 'solo_lectura_ventas', False)
+    except Exception:
+        return False
+
+
 def is_jefe(user, request=None):
     return _is_rol(user, ROL_JEFE, request)
 
@@ -104,25 +117,27 @@ def has_full_access(user, request=None):
 # ---------- Permisos por módulo / template ----------
 
 def can_manage_roles(user, request=None):
-    """Quién puede ver/gestión el template Gestión de Roles."""
+    """Quién puede ver/gestión el template Gestión de Roles. Consultor solo lectura no."""
+    if is_solo_lectura_ventas(user, request):
+        return False
     if has_full_access(user, request):
         return True
     return is_director_administrativo(user, request)
 
 
 def can_manage_suppliers(user, request=None):
-    """Quién puede ver el template Proveedores."""
+    """Quién puede ver el template Proveedores. Consultor solo lectura no."""
+    if is_solo_lectura_ventas(user, request):
+        return False
     if has_full_access(user, request):
         return True
     return is_director_administrativo(user, request)
 
 
 def can_view_financial_report(user, request=None):
-    """
-    Quién puede ver el template Reporte Financiero.
-    Director Administrativo NO lo ve. Contador NO lo ve (solo dashboard, clientes, ventas, logística, autorizaciones).
-    Resto de directores, gerente y vendedor sí (vendedor solo verá sus ventas en la vista).
-    """
+    """Consultor solo lectura no ve reporte financiero."""
+    if is_solo_lectura_ventas(user, request):
+        return False
     if has_full_access(user, request):
         return True
     if is_director_administrativo(user, request) or is_contador(user, request):
@@ -131,7 +146,8 @@ def can_view_financial_report(user, request=None):
 
 
 def can_view_financial_report_global(user, request=None):
-    """Quién ve el reporte financiero global (todos los datos). Vendedor ve solo el suyo en la misma vista."""
+    if is_solo_lectura_ventas(user, request):
+        return False
     if has_full_access(user, request):
         return True
     if is_director_administrativo(user, request):
@@ -140,7 +156,8 @@ def can_view_financial_report_global(user, request=None):
 
 
 def can_edit_km_movums(user, request=None):
-    """Quién puede editar en Kilómetros Movums. Vendedores solo consulta."""
+    if is_solo_lectura_ventas(user, request):
+        return False
     if has_full_access(user, request):
         return True
     if is_vendedor(user, request):
@@ -149,7 +166,8 @@ def can_edit_km_movums(user, request=None):
 
 
 def can_view_km_movums(user, request=None):
-    """Quién puede ver el template Kilómetros Movums (consulta o más)."""
+    if is_solo_lectura_ventas(user, request):
+        return False
     if has_full_access(user, request):
         return True
     if is_director_administrativo(user, request) or is_director_ventas(user, request) or is_gerente(user, request) or is_contador(user, request):
@@ -158,7 +176,8 @@ def can_view_km_movums(user, request=None):
 
 
 def can_view_logistica_pendiente(user, request=None):
-    """Quién puede ver Logística Pendiente."""
+    if is_solo_lectura_ventas(user, request):
+        return False
     if has_full_access(user, request):
         return True
     return (
@@ -168,19 +187,25 @@ def can_view_logistica_pendiente(user, request=None):
 
 
 def can_view_pagos_por_confirmar(user, request=None):
-    """Template de autorizaciones (pagos por confirmar): Solo Contador."""
+    if is_solo_lectura_ventas(user, request):
+        return False
     return is_contador(user, request)
 
 
 def can_view_reporte_comisiones(user, request=None):
-    """Quién puede ver Reporte de Comisiones."""
+    if is_solo_lectura_ventas(user, request):
+        return False
     rol = get_user_role(user, request)
     return rol in (ROL_JEFE, ROL_DIRECTOR_GENERAL, ROL_DIRECTOR_ADMINISTRATIVO,
                    ROL_DIRECTOR_VENTAS, ROL_GERENTE, ROL_CONTADOR, ROL_VENDEDOR)
 
 
 def can_view_clientes(user, request=None):
-    """Quién puede ver el menú/listado Clientes."""
+    """Quién puede ver el menú/listado Clientes. Consultor solo lectura no ve clientes."""
+    if not user or not user.is_authenticated:
+        return False
+    if is_solo_lectura_ventas(user, request):
+        return False
     if has_full_access(user, request):
         return True
     return (
@@ -190,13 +215,21 @@ def can_view_clientes(user, request=None):
 
 
 def can_view_ventas(user, request=None):
-    """Quién puede ver el menú Ventas (listado filtrado por rol)."""
-    return user and user.is_authenticated
+    """Quién puede ver el menú Ventas (listado filtrado por rol). Incluye consultor solo lectura."""
+    if not user or not user.is_authenticated:
+        return False
+    if is_solo_lectura_ventas(user, request):
+        return True
+    return True
 
 
 def can_view_cotizaciones(user, request=None):
-    """Quién puede ver el menú Cotizaciones."""
-    return user and user.is_authenticated
+    """Quién puede ver el menú Cotizaciones. Consultor solo lectura no ve cotizaciones."""
+    if not user or not user.is_authenticated:
+        return False
+    if is_solo_lectura_ventas(user, request):
+        return False
+    return True
 
 
 # ---------- Contador: solo dashboard, clientes, ventas, logística pendiente, pagos por confirmar ----------
@@ -220,29 +253,27 @@ def contador_can_see_section(user, section, request=None):
 def get_ventas_queryset_base(model, user, request=None, optimize=False):
     """
     Devuelve el queryset base de ventas según el rol.
+    - Consultor solo lectura: todas (solo lectura).
     - JEFE / Director General: todas.
     - Director Admin / Director Ventas / Gerente: todas (gerente se filtra por oficina después).
     - Contador: todas.
     - Vendedor: solo ventas propias.
-    
-    Args:
-        model: Modelo VentaViaje
-        user: Usuario actual
-        request: Request HTTP (opcional, para cache de rol)
-        optimize: Si True, aplica select_related y prefetch_related estándar
     """
-    rol = get_user_role(user, request)
-    if rol in (ROL_JEFE, ROL_DIRECTOR_GENERAL, ROL_DIRECTOR_ADMINISTRATIVO, ROL_DIRECTOR_VENTAS, ROL_CONTADOR):
+    if is_solo_lectura_ventas(user, request):
         qs = model.objects.all()
-    elif rol == ROL_GERENTE:
-        oficina_id = _get_gerente_oficina_id(user)
-        if not oficina_id:
-            return model.objects.none()
-        qs = model.objects.filter(vendedor__ejecutivo_asociado__oficina_id=oficina_id)
-    elif rol == ROL_VENDEDOR:
-        qs = model.objects.filter(vendedor=user)
     else:
-        return model.objects.none()
+        rol = get_user_role(user, request)
+        if rol in (ROL_JEFE, ROL_DIRECTOR_GENERAL, ROL_DIRECTOR_ADMINISTRATIVO, ROL_DIRECTOR_VENTAS, ROL_CONTADOR):
+            qs = model.objects.all()
+        elif rol == ROL_GERENTE:
+            oficina_id = _get_gerente_oficina_id(user)
+            if not oficina_id:
+                return model.objects.none()
+            qs = model.objects.filter(vendedor__ejecutivo_asociado__oficina_id=oficina_id)
+        elif rol == ROL_VENDEDOR:
+            qs = model.objects.filter(vendedor=user)
+        else:
+            return model.objects.none()
     
     # OPTIMIZACIÓN N+1: Aplicar select_related y prefetch básico si se solicita
     if optimize:
@@ -326,7 +357,9 @@ def get_queryset_vendedores_adjudicables(user, request=None):
 
 
 def can_view_venta(user, venta, request=None):
-    """Indica si el usuario puede ver esta venta concreta."""
+    """Indica si el usuario puede ver esta venta concreta. Consultor solo lectura puede ver todas."""
+    if is_solo_lectura_ventas(user, request):
+        return True
     rol = get_user_role(user, request)
     if has_full_access(user) or rol in (ROL_DIRECTOR_ADMINISTRATIVO, ROL_DIRECTOR_VENTAS, ROL_CONTADOR):
         return True
@@ -376,24 +409,25 @@ def can_solicitar_abono_proveedor(user, request=None):
 def can_edit_venta(user, venta=None, request=None):
     """
     Quién puede editar una venta.
-    Si venta es None, verifica permisos generales de edición.
+    Consultor solo lectura no puede editar.
     """
+    if is_solo_lectura_ventas(user, request):
+        return False
     if has_full_access(user, request):
         return True
     if venta is None:
-        # Permiso general: vendedores y contadores pueden crear/editar
         return is_vendedor(user, request) or is_contador(user, request)
-    # Permiso específico: vendedor solo puede editar sus propias ventas
     if is_vendedor(user, request):
         return venta.vendedor_id == user.id
     return is_contador(user, request) or is_gerente(user, request)
 
 
 def can_delete_venta(user, venta, request=None):
-    """Quién puede eliminar una venta."""
+    """Quién puede eliminar una venta. Consultor solo lectura no puede."""
+    if is_solo_lectura_ventas(user, request):
+        return False
     if has_full_access(user, request):
         return True
-    # Vendedor solo puede eliminar sus propias ventas
     if is_vendedor(user, request):
         return venta.vendedor_id == user.id
     return False
@@ -409,9 +443,10 @@ def can_edit_campos_bloqueados(user, request=None):
 def can_edit_datos_viaje(user, request=None):
     """
     Quién puede ver/usar el botón "Editar datos del viaje" en el detalle de venta.
-    Incluye: JEFE, Gerente y los 3 tipos de directores (General, Administrativo, Ventas).
-    Excluidos: Contador, Vendedor.
+    Consultor solo lectura no puede.
     """
+    if is_solo_lectura_ventas(user, request):
+        return False
     if has_full_access(user, request):  # JEFE, Director General
         return True
     rol = get_user_role(user, request)
@@ -423,10 +458,9 @@ def can_edit_datos_viaje(user, request=None):
 
 
 def can_approve_reject_cancelacion(user, request=None):
-    """
-    Quién puede aprobar o rechazar una solicitud de cancelación de venta.
-    Solo: JEFE, Director General y Director Administrativo (antes solo daviddiaz).
-    """
+    """Consultor solo lectura no puede aprobar/rechazar cancelaciones."""
+    if is_solo_lectura_ventas(user, request):
+        return False
     rol = get_user_role(user, request)
     return rol in (
         ROL_JEFE,
@@ -436,11 +470,9 @@ def can_approve_reject_cancelacion(user, request=None):
 
 
 def can_edit_logistica_campos_restringidos(user, request=None):
-    """
-    Quién puede editar monto planificado/pagado cuando YA tienen valores, y nombre del proveedor siempre.
-    Solo: JEFE, Director General y Director Administrativo.
-    Cualquier rol puede llenar monto/pagado por primera vez (cuando están vacíos).
-    """
+    """Consultor solo lectura no puede editar logística."""
+    if is_solo_lectura_ventas(user, request):
+        return False
     rol = get_user_role(user, request)
     return rol in (
         ROL_JEFE,

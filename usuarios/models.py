@@ -42,6 +42,13 @@ class Perfil(models.Model):
         help_text='Solo para rol Gerente: limita la vista a datos de esta oficina.'
     )
 
+    # Usuario solo lectura ventas: ve listado/detalle de ventas y calendario en dashboard, sin editar nada.
+    solo_lectura_ventas = models.BooleanField(
+        default=False,
+        verbose_name='Solo lectura ventas',
+        help_text='Si está activo, el usuario solo puede ver ventas y el calendario de viajes en el dashboard, sin crear ni modificar nada.'
+    )
+
     def __str__(self):
         return f'{self.user.username} - {self.get_rol_display()}'
 

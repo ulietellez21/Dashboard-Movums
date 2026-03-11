@@ -423,6 +423,33 @@ class DashboardView(LoginRequiredMixin, ListView):
         context['user_rol'] = user_rol
         context['puede_aprobar_rechazar_cancelacion'] = perm.can_approve_reject_cancelacion(user, self.request)
         
+        # --- Consultor solo lectura: solo calendario de viajes en el dashboard ---
+        if perm.is_solo_lectura_ventas(user, self.request):
+            context['consultor_solo_lectura'] = True
+            hoy = timezone.localdate()
+            try:
+                calendario_anio = int(self.request.GET.get('calendario_anio', hoy.year))
+                calendario_mes = int(self.request.GET.get('calendario_mes', hoy.month))
+                if calendario_mes < 1 or calendario_mes > 12:
+                    calendario_mes = hoy.month
+                if calendario_anio < 2000 or calendario_anio > 2100:
+                    calendario_anio = hoy.year
+            except (ValueError, TypeError):
+                calendario_anio, calendario_mes = hoy.year, hoy.month
+            context['calendario_mes'] = calendario_mes
+            context['calendario_anio'] = calendario_anio
+            context['calendario_anios'] = [calendario_anio + i for i in range(-2, 3)]
+            context['fecha_filtro'] = self.request.GET.get('fecha_filtro', '')
+            context['fecha_desde'] = self.request.GET.get('fecha_desde', '')
+            context['fecha_hasta'] = self.request.GET.get('fecha_hasta', '')
+            context.setdefault('total_ingresos_mtd', Decimal('0.00'))
+            context.setdefault('total_ventas', 0)
+            context.setdefault('nuevos_clientes_mtd', 0)
+            context.setdefault('envios_pendientes', 0)
+            context.setdefault('cotizaciones_pendientes_vendedor', [])
+            context['ventas_filtradas'] = []
+            return context
+
         # Inicializar notificaciones vacías por defecto (para evitar errores en template)
         context['notificaciones'] = Notificacion.objects.none()
         context['notificaciones_count'] = 0
@@ -769,11 +796,11 @@ def calendario_eventos_api(request):
     """
     API JSON para el calendario de viajes (check-in). Soporta navegación sin recargar.
     GET: mes, anio (opcionales, por defecto mes/año actual).
-    Solo VENDEDOR, GERENTE, DIRECTOR_ADMINISTRATIVO.
+    Solo VENDEDOR, GERENTE, DIRECTOR_ADMINISTRATIVO o consultor solo lectura.
     """
     user = request.user
     user_rol = perm.get_user_role(user, request)
-    if user_rol not in ('VENDEDOR', 'GERENTE', 'DIRECTOR_ADMINISTRATIVO'):
+    if user_rol not in ('VENDEDOR', 'GERENTE', 'DIRECTOR_ADMINISTRATIVO') and not perm.is_solo_lectura_ventas(user, request):
         return JsonResponse({'error': 'No autorizado'}, status=403)
     hoy = timezone.localdate()
     try:
@@ -1957,7 +1984,9 @@ class VentaViajeCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     template_name = 'ventas/venta_form.html'
     
     def test_func(self):
-        """Todos los roles autenticados pueden crear ventas (incluye convertir cotizaciones)."""
+        """Consultor solo lectura no puede crear ventas."""
+        if perm.is_solo_lectura_ventas(self.request.user, self.request):
+            return False
         return self.request.user.is_authenticated
     
     def handle_no_permission(self):
@@ -2516,8 +2545,9 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     template_name = 'ventas/venta_form.html' # Usar el template de formulario si es UpdateView
 
     def test_func(self):
-        # Botón "Editar datos del viaje": exclusivo de Gerente y los 3 directores (General, Administrativo, Ventas).
-        # JEFE, Contador y Vendedor no pueden acceder a esta vista.
+        """Consultor solo lectura no puede editar. Resto: solo Gerente y directores."""
+        if perm.is_solo_lectura_ventas(self.request.user, self.request):
+            return False
         return perm.can_edit_datos_viaje(self.request.user, self.request)
     
     def get_form_kwargs(self):
@@ -6762,7 +6792,8 @@ class VentaViajeDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     success_url = reverse_lazy('lista_ventas')
 
     def test_func(self):
-        # Solo permite eliminar a JEFE
+        if perm.is_solo_lectura_ventas(self.request.user, self.request):
+            return False
         user_rol = perm.get_user_role(self.request.user, self.request)
         if user_rol != 'JEFE':
             return False

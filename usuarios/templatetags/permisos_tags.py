@@ -62,6 +62,12 @@ def can_view_ventas(user):
 
 
 @register.filter
+def is_solo_lectura_ventas(user):
+    """True si el usuario es consultor solo lectura (ventas y calendario únicamente)."""
+    return user and user.is_authenticated and perm.is_solo_lectura_ventas(user)
+
+
+@register.filter
 def can_view_cotizaciones(user):
     return user and user.is_authenticated and perm.can_view_cotizaciones(user)
 

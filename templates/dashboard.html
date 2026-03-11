@@ -19,6 +19,19 @@
 {% block content %}
 {# Token CSRF oculto para peticiones AJAX #}
 {% csrf_token %}
+{% load permisos_tags %}
+
+{# Consultor solo lectura: solo título y calendario de viajes #}
+{% if user|is_solo_lectura_ventas %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="fw-bold text-dark mb-0">Dashboard</h1>
+        <p class="text-secondary">Calendario de viajes (check-in y check-out).</p>
+    </div>
+</div>
+{% include 'dashboard/_calendario_viajes.html' %}
+{% else %}
+
 <div class="row mb-4">
     <div class="col-12">
         <h1 class="fw-bold text-dark mb-0">Dashboard de Gestión</h1>
@@ -2201,6 +2214,9 @@
 
 <!-- Variables de Django para JavaScript (ocultas) -->
 <div id="django-vars" data-user-rol="{{ user_rol|default:'INVITADO' }}" style="display: none;"></div>
+
+{% endif %}
+{# Fin del bloque consultor_solo_lectura vs resto del dashboard #}
 
 {% endblock %}
 
