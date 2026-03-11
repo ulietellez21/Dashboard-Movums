@@ -24,6 +24,7 @@
                     </a>
                 {% endif %}
                 
+                {% if not user|is_solo_lectura_ventas %}
                 <a href="{% url 'detalle_cliente' pk=venta.cliente.pk %}" class="btn btn-outline-primary shadow-sm">
                     {% if venta.cliente.tipo_cliente == 'EMPRESA' %}
                         <i class="fas fa-building"></i>
@@ -32,6 +33,7 @@
                     {% endif %}
                     Ver Cliente
                 </a>
+                {% endif %}
             </div>
         </div>
 
