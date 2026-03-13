@@ -2612,6 +2612,13 @@ class VentaViajeUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         aplica_descuento_anterior = venta_anterior.aplica_descuento_kilometros
         descuento_anterior = venta_anterior.descuento_kilometros_mxn or Decimal('0.00')
         
+        # INTEGRIDAD KILÓMETROS MOVUMS:
+        # El descuento de kilómetros Movums se vuelve inmutable después de crear la venta.
+        # - Si la venta se creó sin descuento, NO se puede agregar después.
+        # - Si la venta se creó con descuento, NO se puede quitar ni modificar.
+        form.instance.aplica_descuento_kilometros = venta_anterior.aplica_descuento_kilometros
+        form.instance.descuento_kilometros_mxn = venta_anterior.descuento_kilometros_mxn
+        
         # Obtener el costo de modificación del formulario
         costo_modificacion = form.cleaned_data.get('costo_modificacion', Decimal('0.00')) or Decimal('0.00')
         previo_modificacion = form.instance.costo_modificacion or Decimal('0.00')
@@ -9854,7 +9861,7 @@ class GenerarDocumentoConfirmacionView(LoginRequiredMixin, DetailView):
                         exc_info=True,
                     )
                 contenido = datos.get('contenido') or ''
-                contenido_html_resuelto = _resolver_imagenes_html_a_file_urls(contenido) if (contenido and '<img' in contenido) else None
+                contenido_html_resuelto = _resolver_imagenes_html_a_file_urls(contenido) if (contenido and '<' in contenido) else None
                 if solo_plantilla_generica:
                     html_primera = self._generar_html_generica_primera_pagina(datos, imagenes_urls=imagenes_urls, contenido_html_resuelto=contenido_html_resuelto)
                     html_resto = self._generar_html_generica_resto(datos, imagenes_urls=imagenes_urls, contenido_html_resuelto=contenido_html_resuelto)
@@ -14622,7 +14629,7 @@ class CotizacionPDFView(LoginRequiredMixin, DetailView):
                 )
             contexto['imagenes_generica_urls'] = imagenes_urls
             contenido = (propuestas.get('generica') or {}).get('contenido') or ''
-            if contenido and '<img' in contenido:
+            if contenido and '<' in contenido:
                 contexto['generica_contenido_html'] = _resolver_imagenes_html_a_file_urls(contenido)
             else:
                 contexto['generica_contenido_html'] = None

@@ -360,8 +360,18 @@
             <div class="col-md-12">
                 <div class="card border-light shadow-sm">
                     <div class="card-header bg-white fw-bold">Contenido de la Cotización</div>
-                    <div class="card-body small" style="white-space: pre-line;">
-                        {{ cotizacion.propuestas.generica.contenido|default:"Sin contenido específico." }}
+                    <div class="card-body small">
+                        {% with cont=cotizacion.propuestas.generica.contenido %}
+                            {% if cont %}
+                                {% if '<' in cont %}
+                                    {{ cont|safe }}
+                                {% else %}
+                                    {{ cont|linebreaks }}
+                                {% endif %}
+                            {% else %}
+                                Sin contenido específico.
+                            {% endif %}
+                        {% endwith %}
                     </div>
                 </div>
             </div>
