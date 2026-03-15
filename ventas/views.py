@@ -60,6 +60,7 @@ from .models import (
     ComisionVenta,
     ComisionMensual,
     SolicitudCancelacion,
+    LeadsAgencia,
 )
 from crm.models import Cliente
 from crm.services import KilometrosService
@@ -832,6 +833,65 @@ def pagos_pendientes_count(request):
         estado_confirmacion='EN_CONFIRMACION'
     ).count()
     return JsonResponse({'count': count})
+
+
+# ------------------- API LEADS CALIENTES (Gerente / Director Administrativo) -------------------
+
+def _leads_calientes_allowed(user, request):
+    """GERENTE, DIRECTOR_ADMINISTRATIVO o usuario admin pueden ver/actuar sobre leads calientes."""
+    if getattr(user, 'username', None) == 'admin':
+        return True
+    rol = perm.get_user_role(user, request)
+    return rol in ('GERENTE', 'DIRECTOR_ADMINISTRATIVO')
+
+
+@login_required
+def api_leads_calientes_list(request):
+    """
+    GET: Lista leads con estado_venta='caliente' y bot_activo=True.
+    Respuesta: { "count": N, "leads": [ { id_usuario, nombre_cliente, plataforma, resumen_viaje }, ... ] }
+    """
+    if not _leads_calientes_allowed(request.user, request):
+        return JsonResponse({'error': 'No autorizado'}, status=403)
+    try:
+        qs = LeadsAgencia.objects.filter(
+            estado_venta='caliente',
+            bot_activo=True
+        ).order_by('-updated_at')
+        leads = [
+            {
+                'id_usuario': l.id_usuario,
+                'nombre_cliente': l.nombre_cliente or '—',
+                'plataforma': (l.plataforma or '').lower(),
+                'resumen_viaje': l.resumen_viaje or '—',
+            }
+            for l in qs
+        ]
+        return JsonResponse({'count': len(leads), 'leads': leads})
+    except Exception as e:
+        logger.exception("api_leads_calientes_list: %s", e)
+        return JsonResponse({'error': 'Error al listar leads'}, status=500)
+
+
+@login_required
+def api_leads_calientes_tomar_control(request, id_usuario):
+    """
+    PATCH (o POST): Pone bot_activo=False para el lead. El lead deja de mostrarse en la campana.
+    """
+    if not _leads_calientes_allowed(request.user, request):
+        return JsonResponse({'error': 'No autorizado'}, status=403)
+    if request.method not in ('PATCH', 'POST'):
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    try:
+        lead = LeadsAgencia.objects.filter(id_usuario=id_usuario).first()
+        if not lead:
+            return JsonResponse({'error': 'Lead no encontrado'}, status=404)
+        lead.bot_activo = False
+        lead.save(update_fields=['bot_activo'])
+        return JsonResponse({'ok': True})
+    except Exception as e:
+        logger.exception("api_leads_calientes_tomar_control: %s", e)
+        return JsonResponse({'error': 'Error al tomar control'}, status=500)
 
 
 # ------------------- 2. LISTADO DE VENTAS - SOLUCIÓN AL ERROR DE ANOTACIÓN -------------------

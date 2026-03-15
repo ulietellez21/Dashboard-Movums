@@ -365,4 +365,15 @@ a:not(.btn), button:not(.btn), .card {
     animation: shake 0.5s ease-in-out;
 }
 
+/* ------------------- Leads calientes (campana navbar) ------------------- */
+.leads-calientes-dropdown .dropdown-header {
+    font-weight: 600;
+    color: var(--text-color);
+}
+#leads-calientes-icon.text-warning {
+    color: #ffc107 !important;
+}
+#leads-calientes-list .card {
+    font-size: 0.9rem;
+}
 

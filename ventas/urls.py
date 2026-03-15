@@ -82,6 +82,8 @@ from .views import (
     ListaAbonosProveedorView,
     pagos_pendientes_count,
     calendario_eventos_api,
+    api_leads_calientes_list,
+    api_leads_calientes_tomar_control,
 )
 
 # app_name = 'ventas' 
@@ -91,6 +93,8 @@ urlpatterns = [
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
     path('api/calendario-eventos/', calendario_eventos_api, name='calendario_eventos_api'),
     path('api/pagos-pendientes-count/', pagos_pendientes_count, name='pagos_pendientes_count'),
+    path('api/leads-calientes/', api_leads_calientes_list, name='api_leads_calientes_list'),
+    path('api/leads-calientes/<str:id_usuario>/tomar-control/', api_leads_calientes_tomar_control, name='api_leads_calientes_tomar_control'),
     
     # 2. Reportes y Logística
     path('logistica-pendiente/', LogisticaPendienteView.as_view(), name='logistica_pendiente'), 

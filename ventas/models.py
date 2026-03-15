@@ -2395,6 +2395,32 @@ class SolicitudCancelacion(models.Model):
         return f"Solicitud Cancelación Venta #{self.venta.pk} - {self.get_estado_display()}"
 
 
+# ------------------- LEADS AGENCIA (tabla externa n8n, unmanaged) -------------------
+
+class LeadsAgencia(models.Model):
+    """
+    Reflejo de la tabla leads_agencia (PostgreSQL) gestionada por n8n.
+    managed=False: Django no crea/migra esta tabla.
+    """
+    id_usuario = models.CharField(max_length=255, primary_key=True)
+    nombre_cliente = models.CharField(max_length=255, blank=True, null=True)
+    plataforma = models.CharField(max_length=20)
+    bot_activo = models.BooleanField(default=True)
+    resumen_viaje = models.TextField(blank=True, null=True)
+    estado_venta = models.CharField(max_length=20, default='nuevo')
+    created_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'leads_agencia'
+        verbose_name = 'Lead Agencia'
+        verbose_name_plural = 'Leads Agencia'
+
+    def __str__(self):
+        return f"{self.nombre_cliente or self.id_usuario} ({self.plataforma})"
+
+
 # ------------------- SIGNALS -------------------
 
 @receiver(post_save, sender=VentaViaje)
